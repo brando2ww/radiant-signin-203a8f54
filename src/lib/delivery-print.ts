@@ -39,6 +39,9 @@ export async function dispatchDeliveryPrintJobs(
   const jobs = Array.from(groups.values()).map((groupItems) => {
     const first = groupItems[0];
     const hasPrinter = !!first.printer_ip;
+    const shortNumber = first.ticket_number != null
+      ? String(first.ticket_number).padStart(3, "0")
+      : String(first.order_number ?? "").replace(/^#+/, "");
     return {
       tenant_user_id: first.tenant_user_id,
       source_kind: "delivery" as const,
@@ -49,11 +52,11 @@ export async function dispatchDeliveryPrintJobs(
       printer_port: first.printer_port || 9100,
       payload: {
         kind: "delivery",
-        // Cabeçalho: "DELIVERY" entra no lugar do número da mesa
         mesa_numero: "DELIVERY",
         comanda_nome: first.customer_name || "Cliente",
-        comanda_number: first.order_number,
-        order_number: first.order_number,
+        comanda_number: shortNumber,
+        ticket_number: first.ticket_number ?? null,
+        order_number: shortNumber,
         customer_name: first.customer_name,
         customer_phone: first.customer_phone,
         order_type: first.order_type,
