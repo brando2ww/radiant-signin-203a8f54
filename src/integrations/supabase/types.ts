@@ -1620,6 +1620,8 @@ export type Database = {
         Row: {
           cancellation_reason: string | null
           cancelled_at: string | null
+          cashier_confirmed_at: string | null
+          cashier_session_id: string | null
           change_for: number | null
           confirmed_at: string | null
           coupon_code: string | null
@@ -1649,6 +1651,8 @@ export type Database = {
         Insert: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          cashier_confirmed_at?: string | null
+          cashier_session_id?: string | null
           change_for?: number | null
           confirmed_at?: string | null
           coupon_code?: string | null
@@ -1678,6 +1682,8 @@ export type Database = {
         Update: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          cashier_confirmed_at?: string | null
+          cashier_session_id?: string | null
           change_for?: number | null
           confirmed_at?: string | null
           coupon_code?: string | null
@@ -1705,6 +1711,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "delivery_orders_cashier_session_id_fkey"
+            columns: ["cashier_session_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_cashier_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "delivery_orders_customer_id_fkey"
             columns: ["customer_id"]
@@ -2883,33 +2896,39 @@ export type Database = {
           amount: number
           cashier_session_id: string
           created_at: string
+          delivery_order_id: string | null
           description: string | null
           discount_authorized_by: string | null
           discount_reason: string | null
           id: string
           payment_method: string | null
+          source: string
           type: string
         }
         Insert: {
           amount: number
           cashier_session_id: string
           created_at?: string
+          delivery_order_id?: string | null
           description?: string | null
           discount_authorized_by?: string | null
           discount_reason?: string | null
           id?: string
           payment_method?: string | null
+          source?: string
           type: string
         }
         Update: {
           amount?: number
           cashier_session_id?: string
           created_at?: string
+          delivery_order_id?: string | null
           description?: string | null
           discount_authorized_by?: string | null
           discount_reason?: string | null
           id?: string
           payment_method?: string | null
+          source?: string
           type?: string
         }
         Relationships: [
@@ -2918,6 +2937,13 @@ export type Database = {
             columns: ["cashier_session_id"]
             isOneToOne: false
             referencedRelation: "pdv_cashier_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_cashier_movements_delivery_order_id_fkey"
+            columns: ["delivery_order_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_orders"
             referencedColumns: ["id"]
           },
         ]
