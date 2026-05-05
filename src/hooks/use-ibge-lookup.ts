@@ -80,14 +80,20 @@ export interface ViaCEPStreetResult {
 export async function searchStreetByName(
   uf: string,
   city: string,
-  street: string
+  street: string,
+  signal?: AbortSignal,
 ): Promise<ViaCEPStreetResult[]> {
   if (!uf || !city || !street || street.length < 3) return [];
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 4000);
+  const onParentAbort = () => ctl.abort();
+  signal?.addEventListener("abort", onParentAbort);
   try {
     const encodedCity = encodeURIComponent(city);
     const encodedStreet = encodeURIComponent(street);
     const res = await fetch(
-      `https://viacep.com.br/ws/${uf}/${encodedCity}/${encodedStreet}/json/`
+      `https://viacep.com.br/ws/${uf}/${encodedCity}/${encodedStreet}/json/`,
+      { signal: ctl.signal },
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -95,6 +101,9 @@ export async function searchStreetByName(
     return data as ViaCEPStreetResult[];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onParentAbort);
   }
 }
 
@@ -182,35 +191,63 @@ async function fetchIBGESubdistricts(municipioId: number): Promise<string[]> {
 }
 
 
-const memCache = new Map<string, string[]>();
-const cacheKey = (uf: string, city: string, deep: boolean) =>
-  `neigh:${uf}:${normalizeKey(city)}:${deep ? "deep" : "fast"}`;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const memCache = new Map<string, { list: string[]; ts: number }>();
+const cacheKeyV2 = (uf: string, city: string) =>
+  `neigh-v2:${uf}:${normalizeKey(city)}`;
 
-function readCache(key: string): string[] | null {
-  if (memCache.has(key)) return memCache.get(key)!;
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as string[];
-    memCache.set(key, parsed);
-    return parsed;
-  } catch { return null; }
+export interface CachedNeighborhoods {
+  list: string[];
+  ts: number;
 }
 
-function writeCache(key: string, list: string[]) {
-  memCache.set(key, list);
-  try { sessionStorage.setItem(key, JSON.stringify(list)); } catch { /* quota */ }
+export function readNeighborhoodsCache(
+  uf: string,
+  city: string,
+): CachedNeighborhoods | null {
+  const key = cacheKeyV2(uf, city);
+  const fresh = (e: { list: string[]; ts: number }) =>
+    Date.now() - e.ts < CACHE_TTL_MS;
+  const mem = memCache.get(key);
+  if (mem && fresh(mem)) return { list: mem.list, ts: mem.ts };
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { list: string[]; ts: number };
+    if (!parsed?.list || !fresh(parsed)) return null;
+    memCache.set(key, parsed);
+    return { list: parsed.list, ts: parsed.ts };
+  } catch {
+    return null;
+  }
+}
+
+function writeCacheV2(uf: string, city: string, list: string[]) {
+  const entry = { list, ts: Date.now() };
+  const key = cacheKeyV2(uf, city);
+  memCache.set(key, entry);
+  try {
+    localStorage.setItem(key, JSON.stringify(entry));
+  } catch {
+    /* quota */
+  }
+}
+
+export function clearNeighborhoodsCache(uf: string, city: string) {
+  const key = cacheKeyV2(uf, city);
+  memCache.delete(key);
+  try { localStorage.removeItem(key); } catch { /* noop */ }
 }
 
 export interface FetchNeighborhoodsOptions {
-  deep?: boolean;
   onProgress?: (currentList: string[]) => void;
   seed?: string[];
+  signal?: AbortSignal;
 }
 
 /**
- * Busca de bairros híbrida: IBGE (oficial) + ViaCEP (termos expandidos, A–Z em deep).
- * Dedup por chave normalizada (sem acento, lower); preserva grafia original.
+ * Busca híbrida IBGE + ViaCEP A–Z.
+ * Cache em localStorage por 24h.
  */
 export async function fetchAllNeighborhoods(
   uf: string,
@@ -218,11 +255,7 @@ export async function fetchAllNeighborhoods(
   options: FetchNeighborhoodsOptions = {},
 ): Promise<string[]> {
   if (!uf || !city) return [];
-  const { deep = false, onProgress, seed } = options;
-
-  const key = cacheKey(uf, city, deep);
-  const cached = readCache(key);
-  if (cached) { onProgress?.(cached); return cached; }
+  const { onProgress, seed, signal } = options;
 
   const map = new Map<string, string>();
   const add = (raw?: string) => {
@@ -238,6 +271,7 @@ export async function fetchAllNeighborhoods(
 
   // 1) IBGE — distritos + subdistritos oficiais
   const municipioId = await fetchMunicipioId(uf, city);
+  if (signal?.aborted) return snapshot();
   if (municipioId) {
     const [distritos, subdistritos] = await Promise.all([
       fetchIBGEDistricts(municipioId),
@@ -248,53 +282,34 @@ export async function fetchAllNeighborhoods(
     onProgress?.(snapshot());
   }
 
-  // 2) ViaCEP — termos estruturais básicos (rápido)
-  await runInChunks(
-    SEARCH_TERMS_BASIC,
-    6,
-    (term) => withRetry(() => searchStreetByName(uf, city, term), []),
-    (chunkResults) => {
-      chunkResults.flat().forEach((r) => add(r.bairro));
-      onProgress?.(snapshot());
-    },
-  );
-
-  // 3) ViaCEP — nomes comuns de bairros (resgata bairros em cidades pequenas)
-  await runInChunks(
-    COMMON_NEIGHBORHOOD_NAMES,
-    6,
-    (name) => withRetry(() => searchStreetByName(uf, city, name), []),
-    (chunkResults) => {
-      chunkResults.flat().forEach((r) => add(r.bairro));
-      onProgress?.(snapshot());
-    },
-  );
-
-  // 4) Varredura A–Z — explícita (deep) ou automática para cidades pequenas
-  const shouldRunDeep = deep || map.size < 15;
-  if (shouldRunDeep) {
-    const queries: string[] = [];
-    for (const term of SEARCH_TERMS_BASIC) {
-      for (const letter of ALPHABET) queries.push(`${term} ${letter}`);
-    }
+  const runViaCEP = async (queries: string[]) => {
+    if (signal?.aborted) return;
     await runInChunks(
       queries,
-      6,
-      (q) => withRetry(() => searchStreetByName(uf, city, q), []),
+      10,
+      (q) => withRetry(() => searchStreetByName(uf, city, q, signal), []),
       (chunkResults) => {
         chunkResults.flat().forEach((r) => add(r.bairro));
         onProgress?.(snapshot());
       },
     );
+  };
+
+  // 2) Termos básicos
+  await runViaCEP(SEARCH_TERMS_BASIC);
+  if (signal?.aborted) return snapshot();
+  // 3) Nomes comuns de bairros
+  await runViaCEP(COMMON_NEIGHBORHOOD_NAMES);
+  if (signal?.aborted) return snapshot();
+  // 4) Varredura A–Z
+  const azQueries: string[] = [];
+  for (const term of SEARCH_TERMS_BASIC) {
+    for (const letter of ALPHABET) azQueries.push(`${term} ${letter}`);
   }
+  await runViaCEP(azQueries);
 
   const final = snapshot();
-  // Se rodou deep (forçado ou automático), grava também sob a chave deep
-  // para evitar refazer a varredura ao reabrir o seletor.
-  writeCache(key, final);
-  if (shouldRunDeep && !deep) {
-    writeCache(cacheKey(uf, city, true), final);
-  }
+  if (!signal?.aborted) writeCacheV2(uf, city, final);
   return final;
 }
 
