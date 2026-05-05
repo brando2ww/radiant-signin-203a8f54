@@ -1,9 +1,10 @@
 /**
  * Varredura de uma faixa de CEPs via ViaCEP para descobrir bairros e ruas.
- * Dado um prefixo de 5 dígitos, consulta {prefixo}000 a {prefixo}999.
+ * Suporta varrer múltiplos prefixos de 5 dígitos (ex.: 95720 até 95725).
  */
 
 const CACHE_PREFIX = "cep-sweep:";
+const MANUAL_PREFIX = "manual-neighborhoods:";
 const CHUNK_SIZE = 8;
 
 export interface SweepEntry {
@@ -29,13 +30,11 @@ interface SweepResult {
 }
 
 export interface CepPrefixDetection {
-  prefix: string; // 5 dígitos
+  start: string; // 5 dígitos
+  end: string; // 5 dígitos
   source: "centro" | "first-cep";
 }
 
-/**
- * Detecta o prefixo de CEP (5 primeiros dígitos) de uma cidade.
- */
 export async function detectCityCepPrefix(
   uf: string,
   city: string,
@@ -52,7 +51,8 @@ export async function detectCityCepPrefix(
       if (Array.isArray(data) && data.length > 0) {
         const cep = String(data[0].cep || "").replace(/\D/g, "");
         if (cep.length === 8) {
-          return { prefix: cep.slice(0, 5), source: "centro" };
+          const prefix = cep.slice(0, 5);
+          return { start: prefix, end: prefix, source: "centro" };
         }
       }
     } catch {
@@ -66,9 +66,6 @@ function cacheKey(prefix: string) {
   return `${CACHE_PREFIX}${prefix}`;
 }
 
-/**
- * Cache pode estar em formato antigo (string[]) ou novo ({entries, neighborhoods}).
- */
 export function getCachedSweep(
   prefix: string,
 ): { neighborhoods: string[]; entries: SweepEntry[] } | null {
@@ -77,7 +74,6 @@ export function getCachedSweep(
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      // formato antigo: apenas bairros
       return { neighborhoods: parsed, entries: [] };
     }
     if (parsed && Array.isArray(parsed.neighborhoods)) {
@@ -107,22 +103,80 @@ function setCachedSweep(
   }
 }
 
+/* ------------ Bairros manuais (fallback p/ cidades de CEP geral) ----------- */
+
+function manualKey(uf: string, city: string) {
+  return `${MANUAL_PREFIX}${uf.toUpperCase()}-${city.toLowerCase().trim()}`;
+}
+
+export function getManualNeighborhoods(uf: string, city: string): string[] {
+  try {
+    const raw = localStorage.getItem(manualKey(uf, city));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setManualNeighborhoods(
+  uf: string,
+  city: string,
+  list: string[],
+) {
+  try {
+    const dedup = Array.from(
+      new Set(list.map((s) => s.trim()).filter(Boolean)),
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    localStorage.setItem(manualKey(uf, city), JSON.stringify(dedup));
+  } catch {
+    /* noop */
+  }
+}
+
+/* ----------------------------- Varredura ----------------------------------- */
+
+function normalizePrefix(p: string): string {
+  return p.replace(/\D/g, "").slice(0, 5).padEnd(5, "0");
+}
+
+/**
+ * Varre uma faixa contínua de prefixos de 5 dígitos.
+ * sweepCepRange("95720") => varre só 95720000–95720999
+ * sweepCepRange("95720", "95725") => varre 95720000–95725999
+ */
 export async function sweepCepRange(
-  prefix5: string,
-  options: SweepOptions = {},
+  prefixStart: string,
+  prefixEndOrOptions?: string | SweepOptions,
+  maybeOptions?: SweepOptions,
 ): Promise<SweepResult> {
-  const prefix = prefix5.replace(/\D/g, "").slice(0, 5).padEnd(5, "0");
-  const total = 1000;
+  const start = normalizePrefix(prefixStart);
+  const end =
+    typeof prefixEndOrOptions === "string"
+      ? normalizePrefix(prefixEndOrOptions)
+      : start;
+  const options: SweepOptions =
+    (typeof prefixEndOrOptions === "object" ? prefixEndOrOptions : maybeOptions) ||
+    {};
+
+  const startN = parseInt(start, 10);
+  const endN = parseInt(end, 10);
+  if (endN < startN) {
+    return { neighborhoods: [], entries: [], cancelled: false };
+  }
+
+  const prefixes: string[] = [];
+  for (let p = startN; p <= endN; p++) {
+    prefixes.push(String(p).padStart(5, "0"));
+  }
+
+  const total = prefixes.length * 1000;
   const foundNeighborhoods = new Set<string>();
   const entries: SweepEntry[] = [];
   const seenCeps = new Set<string>();
   let done = 0;
   let cancelled = false;
-
-  const ceps: string[] = [];
-  for (let i = 0; i < total; i++) {
-    ceps.push(`${prefix}${String(i).padStart(3, "0")}`);
-  }
 
   const fetchOne = async (cep: string) => {
     if (options.signal?.aborted) return;
@@ -147,30 +201,103 @@ export async function sweepCepRange(
     }
   };
 
-  for (let i = 0; i < ceps.length; i += CHUNK_SIZE) {
-    if (options.signal?.aborted) {
-      cancelled = true;
-      break;
+  outer: for (const prefix of prefixes) {
+    // Reaproveita cache de prefixos já varridos
+    const cached = getCachedSweep(prefix);
+    if (cached) {
+      cached.neighborhoods.forEach((n) => foundNeighborhoods.add(n));
+      cached.entries.forEach((e) => {
+        if (!seenCeps.has(e.cep)) {
+          seenCeps.add(e.cep);
+          entries.push(e);
+        }
+      });
+      done += 1000;
+      const sortedNow = Array.from(foundNeighborhoods).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      );
+      options.onProgress?.({
+        done,
+        total,
+        neighborhoods: sortedNow,
+        entries: entries.slice(),
+      });
+      continue;
     }
-    const chunk = ceps.slice(i, i + CHUNK_SIZE);
-    await Promise.all(chunk.map(fetchOne));
-    done += chunk.length;
-    const sortedNeighborhoods = Array.from(foundNeighborhoods).sort((a, b) =>
-      a.localeCompare(b, "pt-BR"),
-    );
-    options.onProgress?.({
-      done,
-      total,
-      neighborhoods: sortedNeighborhoods,
-      entries: entries.slice(),
-    });
+
+    const ceps: string[] = [];
+    for (let i = 0; i < 1000; i++) {
+      ceps.push(`${prefix}${String(i).padStart(3, "0")}`);
+    }
+
+    const prefixNeighborhoods = new Set<string>();
+    const prefixEntries: SweepEntry[] = [];
+    const prefixSeen = new Set<string>();
+
+    const fetchOneForPrefix = async (cep: string) => {
+      if (options.signal?.aborted) return;
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`, {
+          signal: options.signal,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && !data.erro) {
+          const neighborhood = String(data.bairro || "").trim();
+          const street = String(data.logradouro || "").trim();
+          const formattedCep = String(data.cep || cep);
+          if (neighborhood) {
+            foundNeighborhoods.add(neighborhood);
+            prefixNeighborhoods.add(neighborhood);
+          }
+          if (!seenCeps.has(formattedCep) && (neighborhood || street)) {
+            seenCeps.add(formattedCep);
+            entries.push({ cep: formattedCep, street, neighborhood });
+          }
+          if (!prefixSeen.has(formattedCep) && (neighborhood || street)) {
+            prefixSeen.add(formattedCep);
+            prefixEntries.push({ cep: formattedCep, street, neighborhood });
+          }
+        }
+      } catch {
+        /* noop */
+      }
+    };
+
+    for (let i = 0; i < ceps.length; i += CHUNK_SIZE) {
+      if (options.signal?.aborted) {
+        cancelled = true;
+        break outer;
+      }
+      const chunk = ceps.slice(i, i + CHUNK_SIZE);
+      await Promise.all(chunk.map(fetchOneForPrefix));
+      done += chunk.length;
+      const sorted = Array.from(foundNeighborhoods).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      );
+      options.onProgress?.({
+        done,
+        total,
+        neighborhoods: sorted,
+        entries: entries.slice(),
+      });
+    }
+
+    // Cache deste prefixo individualmente
+    if (!options.signal?.aborted) {
+      const sortedPrefixN = Array.from(prefixNeighborhoods).sort((a, b) =>
+        a.localeCompare(b, "pt-BR"),
+      );
+      setCachedSweep(prefix, sortedPrefixN, prefixEntries);
+    }
   }
 
   const neighborhoods = Array.from(foundNeighborhoods).sort((a, b) =>
     a.localeCompare(b, "pt-BR"),
   );
 
-  if (!cancelled) setCachedSweep(prefix, neighborhoods, entries);
+  // suprime variável não usada
+  void fetchOne;
 
   return { neighborhoods, entries, cancelled };
 }
