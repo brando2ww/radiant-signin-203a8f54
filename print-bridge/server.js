@@ -106,8 +106,8 @@ function buildReceipt({ mesa, comanda, subheader, body, centerName }) {
   text("================================");
   line();
 
-  // MESA — destaque máximo (largura+altura ~3x)
-  push(GS, 0x21, 0x77);
+  // MESA — destaque (largura+altura 4x)
+  push(GS, 0x21, 0x33);
   text(String(mesa || "AVULSA").toUpperCase());
   line();
 
