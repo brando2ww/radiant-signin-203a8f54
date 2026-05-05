@@ -149,7 +149,6 @@ export default function PDVCashier() {
   // Calcular valores
   const openingBalance = activeSession?.opening_balance || 0;
   const totalCash = activeSession?.total_cash || 0;
-  const totalChange = (activeSession as any)?.total_change || 0;
   const rawTotalCredit = (activeSession as any)?.total_credit || 0;
   const totalDebit = (activeSession as any)?.total_debit || 0;
   // Fallback de exibição: vendas legadas registradas como "cartao" (sem distinção
@@ -166,14 +165,10 @@ export default function PDVCashier() {
   const totalWithdrawals = activeSession?.total_withdrawals || 0;
   const totalSales = activeSession?.total_sales || 0;
 
-  // Calcular reforços a partir dos movimentos
-  const totalReinforcements = movements
-    .filter((m) => m.type === "reforco")
-    .reduce((acc, m) => acc + m.amount, 0);
-
-  // Saldo da gaveta = abertura + dinheiro líquido (− troco) + reforços − sangrias
-  const netCash = totalCash - totalChange;
-  const drawerBalance = openingBalance + netCash + totalReinforcements - totalWithdrawals;
+  // Dinheiro de vendas = valor das vendas pagas em dinheiro (já líquido do troco).
+  // total_cash é incrementado pelo valor da venda em buildSessionDeltas.
+  const netCash = totalCash;
+  // drawerBalance e totalReinforcements vêm do hook (fonte única de verdade).
 
   // Atalhos de teclado para ações rápidas
   useEffect(() => {
