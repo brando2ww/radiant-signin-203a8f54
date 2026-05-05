@@ -630,9 +630,25 @@ export function PaymentDialog({
   });
 
   const handlePrintNonFiscal = () => {
+    const mesaRaw = isTablePayment
+      ? String(table?.table_number ?? "")
+      : "";
+    const mesaLabel = mesaRaw
+      ? (/^mesa\b/i.test(mesaRaw) ? mesaRaw : `MESA ${mesaRaw}`)
+      : "BALCÃO";
+    const comandaLabel = isTablePayment
+      ? (selectedTableComandas.length > 1
+          ? `${selectedTableComandas.length} comandas`
+          : (selectedTableComandas[0]?.customer_name
+              || (selectedTableComandas[0]?.comanda_number
+                  ? `Comanda #${selectedTableComandas[0].comanda_number}`
+                  : "")))
+      : (comanda?.customer_name
+          || (comanda?.comanda_number ? `Comanda #${comanda.comanda_number}` : ""));
+
     printNonFiscalReceipt({
       business: buildBusinessInfo(),
-      identifier: title,
+      header: { mesa: mesaLabel, comanda: comandaLabel },
       items: displayItems.map((i) => ({
         product_name: i.product_name,
         quantity: i.quantity,
