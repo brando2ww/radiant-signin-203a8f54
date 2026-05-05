@@ -247,8 +247,7 @@ export const useReprintOrder = () => {
     },
   });
 };
-
-
+export const useOrderStats = () => {
   return useQuery({
     queryKey: ["delivery-order-stats"],
     queryFn: async () => {
