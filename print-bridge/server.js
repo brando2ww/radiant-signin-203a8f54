@@ -534,7 +534,9 @@ function startHttpServer() {
             return res.end(JSON.stringify({ ok: false, error: "IP obrigatório" }));
           }
           const payload = buildReceipt({
-            header: ["Centro: " + centerName, "*** TESTE DE IMPRESSÃO ***", formatDateTime()],
+            mesa: "TESTE",
+            comanda: "Print Bridge",
+            subheader: ["Centro: " + centerName, "*** TESTE DE IMPRESSÃO ***", formatDateTime()],
             body: [{ product_name: "Print Bridge OK", quantity: 1 }],
             centerName,
           });
