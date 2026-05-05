@@ -41,6 +41,11 @@ export const DeliverySettings = () => {
   const [selectedCityCode, setSelectedCityCode] = useState<number | undefined>();
   const [coveredCity, setCoveredCity] = useState<CoveredCity | null>(null);
   const [excludedCeps, setExcludedCeps] = useState<ExcludedCEP[]>([]);
+  const [cepRanges, setCepRanges] = useState<CepRange[]>([]);
+  const [newRangeStart, setNewRangeStart] = useState("");
+  const [newRangeEnd, setNewRangeEnd] = useState("");
+  const [newRangeFee, setNewRangeFee] = useState("");
+  const [newRangeLabel, setNewRangeLabel] = useState("");
   const [neighborhoodModalOpen, setNeighborhoodModalOpen] = useState(false);
 
   const { cities, isLoading: isLoadingCities } = useIBGECities(selectedUF);
@@ -53,6 +58,7 @@ export const DeliverySettings = () => {
       setZones(settings.delivery_zones || []);
       setCoveredCity(settings.covered_city || null);
       setExcludedCeps((settings.excluded_ceps as ExcludedCEP[]) || []);
+      setCepRanges((settings.cep_ranges as CepRange[]) || []);
       if (settings.covered_city) {
         setSelectedUF(settings.covered_city.uf);
         setSelectedCity(settings.covered_city.city);
