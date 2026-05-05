@@ -1780,6 +1780,17 @@ export function PaymentDialog({
                           </span>
                         </motion.div>
                       )}
+
+                      {simpleChangeExceedsDrawer && (
+                        <div className="flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
+                          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                          <div>
+                            <strong>Troco insuficiente</strong> — necessário {formatCurrency(changeAmount)},
+                            gaveta tem {formatCurrency(drawerBalance)}. Faltam {formatCurrency(changeAmount - drawerBalance)}.
+                            Solicite ao cliente o valor exato ou outra forma de pagamento.
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
