@@ -46,6 +46,7 @@ export function usePDVTables() {
         .select("*")
         .eq("user_id", visibleUserId)
         .eq("is_active", true)
+        .eq("is_virtual", false)
         .order("position_x", { ascending: true, nullsFirst: false })
         .order("table_number");
 
