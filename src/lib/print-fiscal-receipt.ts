@@ -2,7 +2,10 @@
 
 interface NonFiscalReceiptParams {
   business: { name?: string; cnpj?: string; address?: string; phone?: string };
-  identifier: string; // ex: "Comanda #123" ou "Mesa 5"
+  /** Cabeçalho hierárquico (preferido). */
+  header?: { mesa: string; comanda: string };
+  /** @deprecated mantido por compatibilidade — usar header */
+  identifier?: string;
   items: Array<{ product_name: string; quantity: number; unit_price: number; subtotal: number }>;
   subtotal: number;
   desconto?: number;
