@@ -90,26 +90,43 @@ function stripAccents(s) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function buildReceipt({ header, body, centerName }) {
+function buildReceipt({ mesa, comanda, subheader, body, centerName }) {
   const chunks = [];
   const push = (...bytes) => chunks.push(Buffer.from(bytes));
   const text = (s) => chunks.push(Buffer.from(stripAccents(s), "utf8"));
   const line = () => push(LF);
 
   push(ESC, 0x40);
+  // Estabelecimento
   push(ESC, 0x61, 0x01);
   push(GS, 0x21, 0x11);
   text(ESTABLISHMENT_NAME);
   line();
-  push(ESC, 0x61, 0x00);
   push(GS, 0x21, 0x00);
   text("================================");
   line();
-  header.forEach((l) => {
+
+  // MESA — destaque máximo (largura+altura ~3x)
+  push(GS, 0x21, 0x77);
+  text(String(mesa || "AVULSA").toUpperCase());
+  line();
+
+  // Comanda — destaque médio (2x)
+  if (comanda) {
+    push(GS, 0x21, 0x11);
+    text(String(comanda));
+    line();
+  }
+  push(GS, 0x21, 0x00);
+  push(ESC, 0x61, 0x00);
+
+  text("================================");
+  line();
+  (subheader || []).forEach((l) => {
     text(l);
     line();
   });
-  text("================================");
+  text("--------------------------------");
   line();
   body.forEach((item, idx) => {
     if (idx > 0) {
