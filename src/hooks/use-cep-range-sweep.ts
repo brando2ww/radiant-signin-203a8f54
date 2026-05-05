@@ -5,7 +5,9 @@
 
 const CACHE_PREFIX = "cep-sweep:";
 const MANUAL_PREFIX = "manual-neighborhoods:";
-const CHUNK_SIZE = 8;
+const CHUNK_SIZE = 60;
+const REQUEST_TIMEOUT_MS = 4000;
+const EARLY_EXIT_AFTER = 200; // CEPs sem entries novos antes de pular o prefixo
 
 export interface SweepEntry {
   cep: string;
