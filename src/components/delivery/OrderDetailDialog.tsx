@@ -11,6 +11,7 @@ import {
   DeliveryOrder,
   useUpdateOrderStatus,
   useCancelOrder,
+  useReprintOrder,
 } from "@/hooks/use-delivery-orders";
 import {
   Phone,
@@ -22,6 +23,7 @@ import {
   XCircle,
   CheckCircle,
   ChevronRight,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -71,6 +73,9 @@ export const OrderDetailDialog = ({
   const [cancelReason, setCancelReason] = useState("");
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
+  const reprintOrder = useReprintOrder();
+
+  const canReprint = !["pending", "cancelled"].includes(order.status);
 
   const handleNextStatus = () => {
     const nextStatus = statusFlow[order.status as keyof typeof statusFlow];
@@ -313,17 +318,29 @@ export const OrderDetailDialog = ({
             </div>
 
             {/* Actions */}
-            {canAdvanceStatus && (
-              <div className="flex gap-2 pt-4">
-                <Button
-                  className="flex-1"
-                  onClick={handleNextStatus}
-                  disabled={updateStatus.isPending}
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  {statusLabels[order.status as keyof typeof statusLabels]}
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </Button>
+            {(canAdvanceStatus || canReprint) && (
+              <div className="flex flex-wrap gap-2 pt-4">
+                {canAdvanceStatus && (
+                  <Button
+                    className="flex-1"
+                    onClick={handleNextStatus}
+                    disabled={updateStatus.isPending}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    {statusLabels[order.status as keyof typeof statusLabels]}
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
+                {canReprint && (
+                  <Button
+                    variant="outline"
+                    onClick={() => reprintOrder.mutate({ orderId: order.id })}
+                    disabled={reprintOrder.isPending}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Reimprimir
+                  </Button>
+                )}
                 {canCancel && (
                   <Button
                     variant="destructive"

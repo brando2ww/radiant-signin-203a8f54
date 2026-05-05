@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { dispatchDeliveryPrintJobs } from "@/lib/delivery-print";
 
 export interface DeliveryOrder {
   id: string;
@@ -43,6 +44,7 @@ export interface DeliveryOrderItem {
   unit_price: number;
   subtotal: number;
   notes: string | null;
+  production_center_id?: string | null;
   delivery_order_item_options?: DeliveryOrderItemOption[];
 }
 
@@ -163,6 +165,16 @@ export const useUpdateOrderStatus = () => {
           { p_order_id: id },
         );
         if (consumeErr) console.error("Erro ao baixar estoque (delivery):", consumeErr);
+
+        // Dispara prints por centro de produção (mesma fila do salão)
+        try {
+          const result = await dispatchDeliveryPrintJobs(id);
+          if (result.jobs > 0) {
+            toast.success(`${result.jobs} impressão(ões) enviada(s) à cozinha`);
+          }
+        } catch (e) {
+          console.error("Erro ao enfileirar prints do delivery:", e);
+        }
       }
 
       return data;
@@ -212,6 +224,29 @@ export const useCancelOrder = () => {
   });
 };
 
+export const useReprintOrder = () => {
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      centerId,
+    }: {
+      orderId: string;
+      centerId?: string | null;
+    }) => {
+      return await dispatchDeliveryPrintJobs(orderId, centerId);
+    },
+    onSuccess: (result) => {
+      if (result.jobs > 0) {
+        toast.success(`${result.jobs} reimpressão(ões) enviada(s)`);
+      } else {
+        toast.warning("Nenhum item para reimprimir");
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao reimprimir: " + error.message);
+    },
+  });
+};
 export const useOrderStats = () => {
   return useQuery({
     queryKey: ["delivery-order-stats"],

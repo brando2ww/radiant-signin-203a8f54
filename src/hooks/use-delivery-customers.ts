@@ -220,6 +220,84 @@ export const useCreateOrder = () => {
 
       if (itemsError) throw itemsError;
 
+      // Resolve production_center_id de cada item (delivery_product → pdv_product → printer_station → centro)
+      try {
+        const productIds = Array.from(
+          new Set(orderData.items.map((i) => i.productId).filter(Boolean)),
+        );
+        if (productIds.length > 0) {
+          const { data: dpRows } = await supabase
+            .from("delivery_products")
+            .select("id, source_pdv_product_id")
+            .in("id", productIds);
+
+          const sourceIds = Array.from(
+            new Set(
+              (dpRows ?? [])
+                .map((r: any) => r.source_pdv_product_id)
+                .filter(Boolean),
+            ),
+          );
+
+          const stationByPdvId = new Map<string, string | null>();
+          if (sourceIds.length > 0) {
+            const { data: pdvRows } = await supabase
+              .from("pdv_products")
+              .select("id, printer_station")
+              .in("id", sourceIds);
+            (pdvRows ?? []).forEach((r: any) =>
+              stationByPdvId.set(r.id, r.printer_station ?? null),
+            );
+          }
+
+          const stations = Array.from(
+            new Set(
+              Array.from(stationByPdvId.values()).filter(
+                (s): s is string => !!s,
+              ),
+            ),
+          );
+
+          const centerBySlug = new Map<string, string>();
+          if (stations.length > 0) {
+            const { data: centers } = await supabase
+              .from("pdv_production_centers")
+              .select("id, slug")
+              .eq("user_id", orderData.userId)
+              .eq("is_active", true)
+              .in("slug", stations);
+            (centers ?? []).forEach((c: any) =>
+              centerBySlug.set(c.slug, c.id),
+            );
+          }
+
+          const sourceByDeliveryId = new Map<string, string | null>();
+          (dpRows ?? []).forEach((r: any) =>
+            sourceByDeliveryId.set(r.id, r.source_pdv_product_id ?? null),
+          );
+
+          // Update por item criado
+          await Promise.all(
+            (orderItems ?? []).map(async (oi: any, idx: number) => {
+              const productId = orderData.items[idx]?.productId;
+              const pdvId = productId
+                ? sourceByDeliveryId.get(productId)
+                : null;
+              const slug = pdvId ? stationByPdvId.get(pdvId) : null;
+              const centerId = slug ? centerBySlug.get(slug) ?? null : null;
+              if (centerId) {
+                await supabase
+                  .from("delivery_order_items")
+                  .update({ production_center_id: centerId } as any)
+                  .eq("id", oi.id);
+              }
+            }),
+          );
+        }
+      } catch (e) {
+        console.error("Falha ao resolver centro de produção do delivery:", e);
+      }
+
       // Create order item options
       const optionsToInsert: any[] = [];
       orderData.items.forEach((item, index) => {

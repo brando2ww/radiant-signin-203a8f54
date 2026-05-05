@@ -1556,6 +1556,13 @@ export type Database = {
             referencedRelation: "delivery_order_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "delivery_order_item_options_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_delivery_items"
+            referencedColumns: ["id"]
+          },
         ]
       }
       delivery_order_items: {
@@ -6951,6 +6958,41 @@ export type Database = {
             columns: ["table_id"]
             isOneToOne: false
             referencedRelation: "pdv_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vw_print_bridge_delivery_items: {
+        Row: {
+          center_name: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          delivery_address_text: string | null
+          id: string | null
+          notes: string | null
+          order_id: string | null
+          order_number: string | null
+          order_type: string | null
+          printer_ip: string | null
+          printer_port: number | null
+          product_name: string | null
+          production_center_id: string | null
+          quantity: number | null
+          tenant_user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_order_items_production_center_id_fkey"
+            columns: ["production_center_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_production_centers"
             referencedColumns: ["id"]
           },
         ]
