@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Loader2, MapPin, Settings2 } from "lucide-react";
+import { Plus, Trash2, Loader2, MapPin, Settings2, Route } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   useDeliverySettings,
@@ -12,13 +12,17 @@ import {
   DeliveryZone,
   CoveredCity,
   ExcludedCEP as ExcludedCEPType,
+  CepRange,
 } from "@/hooks/use-delivery-settings";
 import { useIBGEStates, useIBGECities } from "@/hooks/use-ibge-lookup";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { CEPInput } from "@/components/ui/cep-input";
 import { ExcludedZones, ExcludedCEP } from "./ExcludedZones";
 import { NeighborhoodCombobox } from "./NeighborhoodCombobox";
 import { NeighborhoodSelectorModal } from "./NeighborhoodSelectorModal";
 import { formatBRL } from "@/lib/format";
+import { normalizeCEP } from "@/lib/delivery-coverage";
+import { toast } from "sonner";
 
 export const DeliverySettings = () => {
   const { data: settings } = useDeliverySettings();
