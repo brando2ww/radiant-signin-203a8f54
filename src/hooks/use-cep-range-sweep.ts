@@ -202,29 +202,7 @@ export async function sweepCepRange(
   };
 
   outer: for (const prefix of prefixes) {
-    // Reaproveita cache de prefixos já varridos
-    const cached = getCachedSweep(prefix);
-    if (cached) {
-      cached.neighborhoods.forEach((n) => foundNeighborhoods.add(n));
-      cached.entries.forEach((e) => {
-        if (!seenCeps.has(e.cep)) {
-          seenCeps.add(e.cep);
-          entries.push(e);
-        }
-      });
-      done += 1000;
-      const sortedNow = Array.from(foundNeighborhoods).sort((a, b) =>
-        a.localeCompare(b, "pt-BR"),
-      );
-      options.onProgress?.({
-        done,
-        total,
-        neighborhoods: sortedNow,
-        entries: entries.slice(),
-      });
-      continue;
-    }
-
+    // Sempre varre do zero — sem reaproveitar cache
     const ceps: string[] = [];
     for (let i = 0; i < 1000; i++) {
       ceps.push(`${prefix}${String(i).padStart(3, "0")}`);
