@@ -9,6 +9,8 @@ import { Loader2, Plus, Search, Trash2, X, Ban } from "lucide-react";
 import { useState } from "react";
 import { useCEPLookup } from "@/hooks/use-cep-lookup";
 import { searchStreetByName, ViaCEPStreetResult } from "@/hooks/use-ibge-lookup";
+import { CepRangeSweepPanel } from "./CepRangeSweepPanel";
+import type { SweepEntry } from "@/hooks/use-cep-range-sweep";
 
 export interface ExcludedCEP {
   cep: string;
@@ -118,6 +120,20 @@ export const ExcludedZones = ({
     onUpdate(excludedCeps.filter((_, i) => i !== index));
   };
 
+  const handleAddSweepEntries = (entries: SweepEntry[]) => {
+    const existing = new Set(excludedCeps.map((e) => e.cep));
+    const additions = entries
+      .filter((e) => !existing.has(e.cep))
+      .map((e) => ({
+        cep: e.cep,
+        street: e.street,
+        neighborhood: e.neighborhood,
+      }));
+    if (additions.length > 0) onUpdate([...excludedCeps, ...additions]);
+  };
+
+  const blockedCepsSet = new Set(excludedCeps.map((e) => e.cep));
+
   return (
     <Card>
       <CardHeader>
@@ -128,10 +144,13 @@ export const ExcludedZones = ({
       </CardHeader>
       <CardContent className="space-y-4">
         <Tabs defaultValue="cep" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="cep">Por CEP</TabsTrigger>
             <TabsTrigger value="street" disabled={!coveredUF || !coveredCity}>
               Por Rua
+            </TabsTrigger>
+            <TabsTrigger value="range" disabled={!coveredUF || !coveredCity}>
+              Por Faixa
             </TabsTrigger>
           </TabsList>
 
