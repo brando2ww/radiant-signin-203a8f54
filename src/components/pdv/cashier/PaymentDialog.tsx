@@ -637,11 +637,11 @@ export function PaymentDialog({
       ? (/^mesa\b/i.test(mesaRaw) ? mesaRaw : `MESA ${mesaRaw}`)
       : "BALCÃO";
     const comandaLabel = isTablePayment
-      ? (selectedTableComandas.length > 1
-          ? `${selectedTableComandas.length} comandas`
-          : (selectedTableComandas[0]?.customer_name
-              || (selectedTableComandas[0]?.comanda_number
-                  ? `Comanda #${selectedTableComandas[0].comanda_number}`
+      ? (tableComandas.length > 1
+          ? `${tableComandas.length} comandas`
+          : (tableComandas[0]?.customer_name
+              || (tableComandas[0]?.comanda_number
+                  ? `Comanda #${tableComandas[0].comanda_number}`
                   : "")))
       : (comanda?.customer_name
           || (comanda?.comanda_number ? `Comanda #${comanda.comanda_number}` : ""));
