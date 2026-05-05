@@ -44,6 +44,7 @@ export interface DeliveryOrderItem {
   unit_price: number;
   subtotal: number;
   notes: string | null;
+  production_center_id?: string | null;
   delivery_order_item_options?: DeliveryOrderItemOption[];
 }
 
