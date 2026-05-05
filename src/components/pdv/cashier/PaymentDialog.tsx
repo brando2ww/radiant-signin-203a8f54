@@ -87,6 +87,8 @@ interface PaymentDialogProps {
   /** Quando true, força split com 1 linha por comanda nominal (cobrar tudo da mesa) */
   splitByComanda?: boolean;
   onSuccess?: () => void;
+  /** Saldo atual da gaveta — usado para validar troco em dinheiro */
+  drawerBalance?: number;
 }
 
 type CardType = "credito" | "debito";
@@ -122,6 +124,7 @@ export function PaymentDialog({
   tableItems = [],
   splitByComanda = false,
   onSuccess,
+  drawerBalance = 0,
 }: PaymentDialogProps) {
   const { user } = useAuth();
   
@@ -320,6 +323,33 @@ export function PaymentDialog({
   const splitTotal = splitPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
   const splitRemaining = total - splitTotal;
 
+  // Validação do troco contra saldo da gaveta (modo simples)
+  const simpleChangeExceedsDrawer =
+    selectedMethod === "dinheiro" && changeAmount > drawerBalance + 0.001;
+
+  // Validação do troco no split: somar trocos das linhas em dinheiro (cada linha
+  // pode ter "amount" maior que o necessário; aqui usamos amount como valor
+  // entregue, e a parte da venda em dinheiro é min(amount, restante)).
+  // Como o modelo atual usa amount como valor pago para a parcela, qualquer
+  // excedente é tratado como troco. Para evitar bloquear cenários comuns onde
+  // amount exatamente fecha o split, validamos linha-a-linha.
+  let splitCashChangeExceeds = false;
+  if (splitEnabled) {
+    let remaining = total;
+    for (const p of splitPayments) {
+      const amt = parseFloat(p.amount) || 0;
+      const m = p.method === "cartao" ? "credito" : p.method;
+      if (m === "dinheiro") {
+        const change = Math.max(0, amt - Math.max(0, remaining));
+        if (change > drawerBalance + 0.001) {
+          splitCashChangeExceeds = true;
+          break;
+        }
+      }
+      remaining -= amt;
+    }
+  }
+
   // Discount: dependendo da configuração, motivo pode ou não ser obrigatório
   const requireReason = !!settings?.require_discount_reason;
   const hasDiscount = !!appliedDiscount;
@@ -330,9 +360,11 @@ export function PaymentDialog({
   // Validation
   const hasByProductSelection = isByProduct && selectedItemQtys.size > 0 && selectedSubtotal > 0;
   const byProductBlocks = chargeMode === "by-product" && (!supportsByProduct || !hasByProductSelection);
-  const canSubmit = !discountInProgress && !byProductBlocks && (splitEnabled
-    ? Math.abs(splitRemaining) < 0.01 && splitPayments.length > 0
-    : selectedMethod !== "dinheiro" || cashReceivedNum >= total);
+  const canSubmit = !discountInProgress && !byProductBlocks
+    && !simpleChangeExceedsDrawer && !splitCashChangeExceeds
+    && (splitEnabled
+      ? Math.abs(splitRemaining) < 0.01 && splitPayments.length > 0
+      : selectedMethod !== "dinheiro" || cashReceivedNum >= total);
 
   // Reset state + adquirir lock em_cobranca quando o dialog abre.
   useEffect(() => {
@@ -1682,6 +1714,10 @@ export function PaymentDialog({
                   {/* Cash Fields */}
                   {selectedMethod === "dinheiro" && (
                     <div className="space-y-3">
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">Saldo disponível para troco: </span>
+                        <span className="font-semibold tabular-nums">{formatCurrency(drawerBalance)}</span>
+                      </div>
                       <div className="space-y-2">
                         <Label>Valor Recebido</Label>
                         <CurrencyInput
@@ -1743,6 +1779,17 @@ export function PaymentDialog({
                             {formatCurrency(changeAmount)}
                           </span>
                         </motion.div>
+                      )}
+
+                      {simpleChangeExceedsDrawer && (
+                        <div className="flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
+                          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                          <div>
+                            <strong>Troco insuficiente</strong> — necessário {formatCurrency(changeAmount)},
+                            gaveta tem {formatCurrency(drawerBalance)}. Faltam {formatCurrency(changeAmount - drawerBalance)}.
+                            Solicite ao cliente o valor exato ou outra forma de pagamento.
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -1841,6 +1888,15 @@ export function PaymentDialog({
         </div>
 
         {/* Footer */}
+        {splitCashChangeExceeds && (
+          <div className="mt-4 flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <strong>Troco insuficiente em uma das linhas em dinheiro</strong> — saldo da gaveta é {formatCurrency(drawerBalance)}.
+              Ajuste o valor recebido ou troque a forma de pagamento.
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between pt-4 border-t mt-4">
           <Button
             variant="outline"

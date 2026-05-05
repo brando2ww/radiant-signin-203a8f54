@@ -232,6 +232,18 @@ export function usePDVCashier() {
     },
   });
 
+  // Calcular saldo da gaveta — fonte única de verdade
+  const totalReinforcements = movements
+    .filter((m) => m.type === "reforco")
+    .reduce((acc, m) => acc + Number(m.amount || 0), 0);
+
+  const drawerBalance = activeSession
+    ? Number(activeSession.opening_balance || 0)
+      + Number(activeSession.total_cash || 0)
+      + totalReinforcements
+      - Number(activeSession.total_withdrawals || 0)
+    : 0;
+
   // Adicionar movimentação (sangria/reforço)
   const addMovement = useMutation({
     mutationFn: async ({
@@ -244,6 +256,13 @@ export function usePDVCashier() {
       description?: string;
     }) => {
       if (!activeSession?.id) throw new Error("Nenhuma sessão de caixa ativa");
+
+      // Defesa em profundidade: bloquear sangria acima do saldo
+      if (type === "sangria" && amount > drawerBalance + 0.001) {
+        throw new Error(
+          `Sangria não permitida — valor (${amount.toFixed(2)}) maior que o saldo da gaveta (${drawerBalance.toFixed(2)}).`
+        );
+      }
 
       const { error: movError } = await supabase
         .from("pdv_cashier_movements")
@@ -273,9 +292,9 @@ export function usePDVCashier() {
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       toast.success("Movimentação registrada com sucesso!");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Erro ao registrar movimentação:", error);
-      toast.error("Erro ao registrar movimentação");
+      toast.error(error?.message || "Erro ao registrar movimentação");
     },
   });
 
@@ -333,5 +352,7 @@ export function usePDVCashier() {
     isAddingMovement: addMovement.isPending,
     lastClosedSession,
     lastClosedMovements,
+    drawerBalance,
+    totalReinforcements,
   };
 }

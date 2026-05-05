@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
+import { formatBRL } from "@/lib/format";
 
 interface CashMovementDialogProps {
   open: boolean;
@@ -19,6 +22,7 @@ interface CashMovementDialogProps {
   onAddMovement: (type: "sangria" | "reforco", amount: number, description?: string) => void;
   isAdding: boolean;
   defaultType?: "sangria" | "reforco";
+  drawerBalance?: number;
 }
 
 export function CashMovementDialog({
@@ -27,21 +31,22 @@ export function CashMovementDialog({
   onAddMovement,
   isAdding,
   defaultType = "sangria",
+  drawerBalance = 0,
 }: CashMovementDialogProps) {
   const [type, setType] = useState<"sangria" | "reforco">(defaultType);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
 
-  // Atualizar tipo quando defaultType mudar
   useEffect(() => {
     setType(defaultType);
   }, [defaultType]);
 
+  const value = parseFloat(amount) || 0;
+  const exceedsDrawer = type === "sangria" && value > drawerBalance + 0.001;
+
   const handleAdd = () => {
-    const value = parseFloat(amount);
-    if (!value || value <= 0) {
-      return;
-    }
+    if (!value || value <= 0) return;
+    if (exceedsDrawer) return;
     onAddMovement(type, value, description.trim() || undefined);
     setAmount("");
     setDescription("");
@@ -76,6 +81,13 @@ export function CashMovementDialog({
             </RadioGroup>
           </div>
 
+          {type === "sangria" && (
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Saldo disponível na gaveta: </span>
+              <span className="font-semibold tabular-nums">{formatBRL(drawerBalance)}</span>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="amount">Valor</Label>
             <CurrencyInput
@@ -85,6 +97,15 @@ export function CashMovementDialog({
               autoFocus
             />
           </div>
+
+          {exceedsDrawer && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Sangria não permitida — valor ({formatBRL(value)}) maior que o saldo da gaveta ({formatBRL(drawerBalance)}).
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="description">Motivo (opcional)</Label>
@@ -108,7 +129,7 @@ export function CashMovementDialog({
           </Button>
           <Button
             onClick={handleAdd}
-            disabled={isAdding || !amount || parseFloat(amount) <= 0}
+            disabled={isAdding || !value || value <= 0 || exceedsDrawer}
           >
             {isAdding ? "Registrando..." : "Registrar"}
           </Button>
