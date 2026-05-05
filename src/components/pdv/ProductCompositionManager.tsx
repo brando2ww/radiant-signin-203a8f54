@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCompositionGroups, type CompositionGroup } from "@/hooks/use-pdv-composition-groups";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { Button } from "@/components/ui/button";
