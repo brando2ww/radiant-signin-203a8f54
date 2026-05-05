@@ -401,6 +401,7 @@ export default function PDVCashier() {
         tableItems={selectedTableItems}
         splitByComanda={paymentSplitByComanda}
         onSuccess={handlePaymentSuccess}
+        drawerBalance={drawerBalance}
       />
 
       <EmployeeConsumptionDialog
