@@ -108,7 +108,6 @@ export const useDeliveryOrders = (status?: string) => {
             });
             toast.success("Novo pedido recebido! 🎉");
 
-            // Auto-confirmação se habilitada nas configurações
             try {
               const newOrder: any = payload.new;
               if (newOrder?.status === "pending" && newOrder?.id) {
@@ -120,6 +119,19 @@ export const useDeliveryOrders = (status?: string) => {
                     .eq("user_id", user.id)
                     .maybeSingle();
 
+                  // Sempre imprime na cozinha ao receber o pedido
+                  let printed = false;
+                  try {
+                    const result = await dispatchDeliveryPrintJobs(newOrder.id);
+                    printed = true;
+                    if (result.jobs > 0) {
+                      toast.success(`${result.jobs} impressão(ões) enviada(s) à cozinha`);
+                    }
+                  } catch (e) {
+                    console.error("Erro ao imprimir pedido novo:", e);
+                  }
+
+                  // Auto-confirma e baixa estoque (sem reimprimir)
                   if (settings?.auto_accept_orders) {
                     await supabase
                       .from("delivery_orders")
@@ -134,23 +146,12 @@ export const useDeliveryOrders = (status?: string) => {
                       { p_order_id: newOrder.id },
                     );
 
-                    try {
-                      const result = await dispatchDeliveryPrintJobs(newOrder.id);
-                      if (result.jobs > 0) {
-                        toast.success(
-                          `Pedido auto-confirmado: ${result.jobs} impressão(ões) enviada(s)`,
-                        );
-                      } else {
-                        toast.success("Pedido auto-confirmado");
-                      }
-                    } catch (e) {
-                      console.error("Erro ao imprimir auto-confirmado:", e);
-                    }
+                    if (printed) toast.success("Pedido auto-confirmado");
                   }
                 }
               }
             } catch (e) {
-              console.error("Erro na auto-confirmação:", e);
+              console.error("Erro no processamento do pedido novo:", e);
             }
           }
 
