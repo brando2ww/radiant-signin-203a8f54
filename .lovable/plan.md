@@ -1,33 +1,39 @@
-## Problemas
+Plano para corrigir o número do pedido no delivery:
 
-1. **Número do pedido enorme** (ex: `#13308361`) — gerado com `Date.now().toString().slice(-8)` em `src/hooks/use-delivery-customers.ts`.
-2. **Pedido novo do delivery não imprime sozinho** — em `src/hooks/use-delivery-orders.ts`, o `dispatchDeliveryPrintJobs` só é chamado quando o pedido é confirmado (manual ou via `auto_accept_orders`). Pedidos que ficam em "pendente" não disparam impressão.
+1. Criar numeração por sessão de caixa
+   - Adicionar um campo `ticket_number` também em `delivery_orders`.
+   - Criar uma função no banco para atribuir o próximo número do caixa aberto ao pedido de delivery.
+   - A contagem será por `cashier_session_id`, ou seja: ao fechar o caixa e abrir outro, o próximo pedido volta para `001`.
 
-## Correções
+2. Fazer o pedido já nascer com número curto
+   - No fluxo do cardápio público/delivery, trocar a geração atual por tempo/contagem diária por uma chamada segura ao banco.
+   - Ao criar o pedido, procurar o caixa aberto do estabelecimento e gravar:
+     - `cashier_session_id` do caixa aberto
+     - `ticket_number`: 1, 2, 3...
+     - `order_number`: `001`, `002`, `003`...
+   - Se não houver caixa aberto, manter fallback controlado para não quebrar o pedido público, mas sem usar `Date.now().slice(-8)`.
 
-### 1. Numeração sequencial diária por estabelecimento
-Em `src/hooks/use-delivery-customers.ts`, substituir o `Date.now().slice(-8)` por uma contagem dos pedidos do dia para o `userId` e formatar como `#001`, `#002`…:
+3. Corrigir a impressão automática
+   - Atualizar a view `vw_print_bridge_delivery_items` para incluir `ticket_number`.
+   - Atualizar `src/lib/delivery-print.ts` para enviar `ticket_number` no payload da impressão.
+   - Ajustar o payload para não montar `comanda_number` com o `order_number` antigo, evitando saída como `##14321283`.
+   - A impressão passará a mostrar `Pedido #001`, `Pedido #002`, etc.
 
-```ts
-const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
-const { count } = await supabase
-  .from("delivery_orders")
-  .select("id", { count: "exact", head: true })
-  .eq("user_id", orderData.userId)
-  .gte("created_at", startOfDay.toISOString());
-const orderNumber = `#${String((count || 0) + 1).padStart(3, "0")}`;
-```
+4. Evitar duplicidade e problemas de concorrência
+   - Usar função `SECURITY DEFINER` com lock no caixa aberto para garantir que dois pedidos simultâneos não recebam o mesmo número.
+   - Criar índice único parcial por caixa: `(cashier_session_id, ticket_number)` para delivery.
 
-### 2. Impressão automática ao receber pedido
-Em `src/hooks/use-delivery-orders.ts`, no realtime `INSERT`:
-- Sempre disparar `dispatchDeliveryPrintJobs(newOrder.id)` para pedidos do tenant logado (independente de `auto_accept_orders`).
-- Manter a lógica de auto-confirmação como está, mas **sem duplicar** a impressão (se auto-confirmar, fazer apenas uma vez).
+5. Ajustar telas que exibem o pedido
+   - Cards, detalhes, notificações e fila do caixa continuarão usando `order_number`, que passará a vir curto (`001`).
+   - Onde o texto já adiciona `#`, evitar duplicar cerquilhas para não aparecer `##001` quando o valor já vier com `#`.
 
-Fluxo final ao chegar pedido novo:
-1. Toca som + toast "Novo pedido".
-2. Imprime na cozinha automaticamente.
-3. Se `auto_accept_orders` ligado → confirma e baixa estoque (sem reimprimir).
-
-## Arquivos
-- `src/hooks/use-delivery-customers.ts` (numeração)
-- `src/hooks/use-delivery-orders.ts` (impressão automática no INSERT)
+Detalhes técnicos:
+- Arquivos a alterar:
+  - `src/hooks/use-delivery-customers.ts`
+  - `src/lib/delivery-print.ts`
+  - possivelmente componentes que prefixam `#` ao `order_number`
+- Banco:
+  - migration para `delivery_orders.ticket_number`
+  - função `delivery_assign_order_ticket(...)`
+  - atualização da view `vw_print_bridge_delivery_items`
+- Não vou editar `src/integrations/supabase/types.ts` manualmente.
