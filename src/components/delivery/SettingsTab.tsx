@@ -16,12 +16,6 @@ export const SettingsTab = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Configurações do Delivery</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure horários, entrega, pagamentos, notificações e marketing
-        </p>
-      </div>
 
       <Tabs defaultValue="hours" className="w-full">
         <TabsList className="grid w-full max-w-4xl grid-cols-6">
