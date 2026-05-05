@@ -11,17 +11,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Play, X, MapPin, Plus, AlertTriangle } from "lucide-react";
+import { Loader2, Search, Plus, RefreshCw, X } from "lucide-react";
 import { CEPInput } from "@/components/ui/cep-input";
 import { useCEPLookup } from "@/hooks/use-cep-lookup";
 import {
-  detectCityCepPrefix,
-  getCachedSweep,
-  sweepCepRange,
+  fetchAllNeighborhoods,
+  readNeighborhoodsCache,
+  clearNeighborhoodsCache,
+} from "@/hooks/use-ibge-lookup";
+import {
   getManualNeighborhoods,
   setManualNeighborhoods,
 } from "@/hooks/use-cep-range-sweep";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface NeighborhoodSelectorModalProps {
   open: boolean;
@@ -44,67 +48,18 @@ export function NeighborhoodSelectorModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
 
-  // CEP individual
   const [singleCep, setSingleCep] = useState("");
   const { lookupCEP, isLoading: isLoadingSingle } = useCEPLookup();
 
-  // Faixa de CEP
-  const [prefixStart, setPrefixStart] = useState("");
-  const [prefixEnd, setPrefixEnd] = useState("");
-  const [detectingPrefix, setDetectingPrefix] = useState(false);
-  const [sweeping, setSweeping] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number }>({
-    done: 0,
-    total: 0,
-  });
-  const [sweptOnce, setSweptOnce] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [cacheTs, setCacheTs] = useState<number | null>(null);
+  const [showStop, setShowStop] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const stopTimerRef = useRef<number | null>(null);
 
-  // Bairro manual
   const [manualName, setManualName] = useState("");
 
-  // Inicialização ao abrir
-  useEffect(() => {
-    if (!open) return;
-    setFilter("");
-    setSingleCep("");
-    setManualName("");
-    setSweptOnce(false);
-
-    const initial = new Set<string>(existingNeighborhoods);
-    const manual = uf && city ? getManualNeighborhoods(uf, city) : [];
-    manual.forEach((m) => initial.add(m));
-
-    setSelected(new Set(existingNeighborhoods));
-    setNeighborhoods(
-      Array.from(initial).sort((a, b) => a.localeCompare(b, "pt-BR")),
-    );
-    setProgress({ done: 0, total: 0 });
-
-    if (uf && city) {
-      setDetectingPrefix(true);
-      detectCityCepPrefix(uf, city)
-        .then((res) => {
-          if (res) {
-            setPrefixStart(res.start);
-            setPrefixEnd(res.end);
-            const cached = getCachedSweep(res.start);
-            if (cached && cached.neighborhoods.length > 0) {
-              mergeNeighborhoods(cached.neighborhoods, false);
-            }
-          }
-        })
-        .finally(() => setDetectingPrefix(false));
-    }
-
-    return () => {
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, uf, city]);
-
-  function mergeNeighborhoods(incoming: string[], autoSelect = true) {
+  function mergeNeighborhoods(incoming: string[], autoSelect = false) {
     setNeighborhoods((prev) => {
       const set = new Set(prev);
       incoming.forEach((n) => set.add(n));
@@ -119,10 +74,83 @@ export function NeighborhoodSelectorModal({
     }
   }
 
+  const startSearch = async (force = false) => {
+    if (!uf || !city) return;
+    if (force) clearNeighborhoodsCache(uf, city);
+
+    const cached = !force ? readNeighborhoodsCache(uf, city) : null;
+    if (cached) {
+      mergeNeighborhoods(cached.list);
+      setCacheTs(cached.ts);
+      return;
+    }
+
+    setCacheTs(null);
+    setSearching(true);
+    setShowStop(false);
+    if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
+    stopTimerRef.current = window.setTimeout(() => setShowStop(true), 15000);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const result = await fetchAllNeighborhoods(uf, city, {
+        signal: controller.signal,
+        onProgress: (list) => mergeNeighborhoods(list),
+      });
+      mergeNeighborhoods(result);
+      if (!controller.signal.aborted) {
+        setCacheTs(Date.now());
+      }
+    } finally {
+      setSearching(false);
+      setShowStop(false);
+      if (stopTimerRef.current) {
+        window.clearTimeout(stopTimerRef.current);
+        stopTimerRef.current = null;
+      }
+      abortRef.current = null;
+    }
+  };
+
+  const handleStop = () => {
+    abortRef.current?.abort();
+  };
+
+  // Inicialização
+  useEffect(() => {
+    if (!open) return;
+    setFilter("");
+    setSingleCep("");
+    setManualName("");
+
+    const initial = new Set<string>(existingNeighborhoods);
+    const manual = uf && city ? getManualNeighborhoods(uf, city) : [];
+    manual.forEach((m) => initial.add(m));
+
+    setSelected(new Set(existingNeighborhoods));
+    setNeighborhoods(
+      Array.from(initial).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    );
+
+    startSearch(false);
+
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      if (stopTimerRef.current) {
+        window.clearTimeout(stopTimerRef.current);
+        stopTimerRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, uf, city]);
+
   const handleSingleCepLookup = async () => {
     const data = await lookupCEP(singleCep);
     if (data?.bairro) {
-      mergeNeighborhoods([data.bairro.trim()]);
+      mergeNeighborhoods([data.bairro.trim()], true);
       toast.success(`Bairro adicionado: ${data.bairro}`);
       setSingleCep("");
     } else if (data) {
@@ -133,63 +161,13 @@ export function NeighborhoodSelectorModal({
   const handleAddManual = () => {
     const name = manualName.trim();
     if (!name) return;
-    mergeNeighborhoods([name]);
+    mergeNeighborhoods([name], true);
     if (uf && city) {
       const current = getManualNeighborhoods(uf, city);
       setManualNeighborhoods(uf, city, [...current, name]);
     }
     toast.success(`Bairro adicionado: ${name}`);
     setManualName("");
-  };
-
-  const handleStartSweep = async () => {
-    const cleanStart = prefixStart.replace(/\D/g, "").slice(0, 5);
-    const cleanEnd = (prefixEnd || prefixStart).replace(/\D/g, "").slice(0, 5);
-    if (cleanStart.length !== 5 || cleanEnd.length !== 5) {
-      toast.error("Informe os 5 dígitos de início e fim.");
-      return;
-    }
-    const startN = parseInt(cleanStart, 10);
-    const endN = parseInt(cleanEnd, 10);
-    if (endN < startN) {
-      toast.error("Fim deve ser maior ou igual ao início.");
-      return;
-    }
-    if (endN - startN > 9) {
-      toast.error("Faixa muito larga (máx. 10 prefixos).");
-      return;
-    }
-
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setSweeping(true);
-    setProgress({ done: 0, total: (endN - startN + 1) * 1000 });
-
-    try {
-      const result = await sweepCepRange(cleanStart, cleanEnd, {
-        signal: controller.signal,
-        onProgress: ({ done, total, neighborhoods: list }) => {
-          setProgress({ done, total });
-          mergeNeighborhoods(list, false);
-        },
-      });
-      if (!result.cancelled) {
-        toast.success(
-          `Varredura concluída: ${result.neighborhoods.length} bairros encontrados.`,
-        );
-        setSweptOnce(true);
-      }
-    } finally {
-      setSweeping(false);
-      abortRef.current = null;
-    }
-  };
-
-  const handleCancelSweep = () => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setSweeping(false);
-    toast.info("Varredura cancelada.");
   };
 
   const filtered = neighborhoods.filter((n) =>
@@ -208,15 +186,6 @@ export function NeighborhoodSelectorModal({
   const selectAll = () => setSelected(new Set(neighborhoods));
   const deselectAll = () => setSelected(new Set());
 
-  const formatPrefixDisplay = (p: string) => {
-    const clean = p.replace(/\D/g, "").slice(0, 5);
-    if (clean.length <= 2) return clean;
-    return `${clean.slice(0, 2)}${clean.length > 2 ? "." + clean.slice(2) : ""}`;
-  };
-
-  const showGeneralCepWarning =
-    sweptOnce && !sweeping && neighborhoods.length <= 1;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-y-auto">
@@ -225,9 +194,49 @@ export function NeighborhoodSelectorModal({
             Selecionar Bairros — {city}/{uf}
           </DialogTitle>
           <DialogDescription>
-            Adicione bairros buscando por CEP, varrendo a faixa ou inserindo manualmente.
+            Buscamos automaticamente todos os bairros da cidade. Você também pode
+            adicionar manualmente ou por CEP.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Status da busca */}
+        <div className="rounded-md border p-3 flex items-center gap-2 text-sm">
+          {searching ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              <span className="flex-1">
+                Buscando bairros... {neighborhoods.length} encontrados
+              </span>
+              {showStop && (
+                <Button size="sm" variant="outline" onClick={handleStop}>
+                  <X className="h-3 w-3 mr-1" /> Parar
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="flex-1 text-muted-foreground">
+                {cacheTs ? (
+                  <>
+                    Cache · atualizado há{" "}
+                    {formatDistanceToNow(cacheTs, { locale: ptBR })} ·{" "}
+                    {neighborhoods.length} bairros
+                  </>
+                ) : (
+                  <>{neighborhoods.length} bairros disponíveis</>
+                )}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => startSearch(true)}
+                disabled={!uf || !city}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Atualizar
+              </Button>
+            </>
+          )}
+        </div>
 
         {/* Busca por CEP individual */}
         <div className="space-y-2 border rounded-md p-3">
@@ -254,84 +263,6 @@ export function NeighborhoodSelectorModal({
           </div>
         </div>
 
-        {/* Varredura por faixa */}
-        <div className="space-y-2 border rounded-md p-3">
-          <Label className="text-sm flex items-center gap-2">
-            <MapPin className="h-4 w-4" /> Varrer faixa de CEP da cidade
-          </Label>
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Label className="text-xs text-muted-foreground">De</Label>
-              <Input
-                value={formatPrefixDisplay(prefixStart)}
-                onChange={(e) =>
-                  setPrefixStart(e.target.value.replace(/\D/g, "").slice(0, 5))
-                }
-                placeholder={detectingPrefix ? "..." : "00.000"}
-                disabled={sweeping || detectingPrefix}
-                className="font-mono"
-              />
-            </div>
-            <div className="flex-1">
-              <Label className="text-xs text-muted-foreground">Até</Label>
-              <Input
-                value={formatPrefixDisplay(prefixEnd)}
-                onChange={(e) =>
-                  setPrefixEnd(e.target.value.replace(/\D/g, "").slice(0, 5))
-                }
-                placeholder={detectingPrefix ? "..." : "00.000"}
-                disabled={sweeping || detectingPrefix}
-                className="font-mono"
-              />
-            </div>
-            {sweeping ? (
-              <Button onClick={handleCancelSweep} variant="destructive" size="sm">
-                <X className="h-4 w-4 mr-1" /> Cancelar
-              </Button>
-            ) : (
-              <Button
-                onClick={handleStartSweep}
-                disabled={
-                  detectingPrefix || prefixStart.replace(/\D/g, "").length !== 5
-                }
-                size="sm"
-              >
-                <Play className="h-4 w-4 mr-1" /> Varrer
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Faixa: {prefixStart.padEnd(5, "_")}-000 até{" "}
-            {(prefixEnd || prefixStart).padEnd(5, "_")}-999
-          </p>
-          {sweeping && (
-            <div className="space-y-1">
-              <div className="h-1.5 bg-muted rounded overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{
-                    width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {progress.done}/{progress.total} CEPs · {neighborhoods.length} bairros
-              </p>
-            </div>
-          )}
-        </div>
-
-        {showGeneralCepWarning && (
-          <div className="border border-border rounded-md p-3 bg-muted/50 flex gap-2 text-sm">
-            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-            <div>
-              Esta cidade usa CEP geral — o ViaCEP não devolve a lista oficial de
-              bairros. Adicione-os manualmente abaixo.
-            </div>
-          </div>
-        )}
-
         {/* Bairro manual */}
         <div className="space-y-2 border rounded-md p-3">
           <Label className="text-sm flex items-center gap-2">
@@ -356,7 +287,7 @@ export function NeighborhoodSelectorModal({
           </div>
         </div>
 
-        {/* Lista de bairros */}
+        {/* Lista */}
         <div className="space-y-2 flex flex-col min-h-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -384,7 +315,7 @@ export function NeighborhoodSelectorModal({
             {filtered.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
                 {neighborhoods.length === 0
-                  ? "Nenhum bairro ainda. Use a busca por CEP acima."
+                  ? "Nenhum bairro ainda."
                   : "Nenhum bairro corresponde ao filtro."}
               </div>
             ) : (
