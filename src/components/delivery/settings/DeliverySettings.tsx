@@ -115,6 +115,54 @@ export const DeliverySettings = () => {
     updateSettings.mutate({ delivery_zones: updatedZones as any });
   };
 
+  const handleAddRange = () => {
+    const a = normalizeCEP(newRangeStart);
+    const b = normalizeCEP(newRangeEnd);
+    if (a.length !== 8 || b.length !== 8) {
+      toast.error("Informe CEPs completos (8 dígitos)");
+      return;
+    }
+    if (a > b) {
+      toast.error("CEP inicial deve ser menor ou igual ao final");
+      return;
+    }
+    if (!newRangeFee) {
+      toast.error("Informe a taxa de entrega da faixa");
+      return;
+    }
+    const overlap = cepRanges.some((r) => {
+      const ra = normalizeCEP(r.cep_start);
+      const rb = normalizeCEP(r.cep_end);
+      return a <= rb && b >= ra;
+    });
+    if (overlap) {
+      toast.warning("Esta faixa se sobrepõe a outra já cadastrada");
+    }
+    setCepRanges([
+      ...cepRanges,
+      {
+        id: crypto.randomUUID(),
+        label: newRangeLabel || undefined,
+        cep_start: a,
+        cep_end: b,
+        fee: Number(newRangeFee),
+      },
+    ]);
+    setNewRangeStart("");
+    setNewRangeEnd("");
+    setNewRangeFee("");
+    setNewRangeLabel("");
+  };
+
+  const handleRemoveRange = (id: string) => {
+    setCepRanges(cepRanges.filter((r) => r.id !== id));
+  };
+
+  const formatCepDisplay = (c: string) => {
+    const d = normalizeCEP(c);
+    return d ? `${d.slice(0, 5)}-${d.slice(5)}` : c;
+  };
+
   const handleSave = () => {
     updateSettings.mutate({
       min_order_value: Number(minOrderValue),
@@ -123,6 +171,7 @@ export const DeliverySettings = () => {
       delivery_zones: zones as any,
       covered_city: coveredCity as any,
       excluded_ceps: excludedCeps as any,
+      cep_ranges: cepRanges as any,
     });
   };
 
