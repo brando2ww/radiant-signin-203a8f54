@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { formatTableLabel } from "@/utils/formatTableNumber";
@@ -20,10 +21,16 @@ import {
   Receipt,
   UtensilsCrossed,
   Soup,
+  Bike,
 } from "lucide-react";
 import { usePDVComandas, Comanda, ComandaItem } from "@/hooks/use-pdv-comandas";
 import { usePDVTables, PDVTable } from "@/hooks/use-pdv-tables";
 import { SalonQueueCard } from "./SalonQueueCard";
+import { DeliveryQueueCard } from "./DeliveryQueueCard";
+import { DeliveryPaymentDialog } from "./DeliveryPaymentDialog";
+import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
+import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
+import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
 
 interface SalonQueuePanelProps {
   isOpen: boolean;
@@ -60,15 +67,14 @@ export function SalonQueuePanel({
   onOpenDirectCharge,
 }: SalonQueuePanelProps) {
   const queryClient = useQueryClient();
-  const {
-    comandas,
-    getItemsByComanda,
-    getPendingPaymentComandas,
-  } = usePDVComandas();
+  const { comandas, getItemsByComanda, getPendingPaymentComandas } = usePDVComandas();
   const { tables } = usePDVTables();
-
-
+  const [tab, setTab] = useState<"salon" | "delivery">("salon");
   const [sortBy, setSortBy] = useState<SortOption>("time");
+  const [paymentOrder, setPaymentOrder] = useState<DeliveryOrder | null>(null);
+
+  const delivery = usePDVDeliveryQueue();
+  const { registerDeliveryPayment } = usePDVDeliveryCheckout();
 
   const tablesByOrderId = useMemo(() => {
     const m = new Map<string, PDVTable>();
@@ -80,7 +86,6 @@ export function SalonQueuePanel({
 
   const pendingComandas = getPendingPaymentComandas();
 
-  // Conta comandas "abertas/em_cobranca" por order_id (para indicador "mesa tem mais N")
   const openCountByOrderId = useMemo(() => {
     const m = new Map<string, number>();
     comandas.forEach((c) => {
@@ -131,7 +136,6 @@ export function SalonQueuePanel({
 
     const arr = Array.from(map.values());
 
-    // Ordena comandas dentro do grupo
     arr.forEach((g) => {
       g.comandas.sort((a, b) => {
         const at = new Date(a.closed_by_waiter_at ?? a.updated_at).getTime();
@@ -140,7 +144,6 @@ export function SalonQueuePanel({
       });
     });
 
-    // Ordena grupos
     arr.sort((a, b) => {
       switch (sortBy) {
         case "value":
@@ -167,10 +170,24 @@ export function SalonQueuePanel({
   const totalCount = pendingComandas.length;
   const totalValue = pendingComandas.reduce((s, c) => s + c.subtotal, 0);
 
+  // Pisca aba Delivery quando chega novo pedido
+  const lastFirstId = useRef<string | null>(null);
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    const firstId = delivery.all[0]?.id ?? null;
+    if (lastFirstId.current && firstId && firstId !== lastFirstId.current) {
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 3000);
+      return () => clearTimeout(t);
+    }
+    lastFirstId.current = firstId;
+  }, [delivery.all]);
+
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
     queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+    queryClient.invalidateQueries({ queryKey: ["pdv-delivery-queue"] });
   };
 
   const handleSelectGroupAll = (group: GroupedItem) => {
@@ -179,156 +196,256 @@ export function SalonQueuePanel({
     onSelectTablePending(group.table, group.comandas, items);
   };
 
+  const handleConfirmOnline = async (order: DeliveryOrder) => {
+    try {
+      await registerDeliveryPayment({
+        orderId: order.id,
+        amount: Number(order.total) || 0,
+        paymentMethod:
+          order.payment_method === "credit"
+            ? "credito"
+            : order.payment_method === "debit"
+              ? "debito"
+              : (order.payment_method as any) === "pix"
+                ? "pix"
+                : "pix",
+        source: "delivery_online",
+      });
+    } catch {
+      /* toast handled */
+    }
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      {/* Cabeçalho */}
-      <div className="px-3 pt-3 pb-2 border-b">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <Soup className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm">Salão</h3>
-            {totalCount > 0 && (
-              <Badge className="bg-orange-500 text-white hover:bg-orange-500">
-                {totalCount}
-              </Badge>
-            )}
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as "salon" | "delivery")}
+        className="flex flex-col h-full min-h-0"
+      >
+        <div className="px-3 pt-3 pb-2 border-b space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <TabsList className="h-8">
+              <TabsTrigger value="salon" className="text-xs gap-1.5 h-6">
+                <Soup className="h-3.5 w-3.5" />
+                Salão
+                {totalCount > 0 && (
+                  <Badge className="bg-orange-500 text-white hover:bg-orange-500 h-4 px-1.5 text-[10px]">
+                    {totalCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger
+                value="delivery"
+                className={cn(
+                  "text-xs gap-1.5 h-6",
+                  pulse && "animate-pulse",
+                )}
+              >
+                <Bike className="h-3.5 w-3.5" />
+                Delivery
+                {delivery.actionableCount > 0 && (
+                  <Badge className="bg-orange-500 text-white hover:bg-orange-500 h-4 px-1.5 text-[10px]">
+                    {delivery.actionableCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              onClick={handleRefresh}
+              title="Atualizar"
+              aria-label="Atualizar"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
           </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={handleRefresh}
-            title="Atualizar"
-            aria-label="Atualizar"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
 
-        {isOpen && totalCount > 0 ? (
-          <div className="space-y-0.5 mb-2">
-            <div className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">
-                {totalCount} comanda{totalCount > 1 ? "s" : ""}
-              </span>{" "}
-              aguardando cobrança
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Total:{" "}
-              <span className="font-semibold text-foreground tabular-nums">
-                {formatBRL(totalValue)}
-              </span>
-            </div>
-          </div>
-        ) : (
-          isOpen && (
-            <div className="text-xs text-muted-foreground mb-2">
-              Sem comandas na fila no momento.
-            </div>
-          )
-        )}
-
-        {totalCount > 0 && (
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="time">Mais antigas primeiro</SelectItem>
-              <SelectItem value="value">Maior valor</SelectItem>
-              <SelectItem value="table">Mesa</SelectItem>
-              <SelectItem value="name">Nome</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Lista */}
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-3 space-y-4">
-          {!isOpen ? (
-            <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
-              <Hourglass className="h-10 w-10 mb-2 opacity-40" />
-              <p className="text-xs">Abra o caixa para ver a fila do salão.</p>
-            </div>
-          ) : groups.length === 0 ? (
-            <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
-              <UtensilsCrossed className="h-10 w-10 mb-2 opacity-40" />
-              <p className="text-sm font-medium text-foreground">
-                Tudo em dia!
-              </p>
-              <p className="text-xs mt-1">
-                Nenhuma comanda aguardando cobrança.
-              </p>
-            </div>
-          ) : (
-            groups.map((group) => {
-              const isMulti = !!group.table && group.comandas.length > 1;
-              return (
-                <div key={group.key} className="space-y-2">
-                  {isMulti && (
-                    <div className="flex items-center justify-between gap-2 px-1">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div
-                          className={cn(
-                            "w-1 h-4 rounded-sm",
-                            group.color.replace("border-l-", "bg-"),
-                          )}
-                        />
-                        <span className="font-semibold text-xs truncate">
-                          {group.label}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground">
-                          {group.comandas.length} · {formatBRL(group.total)}
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="h-7 text-[11px] gap-1 px-2"
-                        onClick={() => handleSelectGroupAll(group)}
-                      >
-                        <Users className="h-3 w-3" />
-                        Cobrar tudo
-                      </Button>
-                    </div>
-                  )}
-
-                  {group.comandas.map((c) => {
-                    const items = getItemsByComanda(c.id);
-                    const tableLabel = group.table
-                      ? formatTableLabel(group.table.table_number)
-                      : null;
-                    const customer =
-                      c.customer_name ?? `#${c.comanda_number}`;
-                    const title = tableLabel
-                      ? `${tableLabel} — ${customer}`
-                      : `Avulsa — ${customer}`;
-                    // Contar siblings (mesa tem outras abertas, sem contar esta)
-                    const siblings = c.order_id
-                      ? Math.max(0, (openCountByOrderId.get(c.order_id) ?? 0) - 1)
-                      : 0;
-                    return (
-                      <SalonQueueCard
-                        key={c.id}
-                        comanda={c}
-                        items={items}
-                        title={title}
-                        borderColor={group.color}
-                        siblingCount={siblings}
-                        onCharge={() => onSelectComanda(c, items)}
-                      />
-                    );
-                  })}
+          {tab === "salon" && (
+            <>
+              {isOpen && totalCount > 0 ? (
+                <div className="space-y-0.5">
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">
+                      {totalCount} comanda{totalCount > 1 ? "s" : ""}
+                    </span>{" "}
+                    aguardando cobrança
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Total:{" "}
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatBRL(totalValue)}
+                    </span>
+                  </div>
                 </div>
-              );
-            })
+              ) : (
+                isOpen && (
+                  <div className="text-xs text-muted-foreground">
+                    Sem comandas na fila no momento.
+                  </div>
+                )
+              )}
+
+              {totalCount > 0 && (
+                <Select
+                  value={sortBy}
+                  onValueChange={(v) => setSortBy(v as SortOption)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="time">Mais antigas primeiro</SelectItem>
+                    <SelectItem value="value">Maior valor</SelectItem>
+                    <SelectItem value="table">Mesa</SelectItem>
+                    <SelectItem value="name">Nome</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          )}
+
+          {tab === "delivery" && isOpen && (
+            <div className="text-xs text-muted-foreground">
+              {delivery.actionableCount > 0 ? (
+                <>
+                  <span className="font-semibold text-foreground">
+                    {delivery.actionableCount}
+                  </span>{" "}
+                  pedido{delivery.actionableCount > 1 ? "s" : ""} aguardando ação
+                </>
+              ) : delivery.totalCount > 0 ? (
+                <>{delivery.totalCount} em andamento</>
+              ) : (
+                "Sem pedidos de delivery."
+              )}
+            </div>
           )}
         </div>
-      </ScrollArea>
 
-      {/* Rodapé com cobrança avulsa/direta */}
-      {isOpen && (
+        <TabsContent value="salon" className="flex-1 min-h-0 m-0">
+          <ScrollArea className="h-full">
+            <div className="p-3 space-y-4">
+              {!isOpen ? (
+                <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
+                  <Hourglass className="h-10 w-10 mb-2 opacity-40" />
+                  <p className="text-xs">Abra o caixa para ver a fila do salão.</p>
+                </div>
+              ) : groups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
+                  <UtensilsCrossed className="h-10 w-10 mb-2 opacity-40" />
+                  <p className="text-sm font-medium text-foreground">Tudo em dia!</p>
+                  <p className="text-xs mt-1">
+                    Nenhuma comanda aguardando cobrança.
+                  </p>
+                </div>
+              ) : (
+                groups.map((group) => {
+                  const isMulti = !!group.table && group.comandas.length > 1;
+                  return (
+                    <div key={group.key} className="space-y-2">
+                      {isMulti && (
+                        <div className="flex items-center justify-between gap-2 px-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div
+                              className={cn(
+                                "w-1 h-4 rounded-sm",
+                                group.color.replace("border-l-", "bg-"),
+                              )}
+                            />
+                            <span className="font-semibold text-xs truncate">
+                              {group.label}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {group.comandas.length} · {formatBRL(group.total)}
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            className="h-7 text-[11px] gap-1 px-2"
+                            onClick={() => handleSelectGroupAll(group)}
+                          >
+                            <Users className="h-3 w-3" />
+                            Cobrar tudo
+                          </Button>
+                        </div>
+                      )}
+
+                      {group.comandas.map((c) => {
+                        const items = getItemsByComanda(c.id);
+                        const tableLabel = group.table
+                          ? formatTableLabel(group.table.table_number)
+                          : null;
+                        const customer =
+                          c.customer_name ?? `#${c.comanda_number}`;
+                        const title = tableLabel
+                          ? `${tableLabel} — ${customer}`
+                          : `Avulsa — ${customer}`;
+                        const siblings = c.order_id
+                          ? Math.max(
+                              0,
+                              (openCountByOrderId.get(c.order_id) ?? 0) - 1,
+                            )
+                          : 0;
+                        return (
+                          <SalonQueueCard
+                            key={c.id}
+                            comanda={c}
+                            items={items}
+                            title={title}
+                            borderColor={group.color}
+                            siblingCount={siblings}
+                            onCharge={() => onSelectComanda(c, items)}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="delivery" className="flex-1 min-h-0 m-0">
+          <ScrollArea className="h-full">
+            <div className="p-3 space-y-2">
+              {!isOpen ? (
+                <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
+                  <Hourglass className="h-10 w-10 mb-2 opacity-40" />
+                  <p className="text-xs">
+                    Abra o caixa para registrar pedidos de delivery.
+                  </p>
+                </div>
+              ) : delivery.all.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
+                  <Bike className="h-10 w-10 mb-2 opacity-40" />
+                  <p className="text-sm font-medium text-foreground">
+                    Nenhum pedido pendente
+                  </p>
+                  <p className="text-xs mt-1">
+                    Novos pedidos aparecem aqui automaticamente.
+                  </p>
+                </div>
+              ) : (
+                delivery.all.map((o) => (
+                  <DeliveryQueueCard
+                    key={o.id}
+                    order={o}
+                    onRegisterPayment={(order) => setPaymentOrder(order)}
+                    onConfirmOnline={handleConfirmOnline}
+                  />
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
+
+      {isOpen && tab === "salon" && (
         <div className="border-t p-2">
           <Button
             variant="outline"
@@ -341,6 +458,12 @@ export function SalonQueuePanel({
           </Button>
         </div>
       )}
+
+      <DeliveryPaymentDialog
+        order={paymentOrder}
+        open={!!paymentOrder}
+        onOpenChange={(o) => !o && setPaymentOrder(null)}
+      />
     </div>
   );
 }
