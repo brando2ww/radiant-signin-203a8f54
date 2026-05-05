@@ -280,6 +280,21 @@ export async function sweepCepRange(
         neighborhoods: sorted,
         entries: entries.slice(),
       });
+
+      if (cepsSinceLastFind >= EARLY_EXIT_AFTER) {
+        // Pula o restante deste prefixo — não está retornando nada
+        const skipped = ceps.length - (i + chunk.length);
+        done += skipped;
+        options.onProgress?.({
+          done,
+          total,
+          neighborhoods: Array.from(foundNeighborhoods).sort((a, b) =>
+            a.localeCompare(b, "pt-BR"),
+          ),
+          entries: entries.slice(),
+        });
+        break;
+      }
     }
 
     // Cache deste prefixo individualmente
