@@ -292,9 +292,9 @@ export function usePDVCashier() {
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       toast.success("Movimentação registrada com sucesso!");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Erro ao registrar movimentação:", error);
-      toast.error("Erro ao registrar movimentação");
+      toast.error(error?.message || "Erro ao registrar movimentação");
     },
   });
 
