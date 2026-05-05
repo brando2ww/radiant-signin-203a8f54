@@ -512,3 +512,36 @@ function GroupCard({
     </div>
   );
 }
+
+function QuantityInput({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+}) {
+  const [local, setLocal] = useState(String(value));
+  useEffect(() => setLocal(String(value)), [value]);
+  const commit = () => {
+    const n = Number(local) || 1;
+    if (n !== value) onCommit(n);
+    else setLocal(String(value));
+  };
+  return (
+    <Input
+      type="number"
+      min={0.01}
+      step={0.01}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+      className="w-20 h-8 text-center text-sm"
+    />
+  );
+}
