@@ -79,7 +79,7 @@ export function CashierSummaryFooter({
           </div>
           <div className="space-y-0.5">
             <SummaryRow icon={Wallet} label="Abertura" value={openingBalance} />
-            <SummaryRow icon={Banknote} label="Dinheiro líquido (− troco)" value={netCash} prefix="+" tone="positive" />
+            <SummaryRow icon={Banknote} label="Dinheiro de vendas" value={netCash} prefix="+" tone="positive" />
             <SummaryRow icon={TrendingUp} label="Reforços" value={totalReinforcements} prefix="+" tone="positive" />
             <SummaryRow icon={TrendingDown} label="Sangrias" value={totalWithdrawals} prefix="-" tone="negative" />
           </div>
