@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
-import { Copy, Edit, Layers, MoreVertical, Package, Send, Trash2 } from "lucide-react";
+import { Copy, Edit, Layers, MoreVertical, Package, RefreshCw, Send, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PDVProduct } from "@/hooks/use-pdv-products";
 import { usePDVRecipes } from "@/hooks/use-pdv-recipes";
+import { useResyncDeliveryOptions } from "@/hooks/use-share-to-delivery";
 import { CMVBadge } from "./CMVBadge";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 import { formatBRL } from "@/lib/format";
