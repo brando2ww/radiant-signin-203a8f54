@@ -4808,10 +4808,55 @@ export type Database = {
         }
         Relationships: []
       }
+      pdv_product_composition_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_required: boolean
+          max_selections: number
+          min_selections: number
+          name: string
+          order_position: number
+          parent_product_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_selections?: number
+          min_selections?: number
+          name: string
+          order_position?: number
+          parent_product_id: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_selections?: number
+          min_selections?: number
+          name?: string
+          order_position?: number
+          parent_product_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_product_composition_groups_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdv_product_compositions: {
         Row: {
           child_product_id: string
           created_at: string | null
+          group_id: string | null
           id: string
           order_position: number
           parent_product_id: string
@@ -4820,6 +4865,7 @@ export type Database = {
         Insert: {
           child_product_id: string
           created_at?: string | null
+          group_id?: string | null
           id?: string
           order_position?: number
           parent_product_id: string
@@ -4828,6 +4874,7 @@ export type Database = {
         Update: {
           child_product_id?: string
           created_at?: string | null
+          group_id?: string | null
           id?: string
           order_position?: number
           parent_product_id?: string
@@ -4839,6 +4886,13 @@ export type Database = {
             columns: ["child_product_id"]
             isOneToOne: false
             referencedRelation: "pdv_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_product_compositions_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_product_composition_groups"
             referencedColumns: ["id"]
           },
           {
