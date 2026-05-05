@@ -244,6 +244,21 @@ export const ExcludedZones = ({
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="range" className="space-y-3 mt-3">
+            {coveredUF && coveredCity ? (
+              <CepRangeSweepPanel
+                uf={coveredUF}
+                city={coveredCity}
+                blockedCeps={blockedCepsSet}
+                onAddEntries={handleAddSweepEntries}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Defina o estado e cidade na Área de Cobertura primeiro.
+              </p>
+            )}
+          </TabsContent>
         </Tabs>
 
         {excludedCeps.length > 0 && (
