@@ -76,8 +76,8 @@ export function NeighborhoodSelectorModal({
             setPrefix(res.prefix);
             // Se já houver cache para este prefixo, carrega
             const cached = getCachedSweep(res.prefix);
-            if (cached && cached.length > 0) {
-              mergeNeighborhoods(cached);
+            if (cached && cached.neighborhoods.length > 0) {
+              mergeNeighborhoods(cached.neighborhoods);
             }
           }
         })
@@ -124,9 +124,9 @@ export function NeighborhoodSelectorModal({
 
     // Verifica cache
     const cached = getCachedSweep(cleanPrefix);
-    if (cached && cached.length > 0) {
-      mergeNeighborhoods(cached);
-      toast.success(`${cached.length} bairros carregados do cache.`);
+    if (cached && cached.neighborhoods.length > 0) {
+      mergeNeighborhoods(cached.neighborhoods);
+      toast.success(`${cached.neighborhoods.length} bairros carregados do cache.`);
       return;
     }
 
