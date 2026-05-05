@@ -91,9 +91,9 @@ export const CheckoutFlow = ({
     // Track purchase
     trackPurchase({
       orderId,
-      total,
+      total: effectiveTotal,
       subtotal,
-      deliveryFee,
+      deliveryFee: effectiveDeliveryFee,
       discount,
       cart,
     });
@@ -109,6 +109,7 @@ export const CheckoutFlow = ({
     setPaymentMethod("");
     setChangeFor(undefined);
     setNotes("");
+    setResolvedDeliveryFee(null);
   };
 
   const getStepTitle = () => {
