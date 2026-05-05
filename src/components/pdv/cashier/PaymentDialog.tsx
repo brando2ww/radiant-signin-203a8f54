@@ -1714,6 +1714,10 @@ export function PaymentDialog({
                   {/* Cash Fields */}
                   {selectedMethod === "dinheiro" && (
                     <div className="space-y-3">
+                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                        <span className="text-muted-foreground">Saldo disponível para troco: </span>
+                        <span className="font-semibold tabular-nums">{formatCurrency(drawerBalance)}</span>
+                      </div>
                       <div className="space-y-2">
                         <Label>Valor Recebido</Label>
                         <CurrencyInput
