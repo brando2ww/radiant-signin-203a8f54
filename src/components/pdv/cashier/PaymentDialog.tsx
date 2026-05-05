@@ -87,6 +87,8 @@ interface PaymentDialogProps {
   /** Quando true, força split com 1 linha por comanda nominal (cobrar tudo da mesa) */
   splitByComanda?: boolean;
   onSuccess?: () => void;
+  /** Saldo atual da gaveta — usado para validar troco em dinheiro */
+  drawerBalance?: number;
 }
 
 type CardType = "credito" | "debito";
