@@ -433,18 +433,9 @@ function GroupCard({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <Input
-                    type="number"
-                    min={0.01}
-                    step={0.01}
+                  <QuantityInput
                     value={comp.quantity}
-                    onChange={(e) =>
-                      onUpdateItemQty(comp.id, Number(e.target.value) || 1)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") e.preventDefault();
-                    }}
-                    className="w-20 h-8 text-center text-sm"
+                    onCommit={(n) => onUpdateItemQty(comp.id, n)}
                   />
                   <span className="text-xs text-muted-foreground w-8">un</span>
                 </div>
