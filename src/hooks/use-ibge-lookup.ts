@@ -236,15 +236,19 @@ export async function fetchAllNeighborhoods(
   const snapshot = () =>
     [...map.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  // 1) IBGE — distritos oficiais
+  // 1) IBGE — distritos + subdistritos oficiais
   const municipioId = await fetchMunicipioId(uf, city);
   if (municipioId) {
-    const distritos = await fetchIBGEDistricts(municipioId);
+    const [distritos, subdistritos] = await Promise.all([
+      fetchIBGEDistricts(municipioId),
+      fetchIBGESubdistricts(municipioId),
+    ]);
     distritos.forEach(add);
+    subdistritos.forEach(add);
     onProgress?.(snapshot());
   }
 
-  // 2) ViaCEP — termos básicos (rápido)
+  // 2) ViaCEP — termos estruturais básicos (rápido)
   await runInChunks(
     SEARCH_TERMS_BASIC,
     6,
@@ -255,8 +259,20 @@ export async function fetchAllNeighborhoods(
     },
   );
 
-  // 3) Varredura A–Z exaustiva (opcional)
-  if (deep) {
+  // 3) ViaCEP — nomes comuns de bairros (resgata bairros em cidades pequenas)
+  await runInChunks(
+    COMMON_NEIGHBORHOOD_NAMES,
+    6,
+    (name) => withRetry(() => searchStreetByName(uf, city, name), []),
+    (chunkResults) => {
+      chunkResults.flat().forEach((r) => add(r.bairro));
+      onProgress?.(snapshot());
+    },
+  );
+
+  // 4) Varredura A–Z — explícita (deep) ou automática para cidades pequenas
+  const shouldRunDeep = deep || map.size < 15;
+  if (shouldRunDeep) {
     const queries: string[] = [];
     for (const term of SEARCH_TERMS_BASIC) {
       for (const letter of ALPHABET) queries.push(`${term} ${letter}`);
@@ -273,6 +289,12 @@ export async function fetchAllNeighborhoods(
   }
 
   const final = snapshot();
+  // Se rodou deep (forçado ou automático), grava também sob a chave deep
+  // para evitar refazer a varredura ao reabrir o seletor.
   writeCache(key, final);
+  if (shouldRunDeep && !deep) {
+    writeCache(cacheKey(uf, city, true), final);
+  }
   return final;
 }
+
