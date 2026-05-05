@@ -388,7 +388,7 @@ export function CloseCashierDialog({
     [movements],
   );
 
-  const netCash = totalCash - totalChange;
+  const netCash = totalCash;
   const expectedCash = openingBalance + netCash + totalReinforcements - totalWithdrawals;
 
   const declaredCashNum = parseFloat(declaredCash) || 0;
