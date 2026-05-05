@@ -20,6 +20,14 @@ export interface ExcludedCEP {
   reason?: string;
 }
 
+export interface CepRange {
+  id: string;
+  label?: string;
+  cep_start: string;
+  cep_end: string;
+  fee: number;
+}
+
 export interface BusinessHours {
   [key: string]: {
     open: string;
@@ -50,6 +58,7 @@ export interface DeliverySettings {
   google_tag_id?: string | null;
   covered_city: CoveredCity | null;
   excluded_ceps: ExcludedCEP[];
+  cep_ranges: CepRange[];
   created_at: string;
   updated_at: string;
 }
@@ -78,6 +87,7 @@ export const useDeliverySettings = () => {
         blocked_dates: (data.blocked_dates as any) || [],
         covered_city: (data.covered_city as any) || null,
         excluded_ceps: (data.excluded_ceps as any) || [],
+        cep_ranges: ((data as any).cep_ranges as any) || [],
       } as DeliverySettings;
     },
   });

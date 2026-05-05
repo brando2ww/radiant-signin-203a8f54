@@ -1,17 +1,25 @@
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCustomerAddresses } from "@/hooks/use-delivery-customers";
 import { ChevronLeft, MapPin, Home, Loader2 } from "lucide-react";
 import { AddressForm } from "./AddressForm";
 import { CEPInput } from "@/components/ui/cep-input";
 import { useCEPLookup } from "@/hooks/use-cep-lookup";
+import { usePublicSettings } from "@/hooks/use-public-menu";
+import { resolveDeliveryCoverage } from "@/lib/delivery-coverage";
+import { formatBRL } from "@/lib/format";
 
 interface DeliveryAddressProps {
   customerId: string;
   userId: string;
-  onConfirm: (type: "delivery" | "pickup", addressId?: string, addressText?: string) => void;
+  onConfirm: (
+    type: "delivery" | "pickup",
+    addressId?: string,
+    addressText?: string,
+    deliveryFee?: number
+  ) => void;
   onBack: () => void;
 }
 
@@ -36,7 +44,19 @@ export const DeliveryAddress = ({
   const [cepData, setCepData] = useState<CEPData | null>(null);
 
   const { data: addresses = [] } = useCustomerAddresses(customerId);
+  const { data: settings } = usePublicSettings(userId);
   const { lookupCEP, isLoading: isLoadingCEP } = useCEPLookup();
+
+  const cepCoverage = useMemo(() => {
+    if (!cepData) return null;
+    return resolveDeliveryCoverage({
+      cep: cepData.zipCode,
+      neighborhood: cepData.neighborhood,
+      city: cepData.city,
+      uf: cepData.state,
+      settings: settings as any,
+    });
+  }, [cepData, settings]);
 
   const handleTypeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +85,15 @@ export const DeliveryAddress = ({
           city: data.localidade || "",
           state: data.uf || "",
         });
+      } else {
+        // CEP não encontrado no ViaCEP — ainda permite avaliar pela faixa
+        setCepData({
+          zipCode: value,
+          street: "",
+          neighborhood: "",
+          city: "",
+          state: "",
+        });
       }
     }
   };
@@ -74,10 +103,20 @@ export const DeliveryAddress = ({
     if (!selectedAddressId) return;
     const selectedAddress = addresses.find((addr) => addr.id === selectedAddressId);
     if (selectedAddress) {
+      const coverage = resolveDeliveryCoverage({
+        cep: selectedAddress.zip_code,
+        neighborhood: selectedAddress.neighborhood,
+        city: selectedAddress.city,
+        uf: selectedAddress.state,
+        settings: settings as any,
+      });
+      if (!coverage.covered) {
+        return;
+      }
       const addressText = `${selectedAddress.street}, ${selectedAddress.number}${
         selectedAddress.complement ? `, ${selectedAddress.complement}` : ""
       } - ${selectedAddress.neighborhood}, ${selectedAddress.city}/${selectedAddress.state}`;
-      onConfirm("delivery", selectedAddressId, addressText);
+      onConfirm("delivery", selectedAddressId, addressText, coverage.fee ?? undefined);
     }
   };
 
@@ -98,20 +137,44 @@ export const DeliveryAddress = ({
               <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
             )}
           </div>
-          {cepData && (
+          {cepData && (cepData.street || cepData.neighborhood) && (
             <p className="text-sm text-muted-foreground">
-              {cepData.street && `${cepData.street} - `}{cepData.neighborhood}, {cepData.city}/{cepData.state}
+              {cepData.street && `${cepData.street} - `}
+              {cepData.neighborhood}, {cepData.city}/{cepData.state}
             </p>
+          )}
+          {cepCoverage && (
+            <div className="text-sm">
+              {cepCoverage.covered ? (
+                <p className="text-foreground">
+                  ✓ Atendemos este CEP — Taxa: {formatBRL(cepCoverage.fee || 0)}
+                </p>
+              ) : (
+                <p className="text-destructive">
+                  {cepCoverage.reason === "excluded"
+                    ? "Não atendemos este CEP."
+                    : "Endereço fora da área de cobertura."}
+                </p>
+              )}
+            </div>
           )}
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={() => { setStep(addresses.length > 0 ? "address" : "type"); setCepValue(""); setCepData(null); }}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setStep(addresses.length > 0 ? "address" : "type");
+              setCepValue("");
+              setCepData(null);
+            }}
+          >
             <ChevronLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
           <Button
             className="flex-1"
-            disabled={!cepData}
+            disabled={!cepData || !cepCoverage?.covered}
             onClick={() => setStep("form")}
           >
             Continuar
@@ -132,15 +195,28 @@ export const DeliveryAddress = ({
         initialCity={cepData?.city}
         initialState={cepData?.state}
         onSuccess={(addressId, addressText) => {
-          onConfirm("delivery", addressId, addressText);
+          onConfirm("delivery", addressId, addressText, cepCoverage?.fee ?? undefined);
         }}
-        onCancel={() => { setStep("cep"); }}
+        onCancel={() => {
+          setStep("cep");
+        }}
       />
     );
   }
 
   // Step: Select from existing addresses
   if (step === "address") {
+    const selectedAddress = addresses.find((a) => a.id === selectedAddressId);
+    const selectedCoverage = selectedAddress
+      ? resolveDeliveryCoverage({
+          cep: selectedAddress.zip_code,
+          neighborhood: selectedAddress.neighborhood,
+          city: selectedAddress.city,
+          uf: selectedAddress.state,
+          settings: settings as any,
+        })
+      : null;
+
     return (
       <form onSubmit={handleAddressSelect} className="space-y-6">
         <div className="space-y-3">
@@ -170,11 +246,25 @@ export const DeliveryAddress = ({
               </div>
             ))}
           </RadioGroup>
+          {selectedCoverage && !selectedCoverage.covered && (
+            <p className="text-sm text-destructive">
+              Endereço fora da área de cobertura.
+            </p>
+          )}
+          {selectedCoverage?.covered && (
+            <p className="text-sm text-muted-foreground">
+              Taxa de entrega: {formatBRL(selectedCoverage.fee || 0)}
+            </p>
+          )}
           <Button
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => { setCepValue(""); setCepData(null); setStep("cep"); }}
+            onClick={() => {
+              setCepValue("");
+              setCepData(null);
+              setStep("cep");
+            }}
           >
             + Adicionar Novo Endereço
           </Button>
@@ -184,7 +274,11 @@ export const DeliveryAddress = ({
             <ChevronLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
-          <Button type="submit" className="flex-1" disabled={!selectedAddressId}>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={!selectedAddressId || (selectedCoverage ? !selectedCoverage.covered : false)}
+          >
             Continuar
           </Button>
         </div>

@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Loader2, MapPin, Settings2 } from "lucide-react";
+import { Plus, Trash2, Loader2, MapPin, Settings2, Route } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   useDeliverySettings,
@@ -12,13 +12,17 @@ import {
   DeliveryZone,
   CoveredCity,
   ExcludedCEP as ExcludedCEPType,
+  CepRange,
 } from "@/hooks/use-delivery-settings";
 import { useIBGEStates, useIBGECities } from "@/hooks/use-ibge-lookup";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { CEPInput } from "@/components/ui/cep-input";
 import { ExcludedZones, ExcludedCEP } from "./ExcludedZones";
 import { NeighborhoodCombobox } from "./NeighborhoodCombobox";
 import { NeighborhoodSelectorModal } from "./NeighborhoodSelectorModal";
 import { formatBRL } from "@/lib/format";
+import { normalizeCEP } from "@/lib/delivery-coverage";
+import { toast } from "sonner";
 
 export const DeliverySettings = () => {
   const { data: settings } = useDeliverySettings();
@@ -37,6 +41,11 @@ export const DeliverySettings = () => {
   const [selectedCityCode, setSelectedCityCode] = useState<number | undefined>();
   const [coveredCity, setCoveredCity] = useState<CoveredCity | null>(null);
   const [excludedCeps, setExcludedCeps] = useState<ExcludedCEP[]>([]);
+  const [cepRanges, setCepRanges] = useState<CepRange[]>([]);
+  const [newRangeStart, setNewRangeStart] = useState("");
+  const [newRangeEnd, setNewRangeEnd] = useState("");
+  const [newRangeFee, setNewRangeFee] = useState("");
+  const [newRangeLabel, setNewRangeLabel] = useState("");
   const [neighborhoodModalOpen, setNeighborhoodModalOpen] = useState(false);
 
   const { cities, isLoading: isLoadingCities } = useIBGECities(selectedUF);
@@ -49,6 +58,7 @@ export const DeliverySettings = () => {
       setZones(settings.delivery_zones || []);
       setCoveredCity(settings.covered_city || null);
       setExcludedCeps((settings.excluded_ceps as ExcludedCEP[]) || []);
+      setCepRanges((settings.cep_ranges as CepRange[]) || []);
       if (settings.covered_city) {
         setSelectedUF(settings.covered_city.uf);
         setSelectedCity(settings.covered_city.city);
@@ -105,6 +115,54 @@ export const DeliverySettings = () => {
     updateSettings.mutate({ delivery_zones: updatedZones as any });
   };
 
+  const handleAddRange = () => {
+    const a = normalizeCEP(newRangeStart);
+    const b = normalizeCEP(newRangeEnd);
+    if (a.length !== 8 || b.length !== 8) {
+      toast.error("Informe CEPs completos (8 dígitos)");
+      return;
+    }
+    if (a > b) {
+      toast.error("CEP inicial deve ser menor ou igual ao final");
+      return;
+    }
+    if (!newRangeFee) {
+      toast.error("Informe a taxa de entrega da faixa");
+      return;
+    }
+    const overlap = cepRanges.some((r) => {
+      const ra = normalizeCEP(r.cep_start);
+      const rb = normalizeCEP(r.cep_end);
+      return a <= rb && b >= ra;
+    });
+    if (overlap) {
+      toast.warning("Esta faixa se sobrepõe a outra já cadastrada");
+    }
+    setCepRanges([
+      ...cepRanges,
+      {
+        id: crypto.randomUUID(),
+        label: newRangeLabel || undefined,
+        cep_start: a,
+        cep_end: b,
+        fee: Number(newRangeFee),
+      },
+    ]);
+    setNewRangeStart("");
+    setNewRangeEnd("");
+    setNewRangeFee("");
+    setNewRangeLabel("");
+  };
+
+  const handleRemoveRange = (id: string) => {
+    setCepRanges(cepRanges.filter((r) => r.id !== id));
+  };
+
+  const formatCepDisplay = (c: string) => {
+    const d = normalizeCEP(c);
+    return d ? `${d.slice(0, 5)}-${d.slice(5)}` : c;
+  };
+
   const handleSave = () => {
     updateSettings.mutate({
       min_order_value: Number(minOrderValue),
@@ -113,6 +171,7 @@ export const DeliverySettings = () => {
       delivery_zones: zones as any,
       covered_city: coveredCity as any,
       excluded_ceps: excludedCeps as any,
+      cep_ranges: cepRanges as any,
     });
   };
 
@@ -273,6 +332,79 @@ export const DeliverySettings = () => {
               Configure taxas de entrega específicas por bairro
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Card — Cobertura por intervalo de CEP */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Route className="h-5 w-5" />
+            Cobertura por intervalo de CEP
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {cepRanges.length > 0 && (
+            <div className="space-y-2">
+              {cepRanges.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between p-3 border rounded-md"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {formatCepDisplay(r.cep_start)} → {formatCepDisplay(r.cep_end)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {r.label ? `${r.label} · ` : ""}
+                      {formatBRL(Number(r.fee))}
+                    </p>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => handleRemoveRange(r.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">CEP inicial</Label>
+              <CEPInput value={newRangeStart} onChange={setNewRangeStart} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">CEP final</Label>
+              <CEPInput value={newRangeEnd} onChange={setNewRangeEnd} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Identificação (opcional)</Label>
+              <Input
+                value={newRangeLabel}
+                onChange={(e) => setNewRangeLabel(e.target.value)}
+                placeholder="Ex.: Centro"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Taxa</Label>
+              <CurrencyInput
+                value={newRangeFee}
+                onChange={setNewRangeFee}
+                className="w-32"
+              />
+            </div>
+            <Button onClick={handleAddRange} disabled={!newRangeStart || !newRangeEnd || !newRangeFee}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Qualquer CEP do cliente dentro de uma faixa será atendido com a taxa indicada.
+          </p>
         </CardContent>
       </Card>
 

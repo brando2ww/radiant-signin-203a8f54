@@ -1993,6 +1993,7 @@ export type Database = {
           auto_accept_orders: boolean | null
           blocked_dates: Json | null
           business_hours: Json | null
+          cep_ranges: Json
           covered_city: Json | null
           created_at: string
           default_delivery_fee: number | null
@@ -2018,6 +2019,7 @@ export type Database = {
           auto_accept_orders?: boolean | null
           blocked_dates?: Json | null
           business_hours?: Json | null
+          cep_ranges?: Json
           covered_city?: Json | null
           created_at?: string
           default_delivery_fee?: number | null
@@ -2043,6 +2045,7 @@ export type Database = {
           auto_accept_orders?: boolean | null
           blocked_dates?: Json | null
           business_hours?: Json | null
+          cep_ranges?: Json
           covered_city?: Json | null
           created_at?: string
           default_delivery_fee?: number | null

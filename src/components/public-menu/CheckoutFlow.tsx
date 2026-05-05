@@ -49,7 +49,11 @@ export const CheckoutFlow = ({
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [changeFor, setChangeFor] = useState<number | undefined>();
   const [notes, setNotes] = useState<string>("");
+  const [resolvedDeliveryFee, setResolvedDeliveryFee] = useState<number | null>(null);
   const { trackPurchase } = useMarketingTracking();
+
+  const effectiveDeliveryFee = orderType === "pickup" ? 0 : resolvedDeliveryFee ?? deliveryFee;
+  const effectiveTotal = subtotal + effectiveDeliveryFee - discount;
 
   const handlePhoneConfirmed = (confirmedCustomer: DeliveryCustomer) => {
     setCustomer(confirmedCustomer);
@@ -64,10 +68,16 @@ export const CheckoutFlow = ({
     setCurrentStep("address");
   };
 
-  const handleAddressConfirmed = (type: "delivery" | "pickup", addressId?: string, address?: string) => {
+  const handleAddressConfirmed = (
+    type: "delivery" | "pickup",
+    addressId?: string,
+    address?: string,
+    fee?: number
+  ) => {
     setOrderType(type);
     setSelectedAddressId(addressId || null);
     setAddressText(address || "");
+    setResolvedDeliveryFee(type === "pickup" ? 0 : fee ?? null);
     setCurrentStep("payment");
   };
 
@@ -81,9 +91,9 @@ export const CheckoutFlow = ({
     // Track purchase
     trackPurchase({
       orderId,
-      total,
+      total: effectiveTotal,
       subtotal,
-      deliveryFee,
+      deliveryFee: effectiveDeliveryFee,
       discount,
       cart,
     });
@@ -99,6 +109,7 @@ export const CheckoutFlow = ({
     setPaymentMethod("");
     setChangeFor(undefined);
     setNotes("");
+    setResolvedDeliveryFee(null);
   };
 
   const getStepTitle = () => {
@@ -147,7 +158,7 @@ export const CheckoutFlow = ({
         {currentStep === "payment" && (
           <PaymentMethod
             userId={userId}
-            total={total}
+            total={effectiveTotal}
             onConfirm={handlePaymentConfirmed}
             onBack={() => setCurrentStep("address")}
           />
@@ -163,10 +174,10 @@ export const CheckoutFlow = ({
             paymentMethod={paymentMethod}
             changeFor={changeFor}
             subtotal={subtotal}
-            deliveryFee={deliveryFee}
+            deliveryFee={effectiveDeliveryFee}
             discount={discount}
             couponCode={couponCode}
-            total={total}
+            total={effectiveTotal}
             notes={notes}
             onNotesChange={setNotes}
             onConfirm={handleOrderPlaced}
