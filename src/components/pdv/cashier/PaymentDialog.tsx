@@ -124,6 +124,7 @@ export function PaymentDialog({
   tableItems = [],
   splitByComanda = false,
   onSuccess,
+  drawerBalance = 0,
 }: PaymentDialogProps) {
   const { user } = useAuth();
   
