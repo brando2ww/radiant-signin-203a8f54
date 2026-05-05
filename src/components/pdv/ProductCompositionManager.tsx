@@ -262,84 +262,91 @@ function GroupCard({
   return (
     <div className="border rounded-lg p-4 space-y-4 bg-card">
       {/* Group header config */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-        <div className="md:col-span-5">
-          <Label className="text-xs">Nome do grupo</Label>
-          <Input
-            value={group.name}
-            onChange={(e) => onUpdateGroup({ name: e.target.value })}
-          />
-        </div>
-        <div className="md:col-span-2">
-          <Label className="text-xs">Tipo</Label>
-          <Select
-            value={group.type}
-            onValueChange={(v) =>
-              onUpdateGroup({
-                type: v,
-                ...(v === "single" ? { min_selections: group.is_required ? 1 : 0, max_selections: 1 } : {}),
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="single">Escolha única</SelectItem>
-              <SelectItem value="multiple">Múltipla escolha</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {group.type === "multiple" && (
-          <>
-            <div className="md:col-span-1">
-              <Label className="text-xs">Mín.</Label>
-              <Input
-                type="number"
-                min={0}
-                value={group.min_selections}
-                onChange={(e) =>
-                  onUpdateGroup({ min_selections: Number(e.target.value) || 0 })
-                }
-              />
-            </div>
-            <div className="md:col-span-1">
-              <Label className="text-xs">Máx.</Label>
-              <Input
-                type="number"
-                min={1}
-                value={group.max_selections}
-                onChange={(e) =>
-                  onUpdateGroup({ max_selections: Number(e.target.value) || 1 })
-                }
-              />
-            </div>
-          </>
-        )}
-        <div className="md:col-span-2 flex items-center gap-2 pb-2">
-          <Switch
-            checked={group.is_required}
-            onCheckedChange={(checked) =>
-              onUpdateGroup({
-                is_required: checked,
-                ...(group.type === "single"
-                  ? { min_selections: checked ? 1 : 0 }
-                  : {}),
-              })
-            }
-          />
-          <Label className="text-xs">Obrigatório</Label>
-        </div>
-        <div className="md:col-span-1 flex justify-end">
+      <div className="space-y-3">
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Label className="text-xs">Nome do grupo</Label>
+            <Input
+              value={group.name}
+              onChange={(e) => onUpdateGroup({ name: e.target.value })}
+            />
+          </div>
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="text-destructive"
+            className="text-destructive shrink-0"
             onClick={onDeleteGroup}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+        </div>
+
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-48">
+            <Label className="text-xs">Tipo</Label>
+            <Select
+              value={group.type}
+              onValueChange={(v) =>
+                onUpdateGroup({
+                  type: v,
+                  ...(v === "single"
+                    ? { min_selections: group.is_required ? 1 : 0, max_selections: 1 }
+                    : {}),
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="single">Escolha única</SelectItem>
+                <SelectItem value="multiple">Múltipla escolha</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {group.type === "multiple" && (
+            <>
+              <div className="w-20">
+                <Label className="text-xs">Mín.</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={group.min_selections}
+                  onChange={(e) =>
+                    onUpdateGroup({ min_selections: Number(e.target.value) || 0 })
+                  }
+                />
+              </div>
+              <div className="w-20">
+                <Label className="text-xs">Máx.</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={group.max_selections}
+                  onChange={(e) =>
+                    onUpdateGroup({ max_selections: Number(e.target.value) || 1 })
+                  }
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center gap-2 h-10">
+            <Switch
+              checked={group.is_required}
+              onCheckedChange={(checked) =>
+                onUpdateGroup({
+                  is_required: checked,
+                  ...(group.type === "single"
+                    ? { min_selections: checked ? 1 : 0 }
+                    : {}),
+                })
+              }
+            />
+            <Label className="text-xs">Obrigatório</Label>
+          </div>
         </div>
       </div>
 
