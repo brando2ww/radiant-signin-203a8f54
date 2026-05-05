@@ -126,15 +126,62 @@ export function usePDVComandas() {
       if (!user) throw new Error("Usuário não autenticado");
       const ownerId = visibleUserId || user.id;
 
+      // Comanda avulsa (sem orderId): atrelar internamente à mesa virtual "Balcão"
+      let effectiveOrderId = data.orderId || null;
+      if (!effectiveOrderId) {
+        // 1. Localiza mesa virtual do owner
+        const { data: virtualTable } = await supabase
+          .from("pdv_tables")
+          .select("id, current_order_id, table_number")
+          .eq("user_id", ownerId)
+          .eq("is_virtual", true)
+          .maybeSingle();
+
+        if (virtualTable) {
+          // 2. Reusa order aberto se existir; senão cria
+          if (virtualTable.current_order_id) {
+            effectiveOrderId = virtualTable.current_order_id;
+          } else {
+            const orderNumber = `ORD-${new Date()
+              .toISOString()
+              .replace(/[-:.TZ]/g, "")
+              .slice(0, 14)}`;
+            const { data: newOrder, error: orderErr } = await supabase
+              .from("pdv_orders")
+              .insert({
+                user_id: ownerId,
+                table_id: virtualTable.id,
+                source: "salao",
+                status: "aberto",
+                order_number: orderNumber,
+                opened_by: user.id,
+                opened_at: new Date().toISOString(),
+              })
+              .select("id")
+              .single();
+            if (!orderErr && newOrder) {
+              effectiveOrderId = newOrder.id;
+              await supabase
+                .from("pdv_tables")
+                .update({
+                  current_order_id: newOrder.id,
+                  status: "ocupada",
+                })
+                .eq("id", virtualTable.id);
+            }
+          }
+        }
+      }
+
       // Idempotência: se for comanda padrão (sem customerName) vinculada a um
       // order, e já existir uma comanda padrão aberta, devolve a existente.
       // Evita duplicação por clique repetido / race / dois dispositivos.
       const isDefault = !data.customerName;
-      if (data.orderId && isDefault) {
+      if (effectiveOrderId && isDefault) {
         const { data: existing } = await supabase
           .from("pdv_comandas")
           .select("*")
-          .eq("order_id", data.orderId)
+          .eq("order_id", effectiveOrderId)
           .eq("status", "aberta")
           .is("customer_name", null)
           .maybeSingle();
