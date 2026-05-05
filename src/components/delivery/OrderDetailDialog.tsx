@@ -11,6 +11,7 @@ import {
   DeliveryOrder,
   useUpdateOrderStatus,
   useCancelOrder,
+  useReprintOrder,
 } from "@/hooks/use-delivery-orders";
 import {
   Phone,
@@ -22,6 +23,7 @@ import {
   XCircle,
   CheckCircle,
   ChevronRight,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
