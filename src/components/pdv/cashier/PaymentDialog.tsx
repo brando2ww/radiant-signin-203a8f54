@@ -323,6 +323,33 @@ export function PaymentDialog({
   const splitTotal = splitPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
   const splitRemaining = total - splitTotal;
 
+  // Validação do troco contra saldo da gaveta (modo simples)
+  const simpleChangeExceedsDrawer =
+    selectedMethod === "dinheiro" && changeAmount > drawerBalance + 0.001;
+
+  // Validação do troco no split: somar trocos das linhas em dinheiro (cada linha
+  // pode ter "amount" maior que o necessário; aqui usamos amount como valor
+  // entregue, e a parte da venda em dinheiro é min(amount, restante)).
+  // Como o modelo atual usa amount como valor pago para a parcela, qualquer
+  // excedente é tratado como troco. Para evitar bloquear cenários comuns onde
+  // amount exatamente fecha o split, validamos linha-a-linha.
+  let splitCashChangeExceeds = false;
+  if (splitEnabled) {
+    let remaining = total;
+    for (const p of splitPayments) {
+      const amt = parseFloat(p.amount) || 0;
+      const m = p.method === "cartao" ? "credito" : p.method;
+      if (m === "dinheiro") {
+        const change = Math.max(0, amt - Math.max(0, remaining));
+        if (change > drawerBalance + 0.001) {
+          splitCashChangeExceeds = true;
+          break;
+        }
+      }
+      remaining -= amt;
+    }
+  }
+
   // Discount: dependendo da configuração, motivo pode ou não ser obrigatório
   const requireReason = !!settings?.require_discount_reason;
   const hasDiscount = !!appliedDiscount;
@@ -333,9 +360,11 @@ export function PaymentDialog({
   // Validation
   const hasByProductSelection = isByProduct && selectedItemQtys.size > 0 && selectedSubtotal > 0;
   const byProductBlocks = chargeMode === "by-product" && (!supportsByProduct || !hasByProductSelection);
-  const canSubmit = !discountInProgress && !byProductBlocks && (splitEnabled
-    ? Math.abs(splitRemaining) < 0.01 && splitPayments.length > 0
-    : selectedMethod !== "dinheiro" || cashReceivedNum >= total);
+  const canSubmit = !discountInProgress && !byProductBlocks
+    && !simpleChangeExceedsDrawer && !splitCashChangeExceeds
+    && (splitEnabled
+      ? Math.abs(splitRemaining) < 0.01 && splitPayments.length > 0
+      : selectedMethod !== "dinheiro" || cashReceivedNum >= total);
 
   // Reset state + adquirir lock em_cobranca quando o dialog abre.
   useEffect(() => {
