@@ -335,6 +335,79 @@ export const DeliverySettings = () => {
         </CardContent>
       </Card>
 
+      {/* Card — Cobertura por intervalo de CEP */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Route className="h-5 w-5" />
+            Cobertura por intervalo de CEP
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {cepRanges.length > 0 && (
+            <div className="space-y-2">
+              {cepRanges.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between p-3 border rounded-md"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {formatCepDisplay(r.cep_start)} → {formatCepDisplay(r.cep_end)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {r.label ? `${r.label} · ` : ""}
+                      {formatBRL(Number(r.fee))}
+                    </p>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    onClick={() => handleRemoveRange(r.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto_auto] sm:items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">CEP inicial</Label>
+              <CEPInput value={newRangeStart} onChange={setNewRangeStart} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">CEP final</Label>
+              <CEPInput value={newRangeEnd} onChange={setNewRangeEnd} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Identificação (opcional)</Label>
+              <Input
+                value={newRangeLabel}
+                onChange={(e) => setNewRangeLabel(e.target.value)}
+                placeholder="Ex.: Centro"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Taxa</Label>
+              <CurrencyInput
+                value={newRangeFee}
+                onChange={setNewRangeFee}
+                className="w-32"
+              />
+            </div>
+            <Button onClick={handleAddRange} disabled={!newRangeStart || !newRangeEnd || !newRangeFee}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Qualquer CEP do cliente dentro de uma faixa será atendido com a taxa indicada.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Card 3 — Exclusões */}
       <ExcludedZones
         excludedCeps={excludedCeps}
