@@ -36,6 +36,8 @@ export default function PDVCashier() {
     isAddingMovement,
     lastClosedSession,
     lastClosedMovements,
+    drawerBalance,
+    totalReinforcements,
   } = usePDVCashier();
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
