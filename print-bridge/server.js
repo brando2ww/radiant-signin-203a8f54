@@ -243,9 +243,11 @@ async function processJob(job) {
     ?? (p.table_number ? String(p.table_number) : null)
     ?? (kind === "order" ? (p.customer_name || "BALCÃO") : null)
     ?? "AVULSA";
-  const mesa = p.is_counter || /^balc[aã]o$/i.test(String(mesaRaw))
-    ? "BALCÃO"
-    : (/^mesa\b/i.test(String(mesaRaw)) ? String(mesaRaw) : `MESA ${mesaRaw}`);
+  const mesa = kind === "delivery" || /^delivery$/i.test(String(mesaRaw))
+    ? "DELIVERY"
+    : (p.is_counter || /^balc[aã]o$/i.test(String(mesaRaw))
+        ? "BALCÃO"
+        : (/^mesa\b/i.test(String(mesaRaw)) ? String(mesaRaw) : `MESA ${mesaRaw}`));
 
   const comanda = p.comanda_nome
     || p.customer_name
