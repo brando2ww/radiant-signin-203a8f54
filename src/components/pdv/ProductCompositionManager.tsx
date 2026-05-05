@@ -259,6 +259,28 @@ function GroupCard({
   onUpdateItemQty,
   onRemoveItem,
 }: GroupCardProps) {
+  const [localName, setLocalName] = useState(group.name);
+  const [localMin, setLocalMin] = useState(String(group.min_selections));
+  const [localMax, setLocalMax] = useState(String(group.max_selections));
+
+  useEffect(() => setLocalName(group.name), [group.name]);
+  useEffect(() => setLocalMin(String(group.min_selections)), [group.min_selections]);
+  useEffect(() => setLocalMax(String(group.max_selections)), [group.max_selections]);
+
+  const commitName = () => {
+    const v = localName.trim();
+    if (v && v !== group.name) onUpdateGroup({ name: v });
+    else if (!v) setLocalName(group.name);
+  };
+  const commitMin = () => {
+    const n = Number(localMin) || 0;
+    if (n !== group.min_selections) onUpdateGroup({ min_selections: n });
+  };
+  const commitMax = () => {
+    const n = Number(localMax) || 1;
+    if (n !== group.max_selections) onUpdateGroup({ max_selections: n });
+  };
+
   return (
     <div className="border rounded-lg p-4 space-y-4 bg-card">
       {/* Group header config */}
@@ -267,8 +289,15 @@ function GroupCard({
           <div className="flex-1">
             <Label className="text-xs">Nome do grupo</Label>
             <Input
-              value={group.name}
-              onChange={(e) => onUpdateGroup({ name: e.target.value })}
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  (e.currentTarget as HTMLInputElement).blur();
+                }
+              }}
             />
           </div>
           <Button
@@ -313,10 +342,15 @@ function GroupCard({
                 <Input
                   type="number"
                   min={0}
-                  value={group.min_selections}
-                  onChange={(e) =>
-                    onUpdateGroup({ min_selections: Number(e.target.value) || 0 })
-                  }
+                  value={localMin}
+                  onChange={(e) => setLocalMin(e.target.value)}
+                  onBlur={commitMin}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
                 />
               </div>
               <div className="w-20">
@@ -324,10 +358,15 @@ function GroupCard({
                 <Input
                   type="number"
                   min={1}
-                  value={group.max_selections}
-                  onChange={(e) =>
-                    onUpdateGroup({ max_selections: Number(e.target.value) || 1 })
-                  }
+                  value={localMax}
+                  onChange={(e) => setLocalMax(e.target.value)}
+                  onBlur={commitMax}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLInputElement).blur();
+                    }
+                  }}
                 />
               </div>
             </>
