@@ -1,10 +1,16 @@
 /**
- * Varredura de uma faixa de CEPs via ViaCEP para descobrir bairros.
+ * Varredura de uma faixa de CEPs via ViaCEP para descobrir bairros e ruas.
  * Dado um prefixo de 5 dígitos, consulta {prefixo}000 a {prefixo}999.
  */
 
 const CACHE_PREFIX = "cep-sweep:";
 const CHUNK_SIZE = 8;
+
+export interface SweepEntry {
+  cep: string;
+  street: string;
+  neighborhood: string;
+}
 
 interface SweepOptions {
   signal?: AbortSignal;
@@ -12,11 +18,13 @@ interface SweepOptions {
     done: number;
     total: number;
     neighborhoods: string[];
+    entries: SweepEntry[];
   }) => void;
 }
 
 interface SweepResult {
   neighborhoods: string[];
+  entries: SweepEntry[];
   cancelled: boolean;
 }
 
@@ -26,8 +34,7 @@ export interface CepPrefixDetection {
 }
 
 /**
- * Detecta o prefixo de CEP (5 primeiros dígitos) de uma cidade,
- * tentando alguns logradouros comuns via ViaCEP.
+ * Detecta o prefixo de CEP (5 primeiros dígitos) de uma cidade.
  */
 export async function detectCityCepPrefix(
   uf: string,
@@ -49,7 +56,7 @@ export async function detectCityCepPrefix(
         }
       }
     } catch {
-      // ignora e tenta próximo
+      /* tenta próximo */
     }
   }
   return null;
@@ -59,36 +66,56 @@ function cacheKey(prefix: string) {
   return `${CACHE_PREFIX}${prefix}`;
 }
 
-export function getCachedSweep(prefix: string): string[] | null {
+/**
+ * Cache pode estar em formato antigo (string[]) ou novo ({entries, neighborhoods}).
+ */
+export function getCachedSweep(
+  prefix: string,
+): { neighborhoods: string[]; entries: SweepEntry[] } | null {
   try {
     const raw = localStorage.getItem(cacheKey(prefix));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed)) {
+      // formato antigo: apenas bairros
+      return { neighborhoods: parsed, entries: [] };
+    }
+    if (parsed && Array.isArray(parsed.neighborhoods)) {
+      return {
+        neighborhoods: parsed.neighborhoods,
+        entries: Array.isArray(parsed.entries) ? parsed.entries : [],
+      };
+    }
   } catch {
     /* noop */
   }
   return null;
 }
 
-function setCachedSweep(prefix: string, neighborhoods: string[]) {
+function setCachedSweep(
+  prefix: string,
+  neighborhoods: string[],
+  entries: SweepEntry[],
+) {
   try {
-    localStorage.setItem(cacheKey(prefix), JSON.stringify(neighborhoods));
+    localStorage.setItem(
+      cacheKey(prefix),
+      JSON.stringify({ neighborhoods, entries }),
+    );
   } catch {
     /* noop */
   }
 }
 
-/**
- * Varre todos os 1000 CEPs do prefixo e retorna a lista única de bairros.
- */
 export async function sweepCepRange(
   prefix5: string,
   options: SweepOptions = {},
 ): Promise<SweepResult> {
   const prefix = prefix5.replace(/\D/g, "").slice(0, 5).padEnd(5, "0");
   const total = 1000;
-  const found = new Set<string>();
+  const foundNeighborhoods = new Set<string>();
+  const entries: SweepEntry[] = [];
+  const seenCeps = new Set<string>();
   let done = 0;
   let cancelled = false;
 
@@ -105,9 +132,15 @@ export async function sweepCepRange(
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (data && !data.erro && data.bairro) {
-        const name = String(data.bairro).trim();
-        if (name) found.add(name);
+      if (data && !data.erro) {
+        const neighborhood = String(data.bairro || "").trim();
+        const street = String(data.logradouro || "").trim();
+        const formattedCep = String(data.cep || cep);
+        if (neighborhood) foundNeighborhoods.add(neighborhood);
+        if (!seenCeps.has(formattedCep) && (neighborhood || street)) {
+          seenCeps.add(formattedCep);
+          entries.push({ cep: formattedCep, street, neighborhood });
+        }
       }
     } catch {
       /* ignora erros individuais */
@@ -122,18 +155,22 @@ export async function sweepCepRange(
     const chunk = ceps.slice(i, i + CHUNK_SIZE);
     await Promise.all(chunk.map(fetchOne));
     done += chunk.length;
+    const sortedNeighborhoods = Array.from(foundNeighborhoods).sort((a, b) =>
+      a.localeCompare(b, "pt-BR"),
+    );
     options.onProgress?.({
       done,
       total,
-      neighborhoods: Array.from(found).sort((a, b) => a.localeCompare(b, "pt-BR")),
+      neighborhoods: sortedNeighborhoods,
+      entries: entries.slice(),
     });
   }
 
-  const neighborhoods = Array.from(found).sort((a, b) =>
+  const neighborhoods = Array.from(foundNeighborhoods).sort((a, b) =>
     a.localeCompare(b, "pt-BR"),
   );
 
-  if (!cancelled) setCachedSweep(prefix, neighborhoods);
+  if (!cancelled) setCachedSweep(prefix, neighborhoods, entries);
 
-  return { neighborhoods, cancelled };
+  return { neighborhoods, entries, cancelled };
 }
