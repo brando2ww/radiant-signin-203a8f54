@@ -45,8 +45,8 @@ export function CepRangeSweepPanel({
     detectCityCepPrefix(uf, city)
       .then((res) => {
         if (res) {
-          setPrefix(res.prefix);
-          const cached = getCachedSweep(res.prefix);
+          setPrefix(res.start);
+          const cached = getCachedSweep(res.start);
           if (cached && cached.entries.length > 0) {
             setEntries(cached.entries);
           }
