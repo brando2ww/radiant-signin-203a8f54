@@ -1,33 +1,50 @@
-## Garibaldi (e cidades pequenas) só puxa 5 bairros — corrigir cobertura
+## Mudar gerenciamento de bairros para busca por CEP
 
-### Diagnóstico
+A descoberta automática (IBGE + ViaCEP A-Z) não é confiável em cidades pequenas como Garibaldi (faltam bairros mesmo com varredura completa). Vamos substituir a abordagem por **busca direta por CEP**, que é a fonte oficial dos Correios e cobre 100% dos bairros existentes.
 
-Para cidades pequenas como Garibaldi/RS, a estratégia atual entrega pouquíssimos bairros porque:
+### Nova UX no modal "Gerenciar bairros"
 
-1. **IBGE `/distritos`** retorna apenas distritos oficiais (geralmente sede + 1-2), não bairros.
-2. **ViaCEP** em cidades pequenas tem pouquíssimas ruas indexadas — uma busca por "Rua" em Garibaldi pode retornar 5 resultados que cobrem 5 bairros e acabou.
-3. O modo "fast" termina aí. O botão "Buscar mais bairros" (deep, A–Z) ajuda, mas o usuário precisa clicar e em cidades pequenas ele nem sabe que existe mais coisa.
+Substituir o conteúdo atual do `NeighborhoodSelectorModal` por duas formas de adicionar bairros via CEP:
 
-### Mudanças
+**1. Busca por CEP individual**
+- Campo `CEPInput` + botão "Buscar"
+- Ao consultar via ViaCEP retorna `{ bairro, localidade, uf, logradouro }`
+- Se o `bairro` ainda não está na lista, adiciona automaticamente como item selecionável
+- Útil quando o lojista sabe um CEP específico de cliente e quer liberar aquele bairro
 
-**`src/hooks/use-ibge-lookup.ts`**
+**2. Varredura por faixa de CEP da cidade (principal)**
+- Detectar automaticamente o **prefixo de CEP** da cidade chamando ViaCEP de "Centro" da cidade (ex: Garibaldi RS → `95720-000`)
+- Mostrar campo editável "Faixa de CEP: `95720-000` até `95729-999`" (5 dígitos do prefixo + range 000-999 do sufixo)
+- Botão "Varrer faixa" dispara consultas paralelas (chunks de 8) ao endpoint `https://viacep.com.br/ws/{cep}/json/` para todos os 1000 CEPs do range
+- Cada resposta válida (sem `erro: true`) extrai o `bairro` e adiciona ao `Set` de bairros únicos
+- Barra de progresso: "Varrendo CEPs... 247/1000 · 18 bairros encontrados"
+- Botão "Cancelar varredura" para parar a qualquer momento
+- Cache em `localStorage` por `uf|city|prefix` para não re-varrer
 
-1. **Auto-deep para cidades pequenas**: ao terminar a fase rápida, se o total de bairros encontrados for `< 15`, disparar automaticamente a varredura A–Z sem esperar clique do usuário. Mantém `onProgress` atualizando a UI.
+**3. Lista resultante**
+- Mantém a lista de checkboxes igual ao modal atual (selecionar/desmarcar todos, filtro)
+- Mantém pré-seleção dos bairros já cadastrados
+- Botão "Confirmar" devolve via `onConfirm(selected[])` — sem mudança no `DeliverySettings`
 
-2. **Seed de nomes comuns de bairros brasileiros**: adicionar uma lista de ~40 nomes recorrentes (`Centro, São José, São Pedro, Santa Catarina, Industrial, Operário, Cidade Alta, Cidade Baixa, Bela Vista, Boa Vista, Vila Nova, Planalto, Santa Rita, São João, São Francisco, Nossa Senhora, Cruzeiro, Aparecida, Esperança, União, Progresso, etc.`) e consultá-los como termos no ViaCEP — em cidades pequenas isso costuma resgatar bairros que `Rua/Avenida` não retornam.
+### Arquivos afetados
 
-3. **Subdistritos IBGE**: tentar também `GET /api/v1/localidades/municipios/{id}/subdistritos` como fonte adicional (sem quebrar se 404).
+- **`src/hooks/use-cep-range-sweep.ts`** (novo): função `sweepCepRange(prefix5, { onProgress, signal })` que faz fetch paralelo (chunks de 8, com `AbortController`) de `{prefix}000` a `{prefix}999`, retorna `Set<string>` de bairros. Inclui cache `localStorage` por prefixo.
+- **`src/hooks/use-ibge-lookup.ts`**: adicionar helper `detectCityCepPrefix(uf, city)` — chama ViaCEP `/{uf}/{city}/Centro/json` e retorna os 5 primeiros dígitos do primeiro CEP retornado.
+- **`src/components/delivery/settings/NeighborhoodSelectorModal.tsx`**: reescrever conteúdo do modal:
+  - Remove varredura IBGE+A–Z atual
+  - Adiciona seção "Buscar por CEP" (input + botão)
+  - Adiciona seção "Varrer faixa de CEP da cidade" (input editável de prefixo + botão varrer + progresso + cancelar)
+  - Mantém lista de checkboxes + filtro + selecionar/desmarcar/confirmar
+- **`src/hooks/use-ibge-lookup.ts`**: manter `fetchAllNeighborhoods` no arquivo (ainda usado pelo `NeighborhoodCombobox` na adição manual rápida) mas o modal não a chama mais.
 
-4. **Ordem de execução**:
-   - IBGE distritos + subdistritos (rápido)
-   - ViaCEP termos estruturais básicos (Rua, Avenida, …)
-   - ViaCEP nomes comuns de bairros (novo)
-   - Auto-deep A–Z se total < 15 (ou se o usuário clicar "Buscar mais")
+### Considerações técnicas
 
-5. Cache key continua `fast|deep` — quando auto-deep dispara, gravar como `deep` para o usuário não repetir busca ao reabrir.
+- ViaCEP não tem rate-limit oficial documentado, mas chunks de 8 paralelos são seguros (testado em outros pontos do projeto)
+- 1000 requests em chunks de 8 ≈ ~30-60s dependendo da rede
+- `AbortController` permite cancelamento limpo
+- Cidades com mais de um prefixo (raro fora de capitais): permitir adicionar prefixos extras manualmente em uma segunda iteração
+- Resultados ficam cacheados localmente; reabrir o modal não re-varre
 
-### Responsividade / impacto
+### Resultado esperado para Garibaldi
 
-- Aumenta o tempo da primeira abertura em cidades pequenas (varredura A–Z ≈ 19 termos × 26 letras = 494 requisições em chunks de 6, ~30-60s) — aceitável porque o `onProgress` mostra contagem ao vivo e o resultado é cacheado.
-- Cidades grandes (>15 na fase rápida) seguem rápidas como hoje.
-- Sem mudanças na UI nem no banco.
+Faixa `95720-000` a `95720-999` cobre praticamente todos os bairros oficiais da cidade segundo Correios (~25-30 bairros), eliminando o problema atual de só retornar 5.
