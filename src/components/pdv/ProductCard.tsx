@@ -67,6 +67,14 @@ export function ProductCard({ product, onEdit, onDelete, onDuplicate, isSharedTo
                   Enviar para Delivery
                 </DropdownMenuItem>
               )}
+              {isSharedToDelivery && (
+                <DropdownMenuItem
+                  onClick={() => deferMenuAction(() => resyncDelivery.mutate(product.id))}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Sincronizar opções no Delivery
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => deferMenuAction(() => onDelete(product.id))}
                 className="text-destructive focus:text-destructive"
