@@ -1,24 +1,22 @@
 import { useEffect, useState } from "react";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { toast } from "sonner";
+import { Banknote, CreditCard, QrCode, Ticket, Bike } from "lucide-react";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
 import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
@@ -30,6 +28,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+const METHODS: { id: PaymentMethod; label: string; icon: any }[] = [
+  { id: "dinheiro", label: "Dinheiro", icon: Banknote },
+  { id: "credito", label: "Crédito", icon: CreditCard },
+  { id: "debito", label: "Débito", icon: CreditCard },
+  { id: "pix", label: "PIX", icon: QrCode },
+  { id: "vale_refeicao", label: "VR / VA", icon: Ticket },
+];
+
+const QUICK = [50, 100, 150, 200];
+
 export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
   const { registerDeliveryPayment, isRegistering } = usePDVDeliveryCheckout();
   const { drawerBalance } = usePDVCashier();
@@ -38,7 +46,6 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (open && order) {
-      // sugere método pelo combinado no pedido
       const m = order.payment_method;
       if (m === "cash" || m === "dinheiro") setMethod("dinheiro");
       else if (m === "pix") setMethod("pix");
@@ -78,96 +85,186 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
       });
       onOpenChange(false);
     } catch {
-      /* toast já exibido */
+      /* toast shown */
     }
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col">
-        <SheetHeader>
-          <SheetTitle>Pagamento na entrega</SheetTitle>
-          <SheetDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+          <DialogTitle className="flex items-center gap-2">
+            <Bike className="h-5 w-5" />
+            Pagamento na entrega
+          </DialogTitle>
+          <DialogDescription>
             Pedido #{order.order_number} · {order.customer_name}
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto py-4 space-y-4">
-          <div className="rounded-lg border p-3 space-y-1">
-            {(order.delivery_order_items ?? []).map((it) => (
-              <div key={it.id} className="flex justify-between text-sm">
-                <span className="truncate">
-                  {it.quantity}× {it.product_name}
-                </span>
-                <span className="tabular-nums">{formatBRL(it.subtotal)}</span>
+        <div className="grid grid-cols-1 md:grid-cols-5 max-h-[70vh]">
+          <div className="md:col-span-2 border-r bg-muted/30">
+            <ScrollArea className="h-full max-h-[70vh]">
+              <div className="p-4 space-y-3">
+                <div className="text-xs font-semibold text-muted-foreground uppercase">
+                  Itens
+                </div>
+                <div className="space-y-1.5">
+                  {(order.delivery_order_items ?? []).map((it) => (
+                    <div key={it.id} className="flex justify-between text-sm gap-2">
+                      <span className="truncate">
+                        {it.quantity}× {it.product_name}
+                      </span>
+                      <span className="tabular-nums shrink-0">
+                        {formatBRL(it.subtotal)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <Separator />
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">{formatBRL(order.subtotal)}</span>
+                  </div>
+                  {Number(order.delivery_fee) > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Taxa de entrega</span>
+                      <span className="tabular-nums">{formatBRL(order.delivery_fee)}</span>
+                    </div>
+                  )}
+                  {Number(order.discount) > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Desconto</span>
+                      <span className="tabular-nums">-{formatBRL(order.discount)}</span>
+                    </div>
+                  )}
+                </div>
+                <Separator />
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium">Total</span>
+                  <span className="text-2xl font-bold tabular-nums">
+                    {formatBRL(total)}
+                  </span>
+                </div>
               </div>
-            ))}
-            {Number(order.delivery_fee) > 0 && (
-              <div className="flex justify-between text-sm text-muted-foreground pt-1 border-t">
-                <span>Taxa de entrega</span>
-                <span className="tabular-nums">
-                  {formatBRL(order.delivery_fee)}
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between font-semibold pt-1 border-t">
-              <span>Total</span>
-              <span className="tabular-nums">{formatBRL(total)}</span>
-            </div>
+            </ScrollArea>
           </div>
 
-          <div className="space-y-2">
-            <Label>Forma recebida</Label>
-            <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="dinheiro">Dinheiro</SelectItem>
-                <SelectItem value="credito">Cartão crédito</SelectItem>
-                <SelectItem value="debito">Cartão débito</SelectItem>
-                <SelectItem value="pix">PIX</SelectItem>
-                <SelectItem value="vale_refeicao">Vale refeição</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {isCash && (
+          <div className="md:col-span-3 p-6 space-y-4 overflow-y-auto">
             <div className="space-y-2">
-              <Label>Valor entregue pelo cliente</Label>
-              <CurrencyInput value={received} onChange={setReceived} />
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Troco</span>
-                <span className="tabular-nums font-semibold">
-                  {formatBRL(change)}
-                </span>
+              <Label className="text-xs uppercase text-muted-foreground">
+                Forma recebida
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {METHODS.map((m) => {
+                  const Icon = m.icon;
+                  const active = method === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setMethod(m.id)}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-1 rounded-md border p-3 text-xs transition-colors",
+                        active
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border hover:bg-muted",
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                      {m.label}
+                    </button>
+                  );
+                })}
               </div>
-              <div className="text-xs text-muted-foreground">
-                Saldo na gaveta: {formatBRL(drawerBalance)}
-              </div>
-              {insufficient && (
-                <div className="text-xs text-destructive">
-                  Valor recebido menor que o total.
-                </div>
-              )}
-              {changeExceedsDrawer && (
-                <div className="text-xs text-destructive">
-                  Troco maior que o saldo disponível na gaveta.
-                </div>
-              )}
             </div>
-          )}
+
+            {isCash ? (
+              <Card className="p-4 space-y-3">
+                <div>
+                  <Label className="text-xs uppercase text-muted-foreground">
+                    Valor entregue pelo cliente
+                  </Label>
+                  <CurrencyInput
+                    value={received}
+                    onChange={setReceived}
+                    className="mt-1.5 text-lg h-11"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK.map((v) => (
+                    <Button
+                      key={v}
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setReceived(String(v))}
+                    >
+                      {formatBRL(v)}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => setReceived(String(total))}
+                  >
+                    Valor exato
+                  </Button>
+                </div>
+
+                <Separator />
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Troco</span>
+                  <span
+                    className={cn(
+                      "tabular-nums font-bold text-lg",
+                      changeExceedsDrawer && "text-destructive",
+                    )}
+                  >
+                    {formatBRL(change)}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Saldo na gaveta: {formatBRL(drawerBalance)}
+                </div>
+                {insufficient && (
+                  <div className="text-xs text-destructive">
+                    Valor recebido menor que o total.
+                  </div>
+                )}
+                {changeExceedsDrawer && (
+                  <div className="text-xs text-destructive">
+                    Troco maior que o saldo disponível na gaveta.
+                  </div>
+                )}
+              </Card>
+            ) : (
+              <Card className="p-4 text-sm text-muted-foreground">
+                Confirmar recebimento de{" "}
+                <span className="font-semibold text-foreground tabular-nums">
+                  {formatBRL(total)}
+                </span>{" "}
+                via {METHODS.find((m) => m.id === method)?.label}.
+              </Card>
+            )}
+          </div>
         </div>
 
-        <SheetFooter>
+        <DialogFooter className="px-6 py-4 border-t bg-muted/30">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={handleConfirm} disabled={!canConfirm}>
             {isRegistering ? "Registrando…" : "Confirmar pagamento"}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
