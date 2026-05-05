@@ -224,7 +224,31 @@ export const useCancelOrder = () => {
   });
 };
 
-export const useOrderStats = () => {
+export const useReprintOrder = () => {
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      centerId,
+    }: {
+      orderId: string;
+      centerId?: string | null;
+    }) => {
+      return await dispatchDeliveryPrintJobs(orderId, centerId);
+    },
+    onSuccess: (result) => {
+      if (result.jobs > 0) {
+        toast.success(`${result.jobs} reimpressão(ões) enviada(s)`);
+      } else {
+        toast.warning("Nenhum item para reimprimir");
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Erro ao reimprimir: " + error.message);
+    },
+  });
+};
+
+
   return useQuery({
     queryKey: ["delivery-order-stats"],
     queryFn: async () => {
