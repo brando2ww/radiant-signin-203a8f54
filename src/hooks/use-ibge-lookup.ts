@@ -80,14 +80,20 @@ export interface ViaCEPStreetResult {
 export async function searchStreetByName(
   uf: string,
   city: string,
-  street: string
+  street: string,
+  signal?: AbortSignal,
 ): Promise<ViaCEPStreetResult[]> {
   if (!uf || !city || !street || street.length < 3) return [];
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 4000);
+  const onParentAbort = () => ctl.abort();
+  signal?.addEventListener("abort", onParentAbort);
   try {
     const encodedCity = encodeURIComponent(city);
     const encodedStreet = encodeURIComponent(street);
     const res = await fetch(
-      `https://viacep.com.br/ws/${uf}/${encodedCity}/${encodedStreet}/json/`
+      `https://viacep.com.br/ws/${uf}/${encodedCity}/${encodedStreet}/json/`,
+      { signal: ctl.signal },
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -95,6 +101,9 @@ export async function searchStreetByName(
     return data as ViaCEPStreetResult[];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onParentAbort);
   }
 }
 
