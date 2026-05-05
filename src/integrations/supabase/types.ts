@@ -2863,6 +2863,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pdv_cash_movements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_comanda_items"
+            referencedColumns: ["order_id"]
+          },
+          {
             foreignKeyName: "pdv_cash_movements_payment_id_fkey"
             columns: ["payment_id"]
             isOneToOne: false
@@ -3270,6 +3277,13 @@ export type Database = {
             referencedRelation: "pdv_orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pdv_comandas_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_comanda_items"
+            referencedColumns: ["order_id"]
+          },
         ]
       }
       pdv_cost_centers: {
@@ -3653,6 +3667,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pdv_orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_ifood_webhooks_pdv_order_id_fkey"
+            columns: ["pdv_order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_comanda_items"
+            referencedColumns: ["order_id"]
           },
         ]
       }
@@ -4382,6 +4403,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pdv_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_comanda_items"
+            referencedColumns: ["order_id"]
+          },
+          {
             foreignKeyName: "pdv_order_items_parent_item_id_fkey"
             columns: ["parent_item_id"]
             isOneToOne: false
@@ -4670,6 +4698,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pdv_orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_comanda_items"
+            referencedColumns: ["order_id"]
           },
         ]
       }
@@ -5484,6 +5519,7 @@ export type Database = {
           business_hours: Json | null
           business_name: string | null
           business_phone: string | null
+          counter_table_name: string
           created_at: string | null
           default_preparation_time: number | null
           delivery_fee: number | null
@@ -5547,6 +5583,7 @@ export type Database = {
           business_hours?: Json | null
           business_name?: string | null
           business_phone?: string | null
+          counter_table_name?: string
           created_at?: string | null
           default_preparation_time?: number | null
           delivery_fee?: number | null
@@ -5610,6 +5647,7 @@ export type Database = {
           business_hours?: Json | null
           business_name?: string | null
           business_phone?: string | null
+          counter_table_name?: string
           created_at?: string | null
           default_preparation_time?: number | null
           delivery_fee?: number | null
@@ -5853,6 +5891,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           is_active: boolean | null
+          is_virtual: boolean
           merged_with: string | null
           position_x: number | null
           position_y: number | null
@@ -5870,6 +5909,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           is_active?: boolean | null
+          is_virtual?: boolean
           merged_with?: string | null
           position_x?: number | null
           position_y?: number | null
@@ -5887,6 +5927,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           is_active?: boolean | null
+          is_virtual?: boolean
           merged_with?: string | null
           position_x?: number | null
           position_y?: number | null
@@ -6829,9 +6870,12 @@ export type Database = {
           customer_name: string | null
           id: string | null
           is_composite_child: boolean | null
+          is_virtual: boolean | null
           kitchen_status: string | null
           modifiers: Json | null
           notes: string | null
+          order_id: string | null
+          order_number: string | null
           parent_item_id: string | null
           parent_product_name: string | null
           printer_ip: string | null
@@ -6840,6 +6884,8 @@ export type Database = {
           production_center_id: string | null
           quantity: number | null
           sent_to_kitchen_at: string | null
+          table_id: string | null
+          table_number: string | null
           tenant_user_id: string | null
         }
         Relationships: [
@@ -6869,6 +6915,13 @@ export type Database = {
             columns: ["production_center_id"]
             isOneToOne: false
             referencedRelation: "pdv_production_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_orders_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_tables"
             referencedColumns: ["id"]
           },
         ]
@@ -6904,6 +6957,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pdv_orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_print_bridge_comanda_items"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "pdv_order_items_parent_item_id_fkey"
@@ -7018,6 +7078,10 @@ export type Database = {
           p_reason?: string
         }
         Returns: Json
+      }
+      pdv_ensure_counter_table: {
+        Args: { _name: string; _owner: string }
+        Returns: string
       }
       pdv_lock_comanda_items: {
         Args: { p_item_ids: string[]; p_session_id: string }
