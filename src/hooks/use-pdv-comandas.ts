@@ -587,6 +587,7 @@ export function usePDVComandas() {
             customer_name: first.customer_name,
             table_number: first.table_number,
             kind: "comanda",
+            waiter_name: waiterName,
             items: rows.map((r: any) => ({
               product_name: r.product_name,
               quantity: r.quantity,
