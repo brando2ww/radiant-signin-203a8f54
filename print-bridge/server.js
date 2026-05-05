@@ -238,16 +238,29 @@ async function processJob(job) {
         is_composite_child: p.is_composite_child,
       }];
 
-  const header = [
+  // Cabeçalho hierárquico: MESA destacada, comanda média
+  const mesaRaw = p.mesa_numero
+    ?? (p.table_number ? String(p.table_number) : null)
+    ?? (kind === "order" ? (p.customer_name || "BALCÃO") : null)
+    ?? "AVULSA";
+  const mesa = p.is_counter || /^balc[aã]o$/i.test(String(mesaRaw))
+    ? "BALCÃO"
+    : (/^mesa\b/i.test(String(mesaRaw)) ? String(mesaRaw) : `MESA ${mesaRaw}`);
+
+  const comanda = p.comanda_nome
+    || p.customer_name
+    || (p.comanda_number ? `Comanda ${p.comanda_number}` : null)
+    || (p.order_number ? `Pedido #${p.order_number}` : "");
+
+  const subheader = [
     `Centro: ${job.center_name ?? "—"}`,
     kind === "order"
-      ? `Mesa: ${p.table_number ? `Mesa ${p.table_number}` : p.customer_name || "Balcão"}`
-      : `Comanda: ${p.customer_name || p.comanda_number}`,
-    kind === "order" ? `Pedido #${p.order_number}` : `Comanda #${p.comanda_number}`,
+      ? `Pedido #${p.order_number}`
+      : `Comanda #${p.comanda_number}`,
     formatDateTime(),
   ];
   if (items.length > 1) {
-    header.push(`Itens: ${items.length}`);
+    subheader.push(`Itens: ${items.length}`);
   }
 
   const body = items.map((it) => ({
@@ -259,7 +272,9 @@ async function processJob(job) {
   }));
 
   const buf = buildReceipt({
-    header,
+    mesa,
+    comanda,
+    subheader,
     body,
     centerName: job.center_name,
   });
