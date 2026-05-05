@@ -122,6 +122,12 @@ export function usePDVOrders() {
         .single();
 
       if (error) throw error;
+
+      // Reserva número sequencial do turno (caixa aberto)
+      if (data?.id) {
+        await supabase.rpc("pdv_assign_order_ticket" as any, { p_order_id: data.id });
+      }
+
       return data;
     },
     onSuccess: () => {

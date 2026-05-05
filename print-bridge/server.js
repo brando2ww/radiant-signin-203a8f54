@@ -254,11 +254,14 @@ async function processJob(job) {
     || (p.comanda_number ? `Comanda ${p.comanda_number}` : null)
     || (p.order_number ? `Pedido #${p.order_number}` : "");
 
+  const ticketLabel = p.ticket_number != null
+    ? `Pedido #${String(p.ticket_number).padStart(3, "0")}`
+    : (p.order_number ? `Pedido #${p.order_number}` : null);
   const subheader = [
     `Centro: ${job.center_name ?? "—"}`,
     kind === "order"
-      ? `Pedido #${p.order_number}`
-      : `Comanda #${p.comanda_number}`,
+      ? (ticketLabel || `Pedido #${p.order_number}`)
+      : (ticketLabel || `Comanda #${p.comanda_number}`),
     formatDateTime(),
   ];
   if (kind !== "delivery" && p.waiter_name) {

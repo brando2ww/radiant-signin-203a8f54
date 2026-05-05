@@ -173,6 +173,11 @@ export function usePDVComandas() {
         }
       }
 
+      // Reserva número sequencial do turno (caixa aberto)
+      if (effectiveOrderId) {
+        await supabase.rpc("pdv_assign_order_ticket" as any, { p_order_id: effectiveOrderId });
+      }
+
       // Idempotência: se for comanda padrão (sem customerName) vinculada a um
       // order, e já existir uma comanda padrão aberta, devolve a existente.
       // Evita duplicação por clique repetido / race / dois dispositivos.
@@ -587,7 +592,9 @@ export function usePDVComandas() {
             customer_name: first.customer_name,
             table_number: first.table_number,
             kind: "comanda",
-            waiter_name: waiterName,
+              waiter_name: waiterName,
+              ticket_number: first.ticket_number,
+              order_number: first.order_number,
             items: rows.map((r: any) => ({
               product_name: r.product_name,
               quantity: r.quantity,
