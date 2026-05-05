@@ -2,7 +2,10 @@
 
 interface NonFiscalReceiptParams {
   business: { name?: string; cnpj?: string; address?: string; phone?: string };
-  identifier: string; // ex: "Comanda #123" ou "Mesa 5"
+  /** Cabeçalho hierárquico (preferido). */
+  header?: { mesa: string; comanda: string };
+  /** @deprecated mantido por compatibilidade — usar header */
+  identifier?: string;
   items: Array<{ product_name: string; quantity: number; unit_price: number; subtotal: number }>;
   subtotal: number;
   desconto?: number;
@@ -50,6 +53,14 @@ export function printNonFiscalReceipt(p: NonFiscalReceiptParams) {
   };
   const pago = pagamentoLabel[p.forma_pagamento] || p.forma_pagamento.toUpperCase();
 
+  // Cabeçalho hierárquico: MESA destacada, comanda menor.
+  // Suporta legado `identifier` (string única).
+  const mesa = (p.header?.mesa ?? "").toString().trim();
+  const comandaName = (p.header?.comanda ?? "").toString().trim();
+  const legacy = (p.identifier ?? "").toString().trim();
+  const headerMesa = mesa || legacy || "AVULSA";
+  const headerComanda = comandaName || (legacy && legacy !== headerMesa ? legacy : "");
+
   const html = `<!doctype html><html><head><meta charset="utf-8" /><title>Recibo</title>
 <style>
   @page { size: 80mm auto; margin: 2mm; }
@@ -62,6 +73,8 @@ export function printNonFiscalReceipt(p: NonFiscalReceiptParams) {
   td { padding: 1px 0; vertical-align: top; }
   .bold { font-weight: bold; }
   .lg { font-size: 14px; }
+  .xl { font-size: 22px; line-height: 1.1; letter-spacing: 1px; }
+  .md { font-size: 14px; }
   .sm { font-size: 10px; }
   .item-name { word-break: break-word; }
 </style></head><body>
@@ -70,8 +83,11 @@ export function printNonFiscalReceipt(p: NonFiscalReceiptParams) {
   ${p.business.address ? `<div class="center sm">${p.business.address}</div>` : ""}
   ${p.business.phone ? `<div class="center sm">Tel: ${p.business.phone}</div>` : ""}
   <hr />
+  <div class="center bold xl">${String(headerMesa).toUpperCase()}</div>
+  ${headerComanda ? `<div class="center bold md">${headerComanda}</div>` : ""}
+  <hr />
   <div class="center bold">RECIBO NÃO-FISCAL</div>
-  <div class="row sm"><span>${p.identifier}</span><span>${now}</span></div>
+  <div class="center sm">${now}</div>
   <hr />
   <table>
     ${p.items.map(i => `

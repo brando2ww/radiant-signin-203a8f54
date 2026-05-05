@@ -90,26 +90,43 @@ function stripAccents(s) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function buildReceipt({ header, body, centerName }) {
+function buildReceipt({ mesa, comanda, subheader, body, centerName }) {
   const chunks = [];
   const push = (...bytes) => chunks.push(Buffer.from(bytes));
   const text = (s) => chunks.push(Buffer.from(stripAccents(s), "utf8"));
   const line = () => push(LF);
 
   push(ESC, 0x40);
+  // Estabelecimento
   push(ESC, 0x61, 0x01);
   push(GS, 0x21, 0x11);
   text(ESTABLISHMENT_NAME);
   line();
-  push(ESC, 0x61, 0x00);
   push(GS, 0x21, 0x00);
   text("================================");
   line();
-  header.forEach((l) => {
+
+  // MESA — destaque máximo (largura+altura ~3x)
+  push(GS, 0x21, 0x77);
+  text(String(mesa || "AVULSA").toUpperCase());
+  line();
+
+  // Comanda — destaque médio (2x)
+  if (comanda) {
+    push(GS, 0x21, 0x11);
+    text(String(comanda));
+    line();
+  }
+  push(GS, 0x21, 0x00);
+  push(ESC, 0x61, 0x00);
+
+  text("================================");
+  line();
+  (subheader || []).forEach((l) => {
     text(l);
     line();
   });
-  text("================================");
+  text("--------------------------------");
   line();
   body.forEach((item, idx) => {
     if (idx > 0) {
@@ -221,16 +238,29 @@ async function processJob(job) {
         is_composite_child: p.is_composite_child,
       }];
 
-  const header = [
+  // Cabeçalho hierárquico: MESA destacada, comanda média
+  const mesaRaw = p.mesa_numero
+    ?? (p.table_number ? String(p.table_number) : null)
+    ?? (kind === "order" ? (p.customer_name || "BALCÃO") : null)
+    ?? "AVULSA";
+  const mesa = p.is_counter || /^balc[aã]o$/i.test(String(mesaRaw))
+    ? "BALCÃO"
+    : (/^mesa\b/i.test(String(mesaRaw)) ? String(mesaRaw) : `MESA ${mesaRaw}`);
+
+  const comanda = p.comanda_nome
+    || p.customer_name
+    || (p.comanda_number ? `Comanda ${p.comanda_number}` : null)
+    || (p.order_number ? `Pedido #${p.order_number}` : "");
+
+  const subheader = [
     `Centro: ${job.center_name ?? "—"}`,
     kind === "order"
-      ? `Mesa: ${p.table_number ? `Mesa ${p.table_number}` : p.customer_name || "Balcão"}`
-      : `Comanda: ${p.customer_name || p.comanda_number}`,
-    kind === "order" ? `Pedido #${p.order_number}` : `Comanda #${p.comanda_number}`,
+      ? `Pedido #${p.order_number}`
+      : `Comanda #${p.comanda_number}`,
     formatDateTime(),
   ];
   if (items.length > 1) {
-    header.push(`Itens: ${items.length}`);
+    subheader.push(`Itens: ${items.length}`);
   }
 
   const body = items.map((it) => ({
@@ -242,7 +272,9 @@ async function processJob(job) {
   }));
 
   const buf = buildReceipt({
-    header,
+    mesa,
+    comanda,
+    subheader,
     body,
     centerName: job.center_name,
   });
@@ -502,7 +534,9 @@ function startHttpServer() {
             return res.end(JSON.stringify({ ok: false, error: "IP obrigatório" }));
           }
           const payload = buildReceipt({
-            header: ["Centro: " + centerName, "*** TESTE DE IMPRESSÃO ***", formatDateTime()],
+            mesa: "TESTE",
+            comanda: "Print Bridge",
+            subheader: ["Centro: " + centerName, "*** TESTE DE IMPRESSÃO ***", formatDateTime()],
             body: [{ product_name: "Print Bridge OK", quantity: 1 }],
             centerName,
           });
