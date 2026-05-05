@@ -4479,6 +4479,7 @@ export type Database = {
         Row: {
           cancellation_reason: string | null
           cancelled_at: string | null
+          cashier_session_id: string | null
           closed_at: string | null
           closed_by_user_id: string | null
           created_at: string | null
@@ -4497,6 +4498,7 @@ export type Database = {
           status: string
           subtotal: number | null
           table_id: string | null
+          ticket_number: number | null
           total: number | null
           updated_at: string | null
           user_id: string
@@ -4504,6 +4506,7 @@ export type Database = {
         Insert: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          cashier_session_id?: string | null
           closed_at?: string | null
           closed_by_user_id?: string | null
           created_at?: string | null
@@ -4522,6 +4525,7 @@ export type Database = {
           status?: string
           subtotal?: number | null
           table_id?: string | null
+          ticket_number?: number | null
           total?: number | null
           updated_at?: string | null
           user_id: string
@@ -4529,6 +4533,7 @@ export type Database = {
         Update: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          cashier_session_id?: string | null
           closed_at?: string | null
           closed_by_user_id?: string | null
           created_at?: string | null
@@ -4547,11 +4552,19 @@ export type Database = {
           status?: string
           subtotal?: number | null
           table_id?: string | null
+          ticket_number?: number | null
           total?: number | null
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pdv_orders_cashier_session_id_fkey"
+            columns: ["cashier_session_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_cashier_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pdv_orders_customer_id_fkey"
             columns: ["customer_id"]
@@ -6923,6 +6936,7 @@ export type Database = {
           table_id: string | null
           table_number: string | null
           tenant_user_id: string | null
+          ticket_number: number | null
         }
         Relationships: [
           {
@@ -7134,6 +7148,7 @@ export type Database = {
         }
         Returns: string
       }
+      pdv_assign_order_ticket: { Args: { p_order_id: string }; Returns: number }
       pdv_change_table: {
         Args: {
           p_reason?: string
