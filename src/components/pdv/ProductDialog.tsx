@@ -342,23 +342,9 @@ export function ProductDialog({
         <Form {...form}>
           <form onSubmit={handleSubmit} className="space-y-6">
              <Tabs defaultValue="basic">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="basic">Básico</TabsTrigger>
                 <TabsTrigger value="pricing">Preços</TabsTrigger>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <TabsTrigger value="options" disabled={!product}>
-                        Opções
-                      </TabsTrigger>
-                    </TooltipTrigger>
-                    {!product && (
-                      <TooltipContent>
-                        <p>Salve o produto primeiro para configurar opções</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -712,19 +698,6 @@ export function ProductDialog({
                     ))}
                   </div>
                 </div>
-              </TabsContent>
-
-              <TabsContent value="options" className="space-y-4 mt-4">
-                {product ? (
-                  <PDVProductOptionsManager
-                    productId={product.id}
-                    onDirtyChange={setOptionsDirty}
-                  />
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Salve o produto primeiro para configurar opções
-                  </div>
-                )}
               </TabsContent>
 
               <TabsContent value="recipe" className="space-y-4 mt-4">
