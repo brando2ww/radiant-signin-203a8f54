@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, RefreshCcw } from "lucide-react";
 import { fetchAllNeighborhoods } from "@/hooks/use-ibge-lookup";
 
 interface NeighborhoodSelectorModalProps {
@@ -34,23 +34,42 @@ export function NeighborhoodSelectorModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeepRunning, setIsDeepRunning] = useState(false);
+  const [hasDeepRun, setHasDeepRun] = useState(false);
+  const runIdRef = useRef(0);
 
   useEffect(() => {
     if (!open || !uf || !city) return;
 
+    const myRun = ++runIdRef.current;
     setIsLoading(true);
     setFilter("");
-    fetchAllNeighborhoods(uf, city).then((neighborhoods) => {
-      setAllNeighborhoods(neighborhoods);
-      // Pre-select all, but keep existing ones selected too
-      const initial = new Set([...neighborhoods, ...existingNeighborhoods]);
-      setSelected(initial);
+    setHasDeepRun(false);
+    setAllNeighborhoods([]);
+    setSelected(new Set(existingNeighborhoods));
+
+    fetchAllNeighborhoods(uf, city, {
+      onProgress: (list) => {
+        if (runIdRef.current !== myRun) return;
+        setAllNeighborhoods(list);
+        // Mantém pré-seleção: bairros novos descobertos + existentes
+        setSelected((prev) => {
+          const next = new Set(prev);
+          list.forEach((n) => next.add(n));
+          existingNeighborhoods.forEach((n) => next.add(n));
+          return next;
+        });
+      },
+    }).then((list) => {
+      if (runIdRef.current !== myRun) return;
+      setAllNeighborhoods(list);
       setIsLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, uf, city]);
 
   const filtered = allNeighborhoods.filter((n) =>
-    n.toLowerCase().includes(filter.toLowerCase())
+    n.toLowerCase().includes(filter.toLowerCase()),
   );
 
   const toggleNeighborhood = (name: string) => {
@@ -65,6 +84,29 @@ export function NeighborhoodSelectorModal({
   const selectAll = () => setSelected(new Set(allNeighborhoods));
   const deselectAll = () => setSelected(new Set());
 
+  const runDeepSearch = async () => {
+    if (isDeepRunning) return;
+    const myRun = runIdRef.current;
+    setIsDeepRunning(true);
+    await fetchAllNeighborhoods(uf, city, {
+      deep: true,
+      seed: allNeighborhoods,
+      onProgress: (list) => {
+        if (runIdRef.current !== myRun) return;
+        setAllNeighborhoods(list);
+        setSelected((prev) => {
+          const next = new Set(prev);
+          list.forEach((n) => next.add(n));
+          return next;
+        });
+      },
+    });
+    if (runIdRef.current === myRun) {
+      setIsDeepRunning(false);
+      setHasDeepRun(true);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
@@ -75,14 +117,12 @@ export function NeighborhoodSelectorModal({
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
+        {isLoading && allNeighborhoods.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Buscando bairros...</p>
-          </div>
-        ) : allNeighborhoods.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum bairro encontrado para esta cidade.
+            <p className="text-sm text-muted-foreground">
+              Buscando bairros... 0 encontrados
+            </p>
           </div>
         ) : (
           <>
@@ -96,33 +136,63 @@ export function NeighborhoodSelectorModal({
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" size="sm" onClick={selectAll}>
                 Selecionar todos
               </Button>
               <Button variant="outline" size="sm" onClick={deselectAll}>
                 Desmarcar todos
               </Button>
+              {!isLoading && !hasDeepRun && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={runDeepSearch}
+                  disabled={isDeepRunning}
+                  className="ml-auto"
+                >
+                  {isDeepRunning ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <RefreshCcw className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Buscar mais bairros
+                </Button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto border rounded-md divide-y max-h-[40vh]">
-              {filtered.map((name) => (
-                <label
-                  key={name}
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors"
-                >
-                  <Checkbox
-                    checked={selected.has(name)}
-                    onCheckedChange={() => toggleNeighborhood(name)}
-                  />
-                  <span className="text-sm">{name}</span>
-                </label>
-              ))}
+              {filtered.length === 0 ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  {isLoading ? "Buscando..." : "Nenhum bairro encontrado."}
+                </div>
+              ) : (
+                filtered.map((name) => (
+                  <label
+                    key={name}
+                    className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors"
+                  >
+                    <Checkbox
+                      checked={selected.has(name)}
+                      onCheckedChange={() => toggleNeighborhood(name)}
+                    />
+                    <span className="text-sm">{name}</span>
+                  </label>
+                ))
+              )}
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              Encontrados: {allNeighborhoods.length} bairros · Selecionados:{" "}
-              {selected.size}
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              {(isLoading || isDeepRunning) && (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              {isLoading
+                ? `Buscando bairros... ${allNeighborhoods.length} encontrados`
+                : isDeepRunning
+                  ? `Varredura ampliada... ${allNeighborhoods.length} encontrados`
+                  : hasDeepRun
+                    ? `Varredura completa: ${allNeighborhoods.length} bairros`
+                    : `${allNeighborhoods.length} bairros encontrados (IBGE + ViaCEP) · Selecionados: ${selected.size}`}
             </p>
           </>
         )}
@@ -136,7 +206,7 @@ export function NeighborhoodSelectorModal({
               onConfirm([...selected]);
               onOpenChange(false);
             }}
-            disabled={isLoading}
+            disabled={isLoading && allNeighborhoods.length === 0}
           >
             Confirmar
           </Button>
