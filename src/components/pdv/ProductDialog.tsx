@@ -39,7 +39,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Image as ImageIcon, Upload, X, Info } from "lucide-react";
 import { ProductRecipeManager } from "./ProductRecipeManager";
-import { PDVProductOptionsManager } from "./PDVProductOptionsManager";
+
 import { ProductCompositionManager } from "./ProductCompositionManager";
 import { usePDVRecipes } from "@/hooks/use-pdv-recipes";
 import { useProductionCenters } from "@/hooks/use-production-centers";
@@ -154,19 +154,13 @@ export function ProductDialog({
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [isSubstituicaoTributaria, setIsSubstituicaoTributaria] = useState(false);
-  const [optionsDirty, setOptionsDirty] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
   const handleDialogOpenChange = (next: boolean) => {
-    if (!next && optionsDirty) {
-      setConfirmCloseOpen(true);
-      return;
-    }
     onOpenChange(next);
   };
 
   const handleConfirmDiscardClose = () => {
-    setOptionsDirty(false);
     setConfirmCloseOpen(false);
     onOpenChange(false);
   };
