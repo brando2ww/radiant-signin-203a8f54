@@ -216,9 +216,13 @@ export async function sweepCepRange(
 
     const fetchOneForPrefix = async (cep: string) => {
       if (options.signal?.aborted) return;
+      const timeoutCtl = new AbortController();
+      const timer = setTimeout(() => timeoutCtl.abort(), REQUEST_TIMEOUT_MS);
+      const onParentAbort = () => timeoutCtl.abort();
+      options.signal?.addEventListener("abort", onParentAbort);
       try {
         const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`, {
-          signal: options.signal,
+          signal: timeoutCtl.signal,
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -241,8 +245,14 @@ export async function sweepCepRange(
         }
       } catch {
         /* noop */
+      } finally {
+        clearTimeout(timer);
+        options.signal?.removeEventListener("abort", onParentAbort);
       }
     };
+
+    let cepsSinceLastFind = 0;
+    let lastEntryCount = prefixEntries.length;
 
     for (let i = 0; i < ceps.length; i += CHUNK_SIZE) {
       if (options.signal?.aborted) {
@@ -252,6 +262,15 @@ export async function sweepCepRange(
       const chunk = ceps.slice(i, i + CHUNK_SIZE);
       await Promise.all(chunk.map(fetchOneForPrefix));
       done += chunk.length;
+
+      // Early-exit: se o prefixo está vazio (nenhuma entry nova após X CEPs), pula
+      if (prefixEntries.length === lastEntryCount) {
+        cepsSinceLastFind += chunk.length;
+      } else {
+        cepsSinceLastFind = 0;
+        lastEntryCount = prefixEntries.length;
+      }
+
       const sorted = Array.from(foundNeighborhoods).sort((a, b) =>
         a.localeCompare(b, "pt-BR"),
       );
