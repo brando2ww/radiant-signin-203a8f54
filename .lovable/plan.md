@@ -1,22 +1,21 @@
-## Problema
+## Acelerar varredura de CEPs
 
-A varredura está parando em "1000/6000 CEPs · 1 bairros". Isso acontece porque a função, após varrer o primeiro prefixo (95720), reaproveita o cache local dos prefixos seguintes — mas o cache de prefixos antigos (do teste anterior) está vazio/incompleto, fazendo o progresso pular instantaneamente sem efetivamente buscar.
+Hoje cada prefixo (1000 CEPs) é varrido em chunks de 8 requests paralelos = ~125 rodadas sequenciais. Para 6 prefixos = 750 rodadas. Isso é o gargalo.
 
-Você pediu: **sempre começar do zero**, sem reaproveitar cache.
+## Mudanças em `src/hooks/use-cep-range-sweep.ts`
 
-## Mudança
+1. **Aumentar paralelismo**: `CHUNK_SIZE` de 8 → **60**. ViaCEP suporta bem; cada prefixo passa a precisar só ~17 rodadas.
+2. **Pular sufixos óbvios**: muitos CEPs `xxx001`–`xxx999` retornam erro. Não dá para pular sem testar, mas podemos:
+   - Fazer **early-exit por prefixo**: se nos primeiros 200 CEPs do prefixo não encontrarmos nenhum bairro novo (e o prefixo só responde "Centro"/erro), abortar o restante daquele prefixo. Critério: após 200 CEPs sem nenhuma entry nova, pula para o próximo prefixo.
+3. **Timeout por request**: 4s via `AbortController` interno + `Promise.race`, evitando que um CEP travado segure todo o chunk.
+4. **Retry leve**: pular retry — falhas individuais já são silenciadas.
 
-### `src/hooks/use-cep-range-sweep.ts`
+## Estimativa
 
-Remover o bloco `if (cached) { ... continue; }` dentro do laço `outer:` em `sweepCepRange`. Cada prefixo passa a ser varrido integralmente sempre que o usuário clicar em "Varrer".
-
-O cache continua sendo **escrito** ao final de cada prefixo (útil para outras leituras como `getCachedSweep` no auto-load do modal), mas a varredura ativa nunca o lê para pular trabalho.
-
-### Opcional — limpar cache antigo no clique
-
-Em `handleStartSweep` (`NeighborhoodSelectorModal.tsx`), antes de iniciar, fazer `localStorage.removeItem("cep-sweep:{prefix}")` para cada prefixo na faixa, garantindo estado limpo.
+- Antes: ~6000 CEPs / 8 paralelos × ~150ms = ~110s
+- Depois: ~60 paralelos + early-exit em prefixos vazios = **~10–20s** para Garibaldi (5 dos 6 prefixos abortam cedo).
 
 ## Sem mudanças
 
-- UI da modal permanece igual.
-- Bairros manuais e cache de bairros manuais não são afetados.
+- UI, cache, manual neighborhoods e estrutura de retorno permanecem iguais.
+- Progress bar continua reportando `done` real.
