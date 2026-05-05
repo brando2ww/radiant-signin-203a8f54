@@ -194,7 +194,7 @@ export function usePDVComandas() {
         .from("pdv_comandas")
         .insert({
           user_id: ownerId,
-          order_id: data.orderId || null,
+          order_id: effectiveOrderId,
           comanda_number: comandaNumber,
           customer_name: data.customerName || null,
           person_number: data.personNumber || null,
