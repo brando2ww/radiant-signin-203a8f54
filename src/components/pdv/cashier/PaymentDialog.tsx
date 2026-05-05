@@ -1888,6 +1888,15 @@ export function PaymentDialog({
         </div>
 
         {/* Footer */}
+        {splitCashChangeExceeds && (
+          <div className="mt-4 flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <strong>Troco insuficiente em uma das linhas em dinheiro</strong> — saldo da gaveta é {formatCurrency(drawerBalance)}.
+              Ajuste o valor recebido ou troque a forma de pagamento.
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between pt-4 border-t mt-4">
           <Button
             variant="outline"
