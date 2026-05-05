@@ -75,6 +75,8 @@ export interface PDVSettings {
   nfe_csc_token?: string;
   // Desconto: exigir motivo na confirmação
   require_discount_reason?: boolean;
+  // Mesa virtual de balcão (para comandas avulsas)
+  counter_table_name?: string;
 }
 
 export function usePDVSettings() {
