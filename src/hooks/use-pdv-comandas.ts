@@ -534,6 +534,17 @@ export function usePDVComandas() {
       const ownerId = visibleUserId || user?.id;
       if (!ownerId) return;
 
+      // Nome do garçom (usuário autenticado)
+      let waiterName: string | null = null;
+      if (user?.id) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .maybeSingle();
+        waiterName = prof?.full_name || user.email || null;
+      }
+
       const { data: viewRows, error: viewError } = await supabase
         .from("vw_print_bridge_comanda_items")
         .select("*")
@@ -576,6 +587,7 @@ export function usePDVComandas() {
             customer_name: first.customer_name,
             table_number: first.table_number,
             kind: "comanda",
+            waiter_name: waiterName,
             items: rows.map((r: any) => ({
               product_name: r.product_name,
               quantity: r.quantity,

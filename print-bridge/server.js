@@ -261,6 +261,9 @@ async function processJob(job) {
       : `Comanda #${p.comanda_number}`,
     formatDateTime(),
   ];
+  if (kind !== "delivery" && p.waiter_name) {
+    subheader.push(`Garçom: ${p.waiter_name}`);
+  }
   if (items.length > 1) {
     subheader.push(`Itens: ${items.length}`);
   }
