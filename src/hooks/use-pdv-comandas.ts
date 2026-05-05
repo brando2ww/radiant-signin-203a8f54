@@ -565,8 +565,16 @@ export function usePDVComandas() {
           printer_ip: first.printer_ip,
           printer_port: first.printer_port || 9100,
           payload: {
+            mesa_numero: first.is_virtual
+              ? String(first.table_number || "Balcão")
+              : (first.table_number ? String(first.table_number) : "AVULSA"),
+            comanda_nome:
+              first.customer_name ||
+              (first.comanda_number ? `Comanda ${first.comanda_number}` : "Comanda"),
+            is_counter: !!first.is_virtual,
             comanda_number: first.comanda_number,
             customer_name: first.customer_name,
+            table_number: first.table_number,
             kind: "comanda",
             items: rows.map((r: any) => ({
               product_name: r.product_name,
