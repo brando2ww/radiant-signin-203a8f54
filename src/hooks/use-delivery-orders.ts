@@ -98,20 +98,62 @@ export const useDeliveryOrders = (status?: string) => {
           schema: "public",
           table: "delivery_orders",
         },
-        (payload) => {
+        async (payload) => {
           console.log("Order change received:", payload);
-          
-          // Tocar som para novos pedidos
+
           if (payload.eventType === "INSERT") {
             const audio = new Audio("/notification.mp3");
             audio.play().catch(() => {
-              // Fallback se não conseguir tocar
               console.log("Novo pedido recebido!");
             });
             toast.success("Novo pedido recebido! 🎉");
+
+            // Auto-confirmação se habilitada nas configurações
+            try {
+              const newOrder: any = payload.new;
+              if (newOrder?.status === "pending" && newOrder?.id) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user && newOrder.user_id === user.id) {
+                  const { data: settings } = await supabase
+                    .from("delivery_settings")
+                    .select("auto_accept_orders")
+                    .eq("user_id", user.id)
+                    .maybeSingle();
+
+                  if (settings?.auto_accept_orders) {
+                    await supabase
+                      .from("delivery_orders")
+                      .update({
+                        status: "confirmed",
+                        confirmed_at: new Date().toISOString(),
+                      })
+                      .eq("id", newOrder.id);
+
+                    await supabase.rpc(
+                      "consume_ingredients_for_delivery_order",
+                      { p_order_id: newOrder.id },
+                    );
+
+                    try {
+                      const result = await dispatchDeliveryPrintJobs(newOrder.id);
+                      if (result.jobs > 0) {
+                        toast.success(
+                          `Pedido auto-confirmado: ${result.jobs} impressão(ões) enviada(s)`,
+                        );
+                      } else {
+                        toast.success("Pedido auto-confirmado");
+                      }
+                    } catch (e) {
+                      console.error("Erro ao imprimir auto-confirmado:", e);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("Erro na auto-confirmação:", e);
+            }
           }
-          
-          // Invalidar queries para atualizar dados
+
           queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
         }
       )
