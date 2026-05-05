@@ -164,6 +164,16 @@ export const useUpdateOrderStatus = () => {
           { p_order_id: id },
         );
         if (consumeErr) console.error("Erro ao baixar estoque (delivery):", consumeErr);
+
+        // Dispara prints por centro de produção (mesma fila do salão)
+        try {
+          const result = await dispatchDeliveryPrintJobs(id);
+          if (result.jobs > 0) {
+            toast.success(`${result.jobs} impressão(ões) enviada(s) à cozinha`);
+          }
+        } catch (e) {
+          console.error("Erro ao enfileirar prints do delivery:", e);
+        }
       }
 
       return data;
