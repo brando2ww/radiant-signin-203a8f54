@@ -93,3 +93,22 @@ export const useShareToDelivery = () => {
     },
   });
 };
+
+export const useResyncDeliveryOptions = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (pdvProductId: string) => {
+      const { error } = await supabase.rpc(
+        "delivery_clone_options_from_pdv" as any,
+        { p_pdv_product_id: pdvProductId },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["delivery-products"] });
+      queryClient.invalidateQueries({ queryKey: ["public-menu"] });
+      toast.success("Opções sincronizadas com o delivery!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+};
