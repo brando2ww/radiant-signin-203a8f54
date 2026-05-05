@@ -73,6 +73,9 @@ export const OrderDetailDialog = ({
   const [cancelReason, setCancelReason] = useState("");
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
+  const reprintOrder = useReprintOrder();
+
+  const canReprint = !["pending", "cancelled"].includes(order.status);
 
   const handleNextStatus = () => {
     const nextStatus = statusFlow[order.status as keyof typeof statusFlow];
