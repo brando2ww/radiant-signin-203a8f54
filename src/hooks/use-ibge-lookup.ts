@@ -104,6 +104,21 @@ const SEARCH_TERMS_BASIC = [
   "Jardim", "Loteamento", "Setor", "Núcleo", "Residencial",
 ];
 
+// Nomes de bairros recorrentes em cidades brasileiras — ajudam em municípios
+// pequenos onde "Rua/Avenida" retorna pouquíssimas ruas no ViaCEP.
+const COMMON_NEIGHBORHOOD_NAMES = [
+  "Centro", "Centro Histórico", "São José", "São Pedro", "São João",
+  "São Francisco", "São Cristóvão", "Santa Catarina", "Santa Rita",
+  "Santa Tereza", "Santa Lúcia", "Santo Antônio", "Nossa Senhora",
+  "Industrial", "Operário", "Comercial",
+  "Cidade Alta", "Cidade Baixa", "Cidade Nova",
+  "Bela Vista", "Boa Vista", "Bom Retiro", "Bom Pastor", "Bom Princípio",
+  "Vila Nova", "Vila Verde", "Vila Rica",
+  "Planalto", "Cruzeiro", "Aparecida", "Esperança", "União", "Progresso",
+  "Floresta", "Glória", "Liberdade", "Independência", "República",
+  "Conventos", "Cohab", "Imigrante", "Borgo", "Belvedere",
+];
+
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 const normalizeKey = (s: string) =>
@@ -154,6 +169,18 @@ async function fetchIBGEDistricts(municipioId: number): Promise<string[]> {
     return data.map((d) => d.nome).filter(Boolean);
   }, [] as string[]);
 }
+
+async function fetchIBGESubdistricts(municipioId: number): Promise<string[]> {
+  return withRetry(async () => {
+    const res = await fetch(
+      `https://servicodados.ibge.gov.br/api/v1/localidades/municipios/${municipioId}/subdistritos`,
+    );
+    if (!res.ok) return [];
+    const data: { id: number; nome: string }[] = await res.json();
+    return data.map((d) => d.nome).filter(Boolean);
+  }, [] as string[]);
+}
+
 
 const memCache = new Map<string, string[]>();
 const cacheKey = (uf: string, city: string, deep: boolean) =>
