@@ -170,15 +170,10 @@ export const useCreateOrder = () => {
         }[];
       }[];
     }) => {
-      // Generate sequential daily order number for this establishment (#001, #002, …)
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const { count } = await supabase
-        .from("delivery_orders")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", orderData.userId)
-        .gte("created_at", startOfDay.toISOString());
-      const orderNumber = `#${String((count || 0) + 1).padStart(3, "0")}`;
+      // Número provisório — será substituído pelo sequencial do caixa via RPC
+      // delivery_assign_order_ticket abaixo. Usamos um placeholder único por
+      // segurança (a coluna order_number tem UNIQUE constraint).
+      const orderNumber = `TMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
       // Create order
       const { data: order, error: orderError } = await supabase

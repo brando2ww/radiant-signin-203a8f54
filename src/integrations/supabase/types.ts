@@ -1651,6 +1651,7 @@ export type Database = {
           ready_at: string | null
           status: string
           subtotal: number
+          ticket_number: number | null
           total: number
           updated_at: string
           user_id: string
@@ -1682,6 +1683,7 @@ export type Database = {
           ready_at?: string | null
           status?: string
           subtotal: number
+          ticket_number?: number | null
           total: number
           updated_at?: string
           user_id: string
@@ -1713,6 +1715,7 @@ export type Database = {
           ready_at?: string | null
           status?: string
           subtotal?: number
+          ticket_number?: number | null
           total?: number
           updated_at?: string
           user_id?: string
@@ -7047,6 +7050,7 @@ export type Database = {
           production_center_id: string | null
           quantity: number | null
           tenant_user_id: string | null
+          ticket_number: number | null
         }
         Relationships: [
           {
@@ -7156,6 +7160,10 @@ export type Database = {
           out_ingredient_id: string
           out_total_consumed: number
         }[]
+      }
+      delivery_assign_order_ticket: {
+        Args: { p_order_id: string }
+        Returns: number
       }
       delivery_clone_options_from_pdv: {
         Args: { p_pdv_product_id: string }
