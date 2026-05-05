@@ -1,35 +1,33 @@
-## Ajuste de proporção das colunas — Frente de Caixa
+## Garibaldi (e cidades pequenas) só puxa 5 bairros — corrigir cobertura
 
-Arquivo: `src/pages/pdv/Cashier.tsx`
+### Diagnóstico
 
-Hoje o grid principal usa `lg:grid-cols-12` com `lg:col-span-6 / 3 / 3` (50% / 25% / 25%).
+Para cidades pequenas como Garibaldi/RS, a estratégia atual entrega pouquíssimos bairros porque:
 
-### Mudança
+1. **IBGE `/distritos`** retorna apenas distritos oficiais (geralmente sede + 1-2), não bairros.
+2. **ViaCEP** em cidades pequenas tem pouquíssimas ruas indexadas — uma busca por "Rua" em Garibaldi pode retornar 5 resultados que cobrem 5 bairros e acabou.
+3. O modo "fast" termina aí. O botão "Buscar mais bairros" (deep, A–Z) ajuda, mas o usuário precisa clicar e em cidades pequenas ele nem sabe que existe mais coisa.
 
-Trocar para uma divisão 30% / 25% / 45% usando `lg:grid-cols-20`:
+### Mudanças
 
-- Movimentações: `lg:col-span-6` (30%)
-- Ações Rápidas (sidebar): `lg:col-span-5` (25%)
-- Painel Salão/Delivery: `lg:col-span-9` (45%)
+**`src/hooks/use-ibge-lookup.ts`**
 
-Como `grid-cols-20` não é padrão do Tailwind, usar a sintaxe arbitrária `lg:grid-cols-[6fr_5fr_9fr]` no container — mais simples, sem precisar estender o tailwind.config.
+1. **Auto-deep para cidades pequenas**: ao terminar a fase rápida, se o total de bairros encontrados for `< 15`, disparar automaticamente a varredura A–Z sem esperar clique do usuário. Mantém `onProgress` atualizando a UI.
 
-### Responsividade
+2. **Seed de nomes comuns de bairros brasileiros**: adicionar uma lista de ~40 nomes recorrentes (`Centro, São José, São Pedro, Santa Catarina, Industrial, Operário, Cidade Alta, Cidade Baixa, Bela Vista, Boa Vista, Vila Nova, Planalto, Santa Rita, São João, São Francisco, Nossa Senhora, Cruzeiro, Aparecida, Esperança, União, Progresso, etc.`) e consultá-los como termos no ViaCEP — em cidades pequenas isso costuma resgatar bairros que `Rua/Avenida` não retornam.
 
-- Manter `grid-cols-1` no mobile (uma coluna empilhada) — só ativa a divisão fracionada em `lg:`.
-- Skeleton de loading segue o mesmo grid para evitar salto visual (atualizar o `lg:grid-cols-4` do skeleton para o novo layout, ou simplificar para 3 blocos).
-- Nenhuma mudança de altura, padding ou min-height — só proporção horizontal.
+3. **Subdistritos IBGE**: tentar também `GET /api/v1/localidades/municipios/{id}/subdistritos` como fonte adicional (sem quebrar se 404).
 
-### Diff resumido
+4. **Ordem de execução**:
+   - IBGE distritos + subdistritos (rápido)
+   - ViaCEP termos estruturais básicos (Rua, Avenida, …)
+   - ViaCEP nomes comuns de bairros (novo)
+   - Auto-deep A–Z se total < 15 (ou se o usuário clicar "Buscar mais")
 
-```text
-- <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
-+ <div className="grid grid-cols-1 lg:grid-cols-[6fr_5fr_9fr] gap-4 flex-1 min-h-0">
+5. Cache key continua `fast|deep` — quando auto-deep dispara, gravar como `deep` para o usuário não repetir busca ao reabrir.
 
-- <Card className="lg:col-span-6 ..."> (Movimentações)
-- <Card className="lg:col-span-3 ..."> (Ações)
-- <Card className="lg:col-span-3 ..."> (Salão)
-+ remover col-span — as colunas seguem a definição do grid
-```
+### Responsividade / impacto
 
-Sem mudanças de dados, hooks ou comportamento.
+- Aumenta o tempo da primeira abertura em cidades pequenas (varredura A–Z ≈ 19 termos × 26 letras = 494 requisições em chunks de 6, ~30-60s) — aceitável porque o `onProgress` mostra contagem ao vivo e o resultado é cacheado.
+- Cidades grandes (>15 na fase rápida) seguem rápidas como hoje.
+- Sem mudanças na UI nem no banco.
