@@ -352,5 +352,7 @@ export function usePDVCashier() {
     isAddingMovement: addMovement.isPending,
     lastClosedSession,
     lastClosedMovements,
+    drawerBalance,
+    totalReinforcements,
   };
 }
