@@ -363,6 +363,7 @@ export default function PDVCashier() {
         onAddMovement={handleAddMovement}
         isAdding={isAddingMovement}
         defaultType={movementType}
+        drawerBalance={drawerBalance}
       />
 
       <KeyboardShortcutsDialog
