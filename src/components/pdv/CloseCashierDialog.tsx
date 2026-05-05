@@ -139,7 +139,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
     .filter((m) => m.type === "reforco")
     .reduce((acc, m) => acc + m.amount, 0);
 
-  const netCash = totalCash - totalChange;
+  const netCash = totalCash;
   const expectedCash = openingBal + netCash + totalReinforcements - totalWithdrawals;
   const cashDiff = finalBalance - expectedCash;
 
@@ -215,8 +215,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
 <div class="section">
   <div class="section-title">RESUMO DA GAVETA (DINHEIRO)</div>
   <div class="row"><span>Saldo Inicial:</span><span>${formatBRL(openingBal)}</span></div>
-  <div class="row"><span>Dinheiro recebido:</span><span>+ ${formatBRL(totalCash)}</span></div>
-  <div class="row"><span>(−) Troco entregue:</span><span>- ${formatBRL(totalChange)}</span></div>
+  <div class="row"><span>Vendas em dinheiro:</span><span>+ ${formatBRL(totalCash)}</span></div>
   <div class="row"><span>Reforços:</span><span>+ ${formatBRL(totalReinforcements)}</span></div>
   <div class="row"><span>Sangrias:</span><span>- ${formatBRL(totalWithdrawals)}</span></div>
   <div class="row total"><span>Esperado na gaveta:</span><span>${formatBRL(expectedCash)}</span></div>
@@ -528,10 +527,6 @@ export function CloseCashierDialog({
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Vendas em dinheiro:</span>
                   <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">(−) Troco entregue:</span>
-                  <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalChange)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Reforços:</span>
