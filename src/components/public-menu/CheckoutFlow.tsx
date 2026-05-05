@@ -158,7 +158,7 @@ export const CheckoutFlow = ({
         {currentStep === "payment" && (
           <PaymentMethod
             userId={userId}
-            total={total}
+            total={effectiveTotal}
             onConfirm={handlePaymentConfirmed}
             onBack={() => setCurrentStep("address")}
           />
@@ -174,10 +174,10 @@ export const CheckoutFlow = ({
             paymentMethod={paymentMethod}
             changeFor={changeFor}
             subtotal={subtotal}
-            deliveryFee={deliveryFee}
+            deliveryFee={effectiveDeliveryFee}
             discount={discount}
             couponCode={couponCode}
-            total={total}
+            total={effectiveTotal}
             notes={notes}
             onNotesChange={setNotes}
             onConfirm={handleOrderPlaced}
