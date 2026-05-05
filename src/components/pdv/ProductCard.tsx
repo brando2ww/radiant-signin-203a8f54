@@ -27,6 +27,7 @@ interface ProductCardProps {
 export function ProductCard({ product, onEdit, onDelete, onDuplicate, isSharedToDelivery, onShareToDelivery }: ProductCardProps) {
   const { recipes, calculateCMV } = usePDVRecipes(product.id);
   const cmv = calculateCMV(recipes);
+  const resyncDelivery = useResyncDeliveryOptions();
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
