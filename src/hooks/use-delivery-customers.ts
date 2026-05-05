@@ -170,15 +170,10 @@ export const useCreateOrder = () => {
         }[];
       }[];
     }) => {
-      // Generate sequential daily order number for this establishment (#001, #002, …)
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const { count } = await supabase
-        .from("delivery_orders")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", orderData.userId)
-        .gte("created_at", startOfDay.toISOString());
-      const orderNumber = `#${String((count || 0) + 1).padStart(3, "0")}`;
+      // Número provisório — será substituído pelo sequencial do caixa via RPC
+      // delivery_assign_order_ticket abaixo. Usamos um placeholder único por
+      // segurança (a coluna order_number tem UNIQUE constraint).
+      const orderNumber = `TMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
       // Create order
       const { data: order, error: orderError } = await supabase
@@ -208,6 +203,24 @@ export const useCreateOrder = () => {
         .single();
 
       if (orderError) throw orderError;
+
+      // Atribui número sequencial baseado no caixa aberto (#001, #002, …).
+      // Se não houver caixa aberto, mantém o placeholder TMP- para não quebrar.
+      try {
+        await supabase.rpc("delivery_assign_order_ticket" as any, { p_order_id: order.id });
+        const { data: refreshed } = await supabase
+          .from("delivery_orders")
+          .select("order_number, ticket_number, cashier_session_id")
+          .eq("id", order.id)
+          .maybeSingle();
+        if (refreshed) {
+          (order as any).order_number = refreshed.order_number;
+          (order as any).ticket_number = (refreshed as any).ticket_number;
+          (order as any).cashier_session_id = (refreshed as any).cashier_session_id;
+        }
+      } catch (e) {
+        console.error("Erro ao atribuir número de pedido:", e);
+      }
 
       // Create order items
       const itemsToInsert = orderData.items.map((item) => ({
