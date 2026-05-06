@@ -95,8 +95,15 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
             })}
           </div>
         </div>
-        <Badge variant="secondary" className="text-[10px]">
-          {STATUS_LABEL[order.status]}
+        <Badge
+          variant="secondary"
+          className={
+            awaitingOfflinePayment
+              ? "text-[10px] bg-orange-500/15 text-orange-700 dark:text-orange-300 border border-orange-500/30"
+              : "text-[10px]"
+          }
+        >
+          {awaitingOfflinePayment ? "Aguardando pagamento" : STATUS_LABEL[order.status]}
         </Badge>
       </div>
 
