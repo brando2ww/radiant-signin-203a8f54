@@ -32,6 +32,8 @@ import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
 import { type DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
 import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
+import { useDeliverySettings } from "@/hooks/use-delivery-settings";
+import { AlertTriangle } from "lucide-react";
 
 interface SalonQueuePanelProps {
   isOpen: boolean;
@@ -77,6 +79,21 @@ export function SalonQueuePanel({
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
   const updateOrderStatus = useUpdateOrderStatus();
+  const { data: deliverySettings } = useDeliverySettings();
+  const overdueMinutes = deliverySettings?.payment_overdue_minutes ?? 30;
+
+  const overduePaymentOrders = useMemo(() => {
+    const now = Date.now();
+    return delivery.all.filter((o: DeliveryOrder) => {
+      const offline = ["cash", "dinheiro", "credit", "credito", "debit", "debito"].includes(
+        o.payment_method,
+      );
+      if (!offline || o.payment_status === "paid") return false;
+      if (o.status !== "delivering") return false;
+      const mins = (now - new Date(o.updated_at).getTime()) / 60000;
+      return mins > overdueMinutes;
+    });
+  }, [delivery.all, overdueMinutes]);
 
   const NEXT: Partial<Record<DeliveryOrder["status"], DeliveryOrder["status"]>> = {
     pending: "preparing",
@@ -433,6 +450,15 @@ export function SalonQueuePanel({
         <TabsContent value="delivery" className="flex-1 min-h-0 m-0">
           <ScrollArea className="h-full">
             <div className="p-3 space-y-2">
+              {isOpen && overduePaymentOrders.length > 0 && (
+                <div className="flex items-start gap-2 p-2 rounded border border-destructive/40 bg-destructive/10 text-destructive text-[11px]">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>{overduePaymentOrders.length}</strong> pedido(s) sem pagamento
+                    registrado há mais de {overdueMinutes} min.
+                  </div>
+                </div>
+              )}
               {!isOpen ? (
                 <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
                   <Hourglass className="h-10 w-10 mb-2 opacity-40" />

@@ -10,6 +10,7 @@ import { CustomerData } from "./checkout/CustomerData";
 import { DeliveryAddress } from "./checkout/DeliveryAddress";
 import { PaymentMethod } from "./checkout/PaymentMethod";
 import { OrderConfirmation } from "./checkout/OrderConfirmation";
+import { OrderTrackingView } from "./checkout/OrderTrackingView";
 import { CartItem } from "@/pages/PublicMenu";
 import { DeliveryCustomer } from "@/hooks/use-delivery-customers";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
@@ -27,7 +28,7 @@ interface CheckoutFlowProps {
   onOrderComplete: () => void;
 }
 
-export type CheckoutStep = "phone" | "customer-data" | "address" | "payment" | "confirmation";
+export type CheckoutStep = "phone" | "customer-data" | "address" | "payment" | "confirmation" | "tracking";
 
 export const CheckoutFlow = ({
   open,
@@ -42,6 +43,7 @@ export const CheckoutFlow = ({
   onOrderComplete,
 }: CheckoutFlowProps) => {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>("phone");
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<DeliveryCustomer | null>(null);
   const [orderType, setOrderType] = useState<"delivery" | "pickup">("delivery");
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -98,9 +100,14 @@ export const CheckoutFlow = ({
       cart,
     });
 
+    setTrackingOrderId(orderId);
+    setCurrentStep("tracking");
+  };
+
+  const handleCloseTracking = () => {
     onOrderComplete();
     onOpenChange(false);
-    // Reset
+    setTrackingOrderId(null);
     setCurrentStep("phone");
     setCustomer(null);
     setOrderType("delivery");
@@ -124,6 +131,8 @@ export const CheckoutFlow = ({
         return "Pagamento";
       case "confirmation":
         return "Confirmar Pedido";
+      case "tracking":
+        return "Acompanhar Pedido";
     }
   };
 
@@ -184,6 +193,10 @@ export const CheckoutFlow = ({
             onBack={() => setCurrentStep("payment")}
             selectedAddressId={selectedAddressId}
           />
+        )}
+
+        {currentStep === "tracking" && trackingOrderId && (
+          <OrderTrackingView orderId={trackingOrderId} onClose={handleCloseTracking} />
         )}
       </DialogContent>
     </Dialog>

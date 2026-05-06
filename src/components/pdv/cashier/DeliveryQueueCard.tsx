@@ -58,10 +58,22 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
   const visible = items.slice(0, 3);
   const more = items.length - visible.length;
 
+  const isOfflinePayment = ["cash", "dinheiro", "credit", "credito", "debit", "debito"].includes(
+    order.payment_method,
+  );
+  // Pagar na entrega aguardando pagamento → bloqueia "Marcar entregue", mostra Registrar pagamento
+  const awaitingOfflinePayment =
+    isOfflinePayment && !isOnlinePaid && order.status === "delivering";
+
   const actionable =
     ["delivering", "completed", "ready"].includes(order.status);
   const Icon = methodIcon(order.payment_method);
-  const nextLabel = NEXT_STATUS_LABEL[order.status];
+  // Em "delivering" sem pagamento, esconde "Marcar entregue" — o pagamento abre o fluxo de conclusão
+  const nextLabel = awaitingOfflinePayment ? undefined : NEXT_STATUS_LABEL[order.status];
+
+  // Aviso para auto-confirmação manual + pagar na entrega
+  const pendingOfflineConfirmation =
+    isOfflinePayment && !isOnlinePaid && (order.status === "pending" || order.status === "confirmed");
 
   return (
     <Card className="p-3 border-l-4 border-l-primary/60">
@@ -83,8 +95,15 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
             })}
           </div>
         </div>
-        <Badge variant="secondary" className="text-[10px]">
-          {STATUS_LABEL[order.status]}
+        <Badge
+          variant="secondary"
+          className={
+            awaitingOfflinePayment
+              ? "text-[10px] bg-orange-500/15 text-orange-700 dark:text-orange-300 border border-orange-500/30"
+              : "text-[10px]"
+          }
+        >
+          {awaitingOfflinePayment ? "Aguardando pagamento" : STATUS_LABEL[order.status]}
         </Badge>
       </div>
 
@@ -107,6 +126,12 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
           {formatBRL(order.total)}
         </div>
       </div>
+
+      {pendingOfflineConfirmation && (
+        <div className="mb-2 px-2 py-1 rounded text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+          ⚠ Aguardando confirmação · Pagar na entrega
+        </div>
+      )}
 
       <div className="space-y-2">
         {(nextLabel || onPrintMotoboy) && (
