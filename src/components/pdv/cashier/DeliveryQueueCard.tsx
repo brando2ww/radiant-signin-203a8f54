@@ -107,6 +107,14 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
         </Badge>
       </div>
 
+      {(order as any).customer_delivery_confirmed_at && order.status === "delivering" && (
+        <div className="mb-2">
+          <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">
+            ✓ Cliente confirmou recebimento
+          </Badge>
+        </div>
+      )}
+
       <div className="text-xs text-muted-foreground mb-2 space-y-0.5">
         {visible.map((it) => (
           <div key={it.id} className="truncate">
