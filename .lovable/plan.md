@@ -1,13 +1,26 @@
 ## Diagnóstico
 
-Tela congela ao cancelar pedido do delivery porque o `handleCancel` em `OrderDetailDialog.tsx` fecha o `AlertDialog` e o `Dialog` principal simultaneamente no mesmo tick. O Radix UI deixa `pointer-events: none` aplicado ao `<body>` quando dois overlays se desmontam em paralelo, travando toda a interface.
+Quando produtos da composição (Kits/Combos) são clonados como `delivery_product_option_items`, o `price_adjustment` é gravado fixo em `0`. Por isso os adicionais aparecem sem valor no cardápio do delivery e não somam ao total.
+
+A função `delivery_clone_options_from_pdv` e o trigger `sync_pdv_composition_to_delivery` fazem:
+```
+INSERT ... (..., price_adjustment, ...) VALUES (..., 0, ...)
+```
+
+Deveria pegar o preço de delivery do `child_product` (`price_delivery` ou `price_salon` como fallback), multiplicado pela `quantity` da composição.
 
 ## Plano
 
-Em `src/components/delivery/OrderDetailDialog.tsx`, ajustar `handleCancel` para:
-1. Fechar primeiro o `AlertDialog` de cancelamento e limpar `cancelReason`.
-2. Defer o fechamento do `Dialog` principal com `setTimeout(..., 0)` para que os overlays sejam desmontados em sequência, liberando `pointer-events` no body.
+Migration SQL:
 
-Padrão alinhado com a memória "Dialog UI" do projeto (deferir abertura/fechamento de dialogs aninhados).
+1. Atualizar a função `sync_pdv_composition_to_delivery` para calcular `price_adjustment` a partir do produto filho:
+   ```
+   price = COALESCE(p.price_delivery, p.price_salon, 0) * COALESCE(NEW.quantity, 1)
+   ```
+   Aplicar tanto no INSERT quanto no UPDATE.
 
-Sem mudanças no hook `useCancelOrder` nem no banco de dados.
+2. Atualizar a função `delivery_clone_options_from_pdv` na seção de composição para o mesmo cálculo.
+
+3. Backfill: atualizar `delivery_product_option_items` existentes cujos `source_pdv_option_item_id` correspondam a `pdv_product_compositions`, recalculando `price_adjustment` com base no `child_product`.
+
+Sem alterações de frontend (o componente já lê `price_adjustment`).
