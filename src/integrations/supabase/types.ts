@@ -7068,6 +7068,7 @@ export type Database = {
           delivery_address_text: string | null
           id: string | null
           notes: string | null
+          options: Json | null
           order_id: string | null
           order_number: string | null
           order_type: string | null

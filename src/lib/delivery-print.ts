@@ -65,6 +65,13 @@ export async function dispatchDeliveryPrintJobs(
           product_name: r.product_name,
           quantity: r.quantity,
           notes: r.notes,
+          modifiers: Array.isArray(r.options)
+            ? r.options.map((o: any) => ({
+                name: o?.quantity && Number(o.quantity) > 1
+                  ? `${o.quantity}x ${o.name}`
+                  : o?.name,
+              })).filter((m: any) => m.name)
+            : [],
         })),
       },
       status: hasPrinter ? "pending" : "failed",
