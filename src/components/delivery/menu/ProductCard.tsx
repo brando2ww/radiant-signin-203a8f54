@@ -130,7 +130,14 @@ export const ProductCard = ({
       </div>
 
       <div className="flex-1 min-w-0 flex flex-col gap-1 overflow-hidden">
-        <h3 className="font-semibold text-sm leading-tight">{product.name}</h3>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-semibold text-sm leading-tight">{product.name}</h3>
+          {(product as any).source_pdv_product_id && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+              PDV
+            </Badge>
+          )}
+        </div>
         {product.description && (
           <p className="text-xs text-muted-foreground line-clamp-2">
             {product.description}

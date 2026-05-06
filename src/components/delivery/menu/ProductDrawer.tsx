@@ -1,17 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -19,20 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ImageUpload } from "@/components/ui/image-upload";
-import { ImageCropDialog } from "@/components/ui/image-crop-dialog";
 import {
   DeliveryProduct,
-  useCreateProduct,
   useUpdateProduct,
 } from "@/hooks/use-delivery-products";
 import { DeliveryCategory } from "@/hooks/use-delivery-categories";
-import { useProductImageUpload } from "@/hooks/use-product-image-upload";
-import { ProductOptionsManager } from "../ProductOptionsManager";
-import { DeliveryRecipeManager } from "../DeliveryRecipeManager";
-import { CurrencyInput } from "@/components/ui/currency-input";
-import { toast } from "sonner";
-import { Info } from "lucide-react";
+import { formatBRL } from "@/lib/format";
+import { ExternalLink, Package } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const WEEKDAYS = [
   { value: 0, label: "Dom" },
@@ -49,8 +41,6 @@ interface ProductDrawerProps {
   onOpenChange: (open: boolean) => void;
   product?: DeliveryProduct;
   categories: DeliveryCategory[];
-  onProductCreated?: (product: DeliveryProduct) => void;
-  preselectedCategoryId?: string;
 }
 
 export const ProductDrawer = ({
@@ -58,122 +48,42 @@ export const ProductDrawer = ({
   onOpenChange,
   product,
   categories,
-  onProductCreated,
-  preselectedCategoryId,
 }: ProductDrawerProps) => {
   const [categoryId, setCategoryId] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [basePrice, setBasePrice] = useState("");
-  const [promotionalPrice, setPromotionalPrice] = useState("");
-  const [preparationTime, setPreparationTime] = useState("30");
-  const [serves, setServes] = useState("1");
   const [isAvailable, setIsAvailable] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
   const [availableDays, setAvailableDays] = useState<number[]>([]);
-  const [cropDialogOpen, setCropDialogOpen] = useState(false);
-  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
 
-  const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
-  const { uploadImage, deleteImage, isUploading } = useProductImageUpload();
 
   useEffect(() => {
     if (product) {
       setCategoryId(product.category_id);
-      setName(product.name);
-      setDescription(product.description || "");
-      setBasePrice(product.base_price.toString());
-      setPromotionalPrice(product.promotional_price?.toString() || "");
-      setPreparationTime(product.preparation_time.toString());
-      setServes(product.serves.toString());
       setIsAvailable(product.is_available);
       setIsFeatured(product.is_featured);
-      setCurrentImageUrl(product.image_url || null);
-      setImageFile(null);
       setAvailableDays((product as any).available_days || []);
-    } else {
-      setCategoryId(preselectedCategoryId || categories[0]?.id || "");
-      setName("");
-      setDescription("");
-      setBasePrice("");
-      setPromotionalPrice("");
-      setPreparationTime("30");
-      setServes("1");
-      setIsAvailable(true);
-      setIsFeatured(false);
-      setCurrentImageUrl(null);
-      setImageFile(null);
-      setAvailableDays([]);
     }
-  }, [product, categories, open, preselectedCategoryId]);
+  }, [product, open]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  if (!product) return null;
+
+  const sourceId = (product as any).source_pdv_product_id as string | null;
+  const price = (product as any).promotional_price ?? product.base_price;
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    let imageUrl = currentImageUrl;
-    if (imageFile) {
-      const uploadedUrl = await uploadImage(imageFile);
-      if (uploadedUrl) {
-        imageUrl = uploadedUrl;
-        if (currentImageUrl && currentImageUrl !== uploadedUrl) {
-          await deleteImage(currentImageUrl);
-        }
-      } else {
-        toast.error("Erro ao fazer upload da imagem");
-        return;
-      }
-    }
-    const productData = {
-      category_id: categoryId,
-      name,
-      description,
-      base_price: Number(basePrice),
-      promotional_price: promotionalPrice ? Number(promotionalPrice) : null,
-      preparation_time: Number(preparationTime),
-      serves: Number(serves),
-      is_available: isAvailable,
-      is_featured: isFeatured,
-      image_url: imageUrl,
-      order_position: 0,
-      available_days: availableDays,
-    };
-    if (product) {
-      updateProduct.mutate(
-        { id: product.id, updates: productData },
-        {
-          onSuccess: () => {
-            onOpenChange(false);
-            setImageFile(null);
-          },
-        }
-      );
-    } else {
-      createProduct.mutate(productData, {
-        onSuccess: (data) => {
-          setImageFile(null);
-          if (onProductCreated) {
-            onProductCreated(data as DeliveryProduct);
-          } else {
-            onOpenChange(false);
-          }
-        },
-      });
-    }
-  };
-
-  const handleRemoveImage = async () => {
-    if (currentImageUrl) {
-      const success = await deleteImage(currentImageUrl);
-      if (success) {
-        setCurrentImageUrl(null);
-        if (product) {
-          updateProduct.mutate({ id: product.id, updates: { image_url: null } });
-        }
-      }
-    }
-    setImageFile(null);
+    updateProduct.mutate(
+      {
+        id: product.id,
+        updates: {
+          category_id: categoryId,
+          is_available: isAvailable,
+          is_featured: isFeatured,
+          available_days: availableDays,
+        } as any,
+      },
+      { onSuccess: () => onOpenChange(false) }
+    );
   };
 
   const toggleDay = (day: number) => {
@@ -182,228 +92,149 @@ export const ProductDrawer = ({
     );
   };
 
-  const handleImageForCrop = (file: File | null) => {
-    if (!file) {
-      setImageFile(null);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setRawImageSrc(reader.result as string);
-      setCropDialogOpen(true);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleCropComplete = useCallback(async (blob: Blob) => {
-    const file = new File([blob], "product-image.jpg", { type: "image/jpeg" });
-    setImageFile(file);
-    setCurrentImageUrl(URL.createObjectURL(blob));
-  }, []);
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col gap-0"
+        className="w-full sm:max-w-xl p-0 flex flex-col gap-0"
       >
         <SheetHeader className="px-6 py-4 border-b shrink-0 text-left">
-          <SheetTitle>{product ? "Editar Produto" : "Novo Produto"}</SheetTitle>
-          {product && (
-            <p className="text-xs text-muted-foreground truncate">{product.name}</p>
-          )}
+          <SheetTitle>Organização no cardápio</SheetTitle>
+          <p className="text-xs text-muted-foreground">
+            Preço, descrição, opções e ficha técnica são gerenciados em Administração → Produtos.
+          </p>
         </SheetHeader>
 
-        <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="mx-6 mt-4 grid grid-cols-3 shrink-0">
-            <TabsTrigger value="details">Detalhes</TabsTrigger>
-            <TabsTrigger value="recipe" disabled={!product}>
-              Ficha Técnica
-            </TabsTrigger>
-            <TabsTrigger value="options" disabled={!product}>
-              Opções
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent
-            value="details"
-            className="flex-1 min-h-0 flex flex-col mt-4 data-[state=inactive]:hidden"
-          >
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
-                <ImageUpload
-                  value={currentImageUrl || undefined}
-                  onChange={handleImageForCrop}
-                  onRemove={handleRemoveImage}
-                  disabled={isUploading}
-                />
-                <p className="text-xs text-muted-foreground flex items-center gap-1 -mt-1">
-                  <Info className="h-3 w-3" />
-                  Resolução ideal: 800x600px (4:3)
-                </p>
-
-                <div className="space-y-2">
-                  <Label>Categoria *</Label>
-                  <Select value={categoryId} onValueChange={setCategoryId} required>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Nome *</Label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Descrição</Label>
-                  <Textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Preço Base *</Label>
-                    <CurrencyInput value={basePrice} onChange={setBasePrice} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Preço Promocional</Label>
-                    <CurrencyInput
-                      value={promotionalPrice}
-                      onChange={setPromotionalPrice}
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-6">
+            {/* Read-only PDV info */}
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="h-16 w-16 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      className="h-full w-full object-cover"
                     />
-                  </div>
+                  ) : (
+                    <Package className="h-6 w-6 text-muted-foreground" />
+                  )}
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tempo de Preparo (min)</Label>
-                    <Input
-                      type="number"
-                      value={preparationTime}
-                      onChange={(e) => setPreparationTime(e.target.value)}
-                      required
-                    />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold truncate">{product.name}</h3>
+                    {sourceId && (
+                      <Badge variant="secondary" className="text-xs">
+                        Vinculado ao PDV
+                      </Badge>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Serve (pessoas)</Label>
-                    <Input
-                      type="number"
-                      value={serves}
-                      onChange={(e) => setServes(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label>Disponível</Label>
-                    <Switch checked={isAvailable} onCheckedChange={setIsAvailable} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Produto em destaque</Label>
-                    <Switch checked={isFeatured} onCheckedChange={setIsFeatured} />
-                  </div>
-                </div>
-
-                <div className="rounded-lg border p-4 space-y-3">
-                  <div>
-                    <Label>Disponível nos dias</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Deixe todos desmarcados para disponibilidade diária
+                  {product.description && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                      {product.description}
                     </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {WEEKDAYS.map((day) => (
-                      <label
-                        key={day.value}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
-                          availableDays.includes(day.value)
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <Checkbox
-                          checked={availableDays.includes(day.value)}
-                          onCheckedChange={() => toggleDay(day.value)}
-                          className="sr-only"
-                        />
-                        {day.label}
-                      </label>
-                    ))}
-                  </div>
+                  )}
+                  <p className="text-sm font-medium mt-1">{formatBRL(price)}</p>
                 </div>
               </div>
-
-              <div className="px-6 py-4 border-t shrink-0 bg-background flex justify-end gap-2">
+              {sourceId && (
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
+                  size="sm"
+                  className="w-full"
+                  asChild
                 >
-                  Cancelar
+                  <Link to={`/pdv/produtos?edit=${sourceId}`}>
+                    <ExternalLink className="h-3.5 w-3.5 mr-2" />
+                    Editar no PDV
+                  </Link>
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={
-                    createProduct.isPending ||
-                    updateProduct.isPending ||
-                    isUploading
-                  }
-                >
-                  {isUploading ? "Enviando..." : product ? "Salvar alterações" : "Criar"}
-                </Button>
+              )}
+            </div>
+
+            {/* Curation fields */}
+            <div className="space-y-2">
+              <Label>Categoria do delivery</Label>
+              <Select value={categoryId} onValueChange={setCategoryId} required>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Disponível no delivery</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Controla se aparece para o cliente
+                  </p>
+                </div>
+                <Switch checked={isAvailable} onCheckedChange={setIsAvailable} />
               </div>
-            </form>
-          </TabsContent>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Produto em destaque</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Aparece no topo do cardápio
+                  </p>
+                </div>
+                <Switch checked={isFeatured} onCheckedChange={setIsFeatured} />
+              </div>
+            </div>
 
-          <TabsContent
-            value="recipe"
-            className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-4 data-[state=inactive]:hidden"
-          >
-            {product && (
-              <DeliveryRecipeManager
-                productId={product.id}
-                productPrice={product.base_price}
-              />
-            )}
-          </TabsContent>
+            <div className="rounded-lg border p-4 space-y-3">
+              <div>
+                <Label>Disponível nos dias</Label>
+                <p className="text-xs text-muted-foreground">
+                  Deixe todos desmarcados para disponibilidade diária
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAYS.map((day) => (
+                  <label
+                    key={day.value}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
+                      availableDays.includes(day.value)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    <Checkbox
+                      checked={availableDays.includes(day.value)}
+                      onCheckedChange={() => toggleDay(day.value)}
+                      className="sr-only"
+                    />
+                    {day.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
 
-          <TabsContent
-            value="options"
-            className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-4 data-[state=inactive]:hidden"
-          >
-            <ProductOptionsManager productId={product?.id} />
-          </TabsContent>
-        </Tabs>
+          <div className="px-6 py-4 border-t shrink-0 bg-background flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={updateProduct.isPending}>
+              Salvar alterações
+            </Button>
+          </div>
+        </form>
       </SheetContent>
-
-      {rawImageSrc && (
-        <ImageCropDialog
-          open={cropDialogOpen}
-          onOpenChange={setCropDialogOpen}
-          imageSrc={rawImageSrc}
-          aspectRatio={4 / 3}
-          onCropComplete={handleCropComplete}
-          title="Recortar imagem do produto"
-        />
-      )}
     </Sheet>
   );
 };

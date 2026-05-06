@@ -45,6 +45,7 @@ import { MenuToolbar, type QuickFilter } from "./menu/MenuToolbar";
 import { CategorySection } from "./menu/CategorySection";
 import { EmptyState } from "./menu/EmptyState";
 import { ProductDrawer } from "./menu/ProductDrawer";
+import { AddPDVProductDialog } from "./menu/AddPDVProductDialog";
 import { toast } from "sonner";
 
 export const MenuTab = () => {
@@ -155,12 +156,6 @@ export const MenuTab = () => {
     setIsProductDrawerOpen(true);
   };
 
-  const handleProductCreated = (product: DeliveryProduct) => {
-    setIsProductDrawerOpen(false);
-    setProductPreselectedCategory(undefined);
-    setCreatedProduct(product);
-  };
-
   const handleDuplicateProduct = (product: DeliveryProduct) => {
     const { id, user_id, created_at, updated_at, ...rest } = product as any;
     createProduct.mutate({
@@ -268,7 +263,7 @@ export const MenuTab = () => {
         category={deletingCategory || undefined}
       />
 
-      <ProductDrawer
+      <AddPDVProductDialog
         open={isProductDrawerOpen}
         onOpenChange={(open) => {
           setIsProductDrawerOpen(open);
@@ -276,7 +271,6 @@ export const MenuTab = () => {
         }}
         categories={categories}
         preselectedCategoryId={productPreselectedCategory}
-        onProductCreated={handleProductCreated}
       />
 
       <ProductDrawer
