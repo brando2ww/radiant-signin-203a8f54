@@ -1,26 +1,39 @@
-# Corrigir preço de sub-produtos no Delivery quando price_delivery é zero
+# Vincular itens órfãos do Sushi Mix 22 Peças
 
 ## Diagnóstico
+Os itens "04 Hot Holl Banana com Nutella" e "04 Hot Holl Morango com Nutella" do grupo "Doces" no delivery estão com `source_pdv_option_item_id = NULL` (órfãos). Por isso nem o trigger de sincronização nem o backfill anterior conseguiram corrigir o `price_adjustment`.
 
-Os itens "04 Hot Holl Morango com Nutella" e "04 Hot Holl Banana com Nutella" estão como **+R$ 0,00** no delivery, mas no Editar Produto do administrador aparecem corretamente como **R$ 19,00/un**.
+O "08 Hot Doce" funciona porque foi recriado com vínculo correto.
 
-Consultando o banco:
-- `pdv_products`: `price_delivery = 0.00`, `price_salon = 19.00`
-- `delivery_product_option_items.price_adjustment = 0.00`
+## Migração de dados
 
-A migração anterior usa `COALESCE(price_delivery, price_salon, 0)`. Como `price_delivery = 0` (não NULL), o COALESCE retorna 0 e ignora o price_salon. Já a tela do administrador trata 0 como "sem preço delivery" e mostra o price_salon.
+Vincular cada item órfão à composição PDV correspondente do mesmo grupo, casando pelo nome do filho, e recalcular o preço a partir do produto-pai (`price_delivery` com fallback para `price_salon`):
 
-O "08 Hot Doce" funciona porque tem price_delivery = 29,00.
+```sql
+WITH cand AS (
+  SELECT DISTINCT ON (dpoi.id)
+         dpoi.id AS dpoi_id,
+         c.id AS comp_id,
+         COALESCE(NULLIF(p.price_delivery, 0), p.price_salon, 0) * COALESCE(c.quantity,1) AS new_price,
+         p.name AS new_name,
+         dp_link.id AS new_linked
+  FROM public.delivery_product_option_items dpoi
+  JOIN public.delivery_product_options dpo ON dpo.id = dpoi.option_id
+  JOIN public.pdv_product_composition_groups g ON g.id = dpo.source_pdv_option_id
+  JOIN public.pdv_product_compositions c ON c.group_id = g.id
+  JOIN public.pdv_products p ON p.id = c.child_product_id
+  LEFT JOIN public.delivery_products dp_link ON dp_link.source_pdv_product_id = c.child_product_id
+  WHERE dpoi.source_pdv_option_item_id IS NULL
+    AND lower(trim(dpoi.name)) = lower(trim(p.name))
+)
+UPDATE public.delivery_product_option_items dpoi
+   SET source_pdv_option_item_id = cand.comp_id,
+       price_adjustment = cand.new_price,
+       name = cand.new_name,
+       linked_product_id = COALESCE(dpoi.linked_product_id, cand.new_linked),
+       item_kind = COALESCE(dpoi.item_kind, 'product')
+  FROM cand
+ WHERE dpoi.id = cand.dpoi_id;
+```
 
-## Correção
-
-Atualizar a lógica de seleção de preço para tratar `0` como ausente, caindo para `price_salon`:
-
-`COALESCE(NULLIF(price_delivery, 0), price_salon, 0)`
-
-### Mudanças (uma migração nova)
-
-1. Recriar a função `sync_pdv_product_price_to_composition` com `NULLIF(price_delivery, 0)`.
-2. Re-executar o backfill em `delivery_product_option_items` com a mesma fórmula para corrigir os valores atuais (Hot Holl Morango/Banana passarão a 19,00).
-
-Nenhuma alteração em frontend é necessária — o `ProductDetailModal` já renderiza corretamente o `price_adjustment` vindo do banco.
+Cobre o Sushi Mix 22 Peças e qualquer outro produto-composto na mesma situação. Após isso, futuras alterações de preço propagam normalmente via trigger.
