@@ -99,66 +99,13 @@ export const useDeliveryOrders = (status?: string) => {
           schema: "public",
           table: "delivery_orders",
         },
-        async (payload) => {
-          console.log("Order change received:", payload);
-
-          if (payload.eventType === "INSERT") {
-            const audio = new Audio("/notification.mp3");
-            audio.play().catch(() => {
-              console.log("Novo pedido recebido!");
-            });
-            toast.success("Novo pedido recebido! 🎉");
-
-            try {
-              const newOrder: any = payload.new;
-              if (newOrder?.status === "pending" && newOrder?.id) {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user && newOrder.user_id === user.id) {
-                  const { data: settings } = await supabase
-                    .from("delivery_settings")
-                    .select("auto_accept_orders")
-                    .eq("user_id", user.id)
-                    .maybeSingle();
-
-                  // Sempre imprime na cozinha ao receber o pedido
-                  let printed = false;
-                  try {
-                    const result = await dispatchDeliveryPrintJobs(newOrder.id);
-                    printed = true;
-                    if (result.jobs > 0) {
-                      toast.success(`${result.jobs} impressão(ões) enviada(s) à cozinha`);
-                    }
-                  } catch (e) {
-                    console.error("Erro ao imprimir pedido novo:", e);
-                  }
-
-                  // Auto-confirma → vai direto para "preparando" e baixa estoque (impressão já feita acima)
-                  if (settings?.auto_accept_orders) {
-                    const nowIso = new Date().toISOString();
-                    await supabase
-                      .from("delivery_orders")
-                      .update({
-                        status: "preparing",
-                        confirmed_at: nowIso,
-                      })
-                      .eq("id", newOrder.id);
-
-                    await supabase.rpc(
-                      "consume_ingredients_for_delivery_order",
-                      { p_order_id: newOrder.id },
-                    );
-
-                    if (printed) toast.success("Pedido auto-confirmado e em preparo");
-                  }
-                }
-              }
-            } catch (e) {
-              console.error("Erro no processamento do pedido novo:", e);
-            }
-          }
-
+        async () => {
+          // Side-effects (som, toast, impressão e auto-aceite) ficam no
+          // useDeliveryOrdersWatcher (montado em nível de PDV) para
+          // funcionar em qualquer rota. Aqui apenas atualizamos a lista.
           queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
         }
+
       )
       .subscribe();
 
