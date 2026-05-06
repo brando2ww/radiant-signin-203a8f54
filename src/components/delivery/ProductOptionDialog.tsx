@@ -185,12 +185,12 @@ export const ProductOptionDialog = ({
       if (!val) setOpenPopoverIndex(null);
       onOpenChange(val);
     }}>
-      <DialogContent ref={dialogContentRef} hideOverlay className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent ref={dialogContentRef} hideOverlay className="max-w-2xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>{option ? "Editar Opção" : "Nova Opção"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-6">
           <div className="space-y-2">
             <Label htmlFor="option-name">Nome da Opção *</Label>
             <Input
@@ -408,7 +408,7 @@ export const ProductOptionDialog = ({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
