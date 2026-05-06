@@ -220,6 +220,31 @@ export const OrderTrackingView = ({ orderId, onClose }: Props) => {
         </div>
       )}
 
+      {!cancelled && order.status === "delivering" && (
+        order.customer_delivery_confirmed_at ? (
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-primary/30 bg-primary/5">
+            <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+            <div className="flex-1 text-sm">
+              <p className="font-medium">Recebimento confirmado por você</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {offline
+                  ? "O restaurante ainda precisa registrar o pagamento no caixa para concluir o pedido."
+                  : "Obrigado! Seu pedido será concluído pelo restaurante."}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Button onClick={handleConfirmReceived} disabled={confirming} className="w-full">
+              {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar recebimento"}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Isso apenas avisa o restaurante que você recebeu. O pagamento é registrado separadamente no caixa.
+            </p>
+          </div>
+        )
+      )}
+
       <Separator />
 
       <div className="flex items-start gap-3 p-4 bg-muted rounded-lg">
