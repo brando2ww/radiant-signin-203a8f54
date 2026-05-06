@@ -284,7 +284,7 @@ export const ProductDetailModal = ({
                               </Button>
                               {Number(item.price_adjustment) !== 0 && (
                                 <span className="w-20 text-right text-sm text-muted-foreground tabular-nums">
-                                  +{formatBRL(sub)}
+                                  +{formatBRL(qty > 0 ? sub : Number(item.price_adjustment))}
                                 </span>
                               )}
                             </div>
