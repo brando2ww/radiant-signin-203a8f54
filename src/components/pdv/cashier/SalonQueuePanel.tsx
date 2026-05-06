@@ -450,6 +450,15 @@ export function SalonQueuePanel({
         <TabsContent value="delivery" className="flex-1 min-h-0 m-0">
           <ScrollArea className="h-full">
             <div className="p-3 space-y-2">
+              {isOpen && overduePaymentOrders.length > 0 && (
+                <div className="flex items-start gap-2 p-2 rounded border border-destructive/40 bg-destructive/10 text-destructive text-[11px]">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>{overduePaymentOrders.length}</strong> pedido(s) sem pagamento
+                    registrado há mais de {overdueMinutes} min.
+                  </div>
+                </div>
+              )}
               {!isOpen ? (
                 <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
                   <Hourglass className="h-10 w-10 mb-2 opacity-40" />
