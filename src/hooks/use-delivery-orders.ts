@@ -131,13 +131,14 @@ export const useDeliveryOrders = (status?: string) => {
                     console.error("Erro ao imprimir pedido novo:", e);
                   }
 
-                  // Auto-confirma e baixa estoque (sem reimprimir)
+                  // Auto-confirma → vai direto para "preparando" e baixa estoque (impressão já feita acima)
                   if (settings?.auto_accept_orders) {
+                    const nowIso = new Date().toISOString();
                     await supabase
                       .from("delivery_orders")
                       .update({
-                        status: "confirmed",
-                        confirmed_at: new Date().toISOString(),
+                        status: "preparing",
+                        confirmed_at: nowIso,
                       })
                       .eq("id", newOrder.id);
 
@@ -146,7 +147,7 @@ export const useDeliveryOrders = (status?: string) => {
                       { p_order_id: newOrder.id },
                     );
 
-                    if (printed) toast.success("Pedido auto-confirmado");
+                    if (printed) toast.success("Pedido auto-confirmado e em preparo");
                   }
                 }
               }
