@@ -459,12 +459,12 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
       {/* Rodapé sticky */}
       <div className="sticky bottom-0 -mx-1 px-1 pt-3 pb-1 bg-background border-t border-border">
         {showConfirmButton ? (
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col gap-2">
             <Button
               onClick={handleConfirmReceived}
               disabled={confirming}
               size="lg"
-              className="flex-1 h-14 text-base font-semibold"
+              className="w-full h-16 text-base font-semibold"
             >
               {confirming ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -475,7 +475,7 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                 </>
               )}
             </Button>
-            <Button onClick={onClose} variant="outline" size="lg" className="h-14 sm:w-32">
+            <Button onClick={onClose} variant="ghost" size="sm" className="w-full h-9 text-sm text-muted-foreground">
               Fechar
             </Button>
           </div>
