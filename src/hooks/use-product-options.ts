@@ -144,6 +144,7 @@ export const useCreateProductOption = () => {
           min_selections: option.min_selections,
           max_selections: option.max_selections,
           order_position: option.order_position,
+          allow_quantity: (option as any).allow_quantity ?? false,
         })
         .select()
         .single();
