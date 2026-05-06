@@ -184,12 +184,29 @@ export const useUpdateOrderStatus = () => {
       // Atualizar timestamps conforme o status
       if (status === "confirmed") {
         updates.confirmed_at = new Date().toISOString();
+      } else if (status === "preparing") {
+        // Pedido pulando direto para preparo já marca confirmação
+        updates.confirmed_at = new Date().toISOString();
       } else if (status === "ready") {
         updates.ready_at = new Date().toISOString();
       } else if (status === "completed") {
         updates.delivered_at = new Date().toISOString();
       } else if (status === "cancelled") {
         updates.cancelled_at = new Date().toISOString();
+      }
+
+      // Para preparing, só sobrescreve confirmed_at se ainda for null
+      let prevConfirmedAt: string | null = null;
+      if (status === "preparing") {
+        const { data: prev } = await supabase
+          .from("delivery_orders")
+          .select("confirmed_at")
+          .eq("id", id)
+          .single();
+        prevConfirmedAt = prev?.confirmed_at ?? null;
+        if (prevConfirmedAt) {
+          delete updates.confirmed_at;
+        }
       }
 
       const { data, error } = await supabase
@@ -201,8 +218,11 @@ export const useUpdateOrderStatus = () => {
 
       if (error) throw error;
 
+      const isFirstConfirmation =
+        status === "confirmed" || (status === "preparing" && !prevConfirmedAt);
+
       // Baixa automática de estoque ao confirmar o pedido (idempotente no servidor)
-      if (status === "confirmed") {
+      if (isFirstConfirmation) {
         const { error: consumeErr } = await supabase.rpc(
           "consume_ingredients_for_delivery_order",
           { p_order_id: id },
