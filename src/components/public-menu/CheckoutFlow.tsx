@@ -100,9 +100,14 @@ export const CheckoutFlow = ({
       cart,
     });
 
+    setTrackingOrderId(orderId);
+    setCurrentStep("tracking");
+  };
+
+  const handleCloseTracking = () => {
     onOrderComplete();
     onOpenChange(false);
-    // Reset
+    setTrackingOrderId(null);
     setCurrentStep("phone");
     setCustomer(null);
     setOrderType("delivery");
