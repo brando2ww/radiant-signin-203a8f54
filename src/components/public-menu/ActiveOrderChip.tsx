@@ -118,7 +118,7 @@ export const ActiveOrderChip = ({ userId }: Props) => {
             </Button>
           </SheetHeader>
           <div className="flex-1 overflow-hidden px-4 pb-4">
-            <OrderTrackingView orderId={orderId} onClose={() => setOpen(false)} />
+            <OrderTrackingView orderId={orderId} onClose={() => setOpen(false)} userId={userId} />
           </div>
         </SheetContent>
       </Sheet>
