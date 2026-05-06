@@ -234,7 +234,7 @@ const SortableProductCard = ({
             </DropdownMenu>
           </div>
 
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <div className="flex items-center gap-2 mt-auto pt-2 flex-wrap">
             {product.promotional_price ? (
               <>
                 <span className="text-xs line-through text-muted-foreground">
