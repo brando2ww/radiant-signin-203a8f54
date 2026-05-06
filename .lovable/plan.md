@@ -1,56 +1,47 @@
-# Exibir grupos de composição do PDV no Delivery
+## Objetivo
 
-## Situação atual
+Atualmente o status "Aberto/Fechado" do delivery depende apenas do toggle manual `is_open` em `delivery_settings`. O horário configurado em `business_hours` é salvo mas nunca consultado — então a loja fica aberta 24h se o lojista esquecer de fechar. Vamos fazer o cardápio público respeitar automaticamente o horário e bloquear pedidos fora dele.
 
-- No PDV existem dois sistemas de "complementos":
-  1. **`pdv_product_options` + `pdv_product_option_items`** — já são clonados para `delivery_product_options` / `delivery_product_option_items` pela RPC `delivery_clone_options_from_pdv`, e exibidos para o cliente em `ProductDetailModal`.
-  2. **`pdv_product_composition_groups` + `pdv_product_compositions`** (Kits/Combos com sub-produtos) — usados no PDV/garçom, mas **não** são propagados para o delivery. Por isso, no menu público, o cliente não vê as opções para escolher.
+## Mudanças
 
-O cliente do delivery hoje só enxerga as "opções" do sistema (1).
+### 1. Novo utilitário `src/lib/delivery-hours.ts`
 
-## Solução
+Função `isStoreCurrentlyOpen(settings)` retornando `{ open: boolean, reason: 'manual_closed' | 'outside_hours' | 'open', nextOpenLabel?: string }`.
 
-Estender a RPC `delivery_clone_options_from_pdv` para também transformar cada **grupo de composição** em um `delivery_product_option`, e cada **sub-produto da composição** em um `delivery_product_option_item`. Assim, sem mudar o front-end do menu público, os kits passam a aparecer normalmente para o cliente escolher.
+Regras (em horário de Brasília — `America/Sao_Paulo`):
+- Se `is_open === false` → fechado (override manual).
+- Calcula dia da semana atual (`monday`..`sunday`) e hora atual.
+- Lê `business_hours[day]`. Se ausente ou `closed === true` → fechado.
+- Compara `open <= now < close` (HH:MM). Suporta intervalos que cruzam meia-noite (ex.: `18:00`–`02:00`) verificando também o dia anterior.
+- Quando fechado, calcula próximo horário de abertura para mostrar ao cliente ("Abre segunda às 18:00").
 
-### Migration
+### 2. `PublicMenuHeader.tsx`
 
-Atualizar a função `public.delivery_clone_options_from_pdv(p_pdv_product_id uuid)`:
+- Substituir a checagem `deliverySettings?.is_open` pelo helper.
+- Badge: "Aberto agora" (verde) quando aberto; "Fechado" (destrutivo) com texto auxiliar do próximo horário quando fechado.
 
-1. Continuar clonando `pdv_product_options` como hoje.
-2. Adicionar um segundo loop iterando `pdv_product_composition_groups WHERE parent_product_id = p_pdv_product_id`.
-3. Para cada grupo:
-   - Inserir/atualizar um `delivery_product_options` com `source_pdv_option_id = <id do grupo>` (idempotente), copiando `name`, `type`, `is_required`, `min_selections`, `max_selections`, `order_position`.
-4. Para cada `pdv_product_compositions` do grupo:
-   - Resolver `linked_product_id` no delivery via `delivery_products.source_pdv_product_id = compositions.child_product_id`.
-   - Inserir um `delivery_product_option_item` com:
-     - `name = child_product.name`
-     - `price_adjustment = 0` (o custo já está embutido no preço do kit)
-     - `item_kind = 'product'`
-     - `linked_product_id` = correspondente no delivery (pode ser `NULL` se o sub-produto não tiver sido compartilhado)
-     - `source_pdv_option_item_id = <id da composição>` para idempotência
-5. Manter `ON CONFLICT DO NOTHING` para reexecuções seguras.
+### 3. `ShoppingCart.tsx`
 
-Como `source_pdv_option_id` é compartilhado entre IDs de `pdv_product_options` e IDs de `pdv_product_composition_groups` (UUIDs distintos), não há colisão.
+- Consumir o helper a partir de `settings`.
+- Quando fechado: 
+  - Mostrar aviso no topo do carrinho ("Loja fechada — não é possível finalizar pedidos agora. Abre <próximo horário>").
+  - Desabilitar o botão "Finalizar Pedido".
+  - Não abrir o `CheckoutFlow`.
+- Manter visualização do carrinho permitida (cliente pode montar pedido para depois).
 
-### Re-sincronização para produtos já compartilhados
+### 4. `CheckoutFlow.tsx` (defesa em profundidade)
 
-Como hoje a RPC só roda no momento do compartilhamento, produtos antigos não receberiam os grupos. Solução: no botão existente de "Compartilhar com Delivery" (em `useShareToDelivery`), quando o produto **já está compartilhado**, em vez de bloquear, oferecer ainda assim chamar `delivery_clone_options_from_pdv` para "atualizar opções". Mudança mínima:
+- No início do submit final, revalidar com o helper. Se fechado, exibir `toast.error` e abortar antes de criar o pedido.
 
-- Em `src/hooks/use-share-to-delivery.ts`: adicionar uma segunda mutation `useResyncDeliveryOptions(pdvProductId)` que apenas chama a RPC e invalida `["public-menu"]` / `["delivery-products"]`.
-- Em `src/components/pdv/ProductDialog.tsx` (ou onde aparece o badge "Já no delivery"), expor um botão "Sincronizar opções com o delivery".
+### Não incluso
 
-### Sem mudanças no front público
+- Não alteramos o backend/RLS — a validação fica client-side por enquanto, suficiente para o caso de uso (cliente não verá CTA fora do horário). Se quiser bloqueio server-side via trigger no `delivery_orders`, podemos adicionar depois.
+- Não mexemos no toggle manual `is_open` nem em `BusinessHoursSettings`.
+- Sem mudanças em pedidos via PDV/garçom (operação interna).
 
-`ProductDetailModal.tsx` já renderiza qualquer `delivery_product_options` com seus items, então os grupos clonados aparecerão automaticamente como blocos de escolha (single/multiple) com a mesma UI.
+### Arquivos afetados
 
-### Pontos não cobertos (intencionalmente)
-
-- **Sincronização automática** quando o usuário edita um grupo no PDV: não criaremos triggers nesta etapa (manteríamos consistente com o padrão atual de `pdv_product_options`, que tem trigger; podemos adicionar depois se desejado).
-- **Estoque dos sub-produtos no delivery**: continua sendo controlado pelo `stock_deduction_mode` no PDV; o delivery só exibe a escolha.
-- **Preço variável por sub-produto**: assumimos `price_adjustment = 0`. Se o cliente quiser preços diferenciados por escolha, isso seria uma evolução posterior (campo extra no grupo).
-
-## Arquivos afetados
-
-- Nova migration SQL: `CREATE OR REPLACE FUNCTION public.delivery_clone_options_from_pdv(...)` com a lógica adicional.
-- `src/hooks/use-share-to-delivery.ts`: nova mutation de re-sync.
-- `src/components/pdv/ProductDialog.tsx` (ou `ShareToDeliveryButton`): botão "Sincronizar opções".
+- novo: `src/lib/delivery-hours.ts`
+- editado: `src/components/public-menu/PublicMenuHeader.tsx`
+- editado: `src/components/public-menu/ShoppingCart.tsx`
+- editado: `src/components/public-menu/CheckoutFlow.tsx`
