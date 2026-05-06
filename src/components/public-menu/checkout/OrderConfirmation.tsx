@@ -131,7 +131,7 @@ export const OrderConfirmation = ({
         unitPrice: item.unitPrice,
         subtotal:
           (item.unitPrice +
-            item.selectedOptions.reduce((s, o) => s + o.priceAdjustment, 0)) *
+            item.selectedOptions.reduce((s, o) => s + o.priceAdjustment * (o.quantity ?? 1), 0)) *
           item.quantity,
         notes: item.notes,
         options: item.selectedOptions.map((o) => ({
@@ -139,6 +139,7 @@ export const OrderConfirmation = ({
           itemName: o.itemName,
           itemId: o.itemId,
           priceAdjustment: o.priceAdjustment,
+          quantity: o.quantity ?? 1,
         })),
       })),
     };
