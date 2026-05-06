@@ -91,7 +91,10 @@ export const OrderDetailDialog = ({
         onSuccess: () => {
           setIsCancelDialogOpen(false);
           setCancelReason("");
-          onOpenChange(false);
+          // Defer fechamento do dialog principal para evitar travamento de pointer-events
+          setTimeout(() => {
+            onOpenChange(false);
+          }, 0);
         },
       }
     );

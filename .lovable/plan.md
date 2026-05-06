@@ -1,34 +1,13 @@
 ## Diagnóstico
 
-Os grupos "Complete Sua Experiência!!!" e "Extras 'quantidades extras do que acompanha'" continuam aparecendo no cardápio do delivery porque ainda existem como `pdv_product_options` no PDV (produto Sushi Mix 22 Peças, ID `f8cc24f5-7bc6-426c-80e8-dd70e2dc3e87`):
-
-- `9a61dd44-...` → Complete Sua Experiência!!!
-- `4caeeea2-...` → Extras "quantidades extras do que acompanha".
-
-A composição correta (apenas Adicional + Doces) está em `pdv_product_composition_groups`, mas as opções antigas não foram removidas. Como o trigger sincroniza ambos para `delivery_product_options`, o cardápio mostra os 4 grupos.
-
-Verifiquei outros produtos que têm o mesmo problema (composição + opções antigas coexistindo):
-- Sushi Mix 22 Peças (2 opções antigas)
-- Sushi Prime 16 Peças + Temaki (1 opção antiga)
-- Entrecot Gelhado Combo (2 opções antigas)
+Tela congela ao cancelar pedido do delivery porque o `handleCancel` em `OrderDetailDialog.tsx` fecha o `AlertDialog` e o `Dialog` principal simultaneamente no mesmo tick. O Radix UI deixa `pointer-events: none` aplicado ao `<body>` quando dois overlays se desmontam em paralelo, travando toda a interface.
 
 ## Plano
 
-Migration SQL para deletar as `pdv_product_options` antigas desses produtos que já foram migrados para composição. A exclusão em cascata removerá automaticamente:
-- `pdv_product_option_items` (itens das opções no PDV)
-- `delivery_product_options` correspondentes (via trigger de sync DELETE)
-- `delivery_product_option_items` filhos
+Em `src/components/delivery/OrderDetailDialog.tsx`, ajustar `handleCancel` para:
+1. Fechar primeiro o `AlertDialog` de cancelamento e limpar `cancelReason`.
+2. Defer o fechamento do `Dialog` principal com `setTimeout(..., 0)` para que os overlays sejam desmontados em sequência, liberando `pointer-events` no body.
 
-Critério de exclusão: opções de PDV pertencentes a produtos que já possuem `pdv_product_composition_groups`.
+Padrão alinhado com a memória "Dialog UI" do projeto (deferir abertura/fechamento de dialogs aninhados).
 
-```sql
-DELETE FROM public.pdv_product_options o
-WHERE EXISTS (
-  SELECT 1 FROM public.pdv_product_composition_groups g
-  WHERE g.parent_product_id = o.product_id
-);
-```
-
-Após isso, o cardápio do delivery passará a mostrar apenas os grupos vindos da composição (Adicional, Doces).
-
-Sem alterações de frontend.
+Sem mudanças no hook `useCancelOrder` nem no banco de dados.
