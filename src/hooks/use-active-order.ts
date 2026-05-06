@@ -16,10 +16,11 @@ interface ActiveOrder {
   created_at: string;
   delivered_at: string | null;
   cancelled_at: string | null;
+  customer_delivery_confirmed_at: string | null;
 }
 
 const SELECT =
-  "id, order_number, status, payment_method, payment_status, total, created_at, delivered_at, cancelled_at";
+  "id, order_number, status, payment_method, payment_status, total, created_at, delivered_at, cancelled_at, customer_delivery_confirmed_at";
 
 export function useActiveOrder(userId: string) {
   const [orderId, setOrderId] = useState<string | null>(() => getActiveOrderId(userId));
