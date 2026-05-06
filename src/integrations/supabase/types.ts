@@ -1633,6 +1633,7 @@ export type Database = {
           confirmed_at: string | null
           coupon_code: string | null
           created_at: string
+          customer_delivery_confirmed_at: string | null
           customer_id: string
           customer_name: string
           customer_phone: string
@@ -1665,6 +1666,7 @@ export type Database = {
           confirmed_at?: string | null
           coupon_code?: string | null
           created_at?: string
+          customer_delivery_confirmed_at?: string | null
           customer_id: string
           customer_name: string
           customer_phone: string
@@ -1697,6 +1699,7 @@ export type Database = {
           confirmed_at?: string | null
           coupon_code?: string | null
           created_at?: string
+          customer_delivery_confirmed_at?: string | null
           customer_id?: string
           customer_name?: string
           customer_phone?: string

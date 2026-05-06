@@ -31,6 +31,7 @@ type Order = {
   total: number;
   cancellation_reason: string | null;
   cashier_confirmed_at: string | null;
+  customer_delivery_confirmed_at: string | null;
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -56,13 +57,27 @@ function PaymentIcon({ method }: { method: string }) {
 export const OrderTrackingView = ({ orderId, onClose }: Props) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+
+  const handleConfirmReceived = async () => {
+    if (!order || confirming) return;
+    setConfirming(true);
+    const { data, error } = await supabase
+      .from("delivery_orders")
+      .update({ customer_delivery_confirmed_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .select("id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at, customer_delivery_confirmed_at")
+      .maybeSingle();
+    if (!error && data) setOrder(data as Order);
+    setConfirming(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       const { data } = await supabase
         .from("delivery_orders")
-        .select("id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at")
+        .select("id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at, customer_delivery_confirmed_at")
         .eq("id", orderId)
         .maybeSingle();
       if (!cancelled && data) setOrder(data as Order);
@@ -203,6 +218,31 @@ export const OrderTrackingView = ({ orderId, onClose }: Props) => {
             )}
           </div>
         </div>
+      )}
+
+      {!cancelled && order.status === "delivering" && (
+        order.customer_delivery_confirmed_at ? (
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-primary/30 bg-primary/5">
+            <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+            <div className="flex-1 text-sm">
+              <p className="font-medium">Recebimento confirmado por você</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {offline
+                  ? "O restaurante ainda precisa registrar o pagamento no caixa para concluir o pedido."
+                  : "Obrigado! Seu pedido será concluído pelo restaurante."}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Button onClick={handleConfirmReceived} disabled={confirming} className="w-full">
+              {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar recebimento"}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center">
+              Isso apenas avisa o restaurante que você recebeu. O pagamento é registrado separadamente no caixa.
+            </p>
+          </div>
+        )
       )}
 
       <Separator />
