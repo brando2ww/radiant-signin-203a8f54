@@ -19,6 +19,7 @@ import { PaymentDialog } from "@/components/pdv/cashier/PaymentDialog";
 import { EmployeeConsumptionDialog } from "@/components/pdv/cashier/EmployeeConsumptionDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
+import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 
 export default function PDVCashier() {
   // Realtime: nova comanda do garçom aparece na fila sem reload
