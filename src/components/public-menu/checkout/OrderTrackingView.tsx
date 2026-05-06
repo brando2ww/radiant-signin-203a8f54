@@ -464,23 +464,23 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
               onClick={handleConfirmReceived}
               disabled={confirming}
               size="lg"
-              className="flex-1"
+              className="flex-1 h-14 text-base font-semibold"
             >
               {confirming ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
-                  <PackageCheck className="h-4 w-4 mr-2" />
+                  <PackageCheck className="h-5 w-5 mr-2" />
                   Já recebi meu pedido
                 </>
               )}
             </Button>
-            <Button onClick={onClose} variant="outline" size="lg" className="sm:w-32">
+            <Button onClick={onClose} variant="outline" size="lg" className="h-14 sm:w-32">
               Fechar
             </Button>
           </div>
         ) : (
-          <Button onClick={onClose} variant="outline" size="lg" className="w-full">
+          <Button onClick={onClose} variant="outline" size="lg" className="w-full h-14">
             Fechar
           </Button>
         )}
