@@ -12,6 +12,8 @@ import { LoyaltyRedeemSheet } from "@/components/public-menu/LoyaltyRedeemSheet"
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/format";
+import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
+import { usePublicSettings } from "@/hooks/use-public-menu";
 
 interface OrderConfirmationProps {
   userId: string;
