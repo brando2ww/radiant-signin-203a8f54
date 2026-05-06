@@ -324,8 +324,8 @@ export function ProductDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>
             {product ? "Editar Produto" : "Novo Produto"}
           </DialogTitle>
@@ -334,7 +334,8 @@ export function ProductDialog({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
              <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="basic">Básico</TabsTrigger>
@@ -994,8 +995,9 @@ export function ProductDialog({
                 </div>
               </TabsContent>
             </Tabs>
+            </div>
 
-            <DialogFooter>
+            <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
               <Button
                 type="button"
                 variant="outline"
