@@ -30,7 +30,8 @@ import { DeliveryQueueCard } from "./DeliveryQueueCard";
 import { DeliveryPaymentDialog } from "./DeliveryPaymentDialog";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
-import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
+import { type DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
+import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
 
 interface SalonQueuePanelProps {
   isOpen: boolean;
