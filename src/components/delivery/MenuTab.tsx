@@ -134,7 +134,7 @@ const SortableProductCard = ({
         product.is_featured && "ring-1 ring-primary/40"
       )}
     >
-      <div className="flex gap-3 p-3 flex-1 min-w-0">
+      <div className="flex gap-3 p-3 flex-1 min-w-0 w-full">
         <button
           type="button"
           className="flex items-center px-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
