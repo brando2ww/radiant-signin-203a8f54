@@ -4,14 +4,24 @@ import { Card } from "@/components/ui/card";
 import { formatBRL } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bike, CreditCard, Smartphone, Banknote, Package } from "lucide-react";
+import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight } from "lucide-react";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
 
 interface Props {
   order: DeliveryOrder;
   onRegisterPayment: (order: DeliveryOrder) => void;
   onConfirmOnline: (order: DeliveryOrder) => void;
+  onAdvanceStatus?: (order: DeliveryOrder) => void;
+  onPrintMotoboy?: (order: DeliveryOrder) => void;
 }
+
+const NEXT_STATUS_LABEL: Partial<Record<DeliveryOrder["status"], string>> = {
+  pending: "Iniciar preparo",
+  confirmed: "Iniciar preparo",
+  preparing: "Marcar pronto",
+  ready: "Saiu p/ entrega",
+  delivering: "Marcar entregue",
+};
 
 const STATUS_LABEL: Record<DeliveryOrder["status"], string> = {
   pending: "Aguardando",
@@ -42,7 +52,7 @@ function methodIcon(m: string) {
   return CreditCard;
 }
 
-export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline }: Props) {
+export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, onAdvanceStatus, onPrintMotoboy }: Props) {
   const isOnlinePaid = order.payment_status === "paid";
   const items = order.delivery_order_items ?? [];
   const visible = items.slice(0, 3);
@@ -51,6 +61,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline }:
   const actionable =
     ["delivering", "completed", "ready"].includes(order.status);
   const Icon = methodIcon(order.payment_method);
+  const nextLabel = NEXT_STATUS_LABEL[order.status];
 
   return (
     <Card className="p-3 border-l-4 border-l-primary/60">
@@ -97,30 +108,60 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline }:
         </div>
       </div>
 
-      {actionable ? (
-        isOnlinePaid ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full h-8 text-xs"
-            onClick={() => onConfirmOnline(order)}
-          >
-            Confirmar recebimento
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            className="w-full h-8 text-xs"
-            onClick={() => onRegisterPayment(order)}
-          >
-            Registrar pagamento
-          </Button>
-        )
-      ) : (
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground justify-center py-1">
-          <Package className="h-3 w-3" /> Aguardando finalização do pedido
-        </div>
-      )}
+      <div className="space-y-2">
+        {(nextLabel || onPrintMotoboy) && (
+          <div className="flex gap-2">
+            {nextLabel && onAdvanceStatus && (
+              <Button
+                size="sm"
+                variant="secondary"
+                className="flex-1 h-8 text-xs gap-1"
+                onClick={() => onAdvanceStatus(order)}
+              >
+                <ChevronRight className="h-3 w-3" />
+                {nextLabel}
+              </Button>
+            )}
+            {onPrintMotoboy && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-1 px-2"
+                onClick={() => onPrintMotoboy(order)}
+                title="Imprimir comanda do motoboy"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Motoboy
+              </Button>
+            )}
+          </div>
+        )}
+
+        {actionable ? (
+          isOnlinePaid ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full h-8 text-xs"
+              onClick={() => onConfirmOnline(order)}
+            >
+              Confirmar recebimento
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={() => onRegisterPayment(order)}
+            >
+              Registrar pagamento
+            </Button>
+          )
+        ) : !nextLabel && !onPrintMotoboy ? (
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground justify-center py-1">
+            <Package className="h-3 w-3" /> Aguardando finalização do pedido
+          </div>
+        ) : null}
+      </div>
     </Card>
   );
 }

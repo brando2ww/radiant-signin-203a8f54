@@ -30,7 +30,8 @@ import { DeliveryQueueCard } from "./DeliveryQueueCard";
 import { DeliveryPaymentDialog } from "./DeliveryPaymentDialog";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
-import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
+import { type DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
+import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
 
 interface SalonQueuePanelProps {
   isOpen: boolean;
@@ -75,6 +76,25 @@ export function SalonQueuePanel({
 
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
+  const updateOrderStatus = useUpdateOrderStatus();
+
+  const NEXT: Partial<Record<DeliveryOrder["status"], DeliveryOrder["status"]>> = {
+    pending: "preparing",
+    confirmed: "preparing",
+    preparing: "ready",
+    ready: "delivering",
+    delivering: "completed",
+  };
+
+  const handleAdvanceStatus = (order: DeliveryOrder) => {
+    const next = NEXT[order.status];
+    if (!next) return;
+    updateOrderStatus.mutate({ id: order.id, status: next });
+  };
+
+  const handlePrintMotoboy = (order: DeliveryOrder) => {
+    printMotoboyReceipt(order);
+  };
 
   const tablesByOrderId = useMemo(() => {
     const m = new Map<string, PDVTable>();
@@ -437,6 +457,8 @@ export function SalonQueuePanel({
                     order={o}
                     onRegisterPayment={(order) => setPaymentOrder(order)}
                     onConfirmOnline={handleConfirmOnline}
+                    onAdvanceStatus={handleAdvanceStatus}
+                    onPrintMotoboy={handlePrintMotoboy}
                   />
                 ))
               )}
