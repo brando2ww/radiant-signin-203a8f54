@@ -54,6 +54,7 @@ export const ShoppingCart = ({
   const deliveryFee = Number(settings?.default_delivery_fee || 0);
   const discount = appliedCoupon?.discount || 0;
   const total = subtotal + deliveryFee - discount;
+  const storeStatus = isStoreCurrentlyOpen(settings);
 
   // Auto-apply coupon from URL when cart has items
   useEffect(() => {
