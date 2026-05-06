@@ -252,6 +252,22 @@ export const ProductOptionDialog = ({
             </div>
           )}
 
+          {type === "multiple" && (
+            <div className="rounded-md border p-3 space-y-1">
+              <Label htmlFor="allow-quantity" className="flex items-center gap-2 cursor-pointer">
+                <Switch
+                  id="allow-quantity"
+                  checked={allowQuantity}
+                  onCheckedChange={setAllowQuantity}
+                />
+                <span>Permitir múltiplas unidades por item</span>
+              </Label>
+              <p className="text-xs text-muted-foreground pl-11">
+                Cada item terá controles − e + em vez de checkbox.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <Label>Itens da Opção *</Label>
