@@ -67,6 +67,7 @@ export const ProductOptionDialog = ({
   const [isRequired, setIsRequired] = useState(false);
   const [minSelections, setMinSelections] = useState(0);
   const [maxSelections, setMaxSelections] = useState(1);
+  const [allowQuantity, setAllowQuantity] = useState(false);
   const [items, setItems] = useState<OptionItemWithIngredient[]>([
     { name: "", price_adjustment: 0, is_available: true },
   ]);
@@ -81,6 +82,7 @@ export const ProductOptionDialog = ({
       setIsRequired(option.is_required);
       setMinSelections(option.min_selections);
       setMaxSelections(option.max_selections);
+      setAllowQuantity(!!(option as any).allow_quantity);
       setItems(
         option.items?.map((item) => ({
           name: item.name,
@@ -97,6 +99,7 @@ export const ProductOptionDialog = ({
       setIsRequired(false);
       setMinSelections(0);
       setMaxSelections(1);
+      setAllowQuantity(false);
       setItems([{ name: "", price_adjustment: 0, is_available: true }]);
     }
   }, [option, open]);
@@ -157,6 +160,7 @@ export const ProductOptionDialog = ({
       min_selections: type === "multiple" ? minSelections : 0,
       max_selections: type === "multiple" ? maxSelections : 1,
       order_position: option?.order_position || 0,
+      allow_quantity: type === "multiple" ? allowQuantity : false,
       items: items.map((item, index) => ({
         name: item.name,
         price_adjustment: item.price_adjustment,
@@ -166,7 +170,7 @@ export const ProductOptionDialog = ({
         ingredient_quantity: item.ingredient_quantity,
         ingredient_unit: item.ingredient_unit,
       })),
-    });
+    } as any);
 
     onOpenChange(false);
   };
@@ -245,6 +249,22 @@ export const ProductOptionDialog = ({
                   onChange={(e) => setMaxSelections(Number(e.target.value))}
                 />
               </div>
+            </div>
+          )}
+
+          {type === "multiple" && (
+            <div className="rounded-md border p-3 space-y-1">
+              <Label htmlFor="allow-quantity" className="flex items-center gap-2 cursor-pointer">
+                <Switch
+                  id="allow-quantity"
+                  checked={allowQuantity}
+                  onCheckedChange={setAllowQuantity}
+                />
+                <span>Permitir múltiplas unidades por item</span>
+              </Label>
+              <p className="text-xs text-muted-foreground pl-11">
+                Cada item terá controles − e + em vez de checkbox.
+              </p>
             </div>
           )}
 

@@ -47,7 +47,7 @@ export const ShoppingCart = ({
   const { trackBeginCheckout } = useMarketingTracking();
 
   const subtotal = cart.reduce((sum, item) => {
-    const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment, 0);
+    const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment * (opt.quantity ?? 1), 0);
     return sum + itemTotal * item.quantity;
   }, 0);
 
@@ -146,7 +146,7 @@ export const ShoppingCart = ({
             <ScrollArea className="flex-1 px-6">
               <div className="space-y-4 py-4">
                 {cart.map((item, index) => {
-                  const itemPrice = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment, 0);
+                  const itemPrice = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment * (opt.quantity ?? 1), 0);
                   
                   return (
                     <Card key={index}>
@@ -156,12 +156,16 @@ export const ShoppingCart = ({
                             <h4 className="font-semibold">{item.name}</h4>
                             {item.selectedOptions.length > 0 && (
                               <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                                {item.selectedOptions.map((opt, i) => (
-                                  <div key={i}>
-                                    • {opt.itemName}
-                                    {opt.priceAdjustment !== 0 && ` (+${formatBRL(opt.priceAdjustment)})`}
-                                  </div>
-                                ))}
+                                {item.selectedOptions.map((opt, i) => {
+                                  const q = opt.quantity ?? 1;
+                                  const sub = opt.priceAdjustment * q;
+                                  return (
+                                    <div key={i}>
+                                      • {q > 1 ? `${q}× ` : ""}{opt.itemName}
+                                      {sub !== 0 && ` (+${formatBRL(sub)})`}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                             {item.notes && (

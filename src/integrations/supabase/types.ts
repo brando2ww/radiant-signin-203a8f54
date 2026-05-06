@@ -1524,6 +1524,7 @@ export type Database = {
           option_name: string
           order_item_id: string
           price_adjustment: number | null
+          quantity: number
         }
         Insert: {
           id?: string
@@ -1532,6 +1533,7 @@ export type Database = {
           option_name: string
           order_item_id: string
           price_adjustment?: number | null
+          quantity?: number
         }
         Update: {
           id?: string
@@ -1540,6 +1542,7 @@ export type Database = {
           option_name?: string
           order_item_id?: string
           price_adjustment?: number | null
+          quantity?: number
         }
         Relationships: [
           {
@@ -1799,6 +1802,7 @@ export type Database = {
       }
       delivery_product_options: {
         Row: {
+          allow_quantity: boolean
           created_at: string
           id: string
           is_required: boolean | null
@@ -1812,6 +1816,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allow_quantity?: boolean
           created_at?: string
           id?: string
           is_required?: boolean | null
@@ -1825,6 +1830,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allow_quantity?: boolean
           created_at?: string
           id?: string
           is_required?: boolean | null

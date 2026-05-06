@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Minus, Plus, Clock, Users } from "lucide-react";
 import { PublicProduct } from "@/hooks/use-public-menu";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CartItem } from "@/pages/PublicMenu";
 import { toast } from "sonner";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
@@ -25,6 +25,9 @@ interface ProductDetailModalProps {
   onAddToCart: (item: CartItem) => void;
 }
 
+// optionId -> itemId -> quantity
+type Selections = Record<string, Record<string, number>>;
+
 export const ProductDetailModal = ({
   open,
   onOpenChange,
@@ -33,12 +36,11 @@ export const ProductDetailModal = ({
 }: ProductDetailModalProps) => {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
+  const [selections, setSelections] = useState<Selections>({});
   const { trackViewItem } = useMarketingTracking();
 
   const basePrice = product.promotional_price || product.base_price;
 
-  // Track view when modal opens
   useEffect(() => {
     if (open) {
       trackViewItem({
@@ -49,79 +51,88 @@ export const ProductDetailModal = ({
     }
   }, [open, product.id, product.name, basePrice, trackViewItem]);
 
-  const handleOptionChange = (optionId: string, itemId: string, type: "single" | "multiple") => {
-    setSelectedOptions((prev) => {
-      if (type === "single") {
-        return { ...prev, [optionId]: [itemId] };
+  const getQty = (optionId: string, itemId: string) =>
+    selections[optionId]?.[itemId] ?? 0;
+
+  const getOptionTotal = (optionId: string) =>
+    Object.values(selections[optionId] || {}).reduce((s, n) => s + n, 0);
+
+  const setQty = (optionId: string, itemId: string, qty: number) => {
+    setSelections((prev) => {
+      const next = { ...prev };
+      const group = { ...(next[optionId] || {}) };
+      if (qty <= 0) delete group[itemId];
+      else group[itemId] = qty;
+      next[optionId] = group;
+      return next;
+    });
+  };
+
+  const handleSingleSelect = (optionId: string, itemId: string) => {
+    setSelections((prev) => ({ ...prev, [optionId]: { [itemId]: 1 } }));
+  };
+
+  const handleCheckboxToggle = (optionId: string, itemId: string, max: number) => {
+    setSelections((prev) => {
+      const group = { ...(prev[optionId] || {}) };
+      if (group[itemId]) {
+        delete group[itemId];
       } else {
-        const current = prev[optionId] || [];
-        if (current.includes(itemId)) {
-          return { ...prev, [optionId]: current.filter((id) => id !== itemId) };
-        } else {
-          return { ...prev, [optionId]: [...current, itemId] };
-        }
+        const total = Object.values(group).reduce((s, n) => s + n, 0);
+        if (total >= max) return prev;
+        group[itemId] = 1;
       }
+      return { ...prev, [optionId]: group };
     });
   };
 
   const calculateTotal = () => {
     let total = Number(basePrice);
-
     product.delivery_product_options?.forEach((option) => {
-      const selectedItems = selectedOptions[option.id] || [];
-      selectedItems.forEach((itemId) => {
+      const group = selections[option.id] || {};
+      Object.entries(group).forEach(([itemId, qty]) => {
         const item = option.delivery_product_option_items?.find((i) => i.id === itemId);
-        if (item) {
-          total += Number(item.price_adjustment);
-        }
+        if (item) total += Number(item.price_adjustment) * qty;
       });
     });
-
     return total * quantity;
   };
 
-  const validateOptions = () => {
-    const errors: string[] = [];
-
+  const validationErrors = useMemo(() => {
+    const errs: { optionId: string; message: string }[] = [];
     product.delivery_product_options?.forEach((option) => {
-      const selected = selectedOptions[option.id] || [];
-      
-      if (option.is_required && selected.length === 0) {
-        errors.push(`${option.name} é obrigatório`);
-      }
-
-      if (selected.length < option.min_selections) {
-        errors.push(`Selecione pelo menos ${option.min_selections} opção(ões) em ${option.name}`);
-      }
-
-      if (selected.length > option.max_selections) {
-        errors.push(`Selecione no máximo ${option.max_selections} opção(ões) em ${option.name}`);
+      const total = getOptionTotal(option.id);
+      if (option.is_required && total === 0) {
+        errs.push({ optionId: option.id, message: `${option.name} é obrigatório` });
+      } else if (option.type === "multiple" && total < (option.min_selections || 0)) {
+        errs.push({ optionId: option.id, message: `Selecione pelo menos ${option.min_selections}` });
+      } else if (option.type === "multiple" && option.max_selections > 0 && total > option.max_selections) {
+        errs.push({ optionId: option.id, message: `Máximo ${option.max_selections}` });
       }
     });
-
-    return errors;
-  };
+    return errs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selections, product.delivery_product_options]);
 
   const handleAddToCart = () => {
-    const errors = validateOptions();
-    if (errors.length > 0) {
-      errors.forEach((error) => toast.error(error));
+    if (validationErrors.length > 0) {
+      validationErrors.forEach((e) => toast.error(e.message));
       return;
     }
 
     const cartOptions: CartItem["selectedOptions"] = [];
-    
     product.delivery_product_options?.forEach((option) => {
-      const selectedItems = selectedOptions[option.id] || [];
-      selectedItems.forEach((itemId) => {
+      const group = selections[option.id] || {};
+      Object.entries(group).forEach(([itemId, qty]) => {
         const item = option.delivery_product_option_items?.find((i) => i.id === itemId);
-        if (item) {
+        if (item && qty > 0) {
           cartOptions.push({
             optionId: option.id,
             optionName: option.name,
             itemId: item.id,
             itemName: item.name,
             priceAdjustment: Number(item.price_adjustment),
+            quantity: qty,
           });
         }
       });
@@ -138,12 +149,13 @@ export const ProductDetailModal = ({
 
     toast.success("Produto adicionado ao carrinho!");
     onOpenChange(false);
-    
-    // Reset
+
     setQuantity(1);
     setNotes("");
-    setSelectedOptions({});
+    setSelections({});
   };
+
+  const isInvalid = validationErrors.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -161,9 +173,7 @@ export const ProductDetailModal = ({
                 className="w-full h-full object-cover"
               />
               {product.promotional_price && (
-                <Badge className="absolute top-2 right-2 bg-red-500">
-                  Promoção
-                </Badge>
+                <Badge className="absolute top-2 right-2">Promoção</Badge>
               )}
             </div>
           )}
@@ -183,77 +193,141 @@ export const ProductDetailModal = ({
             </div>
           </div>
 
-          {/* Options */}
-          {product.delivery_product_options?.map((option) => (
-            <div key={option.id} className="space-y-3 border rounded-lg p-4">
-              <div>
-                <Label className="text-base font-semibold">
-                  {option.name}
-                  {option.is_required && <span className="text-destructive ml-1">*</span>}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {option.type === "single"
-                    ? "Escolha 1 opção"
-                    : `Escolha de ${option.min_selections} até ${option.max_selections} opções`}
-                </p>
-              </div>
+          {product.delivery_product_options?.map((option) => {
+            const total = getOptionTotal(option.id);
+            const isMultiple = option.type === "multiple";
+            const allowQty = isMultiple && !!option.allow_quantity;
+            const max = option.max_selections || 0;
+            const isComplete = isMultiple && max > 0 && total >= max;
 
-              {option.type === "single" ? (
-                <RadioGroup
-                  value={selectedOptions[option.id]?.[0] || ""}
-                  onValueChange={(value) => handleOptionChange(option.id, value, "single")}
-                >
-                  {option.delivery_product_option_items
-                    ?.filter((item) => item.is_available)
-                    .map((item) => (
-                      <div key={item.id} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value={item.id} id={item.id} />
-                          <Label htmlFor={item.id} className="cursor-pointer">
-                            {item.name}
-                          </Label>
-                        </div>
-                        {item.price_adjustment !== 0 && (
-                          <span className="text-sm text-muted-foreground">
-                            {item.price_adjustment > 0 ? "+" : ""}
-                            {formatBRL(Number(item.price_adjustment))}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                </RadioGroup>
-              ) : (
-                <div className="space-y-2">
-                  {option.delivery_product_option_items
-                    ?.filter((item) => item.is_available)
-                    .map((item) => (
-                      <div key={item.id} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={item.id}
-                            checked={(selectedOptions[option.id] || []).includes(item.id)}
-                            onCheckedChange={() =>
-                              handleOptionChange(option.id, item.id, "multiple")
-                            }
-                          />
-                          <Label htmlFor={item.id} className="cursor-pointer">
-                            {item.name}
-                          </Label>
-                        </div>
-                        {item.price_adjustment !== 0 && (
-                          <span className="text-sm text-muted-foreground">
-                            {item.price_adjustment > 0 ? "+" : ""}
-                            {formatBRL(Number(item.price_adjustment))}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+            return (
+              <div key={option.id} className="space-y-3 border rounded-lg p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <Label className="text-base font-semibold">
+                      {option.name}
+                      {option.is_required && <span className="text-destructive ml-1">*</span>}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {!isMultiple
+                        ? "Escolha 1 opção"
+                        : `Escolha de ${option.min_selections} até ${option.max_selections} ${
+                            option.max_selections === 1 ? "opção" : "opções"
+                          }`}
+                    </p>
+                  </div>
+                  {isMultiple && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isComplete && (
+                        <Badge variant="secondary" className="text-[10px]">Completo</Badge>
+                      )}
+                      <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                        {total}/{max || "∞"} selecionados
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
 
-          {/* Notes */}
+                {!isMultiple ? (
+                  <RadioGroup
+                    value={Object.keys(selections[option.id] || {})[0] || ""}
+                    onValueChange={(v) => handleSingleSelect(option.id, v)}
+                  >
+                    {option.delivery_product_option_items
+                      ?.filter((item) => item.is_available)
+                      .map((item) => (
+                        <div key={item.id} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value={item.id} id={item.id} />
+                            <Label htmlFor={item.id} className="cursor-pointer">
+                              {item.name}
+                            </Label>
+                          </div>
+                          {item.price_adjustment !== 0 && (
+                            <span className="text-sm text-muted-foreground">
+                              +{formatBRL(Number(item.price_adjustment))}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                  </RadioGroup>
+                ) : allowQty ? (
+                  <div className="space-y-2">
+                    {option.delivery_product_option_items
+                      ?.filter((item) => item.is_available)
+                      .map((item) => {
+                        const qty = getQty(option.id, item.id);
+                        const sub = Number(item.price_adjustment) * qty;
+                        const canIncrement = !(max > 0 && total >= max);
+                        return (
+                          <div key={item.id} className="flex items-center justify-between gap-3">
+                            <span className="flex-1 text-sm">{item.name}</span>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-7 w-7"
+                                disabled={qty === 0}
+                                onClick={() => setQty(option.id, item.id, qty - 1)}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <span className="w-6 text-center text-sm font-medium tabular-nums">{qty}</span>
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-7 w-7"
+                                disabled={!canIncrement}
+                                onClick={() => setQty(option.id, item.id, qty + 1)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                              {Number(item.price_adjustment) !== 0 && (
+                                <span className="w-20 text-right text-sm text-muted-foreground tabular-nums">
+                                  +{formatBRL(sub)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {option.delivery_product_option_items
+                      ?.filter((item) => item.is_available)
+                      .map((item) => {
+                        const checked = !!selections[option.id]?.[item.id];
+                        const disabled = !checked && isComplete;
+                        return (
+                          <div key={item.id} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={item.id}
+                                checked={checked}
+                                disabled={disabled}
+                                onCheckedChange={() =>
+                                  handleCheckboxToggle(option.id, item.id, max || 999)
+                                }
+                              />
+                              <Label htmlFor={item.id} className="cursor-pointer">
+                                {item.name}
+                              </Label>
+                            </div>
+                            {item.price_adjustment !== 0 && (
+                              <span className="text-sm text-muted-foreground">
+                                +{formatBRL(Number(item.price_adjustment))}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
           <div className="space-y-2">
             <Label htmlFor="notes">Observações (opcional)</Label>
             <Textarea
@@ -265,7 +339,6 @@ export const ProductDetailModal = ({
             />
           </div>
 
-          {/* Quantity and Add */}
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="flex items-center gap-3">
               <Button
@@ -285,7 +358,7 @@ export const ProductDetailModal = ({
               </Button>
             </div>
 
-            <Button onClick={handleAddToCart} size="lg">
+            <Button onClick={handleAddToCart} size="lg" disabled={isInvalid}>
               Adicionar • {formatBRL(calculateTotal())}
             </Button>
           </div>

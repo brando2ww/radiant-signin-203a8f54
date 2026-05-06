@@ -131,7 +131,7 @@ export const OrderConfirmation = ({
         unitPrice: item.unitPrice,
         subtotal:
           (item.unitPrice +
-            item.selectedOptions.reduce((s, o) => s + o.priceAdjustment, 0)) *
+            item.selectedOptions.reduce((s, o) => s + o.priceAdjustment * (o.quantity ?? 1), 0)) *
           item.quantity,
         notes: item.notes,
         options: item.selectedOptions.map((o) => ({
@@ -139,6 +139,7 @@ export const OrderConfirmation = ({
           itemName: o.itemName,
           itemId: o.itemId,
           priceAdjustment: o.priceAdjustment,
+          quantity: o.quantity ?? 1,
         })),
       })),
     };
@@ -257,7 +258,7 @@ export const OrderConfirmation = ({
           {cart.map((item, index) => {
             const itemPrice =
               item.unitPrice +
-              item.selectedOptions.reduce((s, o) => s + o.priceAdjustment, 0);
+              item.selectedOptions.reduce((s, o) => s + o.priceAdjustment * (o.quantity ?? 1), 0);
 
             return (
               <div key={index} className="text-sm">
@@ -271,13 +272,16 @@ export const OrderConfirmation = ({
                 </div>
                 {item.selectedOptions.length > 0 && (
                   <div className="text-xs text-muted-foreground pl-4 space-y-0.5">
-                    {item.selectedOptions.map((opt, i) => (
-                      <div key={i}>
-                        • {opt.itemName}
-                        {opt.priceAdjustment !== 0 &&
-                          ` (+${formatBRL(opt.priceAdjustment)})`}
-                      </div>
-                    ))}
+                    {item.selectedOptions.map((opt, i) => {
+                      const q = opt.quantity ?? 1;
+                      const sub = opt.priceAdjustment * q;
+                      return (
+                        <div key={i}>
+                          • {q > 1 ? `${q}× ` : ""}{opt.itemName}
+                          {sub !== 0 && ` (+${formatBRL(sub)})`}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {item.notes && (

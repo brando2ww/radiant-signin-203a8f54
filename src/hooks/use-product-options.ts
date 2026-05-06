@@ -24,6 +24,7 @@ export interface ProductOption {
   min_selections: number;
   max_selections: number;
   order_position: number;
+  allow_quantity?: boolean;
   items?: ProductOptionItem[];
 }
 
@@ -143,6 +144,7 @@ export const useCreateProductOption = () => {
           min_selections: option.min_selections,
           max_selections: option.max_selections,
           order_position: option.order_position,
+          allow_quantity: (option as any).allow_quantity ?? false,
         })
         .select()
         .single();
@@ -244,6 +246,7 @@ export const useFullUpdateProductOption = () => {
           is_required: optionData.is_required,
           min_selections: optionData.min_selections,
           max_selections: optionData.max_selections,
+          allow_quantity: (optionData as any).allow_quantity ?? false,
         })
         .eq("id", optionId);
 

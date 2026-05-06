@@ -33,6 +33,7 @@ export interface PublicProductOption {
   min_selections: number;
   max_selections: number;
   order_position: number;
+  allow_quantity?: boolean;
   delivery_product_option_items?: PublicProductOptionItem[];
 }
 
