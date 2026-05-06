@@ -457,6 +457,8 @@ export function SalonQueuePanel({
                     order={o}
                     onRegisterPayment={(order) => setPaymentOrder(order)}
                     onConfirmOnline={handleConfirmOnline}
+                    onAdvanceStatus={handleAdvanceStatus}
+                    onPrintMotoboy={handlePrintMotoboy}
                   />
                 ))
               )}
