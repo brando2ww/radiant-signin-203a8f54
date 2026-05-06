@@ -12,6 +12,7 @@ import { useValidateCoupon } from "@/hooks/use-delivery-coupons";
 import { CheckoutFlow } from "./CheckoutFlow";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
 import { formatBRL } from "@/lib/format";
+import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
 import {
   Sheet,
   SheetContent,
@@ -53,6 +54,7 @@ export const ShoppingCart = ({
   const deliveryFee = Number(settings?.default_delivery_fee || 0);
   const discount = appliedCoupon?.discount || 0;
   const total = subtotal + deliveryFee - discount;
+  const storeStatus = isStoreCurrentlyOpen(settings);
 
   // Auto-apply coupon from URL when cart has items
   useEffect(() => {
@@ -270,15 +272,26 @@ export const ShoppingCart = ({
                 </div>
               </div>
 
-              <Button 
-                size="lg" 
-                className="w-full" 
+              {!storeStatus.open && (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                  Loja fechada no momento.
+                  {storeStatus.nextOpenLabel && <> Abre {storeStatus.nextOpenLabel}.</>}
+                </div>
+              )}
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={!storeStatus.open}
                 onClick={() => {
+                  if (!storeStatus.open) {
+                    toast.error("Loja fechada — não é possível finalizar pedidos agora.");
+                    return;
+                  }
                   setIsCheckoutOpen(true);
                   trackBeginCheckout(cart, total);
                 }}
               >
-                Finalizar Pedido
+                {storeStatus.open ? "Finalizar Pedido" : "Loja fechada"}
               </Button>
             </div>
           </>

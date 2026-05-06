@@ -12,6 +12,8 @@ import { LoyaltyRedeemSheet } from "@/components/public-menu/LoyaltyRedeemSheet"
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/format";
+import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
+import { usePublicSettings } from "@/hooks/use-public-menu";
 
 interface OrderConfirmationProps {
   userId: string;
@@ -62,6 +64,7 @@ export const OrderConfirmation = ({
   const createOrder = useCreateOrder();
   const earnPoints = useEarnPoints();
   const redeemPoints = useRedeemPoints();
+  const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
   const { data: customerPoints = 0 } = useCustomerPoints(userId, customer.id);
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
@@ -94,6 +97,16 @@ export const OrderConfirmation = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const status = isStoreCurrentlyOpen(deliverySettings);
+    if (!status.open) {
+      toast.error(
+        status.nextOpenLabel
+          ? `Loja fechada. Abre ${status.nextOpenLabel}.`
+          : "Loja fechada no momento."
+      );
+      return;
+    }
 
     const orderData = {
       userId,
