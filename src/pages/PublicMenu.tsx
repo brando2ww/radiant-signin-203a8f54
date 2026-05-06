@@ -22,6 +22,7 @@ export interface CartItem {
     itemId: string;
     itemName: string;
     priceAdjustment: number;
+    quantity?: number;
   }[];
   notes?: string;
 }
