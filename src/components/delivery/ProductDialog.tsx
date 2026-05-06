@@ -314,14 +314,18 @@ export const ProductDialog = ({
             </form>
           </TabsContent>
 
-          <TabsContent value="recipe" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-4 data-[state=inactive]:hidden">
-            {product && (
-              <DeliveryRecipeManager productId={product.id} productPrice={product.base_price} />
-            )}
+          <TabsContent value="recipe" className="flex-1 min-h-0 mt-4 data-[state=inactive]:hidden overflow-hidden">
+            <div className="h-full overflow-y-auto px-6 pb-6">
+              {product && (
+                <DeliveryRecipeManager productId={product.id} productPrice={product.base_price} />
+              )}
+            </div>
           </TabsContent>
 
-          <TabsContent value="options" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-4 data-[state=inactive]:hidden">
-            <ProductOptionsManager productId={product?.id} />
+          <TabsContent value="options" className="flex-1 min-h-0 mt-4 data-[state=inactive]:hidden overflow-hidden">
+            <div className="h-full overflow-y-auto px-6 pb-6">
+              <ProductOptionsManager productId={product?.id} />
+            </div>
           </TabsContent>
         </Tabs>
       </DialogContent>

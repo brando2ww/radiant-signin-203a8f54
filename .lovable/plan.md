@@ -1,25 +1,31 @@
 ## Problema
 
-No `src/components/delivery/ProductDialog.tsx` (cardápio do delivery, ex.: "Combo 2 Temaki"), o scroll interno não funciona. O `DialogContent` usa apenas `max-h-[90vh]` sem altura intrínseca (`h-[90vh]`). Com `flex flex-col`, os filhos com `flex-1 min-h-0` não têm altura de referência para se limitar — então o conteúdo cresce além do viewport, o footer some e o scroll interno do `TabsContent` (com `overflow-y-auto`) nunca é ativado.
-
-Mesmo padrão que já corrigimos no `src/components/pdv/ProductDialog.tsx`.
+Com mouse wheel, o scroll dentro das abas "Ficha Técnica" e "Opções e Complementos" do `ProductDialog.tsx` (delivery) não funciona — apenas via teclado/Tab. O `overflow-y-auto` está aplicado direto no `TabsContent` do Radix, que tem comportamento de foco/role=tabpanel que pode interferir com eventos de wheel em alguns navegadores. Além disso, quando `flex-1 min-h-0` está no mesmo elemento que `overflow-y-auto`, a altura calculada pode ficar instável.
 
 ## Mudança
 
-**`src/components/delivery/ProductDialog.tsx` (linha 195)**
+**`src/components/delivery/ProductDialog.tsx` (linhas 317-325)**
 
-Trocar:
+Mover o `overflow-y-auto` do `TabsContent` para um `<div>` filho dedicado, deixando o `TabsContent` apenas como container flex de altura fixa:
+
 ```tsx
-<DialogContent className="max-w-3xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+<TabsContent value="recipe" className="flex-1 min-h-0 mt-4 data-[state=inactive]:hidden overflow-hidden">
+  <div className="h-full overflow-y-auto px-6 pb-6">
+    {product && <DeliveryRecipeManager ... />}
+  </div>
+</TabsContent>
+
+<TabsContent value="options" className="flex-1 min-h-0 mt-4 data-[state=inactive]:hidden overflow-hidden">
+  <div className="h-full overflow-y-auto px-6 pb-6">
+    <ProductOptionsManager productId={product?.id} />
+  </div>
+</TabsContent>
 ```
 
-Por:
-```tsx
-<DialogContent className="max-w-3xl w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
-```
+## Por que resolve
 
-A adição de `h-[90vh]` dá altura intrínseca ao container flex; com isso o `Tabs` `flex-1 min-h-0` passa a ter espaço definido e o `overflow-y-auto` dos `TabsContent` (Detalhes, Ficha Técnica, Opções e Complementos) finalmente ativa o scroll interno enquanto header e footer permanecem fixos.
+Separar o container flex (TabsContent) do container de scroll (`<div>` puro) garante que o wheel event chegue num elemento DOM neutro com altura definida (`h-full`), sem interferência das responsabilidades de tabpanel do Radix.
 
 ## Validação
 
-Abrir um produto com várias opções (ex.: "Combo 2 Temaki") na aba "Opções e Complementos" — a lista deve rolar dentro do dialog enquanto o título e os botões "Cancelar/Salvar" permanecem visíveis.
+Abrir "Combo 2 Temaki" → aba "Opções e Complementos" → rolar com mouse wheel; deve funcionar normalmente.
