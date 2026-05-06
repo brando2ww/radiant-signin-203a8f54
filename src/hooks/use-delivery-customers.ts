@@ -167,6 +167,7 @@ export const useCreateOrder = () => {
           itemName: string;
           itemId?: string;
           priceAdjustment: number;
+          quantity?: number;
         }[];
       }[];
     }) => {
@@ -254,6 +255,7 @@ export const useCreateOrder = () => {
             item_name: option.itemName,
             option_item_id: option.itemId || null,
             price_adjustment: option.priceAdjustment,
+            quantity: option.quantity ?? 1,
           });
         });
       });
