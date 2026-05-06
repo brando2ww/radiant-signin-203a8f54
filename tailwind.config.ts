@@ -124,11 +124,33 @@ export default {
   					filter: 'blur(0px)',
   					transform: 'translateY(0px) scale(1)'
   				}
+  			},
+  			'pulse-ring': {
+  				'0%': { transform: 'scale(1)', opacity: '0.55' },
+  				'100%': { transform: 'scale(1.8)', opacity: '0' }
+  			},
+  			'check-draw': {
+  				'0%': { transform: 'scale(0.4)', opacity: '0' },
+  				'60%': { transform: 'scale(1.15)', opacity: '1' },
+  				'100%': { transform: 'scale(1)', opacity: '1' }
+  			},
+  			'fill-down': {
+  				'0%': { transform: 'translateY(-100%)' },
+  				'100%': { transform: 'translateY(100%)' }
+  			},
+  			'timeline-in': {
+  				from: { opacity: '0', transform: 'translateY(8px)' },
+  				to: { opacity: '1', transform: 'translateY(0)' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'pulse-ring': 'pulse-ring 2s ease-out infinite',
+  			'check-draw': 'check-draw 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both',
+  			'fill-down': 'fill-down 2s linear infinite',
+  			'spin-slow': 'spin 3s linear infinite',
+  			'timeline-in': 'timeline-in 400ms ease-out both'
   		},
   		animationDelay: {
   			'100': '100ms',
