@@ -188,13 +188,13 @@ export const ProductOptionDialog = ({
       <DialogContent
         ref={dialogContentRef}
         hideOverlay
-        className="max-w-2xl w-[95vw] h-[85vh] p-0 grid grid-rows-[auto_1fr_auto] gap-0 overflow-hidden"
+        className="max-w-2xl w-[95vw] h-[85vh] max-h-[85vh] p-0 gap-0 flex flex-col overflow-hidden"
       >
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>{option ? "Editar Opção" : "Nova Opção"}</DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto px-6 py-4 space-y-5 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
           {/* Seção: Configurações */}
           <section className="rounded-lg border bg-card/50 p-4 space-y-4">
             <div className="space-y-0.5">
