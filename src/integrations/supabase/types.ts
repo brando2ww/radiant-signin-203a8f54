@@ -1746,6 +1746,7 @@ export type Database = {
       }
       delivery_product_option_items: {
         Row: {
+          created_at: string
           id: string
           is_available: boolean | null
           item_kind: string
@@ -1755,8 +1756,10 @@ export type Database = {
           order_position: number
           price_adjustment: number | null
           source_pdv_option_item_id: string | null
+          updated_at: string
         }
         Insert: {
+          created_at?: string
           id?: string
           is_available?: boolean | null
           item_kind?: string
@@ -1766,8 +1769,10 @@ export type Database = {
           order_position?: number
           price_adjustment?: number | null
           source_pdv_option_item_id?: string | null
+          updated_at?: string
         }
         Update: {
+          created_at?: string
           id?: string
           is_available?: boolean | null
           item_kind?: string
@@ -1777,6 +1782,7 @@ export type Database = {
           order_position?: number
           price_adjustment?: number | null
           source_pdv_option_item_id?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1790,6 +1796,7 @@ export type Database = {
       }
       delivery_product_options: {
         Row: {
+          created_at: string
           id: string
           is_required: boolean | null
           max_selections: number | null
@@ -1799,8 +1806,10 @@ export type Database = {
           product_id: string
           source_pdv_option_id: string | null
           type: string
+          updated_at: string
         }
         Insert: {
+          created_at?: string
           id?: string
           is_required?: boolean | null
           max_selections?: number | null
@@ -1810,8 +1819,10 @@ export type Database = {
           product_id: string
           source_pdv_option_id?: string | null
           type?: string
+          updated_at?: string
         }
         Update: {
+          created_at?: string
           id?: string
           is_required?: boolean | null
           max_selections?: number | null
@@ -1821,6 +1832,7 @@ export type Database = {
           product_id?: string
           source_pdv_option_id?: string | null
           type?: string
+          updated_at?: string
         }
         Relationships: [
           {
