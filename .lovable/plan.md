@@ -1,8 +1,5 @@
-# Aumentar altura do botão "Já recebi meu pedido"
+# Ajustar botões do rodapé do tracking
 
-Em `src/components/public-menu/checkout/OrderTrackingView.tsx` (rodapé sticky, ~linhas 461-486):
-- Adicionar `h-14 text-base font-semibold` ao botão "Já recebi meu pedido".
-- Aplicar `h-14` também aos botões "Fechar" (variantes ao lado e standalone) para manter alinhamento.
-- Ajustar ícones internos de `h-4 w-4` para `h-5 w-5`.
-
-Sem outras mudanças.
+Em `src/components/public-menu/checkout/OrderTrackingView.tsx` (rodapé sticky):
+- "Já recebi meu pedido": aumentar para `h-16` e ocupar largura total (remover layout lado-a-lado).
+- "Fechar": virar `variant="ghost"`, `size="sm"`, `h-9`, texto menor e mais discreto, empilhado abaixo.
