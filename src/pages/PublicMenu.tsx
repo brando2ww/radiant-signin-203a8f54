@@ -188,6 +188,8 @@ const PublicMenu = () => {
         userId={userId}
         initialCoupon={initialCoupon}
       />
+
+      <ActiveOrderChip userId={userId} />
     </div>
   );
 };
