@@ -1,77 +1,50 @@
-# Reformular tela "Acompanhar Pedido"
+# Persistir o acompanhamento do pedido após reload
 
-Hoje a tela aparece como dialog centralizado e tem layout pouco amigável (lista crua de etapas, sem destaque do status atual, sem hierarquia visual). Vamos transformar em um **bottom sheet** que sobe da parte de baixo no mobile e ficar como dialog centralizado em telas grandes, com UX mais clara.
+Hoje o `trackingOrderId` vive apenas no estado do `CheckoutFlow`. Ao recarregar a página, o sheet some e o cliente perde o acompanhamento. Vamos persistir o pedido ativo em `localStorage` por estabelecimento e exibir um chip flutuante "Acompanhar pedido" sempre que houver um pedido em andamento — funcionando mesmo após reload, mesmo se o usuário fechou o sheet.
 
-## 1. Trocar Dialog por Sheet (bottom) na etapa de tracking
+## 1. Helper de persistência
 
-Em `src/components/public-menu/CheckoutFlow.tsx`:
+Criar `src/lib/active-order-storage.ts`:
 
-- Quando `currentStep === "tracking"`, **não** renderizar dentro do `<Dialog>` atual. Em vez disso, renderizar um `<Sheet side="bottom">` separado (componente `@/components/ui/sheet`) controlado pelo mesmo `open`.
-- O Sheet terá:
-  - `side="bottom"`
-  - Altura: `h-[92vh]` no mobile, `sm:h-auto sm:max-h-[85vh]` em telas maiores
-  - Cantos arredondados no topo (`rounded-t-2xl`)
-  - Indicador de "puxar" (drag handle): uma barrinha `h-1 w-12 rounded-full bg-muted` centralizada no topo
-  - Conteúdo scrollável internamente; rodapé sticky com botões
-- O Dialog original continua usado para os outros steps (phone, address, payment, confirmation).
+- Chave: `velara:active-order:{userId}`
+- API: `getActiveOrderId(userId)`, `setActiveOrderId(userId, orderId)`, `clearActiveOrderId(userId)`
+- Dispara `CustomEvent("velara:active-order-changed")` para notificar listeners no mesmo tab; também escuta `storage` para sincronizar entre abas.
 
-## 2. Redesenhar `OrderTrackingView.tsx`
+## 2. Hook `useActiveOrder(userId)`
 
-Reorganizar o conteúdo em blocos com hierarquia clara:
+Criar `src/hooks/use-active-order.ts`:
 
-### a) Header de status (hero)
+- Lê do localStorage o id atual e mantém em estado.
+- Faz query no Supabase desse pedido (`delivery_orders`) com realtime subscription para conhecer status atual.
+- Se pedido vier inexistente, cancelado há mais de 1h, ou status `completed` há mais de 30 minutos → limpa automaticamente.
+- Retorna `{ orderId, order, clear() }`.
 
-Bloco no topo com fundo `bg-muted/40 rounded-xl p-4`:
-- Ícone grande do status atual (ex.: `Clock`, `ChefHat`, `Bike`, `CheckCircle2`) à esquerda dentro de um círculo `bg-primary/10`
-- Título grande do status atual ("Em preparo", "Saiu para entrega", etc.)
-- Subtítulo curto explicativo ("Seu pedido está sendo preparado pela cozinha")
-- Pedido `#0042` e tempo decorrido em badge pequeno
+## 3. `CheckoutFlow.tsx`
 
-Mapeamento status → label/descrição/ícone fica numa constante no topo do arquivo.
+- Em `handleOrderPlaced(orderId)` → chamar `setActiveOrderId(userId, orderId)` antes de mostrar tracking.
+- Em `handleCloseTracking` → **não** limpar o storage; apenas fechar o sheet (cliente pode reabrir pelo chip). A limpeza acontece quando ele cancela explicitamente ou quando o pedido finaliza.
+- Quando abrir o `CheckoutFlow` (prop `open`) e existir um active order do usuário, abrir direto no step `tracking` em vez de `phone`. (Isso permite reabrir pelo botão do carrinho também.)
 
-### b) Timeline vertical compacta
+## 4. Chip flutuante "Acompanhar pedido"
 
-Substituir a lista atual por timeline vertical com **linha conectora** entre os ícones:
-- Etapas concluídas: ícone preenchido + linha sólida
-- Etapa atual: ícone com pulse + linha tracejada para a próxima
-- Futuras: ícone outline + linha pontilhada `border-muted`
-- Cada etapa mostra label e, quando concluída, horário (ex.: "15:32")
-- Para pedidos offline, etapa "Aguardando pagamento no caixa" entra entre "Saiu para entrega" e "Entregue"
-- Indicador secundário "Você confirmou recebimento às HH:MM" aparece sob "Saiu para entrega" quando `customer_delivery_confirmed_at` está setado (não substitui passo).
+Criar `src/components/public-menu/ActiveOrderChip.tsx`:
 
-### c) Card de pagamento
+- Usa `useActiveOrder(userId)`.
+- Quando há pedido ativo, renderiza botão `fixed bottom-20 right-4 z-40` (acima do botão do carrinho), com ícone `Bike`/`ChefHat` conforme status, label "Pedido #NNN — Em preparo" e badge pulsante.
+- Ao clicar, abre o sheet de tracking diretamente. O sheet é controlado por estado local no chip, renderizando `<Sheet>` + `<OrderTrackingView>` (mesma estrutura que o `CheckoutFlow` faz).
+- Botão "Cancelar acompanhamento" no rodapé do sheet (ou um X), que chama `clearActiveOrderId`.
 
-Manter card de forma de pagamento, mas:
-- Para online pago: badge verde "Pago"
-- Para offline: badge amarelo "Pagar na entrega" + linha de troco quando aplicável
-- Total em destaque à direita
+## 5. Integração no `PublicMenu.tsx`
 
-### d) Banner de ação contextual
+Adicionar `<ActiveOrderChip userId={userId} />` ao lado do `<ShoppingCart>`, dentro do `<div>` raiz.
 
-Substituir o aviso atual e bloco de confirmação por um único banner colorido por contexto, exibido logo abaixo do header:
-- Status `delivering` + offline + não pago → amarelo "Tenha o pagamento pronto" com troco
-- Status `delivering` + ainda não confirmou recebimento → neutro com botão grande "Já recebi meu pedido"
-- Já confirmou → verde "Recebimento confirmado às HH:MM" (texto adicional explicando que o restaurante ainda registra o pagamento, se offline)
-- Cancelado → vermelho com motivo
+## 6. Limpeza automática
 
-### e) Rodapé sticky
+- Quando `order.status === "completed"` ou `cancelled`, agendar `clearActiveOrderId` após 5 minutos para não acumular pedidos antigos. Enquanto isso, o chip ainda mostra status final ("Entregue!") como confirmação.
+- Se a query retornar `null` (pedido apagado/inacessível), limpar imediatamente.
 
-Container fixo no fim com `border-t bg-background p-4 sticky bottom-0`:
-- Botão primário grande "Confirmar recebimento" (quando aplicável); senão botão "Fechar" outline em largura total
-- Quando ambos cabíveis (recebimento ainda não confirmado): "Confirmar recebimento" primário + "Fechar" secundário em coluna no mobile, lado a lado em `sm:`
+## Detalhes técnicos
 
-## 3. Detalhes técnicos
-
-- Importar `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle` de `@/components/ui/sheet`.
-- Usar `Lucide`: `ClipboardList`, `ChefHat`, `Bike`, `CheckCircle2`, `Clock`, `XCircle`, `AlertCircle`, `Banknote`, `CreditCard`, `Smartphone`.
-- Cores: respeitar tokens (`bg-card`, `text-foreground`, `bg-muted`, `border-primary`, `bg-primary/10`); evitar gradientes/cores fora do design system (memory rule).
-- Datas formatadas com `date-fns` + `ptBR` locale para "às HH:mm".
-- Manter contrato de props (`orderId`, `onClose`) e regras de RLS já implementadas (somente coluna `customer_delivery_confirmed_at`).
-- Não alterar fluxo de pagamento — confirmação de pagamento continua exclusiva do caixa.
-
-## Arquivos afetados
-
-- `src/components/public-menu/CheckoutFlow.tsx` — usar `Sheet` para o step tracking
-- `src/components/public-menu/checkout/OrderTrackingView.tsx` — reescrever layout com hero, timeline conectada, banner contextual, rodapé sticky
-
-Sem mudanças em banco, hooks ou regras de negócio.
+- localStorage é client-side; nada precisa mudar no banco — o RLS já permite `SELECT` no `delivery_orders` por id (verificar `select` policy; se restritiva, talvez precise de uma policy pública por id — checar antes de implementar; provavelmente já existe pois o `OrderTrackingView` já consulta com sucesso).
+- Sem alterações em pagamentos ou status — apenas leitura/realtime e UI.
+- Arquivos: `src/lib/active-order-storage.ts`, `src/hooks/use-active-order.ts`, `src/components/public-menu/ActiveOrderChip.tsx`, edits em `src/components/public-menu/CheckoutFlow.tsx`, `src/pages/PublicMenu.tsx`.
