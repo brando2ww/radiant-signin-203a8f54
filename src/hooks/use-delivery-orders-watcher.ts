@@ -49,6 +49,43 @@ export const useDeliveryOrdersWatcher = () => {
             } catch {}
             toast.success("Novo pedido recebido! 🎉");
 
+            // Aguarda persistência de itens e adicionais antes de imprimir.
+            // O INSERT em delivery_orders chega via realtime antes dos
+            // INSERTs em delivery_order_items / delivery_order_item_options
+            // (executados em sequência pelo checkout público). Sem essa
+            // espera, a comanda da cozinha sai sem os adicionais.
+            try {
+              let itemIds: string[] = [];
+              for (let i = 0; i < 16; i++) {
+                const { data: items } = await supabase
+                  .from("delivery_order_items")
+                  .select("id")
+                  .eq("order_id", newOrder.id);
+                if (items && items.length > 0) {
+                  itemIds = items.map((it: any) => it.id);
+                  break;
+                }
+                await new Promise((r) => setTimeout(r, 250));
+              }
+
+              if (itemIds.length > 0) {
+                // Aguarda os adicionais serem persistidos (best-effort).
+                // Faz polling curto: assim que aparecer alguma opção, segue;
+                // senão aguarda até ~1.5s antes de seguir mesmo sem opções.
+                for (let i = 0; i < 6; i++) {
+                  const { data: opts } = await supabase
+                    .from("delivery_order_item_options")
+                    .select("id")
+                    .in("order_item_id", itemIds)
+                    .limit(1);
+                  if (opts && opts.length > 0) break;
+                  await new Promise((r) => setTimeout(r, 250));
+                }
+              }
+            } catch (e) {
+              console.warn("Falha ao aguardar itens/adicionais:", e);
+            }
+
             // Impressão sempre
             let printed = false;
             try {
