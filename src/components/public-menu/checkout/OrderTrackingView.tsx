@@ -63,7 +63,7 @@ export const OrderTrackingView = ({ orderId, onClose }: Props) => {
     const load = async () => {
       const { data } = await supabase
         .from("delivery_orders")
-        .select("id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at")
+        .select("id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at, customer_delivery_confirmed_at")
         .eq("id", orderId)
         .maybeSingle();
       if (!cancelled && data) setOrder(data as Order);
