@@ -43,6 +43,7 @@ export default function PDVCashier() {
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
   const { updateTable } = usePDVTables();
+  const { all: deliveryOrders } = usePDVDeliveryQueue();
 
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
