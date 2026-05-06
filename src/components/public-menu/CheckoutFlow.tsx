@@ -194,6 +194,10 @@ export const CheckoutFlow = ({
             selectedAddressId={selectedAddressId}
           />
         )}
+
+        {currentStep === "tracking" && trackingOrderId && (
+          <OrderTrackingView orderId={trackingOrderId} onClose={handleCloseTracking} />
+        )}
       </DialogContent>
     </Dialog>
   );
