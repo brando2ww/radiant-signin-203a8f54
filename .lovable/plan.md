@@ -1,39 +1,83 @@
-# Vincular itens órfãos do Sushi Mix 22 Peças
+## Problema
 
-## Diagnóstico
-Os itens "04 Hot Holl Banana com Nutella" e "04 Hot Holl Morango com Nutella" do grupo "Doces" no delivery estão com `source_pdv_option_item_id = NULL` (órfãos). Por isso nem o trigger de sincronização nem o backfill anterior conseguiram corrigir o `price_adjustment`.
+Hoje as impressões nos centros de produção do delivery saem só com o `product_name` e `quantity`. Os adicionais escolhidos pelo cliente (registrados em `delivery_order_item_options`) não aparecem na impressão da cozinha/bar, ao contrário do que já ocorre no salão (que envia `modifiers` no payload).
 
-O "08 Hot Doce" funciona porque foi recriado com vínculo correto.
+A `print-bridge` (`print-bridge/server.js`) já sabe imprimir `modifiers` no formato `+ Nome` — só não está recebendo os dados.
 
-## Migração de dados
+## Causa
 
-Vincular cada item órfão à composição PDV correspondente do mesmo grupo, casando pelo nome do filho, e recalcular o preço a partir do produto-pai (`price_delivery` com fallback para `price_salon`):
+1. A view `vw_print_bridge_delivery_items` retorna só os campos básicos do `delivery_order_items`, sem juntar com `delivery_order_item_options`.
+2. `src/lib/delivery-print.ts` (`dispatchDeliveryPrintJobs`) monta `items` sem campo `modifiers`.
+
+## Mudanças
+
+### 1. Migração SQL — recriar a view com os adicionais agregados
+
+`vw_print_bridge_delivery_items` passa a expor uma coluna nova `options` (JSON), agregando os adicionais de cada item:
 
 ```sql
-WITH cand AS (
-  SELECT DISTINCT ON (dpoi.id)
-         dpoi.id AS dpoi_id,
-         c.id AS comp_id,
-         COALESCE(NULLIF(p.price_delivery, 0), p.price_salon, 0) * COALESCE(c.quantity,1) AS new_price,
-         p.name AS new_name,
-         dp_link.id AS new_linked
-  FROM public.delivery_product_option_items dpoi
-  JOIN public.delivery_product_options dpo ON dpo.id = dpoi.option_id
-  JOIN public.pdv_product_composition_groups g ON g.id = dpo.source_pdv_option_id
-  JOIN public.pdv_product_compositions c ON c.group_id = g.id
-  JOIN public.pdv_products p ON p.id = c.child_product_id
-  LEFT JOIN public.delivery_products dp_link ON dp_link.source_pdv_product_id = c.child_product_id
-  WHERE dpoi.source_pdv_option_item_id IS NULL
-    AND lower(trim(dpoi.name)) = lower(trim(p.name))
-)
-UPDATE public.delivery_product_option_items dpoi
-   SET source_pdv_option_item_id = cand.comp_id,
-       price_adjustment = cand.new_price,
-       name = cand.new_name,
-       linked_product_id = COALESCE(dpoi.linked_product_id, cand.new_linked),
-       item_kind = COALESCE(dpoi.item_kind, 'product')
-  FROM cand
- WHERE dpoi.id = cand.dpoi_id;
+DROP VIEW IF EXISTS public.vw_print_bridge_delivery_items;
+CREATE VIEW public.vw_print_bridge_delivery_items AS
+SELECT
+  oi.id,
+  oi.order_id,
+  oi.production_center_id,
+  oi.product_name,
+  oi.quantity,
+  oi.notes,
+  pc.name AS center_name,
+  pc.printer_ip,
+  pc.printer_port,
+  o.order_number,
+  o.ticket_number,
+  o.customer_name,
+  o.customer_phone,
+  o.order_type,
+  o.delivery_address_text,
+  o.user_id AS tenant_user_id,
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'name', oio.item_name,
+        'option_name', oio.option_name,
+        'quantity', oio.quantity
+      ) ORDER BY oio.option_name, oio.item_name
+    )
+    FROM public.delivery_order_item_options oio
+    WHERE oio.order_item_id = oi.id
+  ), '[]'::jsonb) AS options
+FROM public.delivery_order_items oi
+JOIN public.delivery_orders o ON o.id = oi.order_id
+LEFT JOIN public.pdv_production_centers pc ON pc.id = oi.production_center_id;
+
+GRANT SELECT ON public.vw_print_bridge_delivery_items TO anon, authenticated;
 ```
 
-Cobre o Sushi Mix 22 Peças e qualquer outro produto-composto na mesma situação. Após isso, futuras alterações de preço propagam normalmente via trigger.
+### 2. `src/lib/delivery-print.ts`
+
+No `payload.items.map(...)`, incluir `modifiers` derivado de `r.options`:
+
+```ts
+items: groupItems.map((r: any) => ({
+  product_name: r.product_name,
+  quantity: r.quantity,
+  notes: r.notes,
+  modifiers: Array.isArray(r.options)
+    ? r.options.map((o: any) => ({
+        name: o.quantity > 1 ? `${o.quantity}x ${o.name}` : o.name,
+      }))
+    : [],
+})),
+```
+
+A `print-bridge` já renderiza esses `modifiers` como `+ Nome` logo após o item, então o ticket da cozinha passará a mostrar:
+
+```
+1x SUSHI MIX 22 PEÇAS
+  + 8x Hot Doce
+  + 4x Hot Holl Banana com Nutella
+```
+
+## Fora de escopo
+
+- Não mexe na rota dos adicionais por centro (continuam no centro do item-pai). Caso futuramente queira que cada adicional vá ao seu próprio centro, é outra issue.
