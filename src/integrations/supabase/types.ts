@@ -2028,6 +2028,7 @@ export type Database = {
           max_delivery_distance: number | null
           meta_pixel_id: string | null
           min_order_value: number | null
+          payment_overdue_minutes: number
           pix_key: string | null
           updated_at: string
           user_id: string
@@ -2054,6 +2055,7 @@ export type Database = {
           max_delivery_distance?: number | null
           meta_pixel_id?: string | null
           min_order_value?: number | null
+          payment_overdue_minutes?: number
           pix_key?: string | null
           updated_at?: string
           user_id: string
@@ -2080,6 +2082,7 @@ export type Database = {
           max_delivery_distance?: number | null
           meta_pixel_id?: string | null
           min_order_value?: number | null
+          payment_overdue_minutes?: number
           pix_key?: string | null
           updated_at?: string
           user_id?: string
