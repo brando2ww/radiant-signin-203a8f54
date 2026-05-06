@@ -1,92 +1,33 @@
-# Modo "quantidade por item" em grupos de opções (delivery)
+## Causa do problema
 
-Adicionar comportamento opcional em cada grupo de opções/adicionais que substitui checkbox por controles − / + permitindo escolher múltiplas unidades do mesmo item.
+A coluna `allow_quantity` foi adicionada na tabela `delivery_product_options` e o admin (`ProductOptionDialog.tsx`) já salva o valor corretamente. O modal de personalização (`ProductDetailModal.tsx`) também já tem a lógica de renderizar os controles `[−] qty [+]` quando `option.allow_quantity === true`.
 
-## 1. Banco de dados
+Porém, em `src/hooks/use-public-menu.ts` (linhas 85–102), o `select` da query `delivery_product_options` **não inclui o campo `allow_quantity`**. Como o Supabase só retorna as colunas explicitamente listadas, o campo chega como `undefined` no front e a condição `allowQty = isMultiple && !!option.allow_quantity` é sempre falsa — caindo no modo checkbox padrão.
 
-Adicionar coluna na tabela `delivery_product_options`:
+## Correção
 
-- `allow_quantity boolean NOT NULL DEFAULT false`
+Adicionar `allow_quantity` ao select de `delivery_product_options` em `use-public-menu.ts`:
 
-Quando `true`, o grupo é renderizado em modo quantidade (vale para grupos `multiple` — não se aplica a `single`).
+```ts
+delivery_product_options (
+  id,
+  product_id,
+  name,
+  type,
+  is_required,
+  min_selections,
+  max_selections,
+  order_position,
+  allow_quantity,
+  delivery_product_option_items ( ... )
+)
+```
 
-> Migração: `ALTER TABLE delivery_product_options ADD COLUMN allow_quantity boolean NOT NULL DEFAULT false;`
+## Verificação
 
-## 2. Admin — cadastro do grupo
+Após o ajuste:
+1. Editar um grupo do tipo "Múltipla escolha" no admin e ativar o toggle "Permitir múltiplas unidades por item".
+2. Recarregar o cardápio público e abrir o produto — os controles `−  qty  +` devem aparecer no lugar dos checkboxes para aquele grupo.
+3. Grupos sem o toggle ativo continuam exibindo checkboxes normais.
 
-`src/components/delivery/ProductOptionDialog.tsx`
-
-- Adicionar estado `allowQuantity` (Switch).
-- Renderizar o switch **somente quando** `type === "multiple"`, logo abaixo dos campos min/max:
-  - Label: "Permitir múltiplas unidades por item"
-  - Helper: "Cada item terá controles − e + em vez de checkbox."
-- Inicializar a partir de `option?.allow_quantity` no `useEffect` de carregamento.
-- Incluir `allow_quantity: type === "multiple" ? allowQuantity : false` no objeto enviado em `onSave`.
-
-`src/hooks/use-product-options.ts`
-- Estender a interface `ProductOption` com `allow_quantity?: boolean`.
-- Garantir que o select traga a coluna (já é `*`) e que create/update propaguem o campo.
-
-## 3. Cardápio público — modal de personalização
-
-`src/hooks/use-public-menu.ts`
-- Adicionar `allow_quantity?: boolean` em `PublicProductOption` (já é `select(*)`).
-
-`src/pages/PublicMenu.tsx`
-- Mudar a forma de `CartItem.selectedOptions` para suportar quantidade:
-  ```
-  selectedOptions: {
-    optionId; optionName;
-    itemId; itemName;
-    priceAdjustment;   // unitário
-    quantity: number;  // novo, default 1
-  }[]
-  ```
-- O total de cada item no carrinho passa a somar `priceAdjustment * quantity`.
-- Ajustar `ShoppingCart.tsx` (e qualquer cálculo de subtotal/checkout) para multiplicar por `quantity`. Ao exibir, listar como "2× Temaki de Salmão" quando `quantity > 1`.
-
-`src/components/public-menu/ProductDetailModal.tsx`
-
-Refatorar o estado:
-- Trocar `selectedOptions: Record<string, string[]>` por `selectedOptions: Record<string, Record<string, number>>` (optionId → itemId → quantidade).
-- Helpers: `getItemQty(optionId, itemId)`, `getOptionTotalQty(optionId)`.
-
-Renderização por grupo (`option.type === "multiple"`):
-
-- **Cabeçalho** (sempre que `multiple`): mostrar "X/Y selecionados" usando soma de quantidades. Se `getOptionTotalQty === max`, exibir badge "Completo".
-- **Modo checkbox** (`!allow_quantity`): mantém comportamento atual (qty 0 ou 1).
-- **Modo quantidade** (`allow_quantity === true`): para cada item, em vez de checkbox renderizar:
-  ```
-  [nome do item]                 [−] qty [+]   +R$ X,XX
-  ```
-  - `−` desabilitado quando `qty === 0`.
-  - `+` desabilitado quando `getOptionTotalQty(optionId) >= max_selections`.
-  - Subtotal do item à direita = `priceAdjustment * qty` (formatBRL). Se `priceAdjustment === 0`, ocultar.
-
-`single` continua como RadioGroup (não há quantidade).
-
-Cálculo:
-- `calculateTotal` soma `Σ priceAdjustment * qty` de todos os grupos, multiplicado por `quantity` do produto.
-- Botão `Adicionar • R$ X,XX` reflete em tempo real.
-
-Validação:
-- `validateOptions` usa soma de quantidades:
-  - se `is_required` e total === 0 → erro
-  - se total < `min_selections` → erro
-  - se total > `max_selections` → erro
-- Botão "Adicionar" fica `disabled` quando `validateOptions().length > 0` (em vez de só mostrar toast).
-
-`handleAddToCart`:
-- Iterar `selectedOptions[optionId]` e gerar uma entrada por item com `quantity` (não duplicar entradas).
-
-## 4. Edge cases
-
-- Grupos `single`: campo `allow_quantity` é ignorado.
-- Reset de estado ao fechar/abrir modal continua igual.
-- Itens indisponíveis (`is_available=false`) continuam filtrados.
-- Produtos importados do PDV: mantêm `allow_quantity=false` (default).
-
-## 5. Fora de escopo
-
-- PDV salão / garçom (`MobileProductOptionSelector`, `ProductOptionSelector`) — não alterados nesta task; pode ser feito depois se solicitado.
-- Cadastro de opções via PDV (`pdv_product_options`) — não alterado.
+Nenhuma outra mudança é necessária — toda a lógica de quantidade, validação, total e persistência já foi implementada nas iterações anteriores.

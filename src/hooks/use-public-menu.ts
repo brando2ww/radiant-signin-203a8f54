@@ -91,6 +91,7 @@ export const usePublicProducts = (userId: string, categoryId?: string) => {
             min_selections,
             max_selections,
             order_position,
+            allow_quantity,
             delivery_product_option_items (
               id,
               option_id,
