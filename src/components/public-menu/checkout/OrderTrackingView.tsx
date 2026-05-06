@@ -25,6 +25,7 @@ import { ptBR } from "date-fns/locale";
 interface Props {
   orderId: string;
   onClose: () => void;
+  userId?: string;
 }
 
 type Order = {
