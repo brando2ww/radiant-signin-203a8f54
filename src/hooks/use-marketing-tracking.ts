@@ -56,7 +56,7 @@ export const useMarketingTracking = () => {
   }, [trackEvent]);
 
   const trackAddToCart = useCallback((item: CartItem) => {
-    const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment, 0);
+    const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment * (opt.quantity ?? 1), 0);
     const totalValue = itemTotal * item.quantity;
 
     trackEvent('AddToCart', 'add_to_cart', {
@@ -76,7 +76,7 @@ export const useMarketingTracking = () => {
 
   const trackBeginCheckout = useCallback((cart: CartItem[], total: number) => {
     const items = cart.map(item => {
-      const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment, 0);
+      const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment * (opt.quantity ?? 1), 0);
       return {
         item_id: item.productId,
         item_name: item.name,
@@ -102,7 +102,7 @@ export const useMarketingTracking = () => {
     cart: CartItem[];
   }) => {
     const items = order.cart.map(item => {
-      const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment, 0);
+      const itemTotal = item.unitPrice + item.selectedOptions.reduce((s, opt) => s + opt.priceAdjustment * (opt.quantity ?? 1), 0);
       return {
         item_id: item.productId,
         item_name: item.name,
