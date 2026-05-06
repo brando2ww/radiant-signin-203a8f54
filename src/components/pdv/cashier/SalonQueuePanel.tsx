@@ -32,6 +32,8 @@ import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
 import { type DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
 import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
+import { useDeliverySettings } from "@/hooks/use-delivery-settings";
+import { AlertTriangle } from "lucide-react";
 
 interface SalonQueuePanelProps {
   isOpen: boolean;
