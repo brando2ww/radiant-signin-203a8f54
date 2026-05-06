@@ -427,7 +427,7 @@ export const ProductOptionDialog = ({
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </div>
 
         <DialogFooter className="px-6 py-4 border-t bg-background">
