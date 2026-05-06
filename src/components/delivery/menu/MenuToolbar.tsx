@@ -38,7 +38,7 @@ export const MenuToolbar = ({
           </Button>
           <Button onClick={onNewProduct} size="sm">
             <Plus className="h-4 w-4 mr-2" />
-            Novo Produto
+            Adicionar do PDV
           </Button>
         </div>
       </div>
