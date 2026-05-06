@@ -6,6 +6,7 @@ import { PDVNotifications } from "@/components/pdv/PDVNotifications";
 import { CashierStatus } from "@/components/pdv/CashierStatus";
 import { Logo } from "@/components/ui/logo";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useDeliveryOrdersWatcher } from "@/hooks/use-delivery-orders-watcher";
 import PDVDashboard from "./pdv/Dashboard";
 import PDVSalon from "./pdv/Salon";
 import PDVBalcao from "./pdv/Balcao";
