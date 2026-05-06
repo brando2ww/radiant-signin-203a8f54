@@ -225,3 +225,13 @@ body:has([data-garcom-root]) [data-sonner-toaster] {
   content: '';
   @apply absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOSIgdmlld0JveD0iMCAwIDEyIDkiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDRMNC41IDcuNUwxMSAxIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K')] bg-center bg-no-repeat;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-ring,
+  .animate-check-draw,
+  .animate-fill-down,
+  .animate-spin-slow,
+  .animate-timeline-in {
+    animation: none !important;
+  }
+}
