@@ -233,6 +233,26 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
       : null;
 
   const customerConfirmedAt = fmtTime(order.customer_delivery_confirmed_at);
+
+  // Detect steps that just transitioned to "reached" to play check-draw once
+  const currentReached = new Set<string>();
+  baseSteps.forEach((step) => {
+    const idxMapped = stepStatusIdx(step.key);
+    const isAwaitingPayment = step.key === "awaiting_payment";
+    const r = isAwaitingPayment
+      ? paid
+      : step.key === "completed"
+      ? order_idx >= 5
+      : order_idx >= idxMapped;
+    if (r) currentReached.add(step.key);
+  });
+  const newlyReached = new Set<string>();
+  currentReached.forEach((k) => {
+    if (!prevReachedRef.current.has(k)) newlyReached.add(k);
+  });
+  // Only animate newly-reached if there was a previous render (avoid initial mass animation)
+  justReachedRef.current = prevReachedRef.current.size === 0 ? new Set() : newlyReached;
+  prevReachedRef.current = currentReached;
   const showConfirmButton =
     !cancelled && order.status === "delivering" && !order.customer_delivery_confirmed_at;
 
