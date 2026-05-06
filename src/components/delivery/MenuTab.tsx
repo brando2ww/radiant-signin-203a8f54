@@ -263,7 +263,7 @@ export const MenuTab = () => {
         category={deletingCategory || undefined}
       />
 
-      <ProductDrawer
+      <AddPDVProductDialog
         open={isProductDrawerOpen}
         onOpenChange={(open) => {
           setIsProductDrawerOpen(open);
@@ -271,7 +271,6 @@ export const MenuTab = () => {
         }}
         categories={categories}
         preselectedCategoryId={productPreselectedCategory}
-        onProductCreated={handleProductCreated}
       />
 
       <ProductDrawer
