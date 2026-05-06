@@ -59,6 +59,7 @@ export interface DeliverySettings {
   covered_city: CoveredCity | null;
   excluded_ceps: ExcludedCEP[];
   cep_ranges: CepRange[];
+  payment_overdue_minutes: number;
   created_at: string;
   updated_at: string;
 }
