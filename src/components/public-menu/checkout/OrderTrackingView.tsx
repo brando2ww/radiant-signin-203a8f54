@@ -57,6 +57,20 @@ function PaymentIcon({ method }: { method: string }) {
 export const OrderTrackingView = ({ orderId, onClose }: Props) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+
+  const handleConfirmReceived = async () => {
+    if (!order || confirming) return;
+    setConfirming(true);
+    const { data, error } = await supabase
+      .from("delivery_orders")
+      .update({ customer_delivery_confirmed_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .select("id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at, customer_delivery_confirmed_at")
+      .maybeSingle();
+    if (!error && data) setOrder(data as Order);
+    setConfirming(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
