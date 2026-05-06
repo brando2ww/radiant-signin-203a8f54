@@ -45,6 +45,7 @@ import { MenuToolbar, type QuickFilter } from "./menu/MenuToolbar";
 import { CategorySection } from "./menu/CategorySection";
 import { EmptyState } from "./menu/EmptyState";
 import { ProductDrawer } from "./menu/ProductDrawer";
+import { AddPDVProductDialog } from "./menu/AddPDVProductDialog";
 import { toast } from "sonner";
 
 export const MenuTab = () => {
