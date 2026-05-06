@@ -76,6 +76,25 @@ export function SalonQueuePanel({
 
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
+  const updateOrderStatus = useUpdateOrderStatus();
+
+  const NEXT: Partial<Record<DeliveryOrder["status"], DeliveryOrder["status"]>> = {
+    pending: "preparing",
+    confirmed: "preparing",
+    preparing: "ready",
+    ready: "delivering",
+    delivering: "completed",
+  };
+
+  const handleAdvanceStatus = (order: DeliveryOrder) => {
+    const next = NEXT[order.status];
+    if (!next) return;
+    updateOrderStatus.mutate({ id: order.id, status: next });
+  };
+
+  const handlePrintMotoboy = (order: DeliveryOrder) => {
+    printMotoboyReceipt(order);
+  };
 
   const tablesByOrderId = useMemo(() => {
     const m = new Map<string, PDVTable>();
