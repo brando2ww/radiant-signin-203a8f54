@@ -131,6 +131,8 @@ export const CheckoutFlow = ({
         return "Pagamento";
       case "confirmation":
         return "Confirmar Pedido";
+      case "tracking":
+        return "Acompanhar Pedido";
     }
   };
 
