@@ -129,19 +129,19 @@ export const useValidateCoupon = () => {
     mutationFn: async ({
       code,
       orderValue,
+      userId,
     }: {
       code: string;
       orderValue: number;
+      userId: string;
     }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
       const { data, error } = await supabase
         .from("delivery_coupons")
         .select("*")
+        .eq("user_id", userId)
         .eq("code", code.toUpperCase())
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         throw new Error("Cupom inválido ou expirado");
