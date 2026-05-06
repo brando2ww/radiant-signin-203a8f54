@@ -199,13 +199,13 @@ export const ProductDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>{product ? "Editar Produto" : "Novo Produto"}</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0 w-full">
+          <TabsList className="mx-6 mt-4 grid grid-cols-3 shrink-0">
             <TabsTrigger value="details">Detalhes</TabsTrigger>
             <TabsTrigger value="recipe" disabled={!product}>
               Ficha Técnica
@@ -215,101 +215,97 @@ export const ProductDialog = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="space-y-4 mt-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <ImageUpload value={currentImageUrl || undefined} onChange={handleImageForCrop} onRemove={handleRemoveImage} disabled={isUploading} />
-              <p className="text-xs text-muted-foreground flex items-center gap-1 -mt-1">
-                <Info className="h-3 w-3" />
-                Resolução ideal: 800x600px (4:3)
-              </p>
-              
-              <div className="space-y-2">
-                <Label>Categoria *</Label>
-                <Select value={categoryId} onValueChange={setCategoryId} required>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+          <TabsContent value="details" className="flex-1 min-h-0 flex flex-col mt-4 data-[state=inactive]:hidden">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
+                <ImageUpload value={currentImageUrl || undefined} onChange={handleImageForCrop} onRemove={handleRemoveImage} disabled={isUploading} />
+                <p className="text-xs text-muted-foreground flex items-center gap-1 -mt-1">
+                  <Info className="h-3 w-3" />
+                  Resolução ideal: 800x600px (4:3)
+                </p>
 
-              <div className="space-y-2">
-                <Label>Nome *</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
+                <div className="space-y-2">
+                  <Label>Categoria *</Label>
+                  <Select value={categoryId} onValueChange={setCategoryId} required>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Descrição</Label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-              </div>
+                <div className="space-y-2">
+                  <Label>Nome *</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} required />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Descrição</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Preço Base *</Label>
-                  <CurrencyInput
-                    value={basePrice}
-                    onChange={setBasePrice}
-                  />
+                  <div className="space-y-2">
+                    <Label>Preço Base *</Label>
+                    <CurrencyInput value={basePrice} onChange={setBasePrice} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preço Promocional</Label>
+                    <CurrencyInput value={promotionalPrice} onChange={setPromotionalPrice} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Preço Promocional</Label>
-                  <CurrencyInput
-                    value={promotionalPrice}
-                    onChange={setPromotionalPrice}
-                  />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tempo de Preparo (min)</Label>
+                    <Input type="number" value={preparationTime} onChange={(e) => setPreparationTime(e.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Serve (pessoas)</Label>
+                    <Input type="number" value={serves} onChange={(e) => setServes(e.target.value)} required />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Disponível</Label>
+                    <Switch checked={isAvailable} onCheckedChange={setIsAvailable} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label>Produto em destaque</Label>
+                    <Switch checked={isFeatured} onCheckedChange={setIsFeatured} />
+                  </div>
+                </div>
+
+                {/* Available Days */}
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <Label>Disponível nos dias</Label>
+                    <p className="text-xs text-muted-foreground">Deixe todos desmarcados para disponibilidade diária</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {WEEKDAYS.map((day) => (
+                      <label
+                        key={day.value}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
+                          availableDays.includes(day.value)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "hover:bg-muted"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={availableDays.includes(day.value)}
+                          onCheckedChange={() => toggleDay(day.value)}
+                          className="sr-only"
+                        />
+                        {day.label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tempo de Preparo (min)</Label>
-                  <Input type="number" value={preparationTime} onChange={(e) => setPreparationTime(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Serve (pessoas)</Label>
-                  <Input type="number" value={serves} onChange={(e) => setServes(e.target.value)} required />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Disponível</Label>
-                  <Switch checked={isAvailable} onCheckedChange={setIsAvailable} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label>Produto em destaque</Label>
-                  <Switch checked={isFeatured} onCheckedChange={setIsFeatured} />
-                </div>
-              </div>
-
-              {/* Available Days */}
-              <div className="rounded-lg border p-4 space-y-3">
-                <div>
-                  <Label>Disponível nos dias</Label>
-                  <p className="text-xs text-muted-foreground">Deixe todos desmarcados para disponibilidade diária</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {WEEKDAYS.map((day) => (
-                    <label
-                      key={day.value}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
-                        availableDays.includes(day.value)
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "hover:bg-muted"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={availableDays.includes(day.value)}
-                        onCheckedChange={() => toggleDay(day.value)}
-                        className="sr-only"
-                      />
-                      {day.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <DialogFooter>
+              <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                 <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending || isUploading}>
                   {isUploading ? "Enviando..." : product ? "Salvar" : "Criar"}
@@ -318,13 +314,13 @@ export const ProductDialog = ({
             </form>
           </TabsContent>
 
-          <TabsContent value="recipe" className="mt-4">
+          <TabsContent value="recipe" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-4 data-[state=inactive]:hidden">
             {product && (
               <DeliveryRecipeManager productId={product.id} productPrice={product.base_price} />
             )}
           </TabsContent>
 
-          <TabsContent value="options" className="mt-4">
+          <TabsContent value="options" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 mt-4 data-[state=inactive]:hidden">
             <ProductOptionsManager productId={product?.id} />
           </TabsContent>
         </Tabs>
