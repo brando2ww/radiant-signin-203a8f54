@@ -1,32 +1,54 @@
-## Corrigir scroll do diálogo "Editar Opção"
+## Contexto
 
-O `DialogContent` está com `display: grid` herdado do shadcn (`grid w-full max-w-lg`) sobrepondo nossa classe `grid grid-rows-[auto_1fr_auto]`, e isso somado a `gap-4` do shadcn faz a área central não ter altura definida em alguns casos — o conteúdo transborda sem ativar o scroll.
-
-### Mudanças em `src/components/delivery/ProductOptionDialog.tsx`
-
-Trocar o `DialogContent` (linhas 188-197) para flex-col, que é mais previsível:
+O arquivo `src/components/pdv/ProductOptionDialog.tsx` não existe — as opções do produto no PDV são gerenciadas dentro de `src/components/pdv/ProductDialog.tsx` (na aba "Opções", via `PDVProductOptionsManager`). É justamente esse dialog que tem o problema descrito:
 
 ```tsx
-<DialogContent
-  ref={dialogContentRef}
-  hideOverlay
-  className="max-w-2xl w-[95vw] h-[85vh] max-h-[85vh] p-0 gap-0 flex flex-col overflow-hidden"
->
-  <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
-    <DialogTitle>{option ? "Editar Opção" : "Nova Opção"}</DialogTitle>
-  </DialogHeader>
-
-  <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
+<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
 ```
 
-E no `DialogFooter` (linha 433) garantir `shrink-0`:
+O `overflow-y-auto` está no container inteiro, então header e footer rolam junto e os botões "Cancelar/Salvar" somem quando há muitos itens.
+
+(Observação: o `ProductOptionDialog.tsx` em `src/components/delivery/` já foi corrigido em iteração anterior com `flex flex-col overflow-hidden` + `shrink-0` no header/footer + `flex-1 min-h-0 overflow-y-auto` no meio. Vou aplicar o mesmo padrão aqui.)
+
+## Mudanças em `src/components/pdv/ProductDialog.tsx`
+
+**1. `DialogContent` (linha 327)** — trocar para layout flex de altura fixa, sem scroll global:
+
+```tsx
+<DialogContent className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden">
+```
+
+**2. `DialogHeader` (linhas 328-335)** — fixo no topo:
+
+```tsx
+<DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+```
+
+**3. Reestruturar o `<form>` (linha 337)** para também ser flex column ocupando 100%, e envolver as `Tabs` em um wrapper com scroll:
+
+```tsx
+<form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+  <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+    <Tabs defaultValue="basic">
+      ...
+    </Tabs>
+  </div>
+
+  <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
+    ...
+  </DialogFooter>
+</form>
+```
+
+**4. `DialogFooter` (linha 998)** — fixo na base com borda:
 
 ```tsx
 <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
 ```
 
-### Por que resolve
+## Resultado esperado
 
-- `flex flex-col` + `flex-1 min-h-0` na área central é o padrão consagrado para scroll interno em modais de altura fixa, e não conflita com o `grid` default do shadcn (a classe `flex` ganha de `grid` no twMerge porque vem depois e ambas são `display`).
-- `shrink-0` no header e footer impede que eles sejam comprimidos quando o conteúdo é grande.
-- `gap-0` remove o `gap-4` herdado que estava criando espaço entre as linhas e atrapalhando o cálculo de altura.
+- Header com título "Editar/Novo Produto" sempre visível no topo.
+- Conteúdo central (todas as abas: Básico, Preços, Receita, Opções, Fiscal) com scroll interno próprio.
+- Botões "Cancelar" e "Salvar/Criar" sempre visíveis na base, mesmo com 10+ itens de opção cadastrados.
+- A `TabsList` de 5 colunas continua dentro da área com scroll (rola junto com o conteúdo).
