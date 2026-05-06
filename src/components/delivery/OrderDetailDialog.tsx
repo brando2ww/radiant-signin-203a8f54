@@ -49,7 +49,7 @@ interface OrderDetailDialogProps {
 }
 
 const statusFlow = {
-  pending: "confirmed",
+  pending: "preparing",
   confirmed: "preparing",
   preparing: "ready",
   ready: "delivering",
@@ -57,7 +57,7 @@ const statusFlow = {
 };
 
 const statusLabels = {
-  pending: "Confirmar Pedido",
+  pending: "Confirmar e Iniciar Preparo",
   confirmed: "Iniciar Preparo",
   preparing: "Marcar como Pronto",
   ready: "Saiu para Entrega",
