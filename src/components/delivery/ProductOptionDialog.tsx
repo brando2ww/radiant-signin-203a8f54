@@ -82,6 +82,7 @@ export const ProductOptionDialog = ({
       setIsRequired(option.is_required);
       setMinSelections(option.min_selections);
       setMaxSelections(option.max_selections);
+      setAllowQuantity(!!(option as any).allow_quantity);
       setItems(
         option.items?.map((item) => ({
           name: item.name,
@@ -98,6 +99,7 @@ export const ProductOptionDialog = ({
       setIsRequired(false);
       setMinSelections(0);
       setMaxSelections(1);
+      setAllowQuantity(false);
       setItems([{ name: "", price_adjustment: 0, is_available: true }]);
     }
   }, [option, open]);
