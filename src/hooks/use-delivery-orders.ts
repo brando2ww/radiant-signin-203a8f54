@@ -54,6 +54,7 @@ export interface DeliveryOrderItemOption {
   option_name: string;
   item_name: string;
   price_adjustment: number;
+  quantity?: number;
 }
 
 export const useDeliveryOrders = (status?: string) => {
