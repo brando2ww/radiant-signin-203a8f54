@@ -1,53 +1,95 @@
-## Correções definitivas — Cards e Modal de Opções
+## Redesign completo — Gerenciar Cardápio
 
-Hipótese nova:
-- **Cards**: o `<Card>` do shadcn já tem `rounded-lg` mas o `flex flex-col` interno não força a coluna a respeitar a largura; o conteúdo ainda transborda porque o wrapper interno `flex gap-3 p-3` não tem `min-w-0` e o `<div>` da imagem fica fora do bloco que reserva espaço para o texto. Solução: adicionar `min-w-0` em todos os flex-children que carregam texto e remover overflow só no nome (dropdown ⋮ está consumindo espaço).
-- **Modal**: o `DialogContent` da shadcn aplica `grid` nativo. O `flex flex-col` aplicado por className entra em conflito com `grid` original (twMerge não substitui `grid` por `flex` confiavelmente em todos casos quando vem em ordem específica, mas o problema real é `max-h-[90vh]` sem altura fixa: quando o conteúdo é menor que 90vh ele não rola, e se for maior, o `flex-1` interno depende de o pai ter altura. Como o pai usa `max-h-[90vh]` (não `h-[90vh]`), o flex item `flex-1` colapsa para o tamanho do conteúdo e o overflow é perdido). Solução: usar `h-[85vh]` (altura fixa) + `grid grid-rows-[auto_1fr_auto]` para garantir que a linha do meio sempre tenha espaço definido para rolar.
+Reescrita do `MenuTab.tsx` com componentes auxiliares e um novo Drawer de edição substituindo o `ProductDialog` modal central.
 
-### Mudanças
+### Arquitetura
 
-**`src/components/delivery/ProductOptionDialog.tsx`** (linha ~188)
-
-Trocar:
-```tsx
-<DialogContent ref={dialogContentRef} hideOverlay className="max-w-2xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
-  <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
-    <DialogTitle>...</DialogTitle>
-  </DialogHeader>
-  <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-6">
+```text
+src/components/delivery/
+├─ MenuTab.tsx                    (reescrito)
+├─ menu/
+│  ├─ MenuToolbar.tsx             (header sticky + busca + filtros)
+│  ├─ CategorySection.tsx         (seção colapsável da categoria)
+│  ├─ ProductCard.tsx             (card horizontal redesenhado)
+│  ├─ ProductDrawer.tsx           (drawer lateral substitui ProductDialog)
+│  └─ EmptyState.tsx              (estados vazios)
 ```
-por:
-```tsx
-<DialogContent
-  ref={dialogContentRef}
-  hideOverlay
-  className="max-w-2xl w-[95vw] h-[85vh] p-0 grid grid-rows-[auto_1fr_auto] gap-0 overflow-hidden"
->
-  <DialogHeader className="px-6 pt-6 pb-4 border-b">
-    <DialogTitle>...</DialogTitle>
-  </DialogHeader>
-  <div className="overflow-y-auto px-6 py-4 space-y-6 min-h-0">
-```
-E o `<DialogFooter>` (linha ~411):
-```tsx
-<DialogFooter className="px-6 py-4 border-t bg-background">
-```
-(remover `shrink-0` — desnecessário no grid).
 
-**`src/components/delivery/MenuTab.tsx`** — `SortableProductCard` (linha ~137)
+### MenuToolbar (sticky)
 
-O wrapper `<div className="flex gap-3 p-3 flex-1 min-w-0">` é flex-row dentro de Card flex-col. Substituir por:
-```tsx
-<div className="flex gap-3 p-3 flex-1 min-w-0 w-full">
+- `sticky top-0 z-30 bg-background/95 backdrop-blur border-b -mx-* px-*`
+- Linha 1: título "Gerenciar Cardápio" + subtítulo + botões "Nova Categoria" e "Novo Produto" sempre visíveis.
+- Linha 2: busca à esquerda (com ícone), filtros rápidos à direita usando `ToggleGroup`:
+  `Todos | Disponíveis | Indisponíveis | Com promoção`.
+- Estado de filtros ergue até `MenuTab` que aplica em `productsByCategory`.
+
+### CategorySection
+
+Layout do header (mantendo Accordion):
+- Drag handle (`GripVertical`) à esquerda
+- Nome bold (`text-lg`) + badge "{n} produtos" + badge "Inativa" condicional
+- À direita: `Switch` de visibilidade pública (`is_active`), botão "Adicionar produto", menu ⋮ (Editar, Excluir)
+- Separador visual claro entre categorias (`space-y-6` + border-rounded card)
+
+### ProductCard (novo layout horizontal)
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ ⋮⋮  [img 80x80]  Nome do produto                  [Toggle] ⋮ │
+│                  Descrição em até 2 linhas...                  │
+│                  ⏱ 30 min · 👥 2 pessoas · ⚙ 3 opções          │
+│                  R$ 159,00 (riscado)  R$ 149,00 (verde)        │
+└───────────────────────────────────────────────────────────────┘
 ```
-e o bloco da direita (linha ~160):
-```tsx
-<div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+- Card largura total da coluna (uma coluna em <md, duas em ≥xl).
+- `min-w-0`, `overflow-hidden`, `line-clamp-2` em descrição.
+- Imagem `h-20 w-20 rounded-md object-cover shrink-0`. Placeholder com ícone `ImageIcon` em `bg-muted`.
+- Tags em linha com `Clock`, `Users`, `Settings2` (lucide), `text-xs text-muted-foreground`.
+- Preço promocional em `text-success` (semantic token; se não existir, usar `text-primary`).
+- Toggle Disponível: `Switch` grande à direita; quando off → card com `opacity-60` e badge "Indisponível" sobreposta na imagem (`absolute inset-0 bg-destructive/80 text-destructive-foreground`).
+- Menu ⋮: Editar, Duplicar, Mover para categoria (submenu com lista), Excluir.
+- Hover: `hover:border-primary/40 hover:shadow-sm transition`.
+- Click no card (fora dos controles) abre drawer.
+
+### ProductDrawer
+
+Substitui `ProductDialog` apenas no fluxo de Cardápio (mantém ProductDialog para outros fluxos se houver). Usa `Sheet` do shadcn:
+- `SheetContent side="right" className="w-full sm:max-w-xl lg:max-w-2xl p-0 flex flex-col"`
+- Header sticky (nome + close)
+- Body scroll independente (`flex-1 overflow-y-auto`)
+- Footer sticky com Cancelar + Salvar
+- Seções: Informações básicas, Imagem, Disponibilidade & Visibilidade, Grupos de Opções, Categoria.
+- Reaproveita os campos e mutations já existentes em `ProductDialog`.
+
+### Estados vazios (EmptyState)
+
+- Sem categorias: card grande centralizado, ícone `LayoutGrid`, texto e botão "Criar primeira categoria".
+- Categoria sem produtos: bloco interno com texto + botão "Adicionar produto a esta categoria".
+
+### Mover para categoria
+
+Submenu no ⋮ do produto listando outras categorias; ao escolher, chama `useUpdateProduct` com `category_id` novo.
+
+### Filtros rápidos
+
+```ts
+type QuickFilter = "all" | "available" | "unavailable" | "promo";
 ```
-adicionando `overflow-hidden` para impedir que descrições muito longas empurrem badges para fora do card.
 
-### Verificação
+Aplicado dentro de `productsByCategory`/`filteredProducts`.
 
-Após as edições, abrir `/pdv/delivery/cardapio` no navegador, abrir um modal de opção com muitos itens e confirmar:
-1. Cards renderizam com texto truncado, badges visíveis no rodapé.
-2. Modal de "Editar Opção" mostra header fixo, lista de itens rolável, e Salvar/Cancelar fixos no rodapé.
+### Detalhes técnicos
+
+- `move-to-category` — usar `DropdownMenuSub` do shadcn. Se não existir, listar categorias inline.
+- Toast de sucesso/erro em todas mutations já existentes.
+- Drag-and-drop inter-categoria não vai entrar nesta iteração (apenas dentro da categoria + reorder de categorias) — explicitamente fora do escopo para manter tamanho gerenciável.
+- Sem novas dependências.
+- Sem mudanças de schema/SQL.
+
+### Critério de aceite
+
+- 1280 / 1440 / 1920px sem overflow horizontal nem cortes.
+- Header e botões sempre acessíveis durante scroll.
+- Drawer de edição abre, rola internamente, salva e fecha sem reload.
+- Toggle de disponibilidade muda instantaneamente com optimistic-feel via React Query.
