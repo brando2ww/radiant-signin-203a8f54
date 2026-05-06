@@ -77,7 +77,7 @@ export const ShoppingCart = ({
 
   const handleApplyCoupon = () => {
     validateCoupon.mutate(
-      { code: couponCode, orderValue: subtotal },
+      { code: couponCode, orderValue: subtotal, userId },
       {
         onSuccess: (data) => {
           setAppliedCoupon({
