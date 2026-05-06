@@ -5,6 +5,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { CustomerIdentification } from "./checkout/CustomerIdentification";
 import { CustomerData } from "./checkout/CustomerData";
 import { DeliveryAddress } from "./checkout/DeliveryAddress";
