@@ -142,69 +142,88 @@ export const CheckoutFlow = ({
     }
   };
 
+  const isTracking = currentStep === "tracking" && !!trackingOrderId;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{getStepTitle()}</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open && !isTracking} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{getStepTitle()}</DialogTitle>
+          </DialogHeader>
 
-        {currentStep === "phone" && (
-          <CustomerIdentification onConfirm={handlePhoneConfirmed} />
-        )}
+          {currentStep === "phone" && (
+            <CustomerIdentification onConfirm={handlePhoneConfirmed} />
+          )}
 
-        {currentStep === "customer-data" && customer && (
-          <CustomerData
-            customer={customer}
-            onConfirm={handleCustomerDataConfirmed}
-            onBack={() => setCurrentStep("phone")}
-          />
-        )}
+          {currentStep === "customer-data" && customer && (
+            <CustomerData
+              customer={customer}
+              onConfirm={handleCustomerDataConfirmed}
+              onBack={() => setCurrentStep("phone")}
+            />
+          )}
 
-        {currentStep === "address" && customer && (
-          <DeliveryAddress
-            customerId={customer.id}
-            userId={userId}
-            onConfirm={handleAddressConfirmed}
-            onBack={() => setCurrentStep(customer.name ? "phone" : "customer-data")}
-          />
-        )}
+          {currentStep === "address" && customer && (
+            <DeliveryAddress
+              customerId={customer.id}
+              userId={userId}
+              onConfirm={handleAddressConfirmed}
+              onBack={() => setCurrentStep(customer.name ? "phone" : "customer-data")}
+            />
+          )}
 
-        {currentStep === "payment" && (
-          <PaymentMethod
-            userId={userId}
-            total={effectiveTotal}
-            onConfirm={handlePaymentConfirmed}
-            onBack={() => setCurrentStep("address")}
-          />
-        )}
+          {currentStep === "payment" && (
+            <PaymentMethod
+              userId={userId}
+              total={effectiveTotal}
+              onConfirm={handlePaymentConfirmed}
+              onBack={() => setCurrentStep("address")}
+            />
+          )}
 
-        {currentStep === "confirmation" && customer && (
-          <OrderConfirmation
-            userId={userId}
-            customer={customer}
-            cart={cart}
-            orderType={orderType}
-            addressText={addressText}
-            paymentMethod={paymentMethod}
-            changeFor={changeFor}
-            subtotal={subtotal}
-            deliveryFee={effectiveDeliveryFee}
-            discount={discount}
-            couponCode={couponCode}
-            total={effectiveTotal}
-            notes={notes}
-            onNotesChange={setNotes}
-            onConfirm={handleOrderPlaced}
-            onBack={() => setCurrentStep("payment")}
-            selectedAddressId={selectedAddressId}
-          />
-        )}
+          {currentStep === "confirmation" && customer && (
+            <OrderConfirmation
+              userId={userId}
+              customer={customer}
+              cart={cart}
+              orderType={orderType}
+              addressText={addressText}
+              paymentMethod={paymentMethod}
+              changeFor={changeFor}
+              subtotal={subtotal}
+              deliveryFee={effectiveDeliveryFee}
+              discount={discount}
+              couponCode={couponCode}
+              total={effectiveTotal}
+              notes={notes}
+              onNotesChange={setNotes}
+              onConfirm={handleOrderPlaced}
+              onBack={() => setCurrentStep("payment")}
+              selectedAddressId={selectedAddressId}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
-        {currentStep === "tracking" && trackingOrderId && (
-          <OrderTrackingView orderId={trackingOrderId} onClose={handleCloseTracking} />
-        )}
-      </DialogContent>
-    </Dialog>
+      <Sheet open={open && isTracking} onOpenChange={(o) => !o && handleCloseTracking()}>
+        <SheetContent
+          side="bottom"
+          className="h-[92vh] sm:h-auto sm:max-h-[85vh] sm:max-w-2xl sm:mx-auto rounded-t-2xl p-0 flex flex-col"
+        >
+          <div className="flex justify-center pt-2 pb-1 shrink-0">
+            <div className="h-1 w-12 rounded-full bg-muted" />
+          </div>
+          <SheetHeader className="px-5 pb-3 shrink-0 text-left">
+            <SheetTitle>Acompanhar pedido</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden px-4 pb-4">
+            {trackingOrderId && (
+              <OrderTrackingView orderId={trackingOrderId} onClose={handleCloseTracking} />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 };
