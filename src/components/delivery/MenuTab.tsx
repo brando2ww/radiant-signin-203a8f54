@@ -412,7 +412,7 @@ const SortableCategorySection = ({
               items={filteredProducts.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 auto-rows-fr items-stretch">
                 {filteredProducts.map((product, index) => (
                   <SortableProductCard
                     key={product.id}
