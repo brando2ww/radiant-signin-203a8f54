@@ -1,28 +1,77 @@
-## Ajuste: cliente confirma recebimento, restaurante confirma pagamento
+# Reformular tela "Acompanhar Pedido"
 
-A confirmação de **pagamento** continua exclusiva do operador de caixa (já implementado, com trigger que bloqueia conclusão sem `cashier_confirmed_at`). Vou adicionar uma camada paralela de **confirmação de recebimento pelo cliente**, que é apenas informativa e nunca conclui o pedido nem dá baixa financeira.
+Hoje a tela aparece como dialog centralizado e tem layout pouco amigável (lista crua de etapas, sem destaque do status atual, sem hierarquia visual). Vamos transformar em um **bottom sheet** que sobe da parte de baixo no mobile e ficar como dialog centralizado em telas grandes, com UX mais clara.
 
-### Mudanças
+## 1. Trocar Dialog por Sheet (bottom) na etapa de tracking
 
-**1. Migration**
-- Adicionar coluna `customer_delivery_confirmed_at timestamptz` em `delivery_orders` (nullable).
-- Política RLS adicional para `UPDATE` por `anon`/`authenticated` permitindo atualizar **somente** essa coluna (com `WITH CHECK` que verifica `payment_status`, `status` e `cashier_confirmed_at` permaneceram inalterados em relação à linha original).
+Em `src/components/public-menu/CheckoutFlow.tsx`:
 
-**2. `src/components/public-menu/checkout/OrderTrackingView.tsx`**
-- Quando `status === 'delivering'` e ainda não confirmado pelo cliente: exibir botão **"Confirmar recebimento"** com nota: *"Isso apenas avisa o restaurante que você recebeu. O pagamento é registrado separadamente no caixa."*
-- Ao clicar, faz `update delivery_orders set customer_delivery_confirmed_at = now()` (RLS garante que só esse campo passa).
-- Quando já confirmado, exibe badge "Recebimento confirmado por você" com timestamp.
-- A timeline ganha indicador secundário "✓ Cliente confirmou recebimento" entre as etapas "Saiu para entrega" e "Aguardando pagamento" (não substitui nenhuma etapa existente).
+- Quando `currentStep === "tracking"`, **não** renderizar dentro do `<Dialog>` atual. Em vez disso, renderizar um `<Sheet side="bottom">` separado (componente `@/components/ui/sheet`) controlado pelo mesmo `open`.
+- O Sheet terá:
+  - `side="bottom"`
+  - Altura: `h-[92vh]` no mobile, `sm:h-auto sm:max-h-[85vh]` em telas maiores
+  - Cantos arredondados no topo (`rounded-t-2xl`)
+  - Indicador de "puxar" (drag handle): uma barrinha `h-1 w-12 rounded-full bg-muted` centralizada no topo
+  - Conteúdo scrollável internamente; rodapé sticky com botões
+- O Dialog original continua usado para os outros steps (phone, address, payment, confirmation).
 
-**3. `src/components/pdv/cashier/DeliveryQueueCard.tsx`**
-- Quando `customer_delivery_confirmed_at` está preenchido E pedido ainda em `delivering` sem pagamento: badge informativo verde **"Cliente confirmou recebimento"** ao lado do "Aguardando pagamento". Ajuda o operador a priorizar o registro no caixa.
+## 2. Redesenhar `OrderTrackingView.tsx`
 
-**4. `src/hooks/use-delivery-orders.ts`**
-- Adicionar `customer_delivery_confirmed_at: string | null` ao tipo `DeliveryOrder`.
+Reorganizar o conteúdo em blocos com hierarquia clara:
 
-### Regras preservadas
+### a) Header de status (hero)
 
-- Botão de "Marcar entregue" continua bloqueado para pagamento na entrega sem registro no caixa.
-- Trigger SQL `delivery_block_unpaid_completion` continua impedindo `status = 'completed'` sem `cashier_confirmed_at`.
-- Confirmação do cliente NÃO altera `status`, `payment_status`, nem `cashier_confirmed_at`.
-- Pagamento (registro de recebimento financeiro) permanece exclusivo do operador via `usePDVDeliveryCheckout`.
+Bloco no topo com fundo `bg-muted/40 rounded-xl p-4`:
+- Ícone grande do status atual (ex.: `Clock`, `ChefHat`, `Bike`, `CheckCircle2`) à esquerda dentro de um círculo `bg-primary/10`
+- Título grande do status atual ("Em preparo", "Saiu para entrega", etc.)
+- Subtítulo curto explicativo ("Seu pedido está sendo preparado pela cozinha")
+- Pedido `#0042` e tempo decorrido em badge pequeno
+
+Mapeamento status → label/descrição/ícone fica numa constante no topo do arquivo.
+
+### b) Timeline vertical compacta
+
+Substituir a lista atual por timeline vertical com **linha conectora** entre os ícones:
+- Etapas concluídas: ícone preenchido + linha sólida
+- Etapa atual: ícone com pulse + linha tracejada para a próxima
+- Futuras: ícone outline + linha pontilhada `border-muted`
+- Cada etapa mostra label e, quando concluída, horário (ex.: "15:32")
+- Para pedidos offline, etapa "Aguardando pagamento no caixa" entra entre "Saiu para entrega" e "Entregue"
+- Indicador secundário "Você confirmou recebimento às HH:MM" aparece sob "Saiu para entrega" quando `customer_delivery_confirmed_at` está setado (não substitui passo).
+
+### c) Card de pagamento
+
+Manter card de forma de pagamento, mas:
+- Para online pago: badge verde "Pago"
+- Para offline: badge amarelo "Pagar na entrega" + linha de troco quando aplicável
+- Total em destaque à direita
+
+### d) Banner de ação contextual
+
+Substituir o aviso atual e bloco de confirmação por um único banner colorido por contexto, exibido logo abaixo do header:
+- Status `delivering` + offline + não pago → amarelo "Tenha o pagamento pronto" com troco
+- Status `delivering` + ainda não confirmou recebimento → neutro com botão grande "Já recebi meu pedido"
+- Já confirmou → verde "Recebimento confirmado às HH:MM" (texto adicional explicando que o restaurante ainda registra o pagamento, se offline)
+- Cancelado → vermelho com motivo
+
+### e) Rodapé sticky
+
+Container fixo no fim com `border-t bg-background p-4 sticky bottom-0`:
+- Botão primário grande "Confirmar recebimento" (quando aplicável); senão botão "Fechar" outline em largura total
+- Quando ambos cabíveis (recebimento ainda não confirmado): "Confirmar recebimento" primário + "Fechar" secundário em coluna no mobile, lado a lado em `sm:`
+
+## 3. Detalhes técnicos
+
+- Importar `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle` de `@/components/ui/sheet`.
+- Usar `Lucide`: `ClipboardList`, `ChefHat`, `Bike`, `CheckCircle2`, `Clock`, `XCircle`, `AlertCircle`, `Banknote`, `CreditCard`, `Smartphone`.
+- Cores: respeitar tokens (`bg-card`, `text-foreground`, `bg-muted`, `border-primary`, `bg-primary/10`); evitar gradientes/cores fora do design system (memory rule).
+- Datas formatadas com `date-fns` + `ptBR` locale para "às HH:mm".
+- Manter contrato de props (`orderId`, `onClose`) e regras de RLS já implementadas (somente coluna `customer_delivery_confirmed_at`).
+- Não alterar fluxo de pagamento — confirmação de pagamento continua exclusiva do caixa.
+
+## Arquivos afetados
+
+- `src/components/public-menu/CheckoutFlow.tsx` — usar `Sheet` para o step tracking
+- `src/components/public-menu/checkout/OrderTrackingView.tsx` — reescrever layout com hero, timeline conectada, banner contextual, rodapé sticky
+
+Sem mudanças em banco, hooks ou regras de negócio.
