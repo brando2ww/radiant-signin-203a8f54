@@ -1,50 +1,25 @@
 ## Problema
 
-Após a tentativa de aplicar `flex flex-col overflow-hidden` direto no `DialogContent` do `ProductDialog.tsx`, o scroll interno ainda não funciona. O `DialogContent` do shadcn (`src/components/ui/dialog.tsx`) renderiza com `grid w-full max-w-lg ... gap-4` e inclui um `<DialogPrimitive.Close>` posicionado absoluto. O `tailwind-merge` deveria resolver `grid` → `flex`, mas o componente `<Form>` do react-hook-form (Provider sem DOM) e o `<form>` real ficam disputando contexto de altura. Resultado: `flex-1 min-h-0` não tem altura efetiva para limitar o scroll.
+No `src/components/delivery/ProductDialog.tsx` (cardápio do delivery, ex.: "Combo 2 Temaki"), o scroll interno não funciona. O `DialogContent` usa apenas `max-h-[90vh]` sem altura intrínseca (`h-[90vh]`). Com `flex flex-col`, os filhos com `flex-1 min-h-0` não têm altura de referência para se limitar — então o conteúdo cresce além do viewport, o footer some e o scroll interno do `TabsContent` (com `overflow-y-auto`) nunca é ativado.
 
-## Solução
+Mesmo padrão que já corrigimos no `src/components/pdv/ProductDialog.tsx`.
 
-Não depender do layout flex direto no `DialogContent`. Criar um `div` wrapper interno que controla altura, flex e overflow — isolado dos estilos do Radix.
+## Mudança
 
-## Mudanças em `src/components/pdv/ProductDialog.tsx`
+**`src/components/delivery/ProductDialog.tsx` (linha 195)**
 
-**1. `DialogContent` (linha 327)** — manter altura fixa, mas remover `flex flex-col` daqui:
+Trocar:
 ```tsx
-<DialogContent className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden">
+<DialogContent className="max-w-3xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
 ```
 
-**2. Adicionar wrapper interno** logo após `DialogContent` que define o layout flex de altura total:
+Por:
 ```tsx
-<div className="flex flex-col h-full max-h-full overflow-hidden">
-  <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">...</DialogHeader>
-
-  <div className="flex-1 min-h-0 overflow-y-auto">
-    <Form {...form}>
-      <form onSubmit={handleSubmit} id="pdv-product-form">
-        <div className="px-6 py-4">
-          <Tabs defaultValue="basic">...</Tabs>
-        </div>
-      </form>
-    </Form>
-  </div>
-
-  <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
-    <Button type="button" variant="outline" onClick={...}>Cancelar</Button>
-    <Button type="submit" form="pdv-product-form" disabled={...}>...</Button>
-  </DialogFooter>
-</div>
+<DialogContent className="max-w-3xl w-[95vw] h-[90vh] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
 ```
 
-**3. Mover o footer para fora do `<form>`** — usar `form="pdv-product-form"` no botão Salvar para que o submit continue funcionando, mantendo o footer fixo fora da área de scroll.
-
-**4. Remover** as classes `flex-1 min-h-0 flex flex-col` do `<form>` e o div wrapper antigo `flex-1 min-h-0 overflow-y-auto px-6 py-4` que envolvia as Tabs (substituídos pela nova estrutura acima).
-
-## Por que resolve
-
-- O `div` wrapper com `h-full overflow-hidden flex flex-col` cria contexto de layout independente, fora do alcance do `grid`/`gap-4` do shadcn DialogContent.
-- O scroll fica num `div` puro (não no `<form>`), eliminando o problema do `display: block` padrão do form.
-- Footer fora do `<form>` + atributo `form="..."` no botão garante submit funcional sem participar do scroll.
+A adição de `h-[90vh]` dá altura intrínseca ao container flex; com isso o `Tabs` `flex-1 min-h-0` passa a ter espaço definido e o `overflow-y-auto` dos `TabsContent` (Detalhes, Ficha Técnica, Opções e Complementos) finalmente ativa o scroll interno enquanto header e footer permanecem fixos.
 
 ## Validação
 
-Abrir um produto na aba "Composição" ou "Opções" com 10+ itens — título e botões Cancelar/Salvar devem permanecer fixos enquanto o meio rola.
+Abrir um produto com várias opções (ex.: "Combo 2 Temaki") na aba "Opções e Complementos" — a lista deve rolar dentro do dialog enquanto o título e os botões "Cancelar/Salvar" permanecem visíveis.
