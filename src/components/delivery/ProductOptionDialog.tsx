@@ -67,6 +67,7 @@ export const ProductOptionDialog = ({
   const [isRequired, setIsRequired] = useState(false);
   const [minSelections, setMinSelections] = useState(0);
   const [maxSelections, setMaxSelections] = useState(1);
+  const [allowQuantity, setAllowQuantity] = useState(false);
   const [items, setItems] = useState<OptionItemWithIngredient[]>([
     { name: "", price_adjustment: 0, is_available: true },
   ]);
@@ -157,6 +158,7 @@ export const ProductOptionDialog = ({
       min_selections: type === "multiple" ? minSelections : 0,
       max_selections: type === "multiple" ? maxSelections : 1,
       order_position: option?.order_position || 0,
+      allow_quantity: type === "multiple" ? allowQuantity : false,
       items: items.map((item, index) => ({
         name: item.name,
         price_adjustment: item.price_adjustment,
@@ -166,7 +168,7 @@ export const ProductOptionDialog = ({
         ingredient_quantity: item.ingredient_quantity,
         ingredient_unit: item.ingredient_unit,
       })),
-    });
+    } as any);
 
     onOpenChange(false);
   };
