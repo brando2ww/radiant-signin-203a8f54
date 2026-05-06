@@ -4,14 +4,24 @@ import { Card } from "@/components/ui/card";
 import { formatBRL } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bike, CreditCard, Smartphone, Banknote, Package } from "lucide-react";
+import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight } from "lucide-react";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
 
 interface Props {
   order: DeliveryOrder;
   onRegisterPayment: (order: DeliveryOrder) => void;
   onConfirmOnline: (order: DeliveryOrder) => void;
+  onAdvanceStatus?: (order: DeliveryOrder) => void;
+  onPrintMotoboy?: (order: DeliveryOrder) => void;
 }
+
+const NEXT_STATUS_LABEL: Partial<Record<DeliveryOrder["status"], string>> = {
+  pending: "Iniciar preparo",
+  confirmed: "Iniciar preparo",
+  preparing: "Marcar pronto",
+  ready: "Saiu p/ entrega",
+  delivering: "Marcar entregue",
+};
 
 const STATUS_LABEL: Record<DeliveryOrder["status"], string> = {
   pending: "Aguardando",
