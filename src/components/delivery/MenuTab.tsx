@@ -130,11 +130,11 @@ const SortableProductCard = ({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "overflow-hidden transition-shadow",
+        "overflow-hidden transition-shadow h-full flex flex-col",
         product.is_featured && "ring-1 ring-primary/40"
       )}
     >
-      <div className="flex gap-3 p-3">
+      <div className="flex gap-3 p-3 flex-1 min-w-0">
         <button
           type="button"
           className="flex items-center px-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
@@ -157,7 +157,7 @@ const SortableProductCard = ({
           </div>
         )}
 
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex flex-col">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -234,7 +234,7 @@ const SortableProductCard = ({
             </DropdownMenu>
           </div>
 
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <div className="flex items-center gap-2 mt-auto pt-2 flex-wrap">
             {product.promotional_price ? (
               <>
                 <span className="text-xs line-through text-muted-foreground">
@@ -412,7 +412,7 @@ const SortableCategorySection = ({
               items={filteredProducts.map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 auto-rows-fr items-stretch">
                 {filteredProducts.map((product, index) => (
                   <SortableProductCard
                     key={product.id}
