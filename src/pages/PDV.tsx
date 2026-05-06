@@ -65,6 +65,8 @@ export default function PDV() {
   const location = useLocation();
   const isEvaluations = location.pathname.startsWith("/pdv/avaliacoes");
 
+  useDeliveryOrdersWatcher();
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
