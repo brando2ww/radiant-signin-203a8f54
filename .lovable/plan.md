@@ -1,88 +1,28 @@
-## Objetivo
+## Ajuste: cliente confirma recebimento, restaurante confirma pagamento
 
-Tratar o fluxo "pagar na entrega" de forma distinta do "pago online", garantindo que o pedido só seja marcado como **Entregue e pago** quando o caixa registrar o recebimento, e que o cliente veja informações claras sobre o pagamento.
+A confirmação de **pagamento** continua exclusiva do operador de caixa (já implementado, com trigger que bloqueia conclusão sem `cashier_confirmed_at`). Vou adicionar uma camada paralela de **confirmação de recebimento pelo cliente**, que é apenas informativa e nunca conclui o pedido nem dá baixa financeira.
 
----
+### Mudanças
 
-## 1. Status "Aguardando pagamento" (já existe parcialmente)
+**1. Migration**
+- Adicionar coluna `customer_delivery_confirmed_at timestamptz` em `delivery_orders` (nullable).
+- Política RLS adicional para `UPDATE` por `anon`/`authenticated` permitindo atualizar **somente** essa coluna (com `WITH CHECK` que verifica `payment_status`, `status` e `cashier_confirmed_at` permaneceram inalterados em relação à linha original).
 
-Hoje o fluxo do operador é `pending → preparing → ready → delivering → completed`. Para pedidos com pagamento na entrega, vamos:
+**2. `src/components/public-menu/checkout/OrderTrackingView.tsx`**
+- Quando `status === 'delivering'` e ainda não confirmado pelo cliente: exibir botão **"Confirmar recebimento"** com nota: *"Isso apenas avisa o restaurante que você recebeu. O pagamento é registrado separadamente no caixa."*
+- Ao clicar, faz `update delivery_orders set customer_delivery_confirmed_at = now()` (RLS garante que só esse campo passa).
+- Quando já confirmado, exibe badge "Recebimento confirmado por você" com timestamp.
+- A timeline ganha indicador secundário "✓ Cliente confirmou recebimento" entre as etapas "Saiu para entrega" e "Aguardando pagamento" (não substitui nenhuma etapa existente).
 
-- Adicionar uma sub-etapa visual **"Aguardando pagamento"** quando `status = 'delivering'` E `payment_status != 'paid'`. Não criar novo status no enum (evita migration disruptiva); usar combinação dos dois campos.
-- O botão "Marcar entregue" no `DeliveryQueueCard` para esses pedidos passa a ser **desabilitado** quando `payment_status != 'paid'`, mostrando ao invés o botão "Registrar pagamento" (que já dispara `DeliveryPaymentDialog` e marca `completed` + `delivered_at` ao confirmar via `usePDVDeliveryCheckout`).
-- Pedidos pagos online em `delivering` continuam com o botão "Marcar entregue" normal.
+**3. `src/components/pdv/cashier/DeliveryQueueCard.tsx`**
+- Quando `customer_delivery_confirmed_at` está preenchido E pedido ainda em `delivering` sem pagamento: badge informativo verde **"Cliente confirmou recebimento"** ao lado do "Aguardando pagamento". Ajuda o operador a priorizar o registro no caixa.
 
-**Arquivo:** `src/components/pdv/cashier/DeliveryQueueCard.tsx` — ajustar `NEXT_STATUS_LABEL` e a renderização condicional. `src/components/delivery/OrderStatusBadge.tsx` — aceitar prop opcional `paymentStatus` para renderizar o badge "Aguardando pagamento" em laranja quando aplicável.
+**4. `src/hooks/use-delivery-orders.ts`**
+- Adicionar `customer_delivery_confirmed_at: string | null` ao tipo `DeliveryOrder`.
 
-## 2. Confirmação automática + pagar na entrega
+### Regras preservadas
 
-`useDeliveryOrders` já trata `auto_accept_orders` corretamente para qualquer forma de pagamento (vai direto a `preparing`). Vamos apenas:
-
-- Garantir que o `payment_status` permaneça `pending` até o caixa registrar (já é o caso).
-- Quando `auto_accept_orders = false` E pagamento na entrega, o card no painel exibe rótulo extra **"Aguardando confirmação · Pagar na entrega"** no `DeliveryQueueCard` para destacar o risco que o restaurante assume.
-
-## 3. Tela do cliente (acompanhamento)
-
-Atualmente, o `OrderConfirmation` apenas dispara `onOrderComplete` e fecha o modal — não há tela de acompanhamento pós-pedido. Vamos criar uma:
-
-**Novo componente:** `src/components/public-menu/checkout/OrderTrackingView.tsx`
-
-- Recebe `orderId` e faz `useQuery` em `delivery_orders` (com realtime via subscribe no `id`).
-- Linha do tempo com 5 etapas: Recebido → Em preparo → Saiu para entrega → **Aguardando pagamento** (somente se `payment_method ∈ {cash, credit, debit}` E `payment_status != 'paid'`) → Entregue e pago.
-- Bloco fixo de pagamento exibindo:
-  - Forma escolhida (`Dinheiro` / `Cartão na entrega` / `PIX na entrega`).
-  - Se `cash` e `change_for > total`: "Levar troco para R$ X,XX" e cálculo do troco.
-  - Total destacado.
-- Quando `status = 'delivering'`: aviso amarelo "Tenha o pagamento pronto para o entregador" (com troco se aplicável).
-- Quando `status = 'cancelled'`: bloco vermelho com `cancellation_reason` e mensagem "Nenhuma cobrança realizada — pagamento na entrega não gera cobrança prévia".
-
-**Integração:** `CheckoutFlow.tsx` — em `handleOrderPlaced`, ao invés de fechar o modal, alternar para um novo `currentStep = "tracking"` que renderiza `OrderTrackingView`. O usuário pode fechar manualmente.
-
-## 4. Regra de negócio no backend (migration)
-
-Para garantir que pedido "pagar na entrega" **nunca** seja marcado como `completed` sem registro no caixa:
-
-**Migration:** trigger `BEFORE UPDATE` em `delivery_orders` que rejeita transição para `status = 'completed'` quando `payment_status != 'paid'` E `cashier_confirmed_at IS NULL` E `payment_method` é offline (`cash`, `credit`, `debit`). Pedidos com `payment_status = 'paid'` (online) passam normal.
-
-```text
-IF NEW.status = 'completed'
-   AND OLD.status <> 'completed'
-   AND NEW.payment_method IN ('cash','credit','debit')
-   AND NEW.payment_status <> 'paid'
-   AND NEW.cashier_confirmed_at IS NULL
-THEN RAISE EXCEPTION 'Pedido com pagamento na entrega só pode ser concluído após registro no caixa';
-```
-
-`usePDVDeliveryCheckout.register` já seta os 3 campos juntos, então não quebra.
-
-## 5. Alerta de atraso de pagamento
-
-Quando um pedido entra em `delivering` com pagamento na entrega, e passa de X minutos sem `cashier_confirmed_at`, alertar o gestor.
-
-**Implementação simples (client-side, sem cron):**
-- Em `SalonQueuePanel`, derivar `overduePaymentOrders = orders.filter(o => o.status==='delivering' && o.payment_status!=='paid' && minutesSince(o.updated_at) > threshold)`.
-- Threshold configurável em `delivery_settings` (novo campo `payment_overdue_minutes integer default 30`).
-- Banner no topo da fila do caixa: "⚠ N pedido(s) sem pagamento registrado há mais de X min" com lista clicável. Toast sonoro (reaproveita `/notification.mp3`) a cada novo pedido que cruza o limiar.
-
-**Migration adicional:** `ALTER TABLE delivery_settings ADD COLUMN payment_overdue_minutes integer NOT NULL DEFAULT 30;` + UI em `src/components/pdv/delivery/...Settings` (campo numérico).
-
----
-
-## Resumo das alterações
-
-**Migrations**
-1. Trigger `delivery_orders_block_unpaid_completion`.
-2. Coluna `delivery_settings.payment_overdue_minutes`.
-
-**Frontend**
-- `src/components/pdv/cashier/DeliveryQueueCard.tsx` — bloquear "Marcar entregue" quando não pago; rótulo "Aguardando pagamento" / "Aguardando confirmação · Pagar na entrega".
-- `src/components/delivery/OrderStatusBadge.tsx` — variante "Aguardando pagamento".
-- `src/components/pdv/cashier/SalonQueuePanel.tsx` — banner de pedidos com pagamento atrasado.
-- `src/components/public-menu/checkout/OrderTrackingView.tsx` — **novo** (timeline + bloco de pagamento + avisos).
-- `src/components/public-menu/CheckoutFlow.tsx` — adicionar step `"tracking"` após confirmação.
-- Arquivo de configurações de delivery — campo `payment_overdue_minutes`.
-
-**Sem alterações**
-- `useDeliveryOrders` (auto-accept já correto).
-- `usePDVDeliveryCheckout` (já marca tudo atomicamente).
-- Enum de status (não muda).
+- Botão de "Marcar entregue" continua bloqueado para pagamento na entrega sem registro no caixa.
+- Trigger SQL `delivery_block_unpaid_completion` continua impedindo `status = 'completed'` sem `cashier_confirmed_at`.
+- Confirmação do cliente NÃO altera `status`, `payment_status`, nem `cashier_confirmed_at`.
+- Pagamento (registro de recebimento financeiro) permanece exclusivo do operador via `usePDVDeliveryCheckout`.
