@@ -21,7 +21,7 @@ export interface StoreOpenStatus {
 
 interface SettingsLike {
   is_open?: boolean | null;
-  business_hours?: BusinessHours | null;
+  business_hours?: BusinessHours | null | any;
 }
 
 function nowInSP(): Date {
