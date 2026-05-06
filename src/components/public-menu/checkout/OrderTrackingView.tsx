@@ -31,6 +31,7 @@ type Order = {
   total: number;
   cancellation_reason: string | null;
   cashier_confirmed_at: string | null;
+  customer_delivery_confirmed_at: string | null;
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
