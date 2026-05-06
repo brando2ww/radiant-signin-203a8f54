@@ -246,6 +246,7 @@ export const useFullUpdateProductOption = () => {
           is_required: optionData.is_required,
           min_selections: optionData.min_selections,
           max_selections: optionData.max_selections,
+          allow_quantity: (optionData as any).allow_quantity ?? false,
         })
         .eq("id", optionId);
 
