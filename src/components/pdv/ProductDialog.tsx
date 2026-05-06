@@ -324,7 +324,8 @@ export function ProductDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden">
+      <DialogContent className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden">
+        <div className="flex flex-col h-full max-h-full overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>
             {product ? "Editar Produto" : "Novo Produto"}
@@ -333,9 +334,10 @@ export function ProductDialog({
             Configure as informações do produto para o PDV
           </DialogDescription>
         </DialogHeader>
+        <div className="flex-1 min-h-0 overflow-y-auto">
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+          <form onSubmit={handleSubmit} id="pdv-product-form">
+            <div className="px-6 py-4">
              <Tabs defaultValue="basic">
               <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="basic">Básico</TabsTrigger>
