@@ -1,0 +1,2 @@
+ALTER TABLE public.delivery_product_options ADD COLUMN IF NOT EXISTS allow_quantity boolean NOT NULL DEFAULT false;
+ALTER TABLE public.delivery_order_item_options ADD COLUMN IF NOT EXISTS quantity integer NOT NULL DEFAULT 1;
