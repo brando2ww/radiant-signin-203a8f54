@@ -221,7 +221,7 @@ export const CheckoutFlow = ({
           </SheetHeader>
           <div className="flex-1 overflow-hidden px-4 pb-4">
             {trackingOrderId && (
-              <OrderTrackingView orderId={trackingOrderId} onClose={handleCloseTracking} />
+              <OrderTrackingView orderId={trackingOrderId} onClose={handleCloseTracking} userId={userId} />
             )}
           </div>
         </SheetContent>
