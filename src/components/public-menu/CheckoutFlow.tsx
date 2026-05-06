@@ -20,6 +20,7 @@ import { OrderTrackingView } from "./checkout/OrderTrackingView";
 import { CartItem } from "@/pages/PublicMenu";
 import { DeliveryCustomer } from "@/hooks/use-delivery-customers";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
+import { setActiveOrderId } from "@/lib/active-order-storage";
 
 interface CheckoutFlowProps {
   open: boolean;
