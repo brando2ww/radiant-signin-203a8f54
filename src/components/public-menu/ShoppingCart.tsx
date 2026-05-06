@@ -61,7 +61,7 @@ export const ShoppingCart = ({
     if (initialCoupon && cart.length > 0 && !appliedCoupon && !couponAutoApplied.current) {
       couponAutoApplied.current = true;
       validateCoupon.mutate(
-        { code: initialCoupon, orderValue: subtotal },
+        { code: initialCoupon, orderValue: subtotal, userId },
         {
           onSuccess: (data) => {
             setAppliedCoupon({ code: initialCoupon, discount: data.discount });
@@ -77,7 +77,7 @@ export const ShoppingCart = ({
 
   const handleApplyCoupon = () => {
     validateCoupon.mutate(
-      { code: couponCode, orderValue: subtotal },
+      { code: couponCode, orderValue: subtotal, userId },
       {
         onSuccess: (data) => {
           setAppliedCoupon({
