@@ -64,6 +64,7 @@ export const OrderConfirmation = ({
   const createOrder = useCreateOrder();
   const earnPoints = useEarnPoints();
   const redeemPoints = useRedeemPoints();
+  const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
   const { data: customerPoints = 0 } = useCustomerPoints(userId, customer.id);
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
