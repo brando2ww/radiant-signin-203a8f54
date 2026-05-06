@@ -412,7 +412,7 @@ export const ProductOptionDialog = ({
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
+        <DialogFooter className="px-6 py-4 border-t bg-background">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
