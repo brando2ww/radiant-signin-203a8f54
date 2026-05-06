@@ -19,6 +19,7 @@ import { PaymentDialog } from "@/components/pdv/cashier/PaymentDialog";
 import { EmployeeConsumptionDialog } from "@/components/pdv/cashier/EmployeeConsumptionDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
+import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 
 export default function PDVCashier() {
   // Realtime: nova comanda do garçom aparece na fila sem reload
@@ -42,6 +43,7 @@ export default function PDVCashier() {
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
   const { updateTable } = usePDVTables();
+  const { all: deliveryOrders } = usePDVDeliveryQueue();
 
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
@@ -89,6 +91,15 @@ export default function PDVCashier() {
     const openComandas = comandas.filter(c => c.status === "aberta");
     if (openComandas.length > 0) {
       toast.error(`Existem ${openComandas.length} comanda(s) aberta(s). Feche ou cancele todas antes de encerrar o caixa.`);
+      return;
+    }
+    const pendingDelivery = deliveryOrders.filter(
+      (o) => !["completed", "cancelled"].includes(o.status),
+    );
+    if (pendingDelivery.length > 0) {
+      toast.error(
+        `Existem ${pendingDelivery.length} pedido(s) de delivery em andamento. Conclua ou cancele todos antes de encerrar o caixa.`,
+      );
       return;
     }
     setCloseDialog(true);
