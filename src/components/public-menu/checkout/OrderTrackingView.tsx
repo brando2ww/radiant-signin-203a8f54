@@ -25,6 +25,7 @@ import { ptBR } from "date-fns/locale";
 interface Props {
   orderId: string;
   onClose: () => void;
+  userId?: string;
 }
 
 type Order = {
@@ -114,7 +115,7 @@ function fmtTime(iso: string | null | undefined) {
   }
 }
 
-export const OrderTrackingView = ({ orderId, onClose }: Props) => {
+export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -131,7 +132,13 @@ export const OrderTrackingView = ({ orderId, onClose }: Props) => {
       .eq("id", orderId)
       .select(SELECT)
       .maybeSingle();
-    if (!error && data) setOrder(data as Order);
+    if (!error && data) {
+      setOrder(data as Order);
+      if (userId) {
+        const { clearActiveOrderId } = await import("@/lib/active-order-storage");
+        clearActiveOrderId(userId);
+      }
+    }
     setConfirming(false);
   };
 

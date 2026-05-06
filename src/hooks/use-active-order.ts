@@ -16,10 +16,11 @@ interface ActiveOrder {
   created_at: string;
   delivered_at: string | null;
   cancelled_at: string | null;
+  customer_delivery_confirmed_at: string | null;
 }
 
 const SELECT =
-  "id, order_number, status, payment_method, payment_status, total, created_at, delivered_at, cancelled_at";
+  "id, order_number, status, payment_method, payment_status, total, created_at, delivered_at, cancelled_at, customer_delivery_confirmed_at";
 
 export function useActiveOrder(userId: string) {
   const [orderId, setOrderId] = useState<string | null>(() => getActiveOrderId(userId));
@@ -74,25 +75,27 @@ export function useActiveOrder(userId: string) {
     };
   }, [orderId, userId]);
 
-  // Auto-limpeza após pedido finalizado/cancelado
+  // Auto-limpeza:
+  // - completed (restaurante marcou entregue) → some na hora
+  // - customer_delivery_confirmed_at (cliente confirmou) → some na hora
+  // - cancelled → mantém por 1h para o cliente ver o motivo
   useEffect(() => {
     if (!order || !orderId) return;
-    const finalTs =
-      order.status === "completed"
-        ? order.delivered_at
-        : order.status === "cancelled"
-        ? order.cancelled_at
-        : null;
-    if (!finalTs) return;
-    const finishedAt = new Date(finalTs).getTime();
-    const cutoffMs = order.status === "completed" ? 30 * 60 * 1000 : 60 * 60 * 1000;
-    const elapsed = Date.now() - finishedAt;
-    if (elapsed >= cutoffMs) {
+    if (order.status === "completed" || order.customer_delivery_confirmed_at) {
       clearActiveOrderId(userId);
       return;
     }
-    const t = setTimeout(() => clearActiveOrderId(userId), cutoffMs - elapsed);
-    return () => clearTimeout(t);
+    if (order.status === "cancelled" && order.cancelled_at) {
+      const finishedAt = new Date(order.cancelled_at).getTime();
+      const cutoffMs = 60 * 60 * 1000;
+      const elapsed = Date.now() - finishedAt;
+      if (elapsed >= cutoffMs) {
+        clearActiveOrderId(userId);
+        return;
+      }
+      const t = setTimeout(() => clearActiveOrderId(userId), cutoffMs - elapsed);
+      return () => clearTimeout(t);
+    }
   }, [order, orderId, userId]);
 
   return {

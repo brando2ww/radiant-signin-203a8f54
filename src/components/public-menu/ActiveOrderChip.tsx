@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -50,6 +50,11 @@ export const ActiveOrderChip = ({ userId }: Props) => {
   const { orderId, order, clear } = useActiveOrder(userId);
   const [open, setOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+
+  // Fecha automaticamente o sheet quando o pedido é finalizado e limpo
+  useEffect(() => {
+    if (!orderId) setOpen(false);
+  }, [orderId]);
 
   if (!orderId || !order) return null;
 
@@ -113,7 +118,7 @@ export const ActiveOrderChip = ({ userId }: Props) => {
             </Button>
           </SheetHeader>
           <div className="flex-1 overflow-hidden px-4 pb-4">
-            <OrderTrackingView orderId={orderId} onClose={() => setOpen(false)} />
+            <OrderTrackingView orderId={orderId} onClose={() => setOpen(false)} userId={userId} />
           </div>
         </SheetContent>
       </Sheet>
