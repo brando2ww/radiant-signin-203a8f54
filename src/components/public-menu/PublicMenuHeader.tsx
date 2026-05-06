@@ -2,6 +2,7 @@ import { useBusinessSettings, usePublicSettings } from "@/hooks/use-public-menu"
 import { Clock, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format";
+import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
 
 interface PublicMenuHeaderProps {
   userId: string;
