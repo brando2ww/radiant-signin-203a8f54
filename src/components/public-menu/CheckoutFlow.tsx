@@ -10,6 +10,7 @@ import { CustomerData } from "./checkout/CustomerData";
 import { DeliveryAddress } from "./checkout/DeliveryAddress";
 import { PaymentMethod } from "./checkout/PaymentMethod";
 import { OrderConfirmation } from "./checkout/OrderConfirmation";
+import { OrderTrackingView } from "./checkout/OrderTrackingView";
 import { CartItem } from "@/pages/PublicMenu";
 import { DeliveryCustomer } from "@/hooks/use-delivery-customers";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
