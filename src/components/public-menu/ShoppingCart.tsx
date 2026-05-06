@@ -12,6 +12,7 @@ import { useValidateCoupon } from "@/hooks/use-delivery-coupons";
 import { CheckoutFlow } from "./CheckoutFlow";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
 import { formatBRL } from "@/lib/format";
+import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
 import {
   Sheet,
   SheetContent,
