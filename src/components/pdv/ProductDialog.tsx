@@ -995,8 +995,9 @@ export function ProductDialog({
                 </div>
               </TabsContent>
             </Tabs>
+            </div>
 
-            <DialogFooter>
+            <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
               <Button
                 type="button"
                 variant="outline"
