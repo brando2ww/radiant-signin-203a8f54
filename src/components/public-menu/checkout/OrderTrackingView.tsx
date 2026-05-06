@@ -119,6 +119,8 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
+  const prevReachedRef = useRef<Set<string>>(new Set());
+  const justReachedRef = useRef<Set<string>>(new Set());
 
   const SELECT =
     "id, order_number, status, payment_method, payment_status, change_for, total, cancellation_reason, cashier_confirmed_at, customer_delivery_confirmed_at, created_at, confirmed_at, ready_at, delivered_at";
@@ -338,33 +340,62 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                 const isLast = idx === baseSteps.length - 1;
 
                 return (
-                  <li key={step.key} className="flex gap-3 pb-4 last:pb-0">
+                  <li
+                    key={step.key}
+                    className="flex gap-3 pb-4 last:pb-0 animate-timeline-in"
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
                     <div className="flex flex-col items-center">
-                      <div
-                        className={cn(
-                          "h-7 w-7 rounded-full flex items-center justify-center border-2 shrink-0",
-                          reached
-                            ? "bg-primary border-primary"
-                            : current
-                            ? "border-primary bg-primary/10 animate-pulse"
-                            : "border-muted bg-background",
+                      <div className="relative">
+                        {current && (
+                          <span
+                            aria-hidden
+                            className="absolute inset-0 rounded-full bg-primary/40 animate-pulse-ring"
+                          />
                         )}
-                      >
-                        {reached ? (
-                          <CheckCircle2 className="h-4 w-4 text-primary-foreground" />
-                        ) : current ? (
-                          <Clock className="h-3.5 w-3.5 text-primary" />
-                        ) : (
-                          <div className="h-2 w-2 rounded-full bg-muted-foreground/40" />
-                        )}
+                        <div
+                          className={cn(
+                            "relative rounded-full flex items-center justify-center border-2 shrink-0 transition-all duration-300",
+                            current ? "h-8 w-8" : "h-7 w-7",
+                            reached
+                              ? "bg-primary border-primary"
+                              : current
+                              ? "border-primary bg-primary/10"
+                              : "border-muted bg-background",
+                          )}
+                        >
+                          {reached ? (
+                            <CheckCircle2
+                              className={cn(
+                                "h-4 w-4 text-primary-foreground",
+                                justReachedRef.current.has(step.key) && "animate-check-draw",
+                              )}
+                            />
+                          ) : current ? (
+                            <Clock className="h-4 w-4 text-primary animate-spin-slow" />
+                          ) : (
+                            <div className="h-2 w-2 rounded-full bg-muted-foreground/40" />
+                          )}
+                        </div>
                       </div>
                       {!isLast && (
                         <div
                           className={cn(
-                            "w-0.5 flex-1 mt-1 min-h-[16px]",
-                            reached ? "bg-primary" : "bg-muted",
+                            "w-0.5 flex-1 mt-1 min-h-[16px] relative overflow-hidden",
+                            reached
+                              ? "bg-primary"
+                              : current
+                              ? "bg-muted"
+                              : "bg-transparent border-l-2 border-dashed border-muted",
                           )}
-                        />
+                        >
+                          {current && (
+                            <span
+                              aria-hidden
+                              className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/70 to-transparent animate-fill-down"
+                            />
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="flex-1 pb-1">
@@ -372,8 +403,10 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                         <p
                           className={cn(
                             "text-sm",
-                            reached || current
+                            reached
                               ? "font-medium text-foreground"
+                              : current
+                              ? "font-semibold text-foreground"
                               : "text-muted-foreground",
                           )}
                         >
