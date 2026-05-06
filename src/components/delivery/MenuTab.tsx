@@ -130,11 +130,11 @@ const SortableProductCard = ({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "overflow-hidden transition-shadow",
+        "overflow-hidden transition-shadow h-full flex flex-col",
         product.is_featured && "ring-1 ring-primary/40"
       )}
     >
-      <div className="flex gap-3 p-3">
+      <div className="flex gap-3 p-3 flex-1 min-w-0">
         <button
           type="button"
           className="flex items-center px-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
