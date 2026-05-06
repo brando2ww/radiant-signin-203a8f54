@@ -79,6 +79,21 @@ export function SalonQueuePanel({
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
   const updateOrderStatus = useUpdateOrderStatus();
+  const { data: deliverySettings } = useDeliverySettings();
+  const overdueMinutes = deliverySettings?.payment_overdue_minutes ?? 30;
+
+  const overduePaymentOrders = useMemo(() => {
+    const now = Date.now();
+    return delivery.all.filter((o: DeliveryOrder) => {
+      const offline = ["cash", "dinheiro", "credit", "credito", "debit", "debito"].includes(
+        o.payment_method,
+      );
+      if (!offline || o.payment_status === "paid") return false;
+      if (o.status !== "delivering") return false;
+      const mins = (now - new Date(o.updated_at).getTime()) / 60000;
+      return mins > overdueMinutes;
+    });
+  }, [delivery.all, overdueMinutes]);
 
   const NEXT: Partial<Record<DeliveryOrder["status"], DeliveryOrder["status"]>> = {
     pending: "preparing",
