@@ -107,6 +107,7 @@ export const CheckoutFlow = ({
       cart,
     });
 
+    setActiveOrderId(userId, orderId);
     setTrackingOrderId(orderId);
     setCurrentStep("tracking");
   };
