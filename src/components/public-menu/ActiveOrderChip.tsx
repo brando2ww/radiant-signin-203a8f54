@@ -51,6 +51,11 @@ export const ActiveOrderChip = ({ userId }: Props) => {
   const [open, setOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 
+  // Fecha automaticamente o sheet quando o pedido é finalizado e limpo
+  useEffect(() => {
+    if (!orderId) setOpen(false);
+  }, [orderId]);
+
   if (!orderId || !order) return null;
 
   const meta = STATUS_META[order.status] ?? STATUS_META.pending;
