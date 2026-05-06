@@ -93,6 +93,15 @@ export default function PDVCashier() {
       toast.error(`Existem ${openComandas.length} comanda(s) aberta(s). Feche ou cancele todas antes de encerrar o caixa.`);
       return;
     }
+    const pendingDelivery = deliveryOrders.filter(
+      (o) => !["completed", "cancelled"].includes(o.status),
+    );
+    if (pendingDelivery.length > 0) {
+      toast.error(
+        `Existem ${pendingDelivery.length} pedido(s) de delivery em andamento. Conclua ou cancele todos antes de encerrar o caixa.`,
+      );
+      return;
+    }
     setCloseDialog(true);
   };
 
