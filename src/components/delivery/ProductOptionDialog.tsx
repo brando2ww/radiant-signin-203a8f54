@@ -194,90 +194,108 @@ export const ProductOptionDialog = ({
           <DialogTitle>{option ? "Editar Opção" : "Nova Opção"}</DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto px-6 py-4 space-y-6 min-h-0">
-          <div className="space-y-2">
-            <Label htmlFor="option-name">Nome da Opção *</Label>
-            <Input
-              id="option-name"
-              placeholder="Ex: Escolha o tamanho, Adicionais"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="option-type">Tipo de Seleção</Label>
-              <Select value={type} onValueChange={(value: "single" | "multiple") => setType(value)}>
-                <SelectTrigger id="option-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="single">Escolha Única (Radio)</SelectItem>
-                  <SelectItem value="multiple">Múltipla Escolha (Checkbox)</SelectItem>
-                </SelectContent>
-              </Select>
+        <div className="overflow-y-auto px-6 py-4 space-y-5 min-h-0">
+          {/* Seção: Configurações */}
+          <section className="rounded-lg border bg-card/50 p-4 space-y-4">
+            <div className="space-y-0.5">
+              <h3 className="text-sm font-semibold">Configurações</h3>
+              <p className="text-xs text-muted-foreground">
+                Defina como o cliente vai escolher entre os itens desta opção
+              </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="is-required" className="flex items-center gap-2">
+              <Label htmlFor="option-name" className="text-xs">Nome da opção *</Label>
+              <Input
+                id="option-name"
+                placeholder="Ex: Escolha o tamanho, Adicionais"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="option-type" className="text-xs">Tipo de seleção</Label>
+                <Select value={type} onValueChange={(value: "single" | "multiple") => setType(value)}>
+                  <SelectTrigger id="option-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">Escolha única (Radio)</SelectItem>
+                    <SelectItem value="multiple">Múltipla escolha (Checkbox)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md border bg-background px-3 sm:mt-[22px] h-10">
+                <Label htmlFor="is-required" className="text-sm cursor-pointer">
+                  Obrigatória
+                </Label>
                 <Switch
                   id="is-required"
                   checked={isRequired}
                   onCheckedChange={setIsRequired}
                 />
-                <span>Opção Obrigatória</span>
-              </Label>
-            </div>
-          </div>
-
-          {type === "multiple" && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="min-selections">Mínimo de Seleções</Label>
-                <Input
-                  id="min-selections"
-                  type="number"
-                  min="0"
-                  value={minSelections}
-                  onChange={(e) => setMinSelections(Number(e.target.value))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="max-selections">Máximo de Seleções</Label>
-                <Input
-                  id="max-selections"
-                  type="number"
-                  min="1"
-                  value={maxSelections}
-                  onChange={(e) => setMaxSelections(Number(e.target.value))}
-                />
               </div>
             </div>
-          )}
 
-          {type === "multiple" && (
-            <div className="rounded-md border p-3 space-y-1">
-              <Label htmlFor="allow-quantity" className="flex items-center gap-2 cursor-pointer">
-                <Switch
-                  id="allow-quantity"
-                  checked={allowQuantity}
-                  onCheckedChange={setAllowQuantity}
-                />
-                <span>Permitir múltiplas unidades por item</span>
-              </Label>
-              <p className="text-xs text-muted-foreground pl-11">
-                Cada item terá controles − e + em vez de checkbox.
-              </p>
-            </div>
-          )}
+            {type === "multiple" && (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="min-selections" className="text-xs">Mínimo de seleções</Label>
+                    <Input
+                      id="min-selections"
+                      type="number"
+                      min="0"
+                      value={minSelections}
+                      onChange={(e) => setMinSelections(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max-selections" className="text-xs">Máximo de seleções</Label>
+                    <Input
+                      id="max-selections"
+                      type="number"
+                      min="1"
+                      value={maxSelections}
+                      onChange={(e) => setMaxSelections(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Itens da Opção *</Label>
+                <div className="flex items-start justify-between rounded-md border bg-background px-3 py-3 gap-3">
+                  <div className="min-w-0 space-y-0.5">
+                    <Label htmlFor="allow-quantity" className="text-sm cursor-pointer">
+                      Permitir múltiplas unidades por item
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Cada item terá controles − e + em vez de checkbox.
+                    </p>
+                  </div>
+                  <Switch
+                    id="allow-quantity"
+                    checked={allowQuantity}
+                    onCheckedChange={setAllowQuantity}
+                  />
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* Seção: Itens */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between sticky top-0 z-10 bg-background py-1 -mx-1 px-1">
+              <div>
+                <h3 className="text-sm font-semibold">Itens da opção *</h3>
+                <p className="text-xs text-muted-foreground">
+                  {items.length} {items.length === 1 ? "item cadastrado" : "itens cadastrados"}
+                </p>
+              </div>
               <Button type="button" size="sm" variant="outline" onClick={handleAddItem}>
                 <Plus className="h-4 w-4 mr-2" />
-                Adicionar Item
+                Adicionar item
               </Button>
             </div>
 
@@ -409,7 +427,7 @@ export const ProductOptionDialog = ({
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </div>
 
         <DialogFooter className="px-6 py-4 border-t bg-background">

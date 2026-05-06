@@ -22,6 +22,7 @@ export interface CompositionGroup {
   min_selections: number;
   max_selections: number;
   order_position: number;
+  allow_quantity: boolean;
   items: CompositionItem[];
 }
 

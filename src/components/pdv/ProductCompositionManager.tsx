@@ -386,6 +386,18 @@ function GroupCard({
             />
             <Label className="text-xs">Obrigatório</Label>
           </div>
+
+          {group.type === "multiple" && (
+            <div className="flex items-center gap-2 h-10">
+              <Switch
+                checked={!!group.allow_quantity}
+                onCheckedChange={(checked) =>
+                  onUpdateGroup({ allow_quantity: checked })
+                }
+              />
+              <Label className="text-xs">Permitir múltiplas unidades por item</Label>
+            </div>
+          )}
         </div>
       </div>
 

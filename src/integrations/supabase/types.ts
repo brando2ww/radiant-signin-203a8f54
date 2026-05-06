@@ -4837,6 +4837,7 @@ export type Database = {
       }
       pdv_product_composition_groups: {
         Row: {
+          allow_quantity: boolean
           created_at: string
           id: string
           is_required: boolean
@@ -4848,6 +4849,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          allow_quantity?: boolean
           created_at?: string
           id?: string
           is_required?: boolean
@@ -4859,6 +4861,7 @@ export type Database = {
           type?: string
         }
         Update: {
+          allow_quantity?: boolean
           created_at?: string
           id?: string
           is_required?: boolean
