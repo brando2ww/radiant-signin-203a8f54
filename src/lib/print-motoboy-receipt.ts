@@ -49,14 +49,14 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
     .map((it) => {
       const opts =
         (it.delivery_order_item_options ?? [])
-          .map(
-            (op) =>
-              `<div class="opt">+ ${escape(op.option_name)}: ${escape(op.item_name)}${
-                Number(op.price_adjustment) > 0
-                  ? ` (${formatBRL(Number(op.price_adjustment))})`
-                  : ""
-              }</div>`,
-          )
+          .map((op) => {
+            const qty = Number(op.quantity || 1);
+            const qtyPrefix = qty > 1 ? `${qty}× ` : "";
+            const totalAdj = Number(op.price_adjustment) * qty;
+            return `<div class="opt">+ ${escape(op.option_name)}: ${qtyPrefix}${escape(op.item_name)}${
+              totalAdj > 0 ? ` (${formatBRL(totalAdj)})` : ""
+            }</div>`;
+          })
           .join("") || "";
       const notes = it.notes
         ? `<div class="notes">Obs: ${escape(it.notes)}</div>`
