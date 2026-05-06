@@ -998,8 +998,11 @@ export function ProductDialog({
               </TabsContent>
             </Tabs>
             </div>
+          </form>
+        </Form>
+        </div>
 
-            <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
+        <DialogFooter className="px-6 py-4 border-t bg-background shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -1007,12 +1010,11 @@ export function ProductDialog({
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSubmitting || isUploading}>
+              <Button type="submit" form="pdv-product-form" disabled={isSubmitting || isUploading}>
                 {isSubmitting ? "Salvando..." : product ? "Salvar" : "Criar"}
               </Button>
             </DialogFooter>
-          </form>
-        </Form>
+        </div>
       </DialogContent>
 
       {rawImageSrc && (
