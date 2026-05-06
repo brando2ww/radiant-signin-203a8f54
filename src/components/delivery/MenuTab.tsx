@@ -156,12 +156,6 @@ export const MenuTab = () => {
     setIsProductDrawerOpen(true);
   };
 
-  const handleProductCreated = (product: DeliveryProduct) => {
-    setIsProductDrawerOpen(false);
-    setProductPreselectedCategory(undefined);
-    setCreatedProduct(product);
-  };
-
   const handleDuplicateProduct = (product: DeliveryProduct) => {
     const { id, user_id, created_at, updated_at, ...rest } = product as any;
     createProduct.mutate({
