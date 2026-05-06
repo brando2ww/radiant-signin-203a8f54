@@ -69,11 +69,20 @@ export const PublicMenuHeader = ({ userId }: PublicMenuHeaderProps) => {
                     Pedido mín: {formatBRL(Number(deliverySettings.min_order_value))}
                   </span>
                 )}
-              {deliverySettings?.is_open ? (
-                <Badge className="bg-green-500">Aberto agora</Badge>
-              ) : (
-                <Badge variant="destructive">Fechado</Badge>
-              )}
+              {(() => {
+                const status = isStoreCurrentlyOpen(deliverySettings);
+                if (status.open) {
+                  return <Badge className="bg-green-500">Aberto agora</Badge>;
+                }
+                return (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="destructive">Fechado</Badge>
+                    {status.nextOpenLabel && (
+                      <span className="text-xs text-muted-foreground">Abre {status.nextOpenLabel}</span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
