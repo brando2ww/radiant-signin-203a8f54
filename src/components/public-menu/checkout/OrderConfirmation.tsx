@@ -98,6 +98,16 @@ export const OrderConfirmation = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const status = isStoreCurrentlyOpen(deliverySettings);
+    if (!status.open) {
+      toast.error(
+        status.nextOpenLabel
+          ? `Loja fechada. Abre ${status.nextOpenLabel}.`
+          : "Loja fechada no momento."
+      );
+      return;
+    }
+
     const orderData = {
       userId,
       customerId: customer.id,
