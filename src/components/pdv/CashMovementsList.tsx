@@ -98,7 +98,7 @@ export function CashMovementsList({ movements }: CashMovementsListProps) {
                   )}
                 </TableCell>
                 <TableCell
-                  className={`text-right font-medium ${
+                  className={`text-right font-medium whitespace-nowrap ${
                     movement.type === "sangria"
                       ? "text-destructive"
                       : "text-success"
