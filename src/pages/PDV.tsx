@@ -37,6 +37,7 @@ import DeliverySettings from "./pdv/delivery/Settings";
 import DeliveryReports from "./pdv/delivery/Reports";
 import DeliveryHeatMap from "./pdv/delivery/HeatMap";
 import DeliveryLoyalty from "./pdv/delivery/Loyalty";
+import DeliveryDrivers from "./pdv/delivery/Drivers";
 import ComandasPage from "./pdv/Comandas";
 import Quotations from "./pdv/purchases/Quotations";
 import PurchaseOrders from "./pdv/purchases/PurchaseOrders";
