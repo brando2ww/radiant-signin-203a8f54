@@ -205,22 +205,26 @@ export const useCreateOrder = () => {
 
       if (orderError) throw orderError;
 
-      // Atribui número sequencial baseado no caixa aberto (#001, #002, …).
-      // Se não houver caixa aberto, mantém o placeholder TMP- para não quebrar.
-      try {
-        await supabase.rpc("delivery_assign_order_ticket" as any, { p_order_id: order.id });
-        const { data: refreshed } = await supabase
-          .from("delivery_orders")
-          .select("order_number, ticket_number, cashier_session_id")
-          .eq("id", order.id)
-          .maybeSingle();
-        if (refreshed) {
-          (order as any).order_number = refreshed.order_number;
-          (order as any).ticket_number = (refreshed as any).ticket_number;
-          (order as any).cashier_session_id = (refreshed as any).cashier_session_id;
+      // Numeração sequencial (#001, #002, …) é atribuída pelo trigger
+      // BEFORE INSERT no servidor. Só caímos no fallback (RPC) caso o
+      // trigger não tenha preenchido — por exemplo, quando não havia
+      // caixa aberto no momento do INSERT mas passou a haver depois.
+      if (typeof order.order_number === "string" && order.order_number.startsWith("TMP-")) {
+        try {
+          await supabase.rpc("delivery_assign_order_ticket" as any, { p_order_id: order.id });
+          const { data: refreshed } = await supabase
+            .from("delivery_orders")
+            .select("order_number, ticket_number, cashier_session_id")
+            .eq("id", order.id)
+            .maybeSingle();
+          if (refreshed) {
+            (order as any).order_number = refreshed.order_number;
+            (order as any).ticket_number = (refreshed as any).ticket_number;
+            (order as any).cashier_session_id = (refreshed as any).cashier_session_id;
+          }
+        } catch (e) {
+          console.error("Erro ao atribuir número de pedido:", e);
         }
-      } catch (e) {
-        console.error("Erro ao atribuir número de pedido:", e);
       }
 
       // Create order items
