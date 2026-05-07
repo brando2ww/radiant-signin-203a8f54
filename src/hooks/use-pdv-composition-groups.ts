@@ -47,7 +47,8 @@ export function useCompositionGroups(productId?: string) {
           "*, child_product:pdv_products!pdv_product_compositions_child_product_id_fkey(*)"
         )
         .eq("parent_product_id", productId)
-        .order("order_position");
+        .order("order_position", { ascending: true })
+        .order("created_at", { ascending: true });
       if (cErr) throw cErr;
 
       // Orphan compositions (without group): create a virtual default group bucket
