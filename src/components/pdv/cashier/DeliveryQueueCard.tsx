@@ -70,6 +70,15 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
   const items = order.delivery_order_items ?? [];
   const visible = items.slice(0, 3);
   const more = items.length - visible.length;
+  const { drivers } = useDeliveryDrivers();
+  const { assignDriver, unassignDriver, isAssigning } = useAssignDriver();
+
+  const assignedDriver = order.driver_id
+    ? drivers.find((d) => d.id === order.driver_id) || null
+    : null;
+  const availableDrivers = drivers.filter(
+    (d) => d.is_active && (d.status === "disponivel" || d.id === order.driver_id),
+  );
 
   const isOfflinePayment = ["cash", "dinheiro", "credit", "credito", "debit", "debito"].includes(
     order.payment_method,
