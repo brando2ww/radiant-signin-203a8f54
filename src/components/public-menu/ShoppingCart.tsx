@@ -8,7 +8,7 @@ import { CartItem } from "@/pages/PublicMenu";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { usePublicSettings } from "@/hooks/use-public-menu";
-import { useValidateCoupon } from "@/hooks/use-delivery-coupons";
+import { useValidateCoupon, computeCouponDiscount, type DeliveryCoupon } from "@/hooks/use-delivery-coupons";
 import { CheckoutFlow } from "./CheckoutFlow";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
 import { formatBRL } from "@/lib/format";
@@ -39,7 +39,7 @@ export const ShoppingCart = ({
   initialCoupon,
 }: ShoppingCartProps) => {
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<DeliveryCoupon | null>(null);
   const couponAutoApplied = useRef(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const { data: settings } = usePublicSettings(userId);
@@ -52,9 +52,21 @@ export const ShoppingCart = ({
   }, 0);
 
   const deliveryFee = Number(settings?.default_delivery_fee || 0);
-  const discount = appliedCoupon?.discount || 0;
+  // Recalcula o desconto em tempo real sobre o subtotal atual.
+  // Se o subtotal cair abaixo do mínimo, o cupom é removido automaticamente.
+  const discount = appliedCoupon ? computeCouponDiscount(appliedCoupon, subtotal) : 0;
   const total = subtotal + deliveryFee - discount;
   const storeStatus = isStoreCurrentlyOpen(settings);
+
+  // Remove cupom automaticamente se o pedido cair abaixo do mínimo
+  useEffect(() => {
+    if (appliedCoupon && subtotal > 0 && subtotal < appliedCoupon.min_order_value) {
+      setAppliedCoupon(null);
+      toast.info(
+        `Cupom ${appliedCoupon.code} removido: pedido ficou abaixo do mínimo de ${formatBRL(appliedCoupon.min_order_value)}`
+      );
+    }
+  }, [subtotal, appliedCoupon]);
 
   // Auto-apply coupon from URL when cart has items
   useEffect(() => {
@@ -64,7 +76,7 @@ export const ShoppingCart = ({
         { code: initialCoupon, orderValue: subtotal, userId },
         {
           onSuccess: (data) => {
-            setAppliedCoupon({ code: initialCoupon, discount: data.discount });
+            setAppliedCoupon(data.coupon);
             toast.success(`Cupom ${initialCoupon} aplicado automaticamente!`);
           },
           onError: () => {
@@ -80,10 +92,7 @@ export const ShoppingCart = ({
       { code: couponCode, orderValue: subtotal, userId },
       {
         onSuccess: (data) => {
-          setAppliedCoupon({
-            code: couponCode,
-            discount: data.discount,
-          });
+          setAppliedCoupon(data.coupon);
           setCouponCode("");
         },
       }
