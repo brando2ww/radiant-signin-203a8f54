@@ -54,6 +54,30 @@ export function PersonalizationTab() {
     }
   }, [settings]);
 
+  // Validação de slug em tempo real (debounced)
+  useEffect(() => {
+    const slug = formData.slug.trim();
+    if (!slug) {
+      setSlugStatus("idle");
+      return;
+    }
+    if (!isValidSlug(slug)) {
+      setSlugStatus("invalid");
+      return;
+    }
+    if (settings?.slug && settings.slug.toLowerCase() === slug.toLowerCase()) {
+      setSlugStatus("available");
+      return;
+    }
+    setSlugStatus("checking");
+    const t = setTimeout(async () => {
+      if (!user?.id) return;
+      const ok = await isSlugAvailable(slug, user.id);
+      setSlugStatus(ok ? "available" : "taken");
+    }, 400);
+    return () => clearTimeout(t);
+  }, [formData.slug, settings?.slug, user?.id]);
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, field: "logo_url" | "cover_url") => {
     const file = e.target.files?.[0];
     if (!file) return;
