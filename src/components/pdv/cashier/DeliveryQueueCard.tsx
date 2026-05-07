@@ -1,11 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatBRL } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight } from "lucide-react";
+import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X } from "lucide-react";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
+import {
+  initialsFromName,
+  useAssignDriver,
+  useDeliveryDrivers,
+} from "@/hooks/use-delivery-drivers";
 
 interface Props {
   order: DeliveryOrder;
