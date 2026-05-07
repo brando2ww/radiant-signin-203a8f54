@@ -86,7 +86,7 @@ export const useDeliveryOrdersWatcher = () => {
             // Impressão sempre
             let printed = false;
             try {
-              const result = await dispatchDeliveryPrintJobs(newOrder.id);
+              const result = await dispatchDeliveryPrintJobs(newOrder.id, undefined, { auto: true });
               printed = true;
               if (result.jobs > 0) {
                 toast.success(`${result.jobs} impressão(ões) enviada(s) à cozinha`);
