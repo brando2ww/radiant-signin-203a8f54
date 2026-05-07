@@ -134,6 +134,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
   const totalVoucher = Number(session?.total_voucher) || 0;
   const totalWithdrawals = Number(session?.total_withdrawals) || 0;
   const totalSales = Number(session?.total_sales) || 0;
+  const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
 
   const totalReinforcements = movements
     .filter((m) => m.type === "reforco")
@@ -230,6 +231,7 @@ ${conferenceHtml ? `<div class="divider"></div>
 <div class="divider"></div>
 <div class="section">
   <div class="row total"><span>Total de Vendas (todas as formas):</span><span>${formatBRL(totalSales)}</span></div>
+  ${totalOnlineDelivery > 0 ? `<div class="row"><span>↳ Online (Delivery) — informativo:</span><span>${formatBRL(totalOnlineDelivery)}</span></div>` : ""}
 </div>
 ${movements.length > 0 ? `
 <div class="divider"></div>
@@ -379,6 +381,7 @@ export function CloseCashierDialog({
   const totalVoucher = Number(session?.total_voucher) || 0;
   const totalWithdrawals = Number(session?.total_withdrawals) || 0;
   const totalSales = Number(session?.total_sales) || 0;
+  const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
 
   const totalReinforcements = useMemo(
     () =>
@@ -653,6 +656,12 @@ export function CloseCashierDialog({
                   <span className="text-muted-foreground">Total geral de vendas do turno:</span>
                   <span className="font-bold tabular-nums">{formatBRL(totalSales)}</span>
                 </div>
+                {totalOnlineDelivery > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">↳ Online (Delivery) — informativo:</span>
+                    <span className="tabular-nums">{formatBRL(totalOnlineDelivery)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Saldo esperado da gaveta:</span>
                   <span className="font-medium tabular-nums">{formatBRL(expectedCash)}</span>
