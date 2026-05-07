@@ -1,17 +1,48 @@
-## Reduzir altura do header de /pdv/caixa
+## Mover header para dentro da coluna esquerda
 
-O header (`CashierHeader`) ocupa altura significativa no topo. Como o container pai usa `flex-1 min-h-0` no grid de colunas, qualquer altura economizada no header é automaticamente convertida em altura extra para as colunas central e direita (e esquerda).
+O header atualmente é uma faixa full-width no topo, ocupando largura inteira. O usuário quer que ele tenha apenas a largura da coluna esquerda (Movimentações), liberando o espaço acima das colunas central (Ações) e direita (Salão) para que essas duas "subam" e quase encostem no header global do sistema.
 
-**Arquivo:** `src/components/pdv/cashier/CashierHeader.tsx`
+**Arquivo:** `src/pages/pdv/Cashier.tsx` (linhas 268–277)
 
-Tornar o header mais compacto:
+Reestruturar o JSX:
 
-- Container externo: `p-3` → `p-2`
-- Ícones circulares (Operador / Data / Hora): `h-9 w-9` → `h-8 w-8`, ícones internos `h-5 w-5` → `h-4 w-4`
-- Relógio: `text-lg` → `text-base`
-- Badge de status: `text-sm px-4 py-1.5` → `text-xs px-3 py-1`
-- Gap principal: `gap-4` → `gap-3`
+```tsx
+return (
+  <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-[6fr_5fr_9fr] gap-4 flex-1 min-h-0">
+      {/* Coluna esquerda: header + movimentações empilhados */}
+      <div className="flex flex-col gap-4 min-h-0">
+        <CashierHeader
+          isOpen={!!activeSession}
+          openedAt={activeSession?.opened_at || null}
+        />
+        <Card className="flex flex-col min-h-0 flex-1">
+          {/* ...CardHeader + CardContent existentes... */}
+        </Card>
+      </div>
 
-Isso reduz a altura do header em ~12–16px sem remover nenhuma informação, mantendo a tipografia legível e a paleta padrão (sem cores customizadas além das já existentes).
+      {/* Sidebar de Ações (sobe até o topo) */}
+      <Card className="flex flex-col min-h-0 overflow-hidden">
+        ...
+      </Card>
 
-Nenhuma alteração no `Cashier.tsx` ou nas colunas — o `flex-1` cuida da redistribuição automática da altura.
+      {/* Painel Salão/Delivery (sobe até o topo) */}
+      <Card className="flex flex-col min-h-0 overflow-hidden p-0">
+        ...
+      </Card>
+    </div>
+
+    {/* Footer permanece igual */}
+    <CashierSummaryFooter ... />
+    {/* ...dialogs... */}
+  </div>
+);
+```
+
+### Resultado
+
+- O `CashierHeader` agora fica restrito à largura da coluna esquerda (6/20 do grid ≈ 30% da tela).
+- As colunas central (Ações Rápidas) e direita (Salão/Delivery) ganham ~80px de altura extra, encostando praticamente no header global do app.
+- Layout responsivo (`<lg`) continua empilhado naturalmente porque `grid-cols-1` empilha tudo verticalmente.
+
+Nenhuma outra alteração — apenas mover o `<CashierHeader>` para dentro do primeiro filho do grid e envolver Movimentações com a wrapper flex-col.
