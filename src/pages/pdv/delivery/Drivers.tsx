@@ -216,7 +216,7 @@ export default function DeliveryDrivers() {
                   </div>
 
                   {/* Footer */}
-                  <div className="mt-auto pt-4 border-t mt-4 flex items-end justify-between gap-2">
+                  <div className="mt-4 pt-4 border-t flex items-end justify-between gap-2">
                     <div className="flex gap-5">
                       <div>
                         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Hoje</div>
