@@ -80,6 +80,7 @@ const roleRouteAccess: Record<AppRole, string[]> = {
     "/pdv/delivery/pedidos",
     "/pdv/delivery/cardapio",
     "/pdv/delivery/cupons",
+    "/pdv/delivery/entregadores",
   ],
 };
 
