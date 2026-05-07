@@ -243,6 +243,78 @@ export function PersonalizationTab() {
           </CardContent>
         </Card>
 
+        {/* Link personalizado */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Link personalizado do cardápio
+            </CardTitle>
+            <CardDescription>
+              Escolha um endereço curto e fácil de lembrar para compartilhar.
+              Apenas letras minúsculas, números e hífens (3 a 40 caracteres).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {typeof window !== "undefined" ? window.location.host : "pdv.velaraia.app"}/cardapio/
+              </span>
+              <Input
+                value={formData.slug}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    slug: normalizeSlug(e.target.value),
+                  }))
+                }
+                placeholder="ex: kotensushi"
+                maxLength={40}
+                className="flex-1"
+              />
+              {formData.business_name && !formData.slug && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      slug: normalizeSlug(prev.business_name),
+                    }))
+                  }
+                >
+                  Sugerir
+                </Button>
+              )}
+            </div>
+            {formData.slug && (
+              <div className="flex items-center gap-2 text-xs">
+                {slugStatus === "checking" && (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Verificando...
+                  </span>
+                )}
+                {slugStatus === "available" && (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <Check className="h-3 w-3" /> Disponível
+                  </span>
+                )}
+                {slugStatus === "taken" && (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <AlertCircle className="h-3 w-3" /> Este link já está em uso
+                  </span>
+                )}
+                {slugStatus === "invalid" && (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <AlertCircle className="h-3 w-3" /> Formato inválido (3 a 40 caracteres, letras minúsculas, números e hífens)
+                  </span>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Colors */}
         <Card>
           <CardHeader>
