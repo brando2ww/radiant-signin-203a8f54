@@ -39,7 +39,7 @@ export const ShoppingCart = ({
   initialCoupon,
 }: ShoppingCartProps) => {
   const [couponCode, setCouponCode] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<DeliveryCoupon | null>(null);
   const couponAutoApplied = useRef(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const { data: settings } = usePublicSettings(userId);
@@ -52,9 +52,21 @@ export const ShoppingCart = ({
   }, 0);
 
   const deliveryFee = Number(settings?.default_delivery_fee || 0);
-  const discount = appliedCoupon?.discount || 0;
+  // Recalcula o desconto em tempo real sobre o subtotal atual.
+  // Se o subtotal cair abaixo do mínimo, o cupom é removido automaticamente.
+  const discount = appliedCoupon ? computeCouponDiscount(appliedCoupon, subtotal) : 0;
   const total = subtotal + deliveryFee - discount;
   const storeStatus = isStoreCurrentlyOpen(settings);
+
+  // Remove cupom automaticamente se o pedido cair abaixo do mínimo
+  useEffect(() => {
+    if (appliedCoupon && subtotal > 0 && subtotal < appliedCoupon.min_order_value) {
+      setAppliedCoupon(null);
+      toast.info(
+        `Cupom ${appliedCoupon.code} removido: pedido ficou abaixo do mínimo de ${formatBRL(appliedCoupon.min_order_value)}`
+      );
+    }
+  }, [subtotal, appliedCoupon]);
 
   // Auto-apply coupon from URL when cart has items
   useEffect(() => {
