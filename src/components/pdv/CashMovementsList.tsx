@@ -60,7 +60,7 @@ export function CashMovementsList({ movements }: CashMovementsListProps) {
             <TableHead>Horário</TableHead>
             <TableHead>Descrição</TableHead>
             <TableHead>Forma de Pagamento</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
+            <TableHead className="text-right whitespace-nowrap w-[140px]">Valor</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -98,7 +98,7 @@ export function CashMovementsList({ movements }: CashMovementsListProps) {
                   )}
                 </TableCell>
                 <TableCell
-                  className={`text-right font-medium ${
+                  className={`text-right font-medium whitespace-nowrap ${
                     movement.type === "sangria"
                       ? "text-destructive"
                       : "text-success"
