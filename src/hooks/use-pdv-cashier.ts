@@ -37,6 +37,7 @@ interface CashMovement {
     | "vale_refeicao";
   description: string | null;
   created_at: string;
+  source?: "salon" | "delivery" | "delivery_online" | null;
 }
 
 export interface CloseCashierPayload {
