@@ -5,7 +5,8 @@ import { ProductList } from "@/components/public-menu/ProductList";
 import { ShoppingCart } from "@/components/public-menu/ShoppingCart";
 import { ActiveOrderChip } from "@/components/public-menu/ActiveOrderChip";
 import { useState, useEffect } from "react";
-import { usePublicCategories, usePublicProducts } from "@/hooks/use-public-menu";
+import { usePublicCategories, usePublicProducts, useBusinessSettings } from "@/hooks/use-public-menu";
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
@@ -56,6 +57,58 @@ const PublicMenu = () => {
 
   const { data: categories = [] } = usePublicCategories(userId || "");
   const { data: products = [] } = usePublicProducts(userId || "");
+  const { data: businessSettings } = useBusinessSettings(userId || "");
+
+  // Dynamic browser tab title + favicon
+  const originalTitleRef = useRef<string>(typeof document !== "undefined" ? document.title : "");
+  const originalFaviconHrefRef = useRef<string | null>(null);
+  const createdFaviconRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (originalFaviconHrefRef.current === null) {
+      const existing = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      originalFaviconHrefRef.current = existing?.href ?? "";
+    }
+
+    if (resolvingHandle) {
+      document.title = "Carregando cardápio...";
+      return;
+    }
+    if (!userId) {
+      document.title = "Cardápio não encontrado";
+      return;
+    }
+    if (businessSettings?.business_name) {
+      document.title = businessSettings.business_name;
+    }
+    const logoUrl = businessSettings?.logo_url;
+    if (logoUrl) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+        createdFaviconRef.current = true;
+      }
+      link.href = logoUrl;
+    }
+  }, [resolvingHandle, userId, businessSettings?.business_name, businessSettings?.logo_url]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof document === "undefined") return;
+      document.title = originalTitleRef.current;
+      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      if (link) {
+        if (createdFaviconRef.current) {
+          link.parentNode?.removeChild(link);
+        } else if (originalFaviconHrefRef.current !== null) {
+          link.href = originalFaviconHrefRef.current;
+        }
+      }
+    };
+  }, []);
 
   // Fetch marketing settings
   const { data: settings } = useQuery({
