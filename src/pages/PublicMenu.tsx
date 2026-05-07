@@ -27,12 +27,32 @@ export interface CartItem {
   notes?: string;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const PublicMenu = () => {
-  const { userId } = useParams<{ userId: string }>();
+  const { userId: handle } = useParams<{ userId: string }>();
   const [searchParams] = useSearchParams();
   const initialCoupon = searchParams.get("cupom") || undefined;
   const [cart, setCart] = useState<CartItem[]>([]);
   const { trackPageView } = useMarketingTracking();
+
+  // Resolve slug → user_id quando o parâmetro não for UUID
+  const { data: resolvedUserId, isLoading: resolvingHandle } = useQuery({
+    queryKey: ["resolve-menu-handle", handle],
+    queryFn: async () => {
+      if (!handle) return null;
+      if (UUID_RE.test(handle)) return handle;
+      const { data, error } = await supabase.rpc("resolve_business_slug", {
+        _slug: handle,
+      });
+      if (error) throw error;
+      return (data as string | null) ?? null;
+    },
+    enabled: !!handle,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const userId = resolvedUserId || undefined;
 
   const { data: categories = [] } = usePublicCategories(userId || "");
   const { data: products = [] } = usePublicProducts(userId || "");
