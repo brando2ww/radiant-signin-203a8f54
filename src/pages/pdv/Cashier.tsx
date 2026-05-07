@@ -304,6 +304,7 @@ export default function PDVCashier() {
             )}
           </CardContent>
         </Card>
+        </div>
 
         {/* Sidebar de Ações */}
         <Card className="flex flex-col min-h-0 overflow-hidden">
