@@ -57,13 +57,13 @@ export const OrdersKanban = ({ orderType, onOrderTypeChange, counts = { delivery
       <Tabs value={orderType} onValueChange={(v) => onOrderTypeChange(v as "delivery" | "pickup")}>
         <TabsList>
           <TabsTrigger value="delivery" className="gap-2">
-            <span>🛵 Delivery</span>
+            <span>Delivery</span>
             <Badge variant="secondary" className="h-5 px-1.5 text-xs">
               {counts.delivery}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="pickup" className="gap-2">
-            <span>🏪 Retirada</span>
+            <span>Retirada</span>
             <Badge variant="secondary" className="h-5 px-1.5 text-xs">
               {counts.pickup}
             </Badge>
