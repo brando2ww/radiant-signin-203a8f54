@@ -67,7 +67,9 @@ export function usePDVDeliveryQueue() {
         (o.status === "ready" && false),
     );
 
-    const sorted = [...pendingPayment, ...awaitingOnlineConfirmation, ...inProgress];
+    const sorted = [...pendingPayment, ...awaitingOnlineConfirmation, ...inProgress].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
     return {
       all: sorted,
