@@ -109,7 +109,16 @@ export const usePublicProducts = (userId: string, categoryId?: string) => {
         query = query.eq("category_id", categoryId);
       }
 
-      const { data, error } = await query.order("order_position", { ascending: true });
+      const { data, error } = await query
+        .order("order_position", { ascending: true })
+        .order("order_position", {
+          foreignTable: "delivery_product_options",
+          ascending: true,
+        })
+        .order("order_position", {
+          foreignTable: "delivery_product_options.delivery_product_option_items",
+          ascending: true,
+        });
 
       if (error) throw error;
 
