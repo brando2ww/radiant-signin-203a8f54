@@ -68,6 +68,7 @@ export function useBusinessSettings() {
           welcome_message: updates.welcome_message || "Olá! Queremos ouvir você 😊",
           thank_you_message: updates.thank_you_message || "Obrigado! Esperamos vê-lo novamente em breve!",
           google_review_url: updates.google_review_url || null,
+          slug: updates.slug ? updates.slug.trim().toLowerCase() : null,
         };
 
         const { data, error } = await supabase
