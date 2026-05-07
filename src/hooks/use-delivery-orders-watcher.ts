@@ -47,7 +47,7 @@ export const useDeliveryOrdersWatcher = () => {
               const audio = new Audio("/notification.mp3");
               audio.play().catch(() => {});
             } catch {}
-            toast.success("Novo pedido recebido! 🎉");
+            toast.success("Novo pedido recebido!");
 
             // Aguarda persistência de itens e adicionais antes de imprimir.
             // O INSERT em delivery_orders chega via realtime antes dos

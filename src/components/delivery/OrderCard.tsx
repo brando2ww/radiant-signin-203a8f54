@@ -110,9 +110,9 @@ export const OrderCard = ({ order }: OrderCardProps) => {
             <p className="font-bold text-lg leading-none">#{order.order_number}</p>
             <Badge variant="outline" className="text-xs shrink-0">
               {isPickup ? (
-                <><Package className="h-3 w-3 mr-1" />🏪 Retirada</>
+                <><Package className="h-3 w-3 mr-1" />Retirada</>
               ) : (
-                <><MapPin className="h-3 w-3 mr-1" />🛵 Delivery</>
+                <><MapPin className="h-3 w-3 mr-1" />Delivery</>
               )}
             </Badge>
           </div>

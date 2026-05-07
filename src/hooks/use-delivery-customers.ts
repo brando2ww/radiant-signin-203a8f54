@@ -288,7 +288,7 @@ export const useCreateOrder = () => {
       return order;
     },
     onSuccess: () => {
-      toast.success("Pedido realizado com sucesso! 🎉");
+      toast.success("Pedido realizado com sucesso!");
     },
     onError: (error: Error) => {
       toast.error("Erro ao criar pedido: " + error.message);
