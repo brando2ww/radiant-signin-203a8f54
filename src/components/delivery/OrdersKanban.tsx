@@ -71,13 +71,13 @@ export const OrdersKanban = ({ orderType, onOrderTypeChange, counts = { delivery
         </TabsList>
       </Tabs>
 
-      <div className="flex gap-4">
-        <div className="flex-1 overflow-x-auto">
-          <div className="flex gap-3 pb-2">
+      <div className="flex gap-4 w-full">
+        <div className="flex-1 min-w-0">
+          <div className="flex gap-3 pb-2 w-full">
             {columns.map((column) => {
               const colOrders = orders.filter((o) => column.match.includes(o.status));
               return (
-                <Card key={column.id} className="flex flex-col w-[320px] shrink-0">
+                <Card key={column.id} className="flex flex-col flex-1 min-w-0">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-2">
@@ -108,7 +108,7 @@ export const OrdersKanban = ({ orderType, onOrderTypeChange, counts = { delivery
         </div>
 
         {/* Concluídos lateral */}
-        <Card className="w-[260px] shrink-0 flex flex-col">
+        <Card className="w-[280px] shrink-0 flex flex-col">
           <CardHeader className="pb-3 space-y-2">
             <CardTitle className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-2">
