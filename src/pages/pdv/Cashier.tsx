@@ -267,16 +267,15 @@ export default function PDVCashier() {
 
   return (
     <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
-      {/* Header */}
-      <CashierHeader
-        isOpen={!!activeSession}
-        openedAt={activeSession?.opened_at || null}
-      />
-
-      {/* Main Content — grid 12 cols: 6 movimentações | 3 ações | 3 painel salão */}
+      {/* Main Content — grid: [header+movimentações] | ações | salão */}
       <div className="grid grid-cols-1 lg:grid-cols-[6fr_5fr_9fr] gap-4 flex-1 min-h-0">
-        {/* Tabela de Movimentações */}
-        <Card className="flex flex-col min-h-0">
+        {/* Coluna esquerda: header + movimentações */}
+        <div className="flex flex-col gap-4 min-h-0">
+          <CashierHeader
+            isOpen={!!activeSession}
+            openedAt={activeSession?.opened_at || null}
+          />
+          <Card className="flex flex-col min-h-0 flex-1">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Movimentações</CardTitle>
             <CardDescription>
@@ -305,6 +304,7 @@ export default function PDVCashier() {
             )}
           </CardContent>
         </Card>
+        </div>
 
         {/* Sidebar de Ações */}
         <Card className="flex flex-col min-h-0 overflow-hidden">
