@@ -27,6 +27,7 @@ interface Movement {
   payment_method?: PaymentMethodKey;
   description: string | null;
   created_at: string;
+  source?: string | null;
 }
 
 interface CashMovementsListProps {
@@ -85,10 +86,17 @@ export function CashMovementsList({ movements }: CashMovementsListProps) {
                   {format(new Date(movement.created_at), "HH:mm", { locale: ptBR })}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={config.variant} className="gap-1">
-                    <Icon className="h-3 w-3" />
-                    {config.label}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge variant={config.variant} className="gap-1">
+                      <Icon className="h-3 w-3" />
+                      {config.label}
+                    </Badge>
+                    {(movement.source === "delivery" || movement.source === "delivery_online") && (
+                      <Badge variant="outline" className="gap-1 text-[10px]">
+                        Delivery{movement.source === "delivery_online" ? " (online)" : ""}
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="max-w-xs truncate">
                   {movement.description || "-"}

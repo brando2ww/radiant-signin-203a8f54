@@ -1,0 +1,1 @@
+ALTER TABLE public.pdv_cashier_sessions ADD COLUMN IF NOT EXISTS total_online_delivery numeric NOT NULL DEFAULT 0;
