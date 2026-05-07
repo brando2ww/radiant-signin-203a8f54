@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const SUPABASE_URL = "https://frbziqazwhymwsrtneoy.supabase.co";
+const SHARE_ORIGIN = "https://cardapio.velaraia.app";
 
 /**
  * URL "humana" do cardápio, usada para abrir no navegador.
@@ -26,13 +26,8 @@ export function buildShareableMenuUrl(opts: {
   userId: string;
   slug?: string | null;
 }): string {
-  const params = new URLSearchParams();
-  if (opts.slug) {
-    params.set("slug", opts.slug);
-  } else {
-    params.set("userId", opts.userId);
-  }
-  return `${SUPABASE_URL}/functions/v1/og-cardapio?${params.toString()}`;
+  const handle = opts.slug?.trim() || opts.userId;
+  return `${SHARE_ORIGIN}/${handle}`;
 }
 
 /** Normaliza um candidato a slug (lowercase, hífens, sem acentos). */
