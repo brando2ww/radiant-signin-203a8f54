@@ -140,6 +140,12 @@ export function usePDVDeliveryCheckout() {
       }
       await supabase.from("delivery_orders").update(orderUpdate).eq("id", orderId);
 
+      // Libera entregador atribuído (se houver) — best effort
+      try {
+        const { releaseDriverForOrder } = await import("@/hooks/use-delivery-drivers");
+        await releaseDriverForOrder(orderId);
+      } catch {}
+
       return { ok: true };
     },
     onSuccess: () => {

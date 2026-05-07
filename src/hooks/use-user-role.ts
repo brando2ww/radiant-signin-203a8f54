@@ -47,6 +47,7 @@ const roleRouteAccess: Record<AppRole, string[]> = {
     "/pdv/delivery/cupons",
     "/pdv/delivery/configuracoes",
     "/pdv/delivery/relatorios",
+    "/pdv/delivery/entregadores",
     "/pdv/integracoes",
     "/pdv/franquia",
     "/pdv/clientes",
@@ -79,6 +80,7 @@ const roleRouteAccess: Record<AppRole, string[]> = {
     "/pdv/delivery/pedidos",
     "/pdv/delivery/cardapio",
     "/pdv/delivery/cupons",
+    "/pdv/delivery/entregadores",
   ],
 };
 
