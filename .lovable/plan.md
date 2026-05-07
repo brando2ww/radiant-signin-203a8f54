@@ -1,48 +1,26 @@
-## Mover header para dentro da coluna esquerda
+## Compactar footer "Gaveta" e "Vendas por forma de pagamento"
 
-O header atualmente é uma faixa full-width no topo, ocupando largura inteira. O usuário quer que ele tenha apenas a largura da coluna esquerda (Movimentações), liberando o espaço acima das colunas central (Ações) e direita (Salão) para que essas duas "subam" e quase encostem no header global do sistema.
+Mesma lógica do header: reduzir a altura do `CashierSummaryFooter` para liberar mais espaço vertical às colunas centrais e direita.
 
-**Arquivo:** `src/pages/pdv/Cashier.tsx` (linhas 268–277)
+**Arquivo:** `src/components/pdv/cashier/CashierSummaryFooter.tsx`
 
-Reestruturar o JSX:
+### 1. Compactar `SummaryRow` (linhas 36–50)
 
-```tsx
-return (
-  <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
-    <div className="grid grid-cols-1 lg:grid-cols-[6fr_5fr_9fr] gap-4 flex-1 min-h-0">
-      {/* Coluna esquerda: header + movimentações empilhados */}
-      <div className="flex flex-col gap-4 min-h-0">
-        <CashierHeader
-          isOpen={!!activeSession}
-          openedAt={activeSession?.opened_at || null}
-        />
-        <Card className="flex flex-col min-h-0 flex-1">
-          {/* ...CardHeader + CardContent existentes... */}
-        </Card>
-      </div>
+- `py-1` → `py-0.5`
+- ícone: `h-3.5 w-3.5` → `h-3 w-3`
+- label: `text-xs` → `text-[11px]`
+- valor (normal): `text-xs` → `text-[11px]`
+- valor (emphasis): `text-sm` → `text-xs`
 
-      {/* Sidebar de Ações (sobe até o topo) */}
-      <Card className="flex flex-col min-h-0 overflow-hidden">
-        ...
-      </Card>
+### 2. Compactar os dois Cards (linhas 69–125)
 
-      {/* Painel Salão/Delivery (sobe até o topo) */}
-      <Card className="flex flex-col min-h-0 overflow-hidden p-0">
-        ...
-      </Card>
-    </div>
+- `CardContent p-3` → `p-2` em ambos
+- Header interno `mb-2 pb-2` → `mb-1.5 pb-1.5`
+- Título `text-sm` → `text-xs`
+- Ícone do título `h-4 w-4` → `h-3.5 w-3.5`
+- Bloco final `mt-2 pt-2` → `mt-1.5 pt-1.5`
+- `space-y-0.5` no bloco da gaveta mantido (já mínimo)
 
-    {/* Footer permanece igual */}
-    <CashierSummaryFooter ... />
-    {/* ...dialogs... */}
-  </div>
-);
-```
+Isso reduz cada card em ~18–22px de altura, devolvendo esse espaço ao grid principal (que usa `flex-1`).
 
-### Resultado
-
-- O `CashierHeader` agora fica restrito à largura da coluna esquerda (6/20 do grid ≈ 30% da tela).
-- As colunas central (Ações Rápidas) e direita (Salão/Delivery) ganham ~80px de altura extra, encostando praticamente no header global do app.
-- Layout responsivo (`<lg`) continua empilhado naturalmente porque `grid-cols-1` empilha tudo verticalmente.
-
-Nenhuma outra alteração — apenas mover o `<CashierHeader>` para dentro do primeiro filho do grid e envolver Movimentações com a wrapper flex-col.
+Sem alterações em cores ou estrutura — só densidade.
