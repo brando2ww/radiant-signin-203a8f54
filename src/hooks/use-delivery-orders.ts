@@ -180,15 +180,11 @@ export const useUpdateOrderStatus = () => {
         );
         if (consumeErr) console.error("Erro ao baixar estoque (delivery):", consumeErr);
 
-        // Dispara prints por centro de produção (mesma fila do salão)
-        try {
-          const result = await dispatchDeliveryPrintJobs(id);
-          if (result.jobs > 0) {
-            toast.success(`${result.jobs} impressão(ões) enviada(s) à cozinha`);
-          }
-        } catch (e) {
-          console.error("Erro ao enfileirar prints do delivery:", e);
-        }
+        // OBS: a impressão para a cozinha já é disparada no INSERT do
+        // pedido pelo `useDeliveryOrdersWatcher`. Não reimprimir aqui
+        // ao confirmar manualmente — evita duplicação nos centros de
+        // produção. Reimpressão manual continua disponível via
+        // `useReprintOrder`.
       }
 
       return data;
