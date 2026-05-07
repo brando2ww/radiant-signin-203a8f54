@@ -168,16 +168,7 @@ export const useValidateCoupon = () => {
         );
       }
 
-      // Calcular desconto
-      let discount = 0;
-      if (coupon.type === "percentage") {
-        discount = (orderValue * coupon.value) / 100;
-        if (coupon.max_discount && discount > coupon.max_discount) {
-          discount = coupon.max_discount;
-        }
-      } else {
-        discount = coupon.value;
-      }
+      const discount = computeCouponDiscount(coupon, orderValue);
 
       return { coupon, discount };
     },
