@@ -17,6 +17,7 @@ export interface BusinessSettings {
   welcome_message: string;
   thank_you_message: string;
   google_review_url?: string;
+  slug?: string | null;
 }
 
 // Hook para o usuário autenticado gerenciar suas configurações
