@@ -8,7 +8,7 @@ import { CartItem } from "@/pages/PublicMenu";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { usePublicSettings } from "@/hooks/use-public-menu";
-import { useValidateCoupon } from "@/hooks/use-delivery-coupons";
+import { useValidateCoupon, computeCouponDiscount, type DeliveryCoupon } from "@/hooks/use-delivery-coupons";
 import { CheckoutFlow } from "./CheckoutFlow";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
 import { formatBRL } from "@/lib/format";
