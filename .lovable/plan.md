@@ -1,43 +1,63 @@
-## Causa raiz
+## Objetivo
 
-O watcher `useDeliveryOrdersWatcher` reage ao INSERT em `delivery_orders` e chama `dispatchDeliveryPrintJobs(orderId)` imediatamente. Mas no fluxo de checkout do cardápio público o pedido é criado em três passos:
+Permitir links amigáveis como `https://pdv.velaraia.app/cardapio/kotensushi` (em vez do UUID do usuário) e fazer com que, ao compartilhar o link no WhatsApp/Instagram/etc., a imagem de preview (Open Graph) seja o **logo do negócio**, e não a imagem padrão do PDV.
 
-1. INSERT em `delivery_orders`  ← watcher dispara aqui
-2. INSERT em `delivery_order_items`
-3. INSERT em `delivery_order_item_options` (adicionais)
+---
 
-Quando o `dispatchDeliveryPrintJobs` lê `vw_print_bridge_delivery_items`, os itens podem já estar lá mas os adicionais ainda não foram persistidos — resultado: payload vai com `options: []` e a comanda do centro de produção sai sem os adicionais.
+## Parte 1 — Slug amigável do cardápio
 
-A comanda do motoboy sai correta porque é impressa por clique do operador (`printMotoboyReceipt`), bem depois de tudo estar gravado.
+### Banco de dados (migration)
+1. Adicionar coluna `slug TEXT UNIQUE` em `business_settings`.
+2. Criar índice único `lower(slug)` para garantir unicidade case-insensitive.
+3. Validar com trigger: apenas `[a-z0-9-]`, 3 a 40 caracteres, não pode começar/terminar com `-`.
+4. Backfill: gerar slug inicial a partir de `business_name` (slugify) para registros existentes que tiverem nome; conflitos recebem sufixo numérico.
+5. Política RLS: leitura pública do par (`slug`, `user_id`, `logo_url`, `business_name`, `business_description`, `cover_url`) para resolver o slug sem login (já existe leitura pública parcial — verificar e ajustar).
 
-Confirmado no banco: pedido #014 tem 4 registros em `delivery_order_item_options`, mas o `pdv_print_jobs` correspondente foi gravado com `modifiers: []`.
+### Frontend — cadastro do slug
+- Em `src/pages/pdv/...` (tela de personalização do delivery — rota atual `/pdv/delivery/personalizacao`): adicionar campo "Link personalizado do cardápio" mostrando o preview `pdv.velaraia.app/cardapio/<slug>`, com validação em tempo real (disponibilidade + formato) e botão "sugerir a partir do nome".
+- Atualizar `PublicMenuLink.tsx` e `AppInstallGuide.tsx` para usar o slug quando existir, caindo de volta para `user.id` se não houver slug.
 
-## Mudança
+### Frontend — rota pública
+- `src/App.tsx`: manter `/cardapio/:userId` e adicionar resolução por slug no próprio `PublicMenu.tsx`:
+  - Se o parâmetro **não** for UUID, tratar como slug, consultar `business_settings` para obter o `user_id` correspondente; se não achar, mostrar 404.
+  - Se for UUID, comportamento atual (compatibilidade com links já compartilhados).
+- O mesmo aplicar nas rotas `/cardapio/:userId/instalar-app` (se existir).
 
-### `src/hooks/use-delivery-orders-watcher.ts`
+---
 
-Antes de chamar `dispatchDeliveryPrintJobs`, aguardar (poll) até que os itens E os adicionais estejam persistidos:
+## Parte 2 — Imagem de preview (Open Graph) com o logo do negócio
 
-- Polling a cada 250ms, até 12 tentativas (3s no total).
-- Critério: ler `delivery_order_items` (id, count) e `delivery_order_item_options` filtrado por `order_item_id IN (...)`. Sair do loop assim que houver pelo menos 1 item E (não houver opções esperadas OU já existir alguma opção registrada).
-- Como não dá para saber se o pedido tinha adicionais, usar uma heurística simples: se houver itens, aguardar mais 500ms para garantir que os options também tenham sido inseridos antes do dispatch. Em paralelo, fazer no máximo 2 leituras de `delivery_order_item_options`; se já houver alguma opção, dispatch imediato.
+### Contexto técnico
+O app é uma SPA: as meta tags em `index.html` são estáticas. Crawlers de WhatsApp/Facebook/Twitter **não executam JavaScript**, então alterar `<meta property="og:image">` em runtime via React não muda o preview. Para servir imagem dinâmica por estabelecimento precisamos interceptar requisições de bots no servidor.
 
-Implementação resumida:
-```ts
-// aguarda itens existirem
-for (let i = 0; i < 12; i++) {
-  const { data: items } = await supabase
-    .from("delivery_order_items")
-    .select("id")
-    .eq("order_id", newOrder.id);
-  if (items && items.length > 0) {
-    // aguarda options (best-effort 500ms)
-    await new Promise(r => setTimeout(r, 500));
-    break;
-  }
-  await new Promise(r => setTimeout(r, 250));
-}
-await dispatchDeliveryPrintJobs(newOrder.id);
-```
+### Solução
+Criar Edge Function pública `og-cardapio` que:
+1. Recebe `?slug=...` ou `?userId=...`.
+2. Busca `logo_url`, `business_name`, `business_description` em `business_settings`.
+3. Retorna um HTML mínimo com as meta tags Open Graph/Twitter apontando para o `logo_url` real do negócio, mais um `<meta http-equiv="refresh">` redirecionando navegadores reais para `/cardapio/<slug>`.
 
-Sem alterações em outros arquivos. Sem migração.
+Roteamento para bots:
+- Como o hosting da Lovable não permite reescritas server-side condicionais por User-Agent, a abordagem prática é: **gerar o link compartilhável apontando direto para a Edge Function pública**, ex.:
+  `https://frbziqazwhymwsrtneoy.supabase.co/functions/v1/og-cardapio?slug=kotensushi`
+  e essa função redireciona usuários reais para `https://pdv.velaraia.app/cardapio/kotensushi` enquanto serve OG tags ricas para crawlers.
+- Em `PublicMenuLink.tsx`, mostrar dois links: o "link curto" (apontando para a edge function, ideal para WhatsApp/redes) e o "link direto" (rota `/cardapio/<slug>`). Por padrão, botões "copiar" e QR Code usarão o link curto, garantindo preview correto.
+
+### Fallback estático
+Atualizar `index.html` para usar uma imagem genérica do Velara (não a screenshot do login) como `og:image` padrão, melhorando o preview mesmo quando o slug não é resolvido.
+
+---
+
+## Resumo das mudanças
+
+- **Migration**: coluna `slug` + índice + trigger de validação + backfill.
+- **`business_settings` UI**: campo de slug com validação de disponibilidade.
+- **`PublicMenu.tsx`**: resolver `:userId` como UUID ou slug.
+- **`PublicMenuLink.tsx` / `AppInstallGuide.tsx` / `TaskQRCodeDialog.tsx`** (verificar): usar slug quando disponível.
+- **Edge Function `og-cardapio`**: gera HTML com OG tags do logo do negócio e redireciona browsers para o cardápio.
+- **`index.html`**: substituir `og:image` padrão por imagem genérica de marca.
+
+## Ponto de decisão
+
+O link compartilhável padrão será `https://pdv.velaraia.app/cardapio/<slug>` (curto e bonito, mas com OG tags **estáticas** — preview genérico do Velara), **ou** `https://<edge-function>?slug=<slug>` (URL menos bonita, mas com **logo do negócio** no preview)?
+
+Se quiser o melhor dos dois mundos (URL curta + preview com logo), o caminho é configurar um domínio próprio com regra de reescrita por User-Agent — fora do escopo do hosting atual da Lovable.
