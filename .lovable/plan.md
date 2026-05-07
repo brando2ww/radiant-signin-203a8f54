@@ -1,33 +1,17 @@
-## Objetivo
+## Reduzir altura do header de /pdv/caixa
 
-Na página `/cardapio/:slug`, atualizar dinamicamente o `document.title` e o `<link rel="icon">` da aba do navegador com o nome e logo do restaurante, restaurando os valores padrão do Velara ao desmontar.
+O header (`CashierHeader`) ocupa altura significativa no topo. Como o container pai usa `flex-1 min-h-0` no grid de colunas, qualquer altura economizada no header é automaticamente convertida em altura extra para as colunas central e direita (e esquerda).
 
-## Mudanças
+**Arquivo:** `src/components/pdv/cashier/CashierHeader.tsx`
 
-### 1. `src/pages/PublicMenu.tsx`
+Tornar o header mais compacto:
 
-Adicionar um `useEffect` que:
+- Container externo: `p-3` → `p-2`
+- Ícones circulares (Operador / Data / Hora): `h-9 w-9` → `h-8 w-8`, ícones internos `h-5 w-5` → `h-4 w-4`
+- Relógio: `text-lg` → `text-base`
+- Badge de status: `text-sm px-4 py-1.5` → `text-xs px-3 py-1`
+- Gap principal: `gap-4` → `gap-3`
 
-- Enquanto `resolvingHandle` for `true` → `document.title = "Carregando cardápio..."`.
-- Se resolveu mas `userId` é nulo → `document.title = "Cardápio não encontrado"`.
-- Quando `businessSettings` carregar (vamos passar a consumir `useBusinessSettings(userId)` diretamente em `PublicMenu`, já existe no hook `use-public-menu.ts`):
-  - `document.title = businessSettings.business_name || "Cardápio"`.
-  - Se `logo_url` existir, criar/atualizar `<link rel="icon">` no `<head>` apontando para `logo_url` (também atualizar `apple-touch-icon` para coerência mobile).
-  - Se não houver `logo_url`, manter o favicon padrão Velara (não tocar).
+Isso reduz a altura do header em ~12–16px sem remover nenhuma informação, mantendo a tipografia legível e a paleta padrão (sem cores customizadas além das já existentes).
 
-Ao desmontar (cleanup do `useEffect`):
-
-- Restaurar `document.title` para o valor original capturado no mount (provavelmente "Velara | PDV & Compras" definido em `index.html`).
-- Restaurar `href` do `<link rel="icon">` para o valor original capturado no mount (favicon padrão Velara).
-- Se criamos um novo `<link>` (não existia), removê-lo.
-
-### 2. Sem alterações em `index.html`
-
-O favicon padrão Velara já está configurado lá; o componente apenas lê o valor original do DOM no mount para poder restaurá-lo.
-
-## Detalhes técnicos
-
-- Capturar `originalTitle` e `originalFaviconHref` em `useRef` no primeiro render para evitar perdê-los entre re-renders.
-- Usar `document.querySelector("link[rel~='icon']")` para encontrar o link existente; se não existir, criar e marcar uma flag para remoção no cleanup.
-- A atualização do título/favicon roda como efeito separado dependendo de `resolvingHandle`, `userId` e `businessSettings?.business_name` / `businessSettings?.logo_url` para refletir as três fases (loading / not-found / loaded).
-- Edge Function `og-cardapio` continua responsável pelo preview de compartilhamento (WhatsApp/Facebook); essa mudança só afeta a aba do navegador real do visitante.
+Nenhuma alteração no `Cashier.tsx` ou nas colunas — o `flex-1` cuida da redistribuição automática da altura.
