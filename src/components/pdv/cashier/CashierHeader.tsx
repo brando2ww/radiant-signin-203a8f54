@@ -18,12 +18,12 @@ export function CashierHeader({ isOpen, openedAt }: CashierHeaderProps) {
   }, []);
 
   return (
-    <div className="bg-muted/50 border rounded-lg p-3">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="bg-muted/50 border rounded-lg p-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Operador */}
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-            <User className="h-5 w-5 text-primary" />
+          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <User className="h-4 w-4 text-primary" />
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Operador</p>
@@ -33,8 +33,8 @@ export function CashierHeader({ isOpen, openedAt }: CashierHeaderProps) {
 
         {/* Data e Hora de Abertura */}
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
+          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
           </div>
           <div>
             <p className="text-xs text-muted-foreground">
@@ -50,12 +50,12 @@ export function CashierHeader({ isOpen, openedAt }: CashierHeaderProps) {
 
         {/* Relógio em Tempo Real */}
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
-            <Clock className="h-5 w-5 text-muted-foreground" />
+          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Hora atual</p>
-            <p className="font-medium font-mono text-lg">
+            <p className="font-medium font-mono text-base">
               {format(currentTime, "HH:mm:ss")}
             </p>
           </div>
@@ -70,7 +70,7 @@ export function CashierHeader({ isOpen, openedAt }: CashierHeaderProps) {
           />
           <Badge
             variant={isOpen ? "default" : "secondary"}
-            className={`text-sm px-4 py-1.5 ${
+            className={`text-xs px-3 py-1 ${
               isOpen
                 ? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20"
                 : ""
