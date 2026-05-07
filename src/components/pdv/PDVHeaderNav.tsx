@@ -43,6 +43,7 @@ import {
   GitBranch,
   ClipboardCheck,
   Factory,
+  Bike,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUserRole } from "@/hooks/use-user-role";
