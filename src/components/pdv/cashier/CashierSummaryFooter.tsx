@@ -64,7 +64,7 @@ export function CashierSummaryFooter({
   isOpen,
 }: CashierSummaryFooterProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 gap-2">
       {/* Bloco 1 — Gaveta (dinheiro físico) */}
       <Card className={`border-2 ${isOpen ? "border-primary/40" : "border-muted"}`}>
         <CardContent className="p-3">
