@@ -101,7 +101,7 @@ export function useDeliveryDrivers() {
         const d = r.driver_id as string;
         if (r.status === "completed") {
           byDriverMonth[d] = (byDriverMonth[d] || 0) + 1;
-          const ts = (r as any).completed_at || (r as any).delivered_at || r.created_at;
+          const ts = (r as any).delivered_at || r.created_at;
           if (ts && ts >= dayStart) byDriverDay[d] = (byDriverDay[d] || 0) + 1;
         }
         if (r.status === "delivering") {
