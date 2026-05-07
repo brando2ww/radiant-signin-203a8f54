@@ -89,7 +89,7 @@ export function useDeliveryDrivers() {
       const monthStart = startOfMonth(new Date()).toISOString();
       const { data, error } = await supabase
         .from("delivery_orders")
-        .select("id, order_number, driver_id, status, delivered_at, completed_at, created_at")
+        .select("id, order_number, driver_id, status, delivered_at, created_at")
         .eq("user_id", visibleUserId)
         .not("driver_id", "is", null)
         .gte("created_at", monthStart);
