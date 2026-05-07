@@ -1337,6 +1337,65 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_drivers: {
+        Row: {
+          avatar_color: string | null
+          avatar_url: string | null
+          created_at: string
+          current_order_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          plate: string | null
+          status: Database["public"]["Enums"]["delivery_driver_status"]
+          updated_at: string
+          user_id: string
+          vehicle_type: Database["public"]["Enums"]["delivery_vehicle_type"]
+        }
+        Insert: {
+          avatar_color?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          current_order_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          plate?: string | null
+          status?: Database["public"]["Enums"]["delivery_driver_status"]
+          updated_at?: string
+          user_id: string
+          vehicle_type?: Database["public"]["Enums"]["delivery_vehicle_type"]
+        }
+        Update: {
+          avatar_color?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          current_order_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          plate?: string | null
+          status?: Database["public"]["Enums"]["delivery_driver_status"]
+          updated_at?: string
+          user_id?: string
+          vehicle_type?: Database["public"]["Enums"]["delivery_vehicle_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_drivers_current_order_fk"
+            columns: ["current_order_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_funnel_events: {
         Row: {
           created_at: string
@@ -1648,6 +1707,8 @@ export type Database = {
           delivery_address_text: string | null
           delivery_fee: number | null
           discount: number | null
+          driver_assigned_at: string | null
+          driver_id: string | null
           estimated_time: number | null
           id: string
           notes: string | null
@@ -1681,6 +1742,8 @@ export type Database = {
           delivery_address_text?: string | null
           delivery_fee?: number | null
           discount?: number | null
+          driver_assigned_at?: string | null
+          driver_id?: string | null
           estimated_time?: number | null
           id?: string
           notes?: string | null
@@ -1714,6 +1777,8 @@ export type Database = {
           delivery_address_text?: string | null
           delivery_fee?: number | null
           discount?: number | null
+          driver_assigned_at?: string | null
+          driver_id?: string | null
           estimated_time?: number | null
           id?: string
           notes?: string | null
@@ -1749,6 +1814,13 @@ export type Database = {
             columns: ["delivery_address_id"]
             isOneToOne: false
             referencedRelation: "delivery_addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_orders_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_drivers"
             referencedColumns: ["id"]
           },
         ]
@@ -7331,6 +7403,8 @@ export type Database = {
         | "bar"
         | "estoque"
         | "gerencia"
+      delivery_driver_status: "disponivel" | "em_entrega" | "inativo"
+      delivery_vehicle_type: "moto" | "bicicleta" | "carro" | "a_pe"
       evidence_review_status: "pendente" | "aprovado" | "reprovado"
       expiry_status: "valido" | "proximo_vencimento" | "vencido" | "descartado"
       operator_access_level: "operador" | "lider" | "gestor"
@@ -7533,6 +7607,8 @@ export const Constants = {
         "estoque",
         "gerencia",
       ],
+      delivery_driver_status: ["disponivel", "em_entrega", "inativo"],
+      delivery_vehicle_type: ["moto", "bicicleta", "carro", "a_pe"],
       evidence_review_status: ["pendente", "aprovado", "reprovado"],
       expiry_status: ["valido", "proximo_vencimento", "vencido", "descartado"],
       operator_access_level: ["operador", "lider", "gestor"],
