@@ -32,6 +32,8 @@ export interface DeliveryOrder {
   cancellation_reason: string | null;
   created_at: string;
   updated_at: string;
+  driver_id?: string | null;
+  driver_assigned_at?: string | null;
   delivery_order_items?: DeliveryOrderItem[];
 }
 
