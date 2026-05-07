@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 export async function dispatchDeliveryPrintJobs(
   orderId: string,
   centerIdFilter?: string | null,
+  options?: { auto?: boolean },
 ): Promise<{ jobs: number }> {
   const { data: rows, error } = await (supabase as any)
     .from("vw_print_bridge_delivery_items")
@@ -26,6 +27,26 @@ export async function dispatchDeliveryPrintJobs(
     items = items.filter((r) => r.production_center_id === centerIdFilter);
   }
   if (items.length === 0) return { jobs: 0 };
+
+  // Dedup automático: várias abas/sessões do PDV podem receber o mesmo
+  // evento realtime de INSERT e tentar imprimir o mesmo pedido em paralelo.
+  // Antes de enfileirar, verificamos se já existe algum job em
+  // `pdv_print_jobs` para os itens deste pedido — se sim, abortamos.
+  // Reimpressão manual passa `auto: false` (ou nada) e ignora a checagem.
+  if (options?.auto) {
+    const itemIds = items.map((r: any) => r.id).filter(Boolean);
+    if (itemIds.length > 0) {
+      const { data: existing } = await supabase
+        .from("pdv_print_jobs")
+        .select("id")
+        .eq("source_kind", "delivery")
+        .in("source_item_id", itemIds)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        return { jobs: 0 };
+      }
+    }
+  }
 
   // Agrupa por (centro + impressora)
   const groups = new Map<string, any[]>();
