@@ -1,91 +1,55 @@
-# Redesenho da página `/pdv/delivery/entregadores`
+## Objetivo
+Refazer a UX de `/pdv/delivery/pedidos`: separar Delivery vs Retirada, indicadores reativos ao tipo, novo kanban com colunas dedicadas, cards mais ricos (timer com cor progressiva, entregador, telefone) e coluna lateral compacta de Concluídos.
 
-Objetivo: transformar a página atual (com Tabs de filtro) em uma central de cadastro limpa, com busca, cards modernos e drawer renovado.
+## Arquivos a alterar/criar
 
-## 1. `src/pages/pdv/delivery/Drivers.tsx` — reescrita
+### 1. `src/pages/pdv/delivery/Orders.tsx` (editar)
+- Remover título duplicado "Pedidos Delivery". Renderizar apenas `<OrdersTab />` num container com padding.
 
-**Remover:** componente `Tabs` e estado `filter`.
+### 2. `src/components/delivery/OrdersTab.tsx` (refatorar)
+- Manter o `NotificationsPanel` no topo direito.
+- Adicionar estado local `orderType: "delivery" | "pickup"` (default `delivery`).
+- Calcular contadores ativos (`status not in completed/cancelled`) por tipo a partir de `useDeliveryOrders()` para exibir no toggle.
+- Trocar os 3 cards de `useOrderStats` por 4 cards filtrados pelo `orderType` (computados client-side a partir de `useDeliveryOrders`):
+  - Pedidos Hoje (do tipo, hoje)
+  - Receita Hoje (do tipo, hoje, exclui cancelados)
+  - Ticket Médio
+  - Em andamento (status ≠ completed/cancelled, do tipo)
+- Toggle visual logo abaixo dos cards: dois botões grandes lado a lado com ícone (🛵/🏪), label, contador. Botão ativo usa `bg-primary text-primary-foreground`; inativo `bg-muted`. Sem novas cores fora dos tokens (segue regra de cores do sistema).
+- Passar `orderType` para `<OrdersKanban orderType={orderType} />`.
+- Único título: "Pedidos" + subtítulo dinâmico ("Acompanhe pedidos de delivery em tempo real" / "...de retirada...").
 
-**Cabeçalho:**
-- Título "Entregadores" + subtítulo "Gerencie sua equipe de entrega".
-- Botão "Novo Entregador" (ícone `Plus`) à direita.
+### 3. `src/components/delivery/OrdersKanban.tsx` (refatorar)
+- Receber prop `orderType`.
+- Definir colunas dinâmicas:
+  - Delivery: Novos (`pending`), Em Preparo (`confirmed`,`preparing`), Pronto (`ready`), Saiu para Entrega (`delivering`).
+  - Retirada: Novos (`pending`), Em Preparo (`confirmed`,`preparing`), Pronto para Retirar (`ready`).
+- Layout: `flex` horizontal com colunas largura `w-[280px]` + `overflow-x-auto` + uma coluna lateral fixa "Concluídos" à direita (`w-[260px]`).
+- Filtrar pedidos pelo `order_type` selecionado antes de distribuir nas colunas.
+- Coluna Concluídos: lista compacta dos últimos 20 (`status==="completed"` do dia), `ScrollArea` própria, item compacto (#número, cliente, total, hora). Inclui `<Input type="date">` para filtro de data (default hoje) — refiltra `completed_at`/`delivered_at`.
 
-**Busca:**
-- `Input` com ícone `Search` à esquerda; filtra `drivers` por `name` (case-insensitive). Largura `max-w-sm`.
+### 4. `src/components/delivery/OrderCard.tsx` (refatorar)
+- Adicionar:
+  - Número grande (`text-base font-bold`) com `#` destacado.
+  - Tempo decorrido com cor progressiva: verde (<15min) `text-green-600`, amarelo (<30min) `text-yellow-600`, vermelho (≥30min) `text-red-600`. Atualizar via `useEffect` com setInterval(30s) que apenas força re-render (state `tick`).
+  - Badge tipo: 🛵 Delivery / 🏪 Retirada (texto + ícone) — variantes diferentes.
+  - Para `order_type==="delivery"`: linha do entregador. Buscar via `useDeliveryDrivers().drivers` (via id `order.driver_id`). Se sem driver e status em `["ready","delivering"]`: botão "Atribuir entregador" → abre um pequeno popover com lista de entregadores `disponivel` (`useAssignDriver().assignDriver`). Se já atribuído: mostra nome + ícone.
+  - Para `order_type==="pickup"`: telefone clicável (`tel:` + WhatsApp icon).
+  - Botão principal "Avançar" (chama `useUpdateOrderStatus` com próximo status conforme `statusFlow`) e botão "Detalhes" (abre `OrderDetailDialog`).
+- Indicadores de urgência:
+  - `status==="pending"` e `>5min`: classe `ring-2 ring-destructive animate-pulse`.
+  - `status==="ready"` e `>10min`: `ring-2 ring-yellow-500`.
 
-**Grid:**
-- `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`.
-- Cards com `h-full flex flex-col` para altura uniforme.
-- Inativos: `opacity-60`.
+### 5. Pequeno helper `src/components/delivery/AssignDriverPopover.tsx` (criar)
+- Popover/Dropdown listando drivers `is_active && status==="disponivel"` com avatar + nome. Usa `useAssignDriver().assignDriver({orderId, driverId})`. Se nenhum driver cadastrado: mostra link "Cadastrar entregador" para `/pdv/delivery/entregadores`.
 
-**Card (novo componente inline `DriverCard` ou bloco):**
-```
-┌──────────────────────────────────────────┐
-│ [Avatar 56px]  Nome (bold)        [Badge]│
-│                🛵 Moto · [PLACA]         │
-│                [WhatsApp] (11) 9...      │
-│ ───────────────────────────────────────  │
-│ Hoje  12      Mês  187    [Toggle] [✏][🗑]│
-└──────────────────────────────────────────┘
-```
-- Avatar: `Avatar` 14×14 com `AvatarImage` ou `AvatarFallback` colorido (`avatar_color` + `initialsFromName`).
-- Badge status no topo direito: `Disponível` (`bg-green-500/15 text-green-700 dark:text-green-400`), `Em entrega` (`bg-yellow-500/15 text-yellow-700 dark:text-yellow-400`), `Inativo` (`bg-muted text-muted-foreground`). Usar tokens semânticos do projeto via classes Tailwind/`Badge` `variant` quando disponível, complementando com utilitários para a cor.
-- Veículo: ícone Lucide (`Bike`/`Car`/`Footprints`; bicicleta usa `Bike` também) + label.
-- Placa: `Badge variant="outline"` discreta.
-- Telefone: link `https://wa.me/55<digits>` (strip não-dígitos) com ícone `MessageCircle` (ou `Phone`) — clicável, `target="_blank"`.
-- Toggle `Switch` para `is_active` — chama `update({ id, patch: { is_active, status: nextStatus } })`. Quando desativando, força `status='inativo'`; ao reativar, volta para `disponivel` se não estiver `em_entrega`.
-- Botão editar (ícone `Pencil`, `variant="ghost" size="icon"`) abre drawer.
-- Botão excluir (ícone `Trash2`) abre `AlertDialog` de confirmação → chama `remove(d.id)` (soft delete já existente).
-- Rodapé: "Hoje" número grande (`text-xl font-semibold`), "Mês" número menor (`text-sm text-muted-foreground`).
-- Se `status === 'em_entrega'` e `current_order_number`: pequena tag abaixo do nome "Pedido #X — Em rota".
+## Notas técnicas
+- Sem migrations: tabela `delivery_drivers` e colunas `driver_id`/`driver_assigned_at` em `delivery_orders` já existem.
+- Usar apenas tokens do sistema (bg-card, bg-muted, text-foreground, ring-destructive, primary). Cores semafóricas verde/amarelo/vermelho permitidas exclusivamente no timer e bordas de urgência (semântica de status, não decoração).
+- Mantém `formatBRL`, locale `ptBR` em `formatDistanceToNow`.
+- Coluna Concluídos dispensa o tipo "completed" das colunas dinâmicas.
 
-**Estado vazio (sem nenhum cadastrado):**
-- Card centralizado com ícone `Bike` grande dentro de círculo `bg-muted`, título "Nenhum entregador cadastrado ainda", subtexto descritivo, botão "Cadastrar primeiro entregador".
-
-**Estado vazio de busca:** mensagem simples "Nenhum entregador encontrado para "{query}"".
-
-## 2. `src/components/delivery/DriverFormSheet.tsx` — ajustes
-
-- Cabeçalho fixo (`SheetHeader sticky top-0 bg-background z-10 border-b pb-3`).
-- Conteúdo central com scroll (`flex-1 overflow-y-auto`).
-- Rodapé fixo com botões Cancelar/Salvar (`sticky bottom-0 bg-background border-t pt-3`).
-- Estrutura: `<SheetContent className="w-full sm:max-w-md p-0 flex flex-col">`.
-- Telefone com máscara brasileira: aplicar `formatPhoneMask` local (`(##) #####-####`) no `onChange` do input.
-- Placa com máscara Mercosul/antigo: uppercase, sem espaço, `maxLength=7`.
-- Tipo de veículo: já existe — manter visual; aumentar para `h-20` cada botão.
-- **Foto:** novo bloco no topo:
-  - Preview circular (`h-24 w-24 rounded-full`) com `AvatarImage`/`AvatarFallback` (iniciais).
-  - Botão "Carregar foto" usando `useImageUpload` (já existente) com bucket apropriado (verificar — provavelmente `avatars` ou `product-images`; usar `avatars` se existir, senão criar fluxo simples com `supabase.storage` em bucket público `delivery-drivers` — prefiro reutilizar `useImageUpload` apontando para path `{userId}/drivers/{uuid}.jpg`).
-  - Botão "Remover foto" se houver `avatar_url`.
-- Toggle ativo já existe; manter, com descrição.
-- Notes já existe.
-
-**Storage:** se não existir bucket adequado, criar migration adicionando bucket público `delivery-drivers` com RLS `{userId}/...`. Verificar `use-image-upload.ts` antes de decidir.
-
-## 3. Toggle de ativo/inativo no card
-
-Lógica em `Drivers.tsx`:
-```ts
-const handleToggleActive = (d, next) =>
-  update({ id: d.id, patch: {
-    is_active: next,
-    status: next ? (d.status === 'em_entrega' ? 'em_entrega' : 'disponivel') : 'inativo'
-  }});
-```
-
-## 4. Confirmação de exclusão
-
-Usar `AlertDialog` do shadcn com texto "Desativar entregador?" / "Ele deixará de aparecer para atribuição de pedidos." Confirmar → `remove(d.id)`.
-
-## Detalhes técnicos
-
-- Cores de status via classes utilitárias diretas (verde/amarelo/cinza) — exceção pontual ao guardrail "system colors only" porque o usuário pediu explicitamente "verde / amarelo / cinza" para reconhecimento imediato. Aplicar via classes Tailwind nos badges (não criar tokens novos).
-- Reaproveitar `useDeliveryDrivers` (sem mudanças no hook).
-- Imports adicionais: `Search`, `Pencil`, `Trash2`, `MessageCircle`, `Plus`, `Bike`, `Car`, `Footprints`, `Switch`, `AlertDialog*`, `Input`.
-- Telefone WhatsApp: `https://wa.me/55${phone.replace(/\D/g,'')}`.
-
-## Arquivos afetados
-
-- `src/pages/pdv/delivery/Drivers.tsx` — reescrita completa.
-- `src/components/delivery/DriverFormSheet.tsx` — refatorado (header/footer fixos, máscaras, upload de foto).
-- Possível nova migration de storage bucket caso `useImageUpload` não tenha um destino adequado (verificar antes).
+## Resultado esperado
+- Toggle Delivery (N) / Retirada (N) controla cards e kanban.
+- Kanban dedicado por tipo, Concluídos como side-list com filtro de data.
+- Cards mostram urgência por cor/borda em tempo real e permitem atribuir entregador in-card.
