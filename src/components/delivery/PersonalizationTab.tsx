@@ -6,9 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Upload, X, Image as ImageIcon, Palette, Save } from "lucide-react";
+import { Loader2, Upload, X, Image as ImageIcon, Palette, Save, Link2, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  isSlugAvailable,
+  isValidSlug,
+  normalizeSlug,
+} from "@/lib/public-menu-link";
 
 export function PersonalizationTab() {
   const { user } = useAuth();
@@ -25,7 +30,12 @@ export function PersonalizationTab() {
     secondary_color: "#8b5cf6",
     welcome_message: "Olá! Queremos ouvir você 😊",
     thank_you_message: "Obrigado! Esperamos vê-lo novamente em breve!",
+    slug: "",
   });
+
+  const [slugStatus, setSlugStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
 
   useEffect(() => {
     if (settings) {
