@@ -92,10 +92,7 @@ export const ShoppingCart = ({
       { code: couponCode, orderValue: subtotal, userId },
       {
         onSuccess: (data) => {
-          setAppliedCoupon({
-            code: couponCode,
-            discount: data.discount,
-          });
+          setAppliedCoupon(data.coupon);
           setCouponCode("");
         },
       }
