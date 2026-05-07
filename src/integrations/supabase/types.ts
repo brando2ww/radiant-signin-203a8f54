@@ -236,6 +236,7 @@ export type Database = {
           logo_url: string | null
           primary_color: string | null
           secondary_color: string | null
+          slug: string | null
           thank_you_message: string | null
           updated_at: string | null
           user_id: string
@@ -253,6 +254,7 @@ export type Database = {
           logo_url?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          slug?: string | null
           thank_you_message?: string | null
           updated_at?: string | null
           user_id: string
@@ -270,6 +272,7 @@ export type Database = {
           logo_url?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          slug?: string | null
           thank_you_message?: string | null
           updated_at?: string | null
           user_id?: string
@@ -7288,6 +7291,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      resolve_business_slug: { Args: { _slug: string }; Returns: string }
     }
     Enums: {
       app_role:
