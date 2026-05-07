@@ -38,9 +38,13 @@ export const useDeliveryOrdersWatcher = () => {
           },
           async (payload) => {
             const newOrder: any = payload.new;
-            if (!newOrder?.id || newOrder.status !== "pending") return;
+            if (!newOrder?.id) return;
+            // Aceita 'pending' e 'preparing' (auto-aceite via trigger BEFORE
+            // INSERT entrega o pedido já em preparo no payload realtime).
+            if (!["pending", "preparing"].includes(newOrder.status)) return;
             if (processedIds.current.has(newOrder.id)) return;
             processedIds.current.add(newOrder.id);
+            const alreadyAutoAccepted = newOrder.status === "preparing";
 
             // Notificação
             try {
@@ -50,10 +54,6 @@ export const useDeliveryOrdersWatcher = () => {
             toast.success("Novo pedido recebido!");
 
             // Aguarda persistência de itens e adicionais antes de imprimir.
-            // O INSERT em delivery_orders chega via realtime antes dos
-            // INSERTs em delivery_order_items / delivery_order_item_options
-            // (executados em sequência pelo checkout público). Sem essa
-            // espera, a comanda da cozinha sai sem os adicionais.
             try {
               let itemIds: string[] = [];
               for (let i = 0; i < 16; i++) {
@@ -69,9 +69,6 @@ export const useDeliveryOrdersWatcher = () => {
               }
 
               if (itemIds.length > 0) {
-                // Aguarda os adicionais serem persistidos (best-effort).
-                // Faz polling curto: assim que aparecer alguma opção, segue;
-                // senão aguarda até ~1.5s antes de seguir mesmo sem opções.
                 for (let i = 0; i < 6; i++) {
                   const { data: opts } = await supabase
                     .from("delivery_order_item_options")
@@ -96,6 +93,25 @@ export const useDeliveryOrdersWatcher = () => {
               }
             } catch (e) {
               console.error("Erro ao imprimir pedido novo:", e);
+            }
+
+            // Se já veio auto-aceito pelo trigger, apenas consome ingredientes
+            // (idempotente) e atualiza a UI.
+            if (alreadyAutoAccepted) {
+              try {
+                await supabase.rpc("consume_ingredients_for_delivery_order", {
+                  p_order_id: newOrder.id,
+                });
+              } catch (e) {
+                console.warn("Falha ao consumir ingredientes:", e);
+              }
+              toast.success(
+                printed
+                  ? "Pedido auto-confirmado e em preparo"
+                  : "Pedido auto-confirmado",
+              );
+              queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
+              return;
             }
 
             // Verifica configuração e caixa para auto-aceite
