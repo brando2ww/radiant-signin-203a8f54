@@ -131,19 +131,24 @@ export function useCompositionGroups(productId?: string) {
       if (input.parentProductId === input.childProductId) {
         throw new Error("Um produto não pode ser sub-produto de si mesmo");
       }
-      const { data, error } = await supabase
+      const groupItems =
+        data?.find((g) => g.id === input.groupId)?.items || [];
+      const nextPos = groupItems.length
+        ? Math.max(...groupItems.map((i) => i.order_position ?? 0)) + 1
+        : 0;
+      const { data: inserted, error } = await supabase
         .from("pdv_product_compositions")
         .insert({
           parent_product_id: input.parentProductId,
           child_product_id: input.childProductId,
           group_id: input.groupId,
           quantity: input.quantity ?? 1,
-          order_position: 0,
+          order_position: nextPos,
         })
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return inserted;
     },
     onSuccess: invalidate,
     onError: (e: any) => {
