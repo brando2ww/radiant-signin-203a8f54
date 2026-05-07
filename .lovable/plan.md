@@ -1,74 +1,91 @@
-## 1. Cadastro de Entregadores (módulo Delivery)
+# Redesenho da página `/pdv/delivery/entregadores`
 
-### Banco de dados (migration)
-- Criar enum `delivery_driver_status`: `disponivel`, `em_entrega`, `inativo`.
-- Criar enum `delivery_vehicle_type`: `moto`, `bicicleta`, `carro`, `a_pe`.
-- Criar tabela `public.delivery_drivers`:
-  - `id uuid pk default gen_random_uuid()`
-  - `user_id uuid not null` (dono do estabelecimento)
-  - `name text not null`
-  - `phone text`
-  - `vehicle_type delivery_vehicle_type not null default 'moto'`
-  - `plate text`
-  - `avatar_url text`
-  - `avatar_color text` (cor gerada para iniciais)
-  - `notes text`
-  - `is_active boolean not null default true`
-  - `status delivery_driver_status not null default 'disponivel'`
-  - `current_order_id uuid references delivery_orders(id) on delete set null`
-  - `created_at`, `updated_at`
-- Índice `(user_id, status)`.
-- RLS: habilitada. SELECT/INSERT/UPDATE/DELETE permitidos quando `user_id = auth.uid()` ou `is_establishment_member(user_id)` (consistente com demais tabelas do delivery).
-- Adicionar colunas em `public.delivery_orders`:
-  - `driver_id uuid references delivery_drivers(id) on delete set null`
-  - `driver_assigned_at timestamptz`
-- Trigger `update_updated_at_column` em `delivery_drivers`.
+Objetivo: transformar a página atual (com Tabs de filtro) em uma central de cadastro limpa, com busca, cards modernos e drawer renovado.
 
-### Hook `src/hooks/use-delivery-drivers.ts`
-- `useDeliveryDrivers()` — lista todos os drivers do estabelecimento (via `useEstablishmentId`), com counters do dia/mês a partir de `delivery_orders` (`completed_at` no dia/mês).
-- Mutations: `createDriver`, `updateDriver`, `deleteDriver` (soft via `is_active=false`), `setStatus`.
-- Realtime opcional na lista.
+## 1. `src/pages/pdv/delivery/Drivers.tsx` — reescrita
 
-### Página `src/pages/pdv/delivery/Drivers.tsx`
-- Header: título + botão "Novo Entregador" + filtro por status (Tabs: Todos / Disponível / Em entrega / Inativo).
-- Grid de cards com avatar (`Avatar` shadcn — iniciais + `avatar_color`), nome, telefone, ícone do veículo + placa, badge de status (default/secondary/outline — sem cores customizadas, conforme memory), contadores "Hoje: X · Mês: Y" e — quando `em_entrega` — chip com pedido atual (`#order_number — Em rota`).
-- Click no card abre o drawer de edição. Menu "⋮" com Editar / Desativar.
+**Remover:** componente `Tabs` e estado `filter`.
 
-### Drawer `src/components/delivery/DriverFormSheet.tsx`
-- `Sheet` lateral. Form com `react-hook-form` + zod:
-  - Nome (obrigatório, ≤100), Telefone (mask), Tipo de veículo (RadioGroup com ícones — `Bike`, `Bike` (bicicleta), `Car`, `Footprints`), Placa (≤10), Foto (upload via `useSupabaseUpload` para bucket `avatars` no path `{userId}/{file}`), Status ativo (Switch), Observação (textarea ≤500).
-- Avatar gerado: se sem foto, gera cor determinística pelo nome.
+**Cabeçalho:**
+- Título "Entregadores" + subtítulo "Gerencie sua equipe de entrega".
+- Botão "Novo Entregador" (ícone `Plus`) à direita.
 
-### Roteamento e navegação
-- Adicionar rota `delivery/entregadores` em `src/pages/PDV.tsx` mapeando `Drivers`.
-- Adicionar item "Entregadores" (icon `Bike`) em `src/components/pdv/PDVHeaderNav.tsx`, na seção delivery (após "Pedidos").
+**Busca:**
+- `Input` com ícone `Search` à esquerda; filtra `drivers` por `name` (case-insensitive). Largura `max-w-sm`.
 
-## 2. Atribuição de entregador na Frente de Caixa
+**Grid:**
+- `grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4`.
+- Cards com `h-full flex flex-col` para altura uniforme.
+- Inativos: `opacity-60`.
 
-### `src/components/pdv/cashier/DeliveryQueueCard.tsx`
-- Quando `order.status === "delivering"` e existir pelo menos 1 entregador cadastrado:
-  - Se `order.driver_id` nulo: mostrar `Select` compacto com entregadores disponíveis (status `disponivel`). Confirmação chama mutation `assignDriver(orderId, driverId)`.
-  - Se já atribuído: mostrar badge `🛵 Nome` + botão pequeno para desatribuir.
-- Se nenhum entregador cadastrado, esconder o seletor (mantém fluxo atual).
+**Card (novo componente inline `DriverCard` ou bloco):**
+```
+┌──────────────────────────────────────────┐
+│ [Avatar 56px]  Nome (bold)        [Badge]│
+│                🛵 Moto · [PLACA]         │
+│                [WhatsApp] (11) 9...      │
+│ ───────────────────────────────────────  │
+│ Hoje  12      Mês  187    [Toggle] [✏][🗑]│
+└──────────────────────────────────────────┘
+```
+- Avatar: `Avatar` 14×14 com `AvatarImage` ou `AvatarFallback` colorido (`avatar_color` + `initialsFromName`).
+- Badge status no topo direito: `Disponível` (`bg-green-500/15 text-green-700 dark:text-green-400`), `Em entrega` (`bg-yellow-500/15 text-yellow-700 dark:text-yellow-400`), `Inativo` (`bg-muted text-muted-foreground`). Usar tokens semânticos do projeto via classes Tailwind/`Badge` `variant` quando disponível, complementando com utilitários para a cor.
+- Veículo: ícone Lucide (`Bike`/`Car`/`Footprints`; bicicleta usa `Bike` também) + label.
+- Placa: `Badge variant="outline"` discreta.
+- Telefone: link `https://wa.me/55<digits>` (strip não-dígitos) com ícone `MessageCircle` (ou `Phone`) — clicável, `target="_blank"`.
+- Toggle `Switch` para `is_active` — chama `update({ id, patch: { is_active, status: nextStatus } })`. Quando desativando, força `status='inativo'`; ao reativar, volta para `disponivel` se não estiver `em_entrega`.
+- Botão editar (ícone `Pencil`, `variant="ghost" size="icon"`) abre drawer.
+- Botão excluir (ícone `Trash2`) abre `AlertDialog` de confirmação → chama `remove(d.id)` (soft delete já existente).
+- Rodapé: "Hoje" número grande (`text-xl font-semibold`), "Mês" número menor (`text-sm text-muted-foreground`).
+- Se `status === 'em_entrega'` e `current_order_number`: pequena tag abaixo do nome "Pedido #X — Em rota".
 
-### Mutation `assignDriver` (em `use-delivery-drivers.ts`)
-- Update em `delivery_orders` (`driver_id`, `driver_assigned_at=now()`) **e** em `delivery_drivers` (`status='em_entrega'`, `current_order_id=orderId`). Em paralelo via `Promise.all`.
-- `unassignDriver`: limpa ambos.
-- Invalida queries: `pdv-delivery-queue`, `delivery-drivers`, `delivery-orders`.
+**Estado vazio (sem nenhum cadastrado):**
+- Card centralizado com ícone `Bike` grande dentro de círculo `bg-muted`, título "Nenhum entregador cadastrado ainda", subtexto descritivo, botão "Cadastrar primeiro entregador".
 
-### Liberação automática ao confirmar pagamento / conclusão
-- Em `src/hooks/use-pdv-delivery-checkout.ts` (registro de pagamento) e no fluxo de "Confirmar recebimento online": após sucesso, se o pedido tinha `driver_id`, marcar driver como `disponivel` e limpar `current_order_id`. Contador do dia/mês é derivado de `delivery_orders.completed_at` (não precisa coluna extra).
-- Mesmo tratamento quando o pedido vira `cancelled` enquanto havia driver atribuído.
+**Estado vazio de busca:** mensagem simples "Nenhum entregador encontrado para "{query}"".
 
-### Tipagem
-- Atualizar `DeliveryOrder` (em `use-delivery-orders.ts`) para incluir `driver_id?: string | null` e `driver_assigned_at?: string | null`. Tipos do Supabase são regenerados automaticamente.
+## 2. `src/components/delivery/DriverFormSheet.tsx` — ajustes
 
-## Regras garantidas
-- Driver só aparece no select se `status = 'disponivel'` e `is_active = true`.
-- Atribuição opcional — se não selecionado, status avança normalmente.
-- Sem entregadores cadastrados → nenhum seletor.
+- Cabeçalho fixo (`SheetHeader sticky top-0 bg-background z-10 border-b pb-3`).
+- Conteúdo central com scroll (`flex-1 overflow-y-auto`).
+- Rodapé fixo com botões Cancelar/Salvar (`sticky bottom-0 bg-background border-t pt-3`).
+- Estrutura: `<SheetContent className="w-full sm:max-w-md p-0 flex flex-col">`.
+- Telefone com máscara brasileira: aplicar `formatPhoneMask` local (`(##) #####-####`) no `onChange` do input.
+- Placa com máscara Mercosul/antigo: uppercase, sem espaço, `maxLength=7`.
+- Tipo de veículo: já existe — manter visual; aumentar para `h-20` cada botão.
+- **Foto:** novo bloco no topo:
+  - Preview circular (`h-24 w-24 rounded-full`) com `AvatarImage`/`AvatarFallback` (iniciais).
+  - Botão "Carregar foto" usando `useImageUpload` (já existente) com bucket apropriado (verificar — provavelmente `avatars` ou `product-images`; usar `avatars` se existir, senão criar fluxo simples com `supabase.storage` em bucket público `delivery-drivers` — prefiro reutilizar `useImageUpload` apontando para path `{userId}/drivers/{uuid}.jpg`).
+  - Botão "Remover foto" se houver `avatar_url`.
+- Toggle ativo já existe; manter, com descrição.
+- Notes já existe.
 
-## Observações de design
-- Sem cores customizadas: badges via variantes default/secondary/outline (memory: usar tokens do sistema).
-- Drawer segue padrões de Dialog UI (defer open, reset states ao fechar).
-- Currency e datas seguem `formatBRL` e `ptBR`.
+**Storage:** se não existir bucket adequado, criar migration adicionando bucket público `delivery-drivers` com RLS `{userId}/...`. Verificar `use-image-upload.ts` antes de decidir.
+
+## 3. Toggle de ativo/inativo no card
+
+Lógica em `Drivers.tsx`:
+```ts
+const handleToggleActive = (d, next) =>
+  update({ id: d.id, patch: {
+    is_active: next,
+    status: next ? (d.status === 'em_entrega' ? 'em_entrega' : 'disponivel') : 'inativo'
+  }});
+```
+
+## 4. Confirmação de exclusão
+
+Usar `AlertDialog` do shadcn com texto "Desativar entregador?" / "Ele deixará de aparecer para atribuição de pedidos." Confirmar → `remove(d.id)`.
+
+## Detalhes técnicos
+
+- Cores de status via classes utilitárias diretas (verde/amarelo/cinza) — exceção pontual ao guardrail "system colors only" porque o usuário pediu explicitamente "verde / amarelo / cinza" para reconhecimento imediato. Aplicar via classes Tailwind nos badges (não criar tokens novos).
+- Reaproveitar `useDeliveryDrivers` (sem mudanças no hook).
+- Imports adicionais: `Search`, `Pencil`, `Trash2`, `MessageCircle`, `Plus`, `Bike`, `Car`, `Footprints`, `Switch`, `AlertDialog*`, `Input`.
+- Telefone WhatsApp: `https://wa.me/55${phone.replace(/\D/g,'')}`.
+
+## Arquivos afetados
+
+- `src/pages/pdv/delivery/Drivers.tsx` — reescrita completa.
+- `src/components/delivery/DriverFormSheet.tsx` — refatorado (header/footer fixos, máscaras, upload de foto).
+- Possível nova migration de storage bucket caso `useImageUpload` não tenha um destino adequado (verificar antes).
