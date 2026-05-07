@@ -100,6 +100,10 @@ export function PersonalizationTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.slug && (slugStatus === "invalid" || slugStatus === "taken" || slugStatus === "checking")) {
+      toast.error("Verifique o link personalizado antes de salvar");
+      return;
+    }
     await saveSettings(formData);
   };
 
