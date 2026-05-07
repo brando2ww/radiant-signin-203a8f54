@@ -1,40 +1,33 @@
-## Diagnóstico
+## Objetivo
 
-Verifiquei que:
+Na página `/cardapio/:slug`, atualizar dinamicamente o `document.title` e o `<link rel="icon">` da aba do navegador com o nome e logo do restaurante, restaurando os valores padrão do Velara ao desmontar.
 
-1. O slug `kotensushibargaribaldi` existe em `business_settings` com `logo_url` válido (Koten Sushi Bar).
-2. A Edge Function `og-cardapio` **não está respondendo** quando chamada diretamente (retorna 404 — provavelmente nunca foi efetivamente deployada após a criação anterior).
-3. Mesmo se estivesse deployada, o código atual tem um problema sutil: usa `<meta http-equiv="refresh" content="0; url=...">` **dentro do mesmo HTML que serve as OG tags**. O WhatsApp/Facebook **segue redirects** ao raspar Open Graph, então acabaria chegando no SPA `/cardapio/<slug>` (que é o `index.html` com o OG fallback da Velara) e usaria aquele preview, não o do restaurante.
+## Mudanças
 
-É exatamente o sintoma reportado: o link abre, mas o preview no WhatsApp mostra "Velara | PDV & Compras" com logo da Velara.
+### 1. `src/pages/PublicMenu.tsx`
 
-## O que vou fazer
+Adicionar um `useEffect` que:
 
-### 1. Reescrever `supabase/functions/og-cardapio/index.ts`
+- Enquanto `resolvingHandle` for `true` → `document.title = "Carregando cardápio..."`.
+- Se resolveu mas `userId` é nulo → `document.title = "Cardápio não encontrado"`.
+- Quando `businessSettings` carregar (vamos passar a consumir `useBusinessSettings(userId)` diretamente em `PublicMenu`, já existe no hook `use-public-menu.ts`):
+  - `document.title = businessSettings.business_name || "Cardápio"`.
+  - Se `logo_url` existir, criar/atualizar `<link rel="icon">` no `<head>` apontando para `logo_url` (também atualizar `apple-touch-icon` para coerência mobile).
+  - Se não houver `logo_url`, manter o favicon padrão Velara (não tocar).
 
-- Continuar usando `SUPABASE_SERVICE_ROLE_KEY` (bypassa RLS, query garantida).
-- Buscar `business_settings` por `lower(slug) = lower($1)` (case-insensitive, igual à RPC `resolve_business_slug` já existente).
-- Detectar se o requisitante é um **bot/scraper** via `User-Agent` (WhatsApp, facebookexternalhit, Twitterbot, Telegram, LinkedInBot, Slackbot, Discordbot, etc.).
-  - **Bots:** retornam HTML com OG tags do restaurante e **sem redirect** — só meta tags, título e um `<a>` para o cardápio. Sem `meta refresh`, sem `window.location.replace`. Isso garante que o scraper fique nesta página e leia o OG correto.
-  - **Humanos:** retornam HTTP `302` direto para `https://pdv.velaraia.app/cardapio/<slug>`. Mais rápido e sem flicker.
-- Quando o slug não existir, ainda retornar fallback genérico Velara (com 200 + OG genérico) para bots, ou 302 para a home para humanos.
-- Definir `og:image:width` / `og:image:height` (400x400) e `og:type=website`, `twitter:card=summary`.
-- Cache curto (`max-age=300`) só para bots.
+Ao desmontar (cleanup do `useEffect`):
 
-### 2. Garantir o deploy
+- Restaurar `document.title` para o valor original capturado no mount (provavelmente "Velara | PDV & Compras" definido em `index.html`).
+- Restaurar `href` do `<link rel="icon">` para o valor original capturado no mount (favicon padrão Velara).
+- Se criamos um novo `<link>` (não existia), removê-lo.
 
-O harness redeploya automaticamente as Edge Functions ao salvar. Após salvar, vou:
-- Chamar `supabase--curl_edge_functions` com `User-Agent: facebookexternalhit/1.1` e validar que o HTML contém `og:title = "Koten Sushi Bar"` e `og:image` apontando para o logo do restaurante.
-- Chamar sem User-Agent de bot e validar que recebe `302` para `/cardapio/kotensushibargaribaldi`.
+### 2. Sem alterações em `index.html`
 
-### 3. Observação sobre cache do WhatsApp
+O favicon padrão Velara já está configurado lá; o componente apenas lê o valor original do DOM no mount para poder restaurá-lo.
 
-Após o deploy, o WhatsApp pode continuar mostrando o preview antigo por algumas horas/dias por causa do cache interno deles. Vou orientar o usuário a:
-- Testar com um link novo (ex.: adicionar `?v=2` ao final) para forçar nova raspagem; ou
-- Usar o [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) colando a URL `…/og-cardapio?slug=kotensushibargaribaldi` e clicando em **"Scrape Again"**.
+## Detalhes técnicos
 
-## Arquivos afetados
-
-- `supabase/functions/og-cardapio/index.ts` (reescrito)
-
-Nada mais precisa mudar — o link compartilhável em `PublicMenuLink.tsx` e `public-menu-link.ts` já aponta corretamente para a Edge Function com `?slug=...`.
+- Capturar `originalTitle` e `originalFaviconHref` em `useRef` no primeiro render para evitar perdê-los entre re-renders.
+- Usar `document.querySelector("link[rel~='icon']")` para encontrar o link existente; se não existir, criar e marcar uma flag para remoção no cleanup.
+- A atualização do título/favicon roda como efeito separado dependendo de `resolvingHandle`, `userId` e `businessSettings?.business_name` / `businessSettings?.logo_url` para refletir as três fases (loading / not-found / loaded).
+- Edge Function `og-cardapio` continua responsável pelo preview de compartilhamento (WhatsApp/Facebook); essa mudança só afeta a aba do navegador real do visitante.
