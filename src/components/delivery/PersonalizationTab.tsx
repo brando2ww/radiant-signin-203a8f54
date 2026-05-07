@@ -6,9 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Upload, X, Image as ImageIcon, Palette, Save } from "lucide-react";
+import { Loader2, Upload, X, Image as ImageIcon, Palette, Save, Link2, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  isSlugAvailable,
+  isValidSlug,
+  normalizeSlug,
+} from "@/lib/public-menu-link";
 
 export function PersonalizationTab() {
   const { user } = useAuth();
@@ -25,7 +30,12 @@ export function PersonalizationTab() {
     secondary_color: "#8b5cf6",
     welcome_message: "Olá! Queremos ouvir você 😊",
     thank_you_message: "Obrigado! Esperamos vê-lo novamente em breve!",
+    slug: "",
   });
+
+  const [slugStatus, setSlugStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
 
   useEffect(() => {
     if (settings) {
@@ -39,9 +49,34 @@ export function PersonalizationTab() {
         secondary_color: settings.secondary_color || "#8b5cf6",
         welcome_message: settings.welcome_message || "Olá! Queremos ouvir você 😊",
         thank_you_message: settings.thank_you_message || "Obrigado! Esperamos vê-lo novamente em breve!",
+        slug: settings.slug || "",
       });
     }
   }, [settings]);
+
+  // Validação de slug em tempo real (debounced)
+  useEffect(() => {
+    const slug = formData.slug.trim();
+    if (!slug) {
+      setSlugStatus("idle");
+      return;
+    }
+    if (!isValidSlug(slug)) {
+      setSlugStatus("invalid");
+      return;
+    }
+    if (settings?.slug && settings.slug.toLowerCase() === slug.toLowerCase()) {
+      setSlugStatus("available");
+      return;
+    }
+    setSlugStatus("checking");
+    const t = setTimeout(async () => {
+      if (!user?.id) return;
+      const ok = await isSlugAvailable(slug, user.id);
+      setSlugStatus(ok ? "available" : "taken");
+    }, 400);
+    return () => clearTimeout(t);
+  }, [formData.slug, settings?.slug, user?.id]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, field: "logo_url" | "cover_url") => {
     const file = e.target.files?.[0];
@@ -65,6 +100,10 @@ export function PersonalizationTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.slug && (slugStatus === "invalid" || slugStatus === "taken" || slugStatus === "checking")) {
+      toast.error("Verifique o link personalizado antes de salvar");
+      return;
+    }
     await saveSettings(formData);
   };
 
@@ -201,6 +240,78 @@ export function PersonalizationTab() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Link personalizado */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Link personalizado do cardápio
+            </CardTitle>
+            <CardDescription>
+              Escolha um endereço curto e fácil de lembrar para compartilhar.
+              Apenas letras minúsculas, números e hífens (3 a 40 caracteres).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {typeof window !== "undefined" ? window.location.host : "pdv.velaraia.app"}/cardapio/
+              </span>
+              <Input
+                value={formData.slug}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    slug: normalizeSlug(e.target.value),
+                  }))
+                }
+                placeholder="ex: kotensushi"
+                maxLength={40}
+                className="flex-1"
+              />
+              {formData.business_name && !formData.slug && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      slug: normalizeSlug(prev.business_name),
+                    }))
+                  }
+                >
+                  Sugerir
+                </Button>
+              )}
+            </div>
+            {formData.slug && (
+              <div className="flex items-center gap-2 text-xs">
+                {slugStatus === "checking" && (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Verificando...
+                  </span>
+                )}
+                {slugStatus === "available" && (
+                  <span className="flex items-center gap-1 text-green-600">
+                    <Check className="h-3 w-3" /> Disponível
+                  </span>
+                )}
+                {slugStatus === "taken" && (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <AlertCircle className="h-3 w-3" /> Este link já está em uso
+                  </span>
+                )}
+                {slugStatus === "invalid" && (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <AlertCircle className="h-3 w-3" /> Formato inválido (3 a 40 caracteres, letras minúsculas, números e hífens)
+                  </span>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

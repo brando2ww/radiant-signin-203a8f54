@@ -21,6 +21,9 @@ import {
 import { toast } from "sonner";
 import { DeliveryCoupon } from "@/hooks/use-delivery-coupons";
 import { formatBRL } from "@/lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { buildPublicMenuUrl } from "@/lib/public-menu-link";
 
 export const CouponsTab = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -32,13 +35,29 @@ export const CouponsTab = () => {
   const updateCoupon = useUpdateCoupon();
   const { visibleUserId } = useEstablishmentId();
 
+  const { data: bizSlug } = useQuery({
+    queryKey: ["business-slug", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return null;
+      const { data } = await supabase
+        .from("business_settings")
+        .select("slug")
+        .eq("user_id", visibleUserId)
+        .maybeSingle();
+      return data?.slug ?? null;
+    },
+    enabled: !!visibleUserId,
+  });
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     toast.success("Código copiado!");
   };
 
   const handleCopyLink = (code: string) => {
-    const url = `${window.location.origin}/cardapio/${visibleUserId}?cupom=${code}`;
+    if (!visibleUserId) return;
+    const base = buildPublicMenuUrl({ userId: visibleUserId, slug: bizSlug });
+    const url = `${base}?cupom=${code}`;
     navigator.clipboard.writeText(url);
     toast.success("Link com cupom copiado!");
   };
