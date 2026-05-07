@@ -126,6 +126,7 @@ export default function PDV() {
               <Route path="delivery/relatorios" element={<RoleRoute path="/pdv/delivery/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryReports /></RoleRoute>} />
               <Route path="delivery/mapa-calor" element={<RoleRoute path="/pdv/delivery/mapa-calor" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryHeatMap /></RoleRoute>} />
               <Route path="delivery/fidelidade" element={<RoleRoute path="/pdv/delivery/fidelidade" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryLoyalty /></RoleRoute>} />
+              <Route path="delivery/entregadores" element={<RoleRoute path="/pdv/delivery/entregadores" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryDrivers /></RoleRoute>} />
               
               {/* Administrador */}
               <Route path="dashboard" element={<RoleRoute path="/pdv/dashboard" canAccess={canAccess} defaultRoute={defaultRoute}><PDVDashboard /></RoleRoute>} />
