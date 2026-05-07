@@ -3020,6 +3020,7 @@ export type Database = {
           total_change: number
           total_credit: number
           total_debit: number
+          total_online_delivery: number
           total_pix: number
           total_sales: number
           total_voucher: number
@@ -3059,6 +3060,7 @@ export type Database = {
           total_change?: number
           total_credit?: number
           total_debit?: number
+          total_online_delivery?: number
           total_pix?: number
           total_sales?: number
           total_voucher?: number
@@ -3098,6 +3100,7 @@ export type Database = {
           total_change?: number
           total_credit?: number
           total_debit?: number
+          total_online_delivery?: number
           total_pix?: number
           total_sales?: number
           total_voucher?: number

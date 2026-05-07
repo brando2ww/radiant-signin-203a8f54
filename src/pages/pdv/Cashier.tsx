@@ -173,6 +173,7 @@ export default function PDVCashier() {
       : rawTotalCredit;
   const totalPix = activeSession?.total_pix || 0;
   const totalVoucher = (activeSession as any)?.total_voucher || 0;
+  const totalOnlineDelivery = (activeSession as any)?.total_online_delivery || 0;
   const totalWithdrawals = activeSession?.total_withdrawals || 0;
   const totalSales = activeSession?.total_sales || 0;
 
@@ -316,6 +317,7 @@ export default function PDVCashier() {
             totalDebit={totalDebit}
             totalPix={totalPix}
             totalVoucher={totalVoucher}
+            totalOnlineDelivery={totalOnlineDelivery}
             totalSales={totalSales}
             isOpen={!!activeSession}
           />

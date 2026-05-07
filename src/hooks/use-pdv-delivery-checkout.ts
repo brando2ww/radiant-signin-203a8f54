@@ -11,8 +11,19 @@ function normalize(m: PaymentMethod): Method {
   return m === "cartao" ? "credito" : m;
 }
 
-function buildSessionDeltas(method: Method, amount: number, change?: number) {
+function buildSessionDeltas(
+  method: Method,
+  amount: number,
+  change: number | undefined,
+  source: "delivery" | "delivery_online",
+) {
   const d: Record<string, number> = { total_sales: amount };
+  // Pagamentos online (já pagos no app) não afetam a gaveta nem a conferência
+  // de maquininhas — entram apenas como informativo.
+  if (source === "delivery_online") {
+    d.total_online_delivery = amount;
+    return d;
+  }
   if (method === "dinheiro") {
     d.total_cash = amount;
     if (change && change > 0) d.total_change = change;
@@ -112,7 +123,7 @@ export function usePDVDeliveryCheckout() {
       if (mErr) throw mErr;
 
       // Atualiza totais
-      const deltas = buildSessionDeltas(method, amount, changeAmount);
+      const deltas = buildSessionDeltas(method, amount, changeAmount, source);
       const updates = applyDeltas(session, deltas);
       await supabase.from("pdv_cashier_sessions").update(updates).eq("id", session.id);
 
