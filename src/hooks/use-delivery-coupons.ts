@@ -19,6 +19,30 @@ export interface DeliveryCoupon {
   created_at: string;
 }
 
+/**
+ * Calcula o desconto de um cupom em tempo real sobre o subtotal informado.
+ * Reutilizado pelo carrinho para evitar "congelar" o desconto quando o
+ * cliente altera os itens depois de aplicar o cupom.
+ */
+export function computeCouponDiscount(
+  coupon: Pick<DeliveryCoupon, "type" | "value" | "max_discount">,
+  subtotal: number,
+): number {
+  const safeSubtotal = Number.isFinite(subtotal) ? Math.max(0, subtotal) : 0;
+  let discount = 0;
+  if (coupon.type === "percentage") {
+    discount = (safeSubtotal * Number(coupon.value || 0)) / 100;
+    if (coupon.max_discount && discount > coupon.max_discount) {
+      discount = coupon.max_discount;
+    }
+  } else {
+    discount = Number(coupon.value || 0);
+  }
+  // Nunca exceder o subtotal
+  if (discount > safeSubtotal) discount = safeSubtotal;
+  return Math.round(discount * 100) / 100;
+}
+
 export const useDeliveryCoupons = () => {
   return useQuery({
     queryKey: ["delivery-coupons"],
