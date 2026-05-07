@@ -49,6 +49,7 @@ export function PersonalizationTab() {
         secondary_color: settings.secondary_color || "#8b5cf6",
         welcome_message: settings.welcome_message || "Olá! Queremos ouvir você 😊",
         thank_you_message: settings.thank_you_message || "Obrigado! Esperamos vê-lo novamente em breve!",
+        slug: settings.slug || "",
       });
     }
   }, [settings]);
