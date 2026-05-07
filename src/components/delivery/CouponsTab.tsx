@@ -35,13 +35,29 @@ export const CouponsTab = () => {
   const updateCoupon = useUpdateCoupon();
   const { visibleUserId } = useEstablishmentId();
 
+  const { data: bizSlug } = useQuery({
+    queryKey: ["business-slug", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return null;
+      const { data } = await supabase
+        .from("business_settings")
+        .select("slug")
+        .eq("user_id", visibleUserId)
+        .maybeSingle();
+      return data?.slug ?? null;
+    },
+    enabled: !!visibleUserId,
+  });
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     toast.success("Código copiado!");
   };
 
   const handleCopyLink = (code: string) => {
-    const url = `${window.location.origin}/cardapio/${visibleUserId}?cupom=${code}`;
+    if (!visibleUserId) return;
+    const base = buildPublicMenuUrl({ userId: visibleUserId, slug: bizSlug });
+    const url = `${base}?cupom=${code}`;
     navigator.clipboard.writeText(url);
     toast.success("Link com cupom copiado!");
   };
