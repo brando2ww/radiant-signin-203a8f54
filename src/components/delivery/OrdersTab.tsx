@@ -8,7 +8,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { formatBRL } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { startOfDay } from "date-fns";
 
 type OrderType = "delivery" | "pickup";
@@ -77,7 +76,6 @@ export const OrdersTab = () => {
         />
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard icon={Package} label="Pedidos Hoje" value={stats.todayTotal.toString()} />
         <StatCard icon={DollarSign} label="Receita Hoje" value={formatBRL(stats.revenue)} />
@@ -85,51 +83,11 @@ export const OrdersTab = () => {
         <StatCard icon={Activity} label="Em andamento" value={stats.inProgress.toString()} />
       </div>
 
-      {/* Toggle Delivery / Retirada */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          onClick={() => setOrderType("delivery")}
-          className={cn(
-            "p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 font-medium",
-            orderType === "delivery"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
-          )}
-        >
-          <span className="text-2xl">🛵</span>
-          <span>Delivery</span>
-          <span
-            className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-bold",
-              orderType === "delivery" ? "bg-primary-foreground text-primary" : "bg-background",
-            )}
-          >
-            {counts.delivery}
-          </span>
-        </button>
-        <button
-          onClick={() => setOrderType("pickup")}
-          className={cn(
-            "p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 font-medium",
-            orderType === "pickup"
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-muted text-muted-foreground hover:bg-muted/70",
-          )}
-        >
-          <span className="text-2xl">🏪</span>
-          <span>Retirada</span>
-          <span
-            className={cn(
-              "px-2 py-0.5 rounded-full text-xs font-bold",
-              orderType === "pickup" ? "bg-primary-foreground text-primary" : "bg-background",
-            )}
-          >
-            {counts.pickup}
-          </span>
-        </button>
-      </div>
-
-      <OrdersKanban orderType={orderType} />
+      <OrdersKanban
+        orderType={orderType}
+        onOrderTypeChange={setOrderType}
+        counts={counts}
+      />
     </div>
   );
 };

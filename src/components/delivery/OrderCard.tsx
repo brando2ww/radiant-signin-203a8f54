@@ -1,7 +1,18 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, MapPin, Clock, Package, Bike, ChevronRight } from "lucide-react";
+import {
+  Phone,
+  MapPin,
+  Clock,
+  Package,
+  Bike,
+  ChevronRight,
+  CreditCard,
+  Banknote,
+  QrCode,
+  Wallet,
+} from "lucide-react";
 import { DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
 import { useDeliveryDrivers } from "@/hooks/use-delivery-drivers";
 import { useEffect, useState } from "react";
@@ -25,11 +36,22 @@ const statusFlow: Record<string, DeliveryOrder["status"]> = {
 };
 
 const nextStatusLabel: Record<string, string> = {
-  pending: "Iniciar Preparo",
+  pending: "Confirmar",
   confirmed: "Iniciar Preparo",
-  preparing: "Marcar Pronto",
-  ready: "Saiu p/ Entrega",
-  delivering: "Concluir",
+  preparing: "Marcar como Pronto",
+  ready: "Saiu para Entrega",
+  delivering: "Concluir Entrega",
+};
+
+const paymentInfo = (method: string): { label: string; icon: typeof CreditCard } => {
+  const m = (method || "").toLowerCase();
+  if (m.includes("dinheiro") || m === "cash") return { label: "Dinheiro", icon: Banknote };
+  if (m.includes("pix")) return { label: "Pix", icon: QrCode };
+  if (m.includes("credito") || m.includes("crédito")) return { label: "Crédito", icon: CreditCard };
+  if (m.includes("debito") || m.includes("débito")) return { label: "Débito", icon: CreditCard };
+  if (m.includes("card") || m.includes("cartao") || m.includes("cartão"))
+    return { label: "Cartão", icon: CreditCard };
+  return { label: method || "Pagamento", icon: Wallet };
 };
 
 export const OrderCard = ({ order }: OrderCardProps) => {
@@ -62,6 +84,9 @@ export const OrderCard = ({ order }: OrderCardProps) => {
   const isPickup = order.order_type === "pickup";
   const driver = order.driver_id ? drivers.find((d) => d.id === order.driver_id) : null;
   const nextStatus = statusFlow[order.status];
+  const pay = paymentInfo(order.payment_method);
+  const PayIcon = pay.icon;
+  const items = order.delivery_order_items || [];
 
   const handleAdvance = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -79,16 +104,10 @@ export const OrderCard = ({ order }: OrderCardProps) => {
         className={cn("cursor-pointer hover:shadow-md transition-shadow", urgentRing)}
         onClick={() => setIsDetailOpen(true)}
       >
-        <CardContent className="p-3 space-y-2">
+        <CardContent className="p-4 space-y-3">
           {/* Header */}
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-bold text-base leading-tight">#{order.order_number}</p>
-              <p className={cn("text-xs font-medium flex items-center gap-1", timeColor)}>
-                <Clock className="h-3 w-3" />
-                {timeAgo}
-              </p>
-            </div>
+            <p className="font-bold text-lg leading-none">#{order.order_number}</p>
             <Badge variant="outline" className="text-xs shrink-0">
               {isPickup ? (
                 <><Package className="h-3 w-3 mr-1" />🏪 Retirada</>
@@ -98,70 +117,101 @@ export const OrderCard = ({ order }: OrderCardProps) => {
             </Badge>
           </div>
 
-          {/* Customer */}
+          {/* Cliente + tempo */}
           <div>
-            <p className="font-medium text-sm truncate">{order.customer_name}</p>
-            {isPickup && (
-              <button
-                onClick={handlePhone}
-                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1"
-              >
-                <Phone className="h-3 w-3" /> {order.customer_phone}
-              </button>
-            )}
+            <p className="font-semibold text-sm truncate">{order.customer_name}</p>
+            <p className={cn("text-xs font-medium flex items-center gap-1 mt-0.5", timeColor)}>
+              <Clock className="h-3 w-3" />
+              {timeAgo}
+            </p>
           </div>
 
-          {/* Items */}
-          {order.delivery_order_items && (
-            <div className="text-xs text-muted-foreground">
-              <p className="font-medium">{order.delivery_order_items.length} item(s)</p>
-              <div className="mt-0.5 space-y-0.5">
-                {order.delivery_order_items.slice(0, 2).map((item) => (
-                  <div key={item.id} className="truncate">
-                    {item.quantity}x {item.product_name}
+          {/* Itens */}
+          {items.length > 0 && (
+            <div className="text-xs space-y-0.5 pt-2 border-t">
+              {items.slice(0, 3).map((item) => (
+                <div key={item.id} className="flex gap-1.5">
+                  <span className="text-muted-foreground shrink-0">{item.quantity}x</span>
+                  <span className="truncate">{item.product_name}</span>
+                </div>
+              ))}
+              {items.length > 3 && (
+                <p className="text-muted-foreground/70">+{items.length - 3} mais</p>
+              )}
+            </div>
+          )}
+
+          {/* Pagamento */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <PayIcon className="h-3.5 w-3.5" />
+            <span>{pay.label}</span>
+          </div>
+
+          {/* Endereço/Entregador ou Telefone */}
+          {isPickup ? (
+            <button
+              onClick={handlePhone}
+              className="w-full flex items-center gap-1.5 text-xs text-foreground hover:text-primary"
+            >
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{order.customer_phone}</span>
+            </button>
+          ) : (
+            <div className="space-y-1.5">
+              {order.delivery_address_text && (
+                <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span className="line-clamp-1">{order.delivery_address_text}</span>
+                </div>
+              )}
+              <div className="text-xs">
+                {driver ? (
+                  <div className="flex items-center gap-1.5 text-foreground">
+                    <Bike className="h-3.5 w-3.5" />
+                    <span className="truncate font-medium">{driver.name}</span>
                   </div>
-                ))}
-                {order.delivery_order_items.length > 2 && (
-                  <div>+{order.delivery_order_items.length - 2} mais</div>
+                ) : (
+                  ["ready", "delivering"].includes(order.status) && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <AssignDriverPopover orderId={order.id} />
+                    </div>
+                  )
                 )}
               </div>
             </div>
           )}
 
-          {/* Driver row (delivery only) */}
-          {!isPickup && (
-            <div className="text-xs">
-              {driver ? (
-                <div className="flex items-center gap-1 text-foreground">
-                  <Bike className="h-3 w-3" />
-                  <span className="truncate font-medium">{driver.name}</span>
-                </div>
-              ) : (
-                ["ready", "delivering"].includes(order.status) && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <AssignDriverPopover orderId={order.id} />
-                  </div>
-                )
-              )}
-            </div>
-          )}
-
-          {/* Total + actions */}
+          {/* Total */}
           <div className="flex items-center justify-between pt-2 border-t">
-            <p className="font-bold">{formatBRL(Number(order.total))}</p>
+            <span className="text-xs text-muted-foreground">Total</span>
+            <span className="font-bold text-lg">{formatBRL(Number(order.total))}</span>
           </div>
 
-          {nextStatus && (
+          {/* Ações */}
+          <div className="space-y-1.5">
+            {nextStatus && (
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={handleAdvance}
+                disabled={updateStatus.isPending}
+              >
+                {nextStatusLabel[order.status]}
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            )}
             <Button
               size="sm"
+              variant="ghost"
               className="w-full h-8 text-xs"
-              onClick={handleAdvance}
-              disabled={updateStatus.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsDetailOpen(true);
+              }}
             >
-              {nextStatusLabel[order.status]}
-              <ChevronRight className="h-3 w-3 ml-1" />
+              Ver detalhes
             </Button>
-          )}
+          </div>
         </CardContent>
       </Card>
 
