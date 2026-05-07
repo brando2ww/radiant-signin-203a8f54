@@ -137,6 +137,59 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
         </div>
       )}
 
+      {order.status === "delivering" && drivers.length > 0 && (
+        <div className="mb-2">
+          {assignedDriver ? (
+            <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1.5">
+              <Avatar className="h-6 w-6">
+                {assignedDriver.avatar_url && (
+                  <AvatarImage src={assignedDriver.avatar_url} alt={assignedDriver.name} />
+                )}
+                <AvatarFallback
+                  className="text-[10px]"
+                  style={{ background: assignedDriver.avatar_color || undefined }}
+                >
+                  {initialsFromName(assignedDriver.name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xs flex-1 truncate">🛵 {assignedDriver.name}</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                disabled={isAssigning}
+                onClick={() =>
+                  unassignDriver({ orderId: order.id, driverId: assignedDriver.id })
+                }
+                title="Desatribuir"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ) : availableDrivers.length > 0 ? (
+            <Select
+              disabled={isAssigning}
+              onValueChange={(v) => assignDriver({ orderId: order.id, driverId: v })}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Atribuir entregador (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableDrivers.map((d) => (
+                  <SelectItem key={d.id} value={d.id} className="text-xs">
+                    🛵 {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <div className="text-[10px] text-muted-foreground italic">
+              Nenhum entregador disponível
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="text-xs text-muted-foreground mb-2 space-y-0.5">
         {visible.map((it) => (
           <div key={it.id} className="truncate">
