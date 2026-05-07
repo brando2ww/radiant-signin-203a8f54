@@ -76,7 +76,7 @@ export const ShoppingCart = ({
         { code: initialCoupon, orderValue: subtotal, userId },
         {
           onSuccess: (data) => {
-            setAppliedCoupon({ code: initialCoupon, discount: data.discount });
+            setAppliedCoupon(data.coupon);
             toast.success(`Cupom ${initialCoupon} aplicado automaticamente!`);
           },
           onError: () => {
