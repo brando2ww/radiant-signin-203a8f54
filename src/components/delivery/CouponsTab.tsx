@@ -21,6 +21,9 @@ import {
 import { toast } from "sonner";
 import { DeliveryCoupon } from "@/hooks/use-delivery-coupons";
 import { formatBRL } from "@/lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { buildPublicMenuUrl } from "@/lib/public-menu-link";
 
 export const CouponsTab = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
