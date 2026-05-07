@@ -92,6 +92,7 @@ const sectionItems: Section[] = [
     icon: Truck,
     items: [
       { title: "Pedidos", url: "/pdv/delivery/pedidos", icon: ShoppingBag },
+      { title: "Entregadores", url: "/pdv/delivery/entregadores", icon: Bike },
       { title: "Cardápio", url: "/pdv/delivery/cardapio", icon: UtensilsCrossed },
       { title: "Personalização", url: "/pdv/delivery/personalizacao", icon: Palette },
       { title: "Cupons", url: "/pdv/delivery/cupons", icon: Tag },
