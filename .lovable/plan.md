@@ -1,26 +1,17 @@
-## Problema
+## Causa raiz
 
-No `ProductCompositionManager`, ao adicionar sub-produtos a um grupo de composição (ex.: "Etapa 01"), todos são gravados com `order_position: 0` em `pdv_product_compositions`. Isso faz com que:
+O pedido `Monte Seu Poke` foi criado já com status `preparing` (auto-aceite via trigger `auto_accept_delivery_order` BEFORE INSERT). O watcher em `src/hooks/use-delivery-orders-watcher.ts` (linha 41) ignora qualquer payload que não venha com `status === "pending"`, então a chamada de `dispatchDeliveryPrintJobs` nunca acontece — nenhum job aparece em `pdv_print_jobs` (confirmei via consulta: zero jobs nas últimas 2 horas).
 
-- No PDV, a lista do grupo apareça em ordem indeterminada (geralmente `created_at`).
-- No cardápio público (`/cardapio/...`), os itens cheguem ordenados por `order_position` (todos = 0) e o desempate fique a cargo do Postgres, gerando uma ordem visual completamente diferente da cadastrada (ver capturas).
+Detalhe extra: removemos antes a impressão do `useUpdateOrderStatus` justamente porque o watcher cobria o INSERT. Com o auto-aceite ativo, esse caminho ficou descoberto.
 
-## Solução
+## Correção
 
-1. **`src/hooks/use-pdv-composition-groups.ts` — `addItem`**
-   - Antes do `insert`, calcular o maior `order_position` atual dentro do `groupId` (a partir de `groups[*].items` já em cache) e usar `max + 1` (0 se vazio).
+Em `src/hooks/use-delivery-orders-watcher.ts` no callback do INSERT:
 
-2. **Nova migração SQL — backfill + ordenação consistente**
-   - `UPDATE pdv_product_compositions` definindo `order_position` por `row_number()` particionado por `group_id` ordenado por `created_at`, apenas onde existem múltiplas linhas com o mesmo `order_position` no grupo (corrige o estado atual onde tudo é 0).
-   - Em seguida, executar a função existente `delivery_clone_options_from_pdv` (via `UPDATE` no trigger ou chamada direta) para repropagar a ordem correta para `delivery_product_option_items`. Como o trigger `sync_pdv_composition_to_delivery` reage a INSERT/UPDATE/DELETE em `pdv_product_compositions`, o `UPDATE` do backfill já vai sincronizar automaticamente os itens de delivery existentes.
+1. Aceitar tanto `pending` quanto `preparing` (auto-aceite chega já como `preparing`).
+2. Detectar `alreadyAutoAccepted = newOrder.status === "preparing"` e, nesse caso:
+   - Pular o bloco de mudança de status para `preparing` (já está).
+   - Ainda assim chamar `dispatchDeliveryPrintJobs` e `consume_ingredients_for_delivery_order` (idempotente).
+3. Manter o fluxo atual para `pending` (impressão + auto-aceite condicional).
 
-3. **`src/hooks/use-pdv-composition-groups.ts` — query**
-   - Garantir `order` em `pdv_product_compositions` por `order_position` E desempate por `created_at`, para que o PDV mostre a mesma ordem do cardápio mesmo se houver empates antigos.
-
-Sem alterações no `use-public-menu.ts` (já ordena por `order_position` no `foreignTable` correto) — basta os dados estarem corretos.
-
-## Resultado
-
-- Cada novo item entra no fim do grupo (ordem de cadastro).
-- Itens já existentes ficam ordenados pela data de criação dentro de cada grupo.
-- Cardápio público e PDV exibem os sub-produtos exatamente na ordem cadastrada.
+Sem mudanças no banco; o trigger continua válido.
