@@ -28,7 +28,7 @@ const pickupColumns = [
   { id: "pronto", label: "Pronto para Retirar", color: "bg-purple-500", match: ["ready"] },
 ];
 
-export const OrdersKanban = ({ orderType, onOrderTypeChange, counts }: Props) => {
+export const OrdersKanban = ({ orderType, onOrderTypeChange, counts = { delivery: 0, pickup: 0 } }: Props) => {
   const { data: allOrders = [] } = useDeliveryOrders();
   const [completedDate, setCompletedDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
