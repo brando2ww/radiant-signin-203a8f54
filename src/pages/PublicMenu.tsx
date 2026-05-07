@@ -177,10 +177,18 @@ const PublicMenu = () => {
     setCart([]);
   };
 
+  if (resolvingHandle) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-muted-foreground">Carregando cardápio...</p>
+      </div>
+    );
+  }
+
   if (!userId) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">ID do estabelecimento não encontrado</p>
+        <p className="text-muted-foreground">Cardápio não encontrado</p>
       </div>
     );
   }
