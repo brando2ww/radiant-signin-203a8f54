@@ -1,38 +1,21 @@
-## Unificar Seções 2 e 3 em "Resumo do caixa e vendas por pagamento"
+## Problema
 
-Combinar a Seção 2 (Resumo da gaveta) e a Seção 3 (Vendas por forma de pagamento) em uma única seção, dentro de um único Card dividido em dois blocos internos.
+No modal de Pagamento, na aba "Várias formas", ao escolher "Cartão" em uma das linhas não aparece o seletor de Crédito/Débito (que existe no modo "Tudo"). Isso já é exigido pela conferência do fechamento, e o código de submit já lê `line.cardType` — mas a UI nunca permite definir esse valor por linha.
 
-### Arquivo afetado
-- `src/components/pdv/CloseCashierDialog.tsx`
+## Solução (apenas UI, em `src/components/pdv/cashier/PaymentDialog.tsx`)
 
-### Nova estrutura do modal
-1. Valor total de venda do dia
-2. **Resumo do caixa e vendas por pagamento** (nova seção unificada)
-3. Conferência dos valores apurados
-4. Diferenças encontradas
-5. Justificativa da diferença
-6. Resumo final do fechamento
+1. No card de cada `splitPayment` (dentro do bloco `splitEnabled`, após o `<Select>` de forma e antes do `CurrencyInput`), renderizar condicionalmente, quando `payment.method === "cartao"`, um toggle compacto com dois botões — "Crédito" e "Débito" — no mesmo padrão visual do toggle já usado no modo "Tudo" (linhas ~1798-1845).
+   - Botão ativo: `border-primary bg-primary/10`.
+   - `onClick` chama `updateSplitPayment(payment.id, { cardType: "credito" | "debito" })`.
+   - Valor exibido: `payment.cardType ?? "credito"`.
 
-### Layout da nova Seção 2
-Um único `<Card>` com `CardContent` contendo dois blocos separados por um `<Separator />`:
+2. Ao trocar a forma da linha para "cartao" (no `onValueChange` do Select existente), inicializar `cardType: "credito"` se ainda não houver valor:
+   - `updateSplitPayment(payment.id, { method: v, cardType: v === "cartao" ? (payment.cardType ?? "credito") : payment.cardType })`.
 
-**Bloco 1 — Gaveta / dinheiro físico**
-- Subtítulo discreto: "Gaveta / dinheiro físico"
-- Abertura
-- Vendas em dinheiro
-- Reforços
-- Sangrias
-- Saldo esperado da gaveta (em destaque)
+3. Em `addSplitPayment` (linha ~469), manter o default já existente; nenhuma mudança necessária além de garantir que o `cardType` permaneça opcional.
 
-**Bloco 2 — Vendas registradas por forma de pagamento**
-- Subtítulo discreto: "Vendas registradas por forma de pagamento"
-- Linhas vindas de `visibleRows` (Dinheiro, Crédito, Débito, PIX, Vale-refeição, Online/Delivery, Outros — apenas as com valor > 0 ou já visíveis)
-- Linha final: "Total de vendas registradas" (= `expectedTotal`) em destaque
+Sem mudanças em hooks, payload, validação ou lógica de submit — o caminho `line.method === "cartao" ? (line.cardType === "debito" ? "debito" : "credito")` (linhas 617-618) já consome o novo valor corretamente.
 
-### Detalhes técnicos
-- Header da seção: ícone `Wallet` + título "2. Resumo do caixa e vendas por pagamento"
-- Subtítulos dos blocos: `text-xs font-semibold text-muted-foreground uppercase tracking-wide`
-- `space-y-1.5` nas linhas internas, `space-y-3` entre blocos
-- Renumerar Seções 4→3, 5→4, 6→5, 7→6 (comentários e títulos H3)
-- Sem mudança em estado, hooks, payload ou validação — apenas reorganização de JSX
-- Usa cores semânticas existentes (sem novos tokens)
+## Resultado esperado
+
+Ao selecionar "Cartão" em qualquer linha de "Várias formas", aparecem dois botões Crédito/Débito logo abaixo do seletor de forma, permitindo registrar corretamente cada split na conferência do fechamento.
