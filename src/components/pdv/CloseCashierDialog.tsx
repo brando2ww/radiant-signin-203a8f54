@@ -438,7 +438,7 @@ export function CloseCashierDialog({
     {
       key: "cash",
       label: "Dinheiro",
-      expected: expectedCash,
+      expected: totalCash,
       declared: declaredCash,
       diff: hasCashDeclared ? declaredCashNum - expectedCash : 0,
       hasDeclared: hasCashDeclared,
