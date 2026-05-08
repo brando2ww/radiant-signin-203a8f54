@@ -697,11 +697,48 @@ export function CloseCashierDialog({
               )}
             </section>
 
-            {/* SEÇÃO 2 — Vendas por forma de pagamento (esperado pelo sistema) */}
+            {/* SEÇÃO 2 — Valor total de venda do dia */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <Receipt className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">2. Vendas por forma de pagamento (sistema)</h3>
+                <h3 className="text-base font-semibold">2. Valor total de venda do dia</h3>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="declared-total" className="font-semibold flex items-center gap-1">
+                  Total apurado pelo operador <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Total geral apurado pelo operador, somando todos os meios de pagamento.
+                </p>
+                <CurrencyInput
+                  id="declared-total"
+                  value={declaredTotal}
+                  onChange={setDeclaredTotal}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Esperado:</span>
+                    <span className="font-medium tabular-nums">{formatBRL(expectedTotal)}</span>
+                  </div>
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Informado:</span>
+                    <span className="font-medium tabular-nums">
+                      {declaredTotalNum != null ? formatBRL(declaredTotalNum) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Diferença:</span>
+                    {declaredTotalNum != null ? <DiffBadge diff={totalDiff} /> : <span>—</span>}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* SEÇÃO 3 — Vendas por forma de pagamento (esperado pelo sistema) */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">3. Vendas por forma de pagamento (sistema)</h3>
               </div>
               <Card className="bg-muted/30">
                 <CardContent className="pt-4 pb-4 space-y-1.5">
@@ -725,11 +762,11 @@ export function CloseCashierDialog({
               </Card>
             </section>
 
-            {/* SEÇÃO 3 — Conferência dos valores apurados */}
+            {/* SEÇÃO 4 — Conferência dos valores apurados */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">3. Conferência dos valores apurados</h3>
+                <h3 className="text-base font-semibold">4. Conferência dos valores apurados</h3>
               </div>
               <p className="text-xs text-muted-foreground">
                 Informe o valor apurado em cada meio de pagamento. A diferença é calculada automaticamente.
@@ -783,45 +820,14 @@ export function CloseCashierDialog({
                   />
                 )}
               </div>
-
-              {/* Valor total de venda do dia */}
-              <div className="space-y-2 pt-2">
-                <Label htmlFor="declared-total" className="font-semibold flex items-center gap-1">
-                  Valor total de venda do dia <span className="text-destructive">*</span>
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Total geral apurado pelo operador, somando todos os meios de pagamento.
-                </p>
-                <CurrencyInput
-                  id="declared-total"
-                  value={declaredTotal}
-                  onChange={setDeclaredTotal}
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
-                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
-                    <span className="text-muted-foreground">Esperado:</span>
-                    <span className="font-medium tabular-nums">{formatBRL(expectedTotal)}</span>
-                  </div>
-                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
-                    <span className="text-muted-foreground">Informado:</span>
-                    <span className="font-medium tabular-nums">
-                      {declaredTotalNum != null ? formatBRL(declaredTotalNum) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
-                    <span className="text-muted-foreground">Diferença:</span>
-                    {declaredTotalNum != null ? <DiffBadge diff={totalDiff} /> : <span>—</span>}
-                  </div>
-                </div>
-              </div>
             </section>
 
-            {/* SEÇÃO 4 — Diferenças encontradas */}
+            {/* SEÇÃO 5 — Diferenças encontradas */}
             {(rowsWithDiff.length > 0 || hasTotalDiff) && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  <h3 className="text-base font-semibold">4. Diferenças encontradas</h3>
+                  <h3 className="text-base font-semibold">5. Diferenças encontradas</h3>
                 </div>
                 <Card className="border-orange-300 dark:border-orange-900">
                   <CardContent className="pt-3 pb-3 space-y-1.5">
@@ -845,12 +851,12 @@ export function CloseCashierDialog({
               </section>
             )}
 
-            {/* SEÇÃO 5 — Justificativa */}
+            {/* SEÇÃO 6 — Justificativa */}
             {hasAnyDifference && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-destructive" />
-                  <h3 className="text-base font-semibold">5. Justificativa da diferença</h3>
+                  <h3 className="text-base font-semibold">6. Justificativa da diferença</h3>
                 </div>
                 <p className="text-xs text-destructive">
                   Existe diferença no fechamento. Informe uma justificativa para continuar.
@@ -868,9 +874,9 @@ export function CloseCashierDialog({
               </section>
             )}
 
-            {/* SEÇÃO 6 — Resumo final */}
+            {/* SEÇÃO 7 — Resumo final */}
             <section className="space-y-2">
-              <h3 className="text-base font-semibold">6. Resumo final do fechamento</h3>
+              <h3 className="text-base font-semibold">7. Resumo final do fechamento</h3>
               <Card className="bg-muted/30">
                 <CardContent className="pt-4 pb-4 space-y-1.5">
                   <div className="flex justify-between text-sm">
