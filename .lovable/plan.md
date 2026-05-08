@@ -1,14 +1,12 @@
-## Problema
-
-No `CashierHeader` (src/components/pdv/cashier/CashierHeader.tsx), os 4 blocos (Operador, Data, Hora, Status) usam `flex-wrap` com `justify-between`. No viewport atual, o badge "Caixa Fechado" não cabe na mesma linha e quebra para baixo, ficando solto e desalinhado.
-
 ## Ajuste
 
-Reorganizar o header para um layout mais robusto que não quebra feio:
+No `src/components/pdv/cashier/CashierHeader.tsx`, reduzir o tamanho das fontes dos valores principais para que textos como "Caixa Principal" e "Caixa Fechado" caibam em uma única linha dentro de cada célula do grid.
 
-1. Trocar `flex-wrap justify-between` por um `grid` responsivo: `grid-cols-2 md:grid-cols-4` com `gap-3`, garantindo que cada bloco ocupe uma célula previsível.
-2. Reduzir o ícone/tamanho do bloco de Status para combinar visualmente com os demais (mesmo padrão de ícone redondo + label pequena + valor) em vez de ponto + badge solto.
-3. Em telas estreitas (< md), os blocos se acomodam em 2 colunas sem sobrar elemento órfão.
-4. Aumentar levemente o padding interno (`p-3`) para respirar.
+Mudanças:
+1. Valores (Caixa Principal, data, status): de `font-medium` (text-base padrão) para `text-sm font-medium`.
+2. Hora atual: de `font-medium font-mono text-base` para `font-medium font-mono text-sm`.
+3. Labels (Operador, Data atual, Hora atual, Status): manter `text-xs text-muted-foreground`.
+4. Adicionar `truncate` / `whitespace-nowrap` nos valores para evitar quebra residual em viewports mais estreitos.
+5. Reduzir gap interno do bloco (ícone + texto) de `gap-3` para `gap-2` para ganhar mais espaço horizontal.
 
-Apenas alterações de apresentação no arquivo `src/components/pdv/cashier/CashierHeader.tsx`. Sem mudança de lógica nem de dados.
+Apenas alterações de apresentação, sem mudanças de lógica.
