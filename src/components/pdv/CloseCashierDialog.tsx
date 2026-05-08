@@ -697,11 +697,48 @@ export function CloseCashierDialog({
               )}
             </section>
 
-            {/* SEÇÃO 2 — Vendas por forma de pagamento (esperado pelo sistema) */}
+            {/* SEÇÃO 2 — Valor total de venda do dia */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <Receipt className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">2. Vendas por forma de pagamento (sistema)</h3>
+                <h3 className="text-base font-semibold">2. Valor total de venda do dia</h3>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="declared-total" className="font-semibold flex items-center gap-1">
+                  Total apurado pelo operador <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Total geral apurado pelo operador, somando todos os meios de pagamento.
+                </p>
+                <CurrencyInput
+                  id="declared-total"
+                  value={declaredTotal}
+                  onChange={setDeclaredTotal}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Esperado:</span>
+                    <span className="font-medium tabular-nums">{formatBRL(expectedTotal)}</span>
+                  </div>
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Informado:</span>
+                    <span className="font-medium tabular-nums">
+                      {declaredTotalNum != null ? formatBRL(declaredTotalNum) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Diferença:</span>
+                    {declaredTotalNum != null ? <DiffBadge diff={totalDiff} /> : <span>—</span>}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* SEÇÃO 3 — Vendas por forma de pagamento (esperado pelo sistema) */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">3. Vendas por forma de pagamento (sistema)</h3>
               </div>
               <Card className="bg-muted/30">
                 <CardContent className="pt-4 pb-4 space-y-1.5">
