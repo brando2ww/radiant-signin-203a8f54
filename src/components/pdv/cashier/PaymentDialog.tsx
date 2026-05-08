@@ -608,6 +608,9 @@ export function PaymentDialog({
       } else {
         // Modo split-por-comanda: 1 pagamento por comanda nominal (cada um com seu método)
         const isSplitByComanda = splitEnabled && splitPayments.some((p) => p.comandaId);
+        // Modo split-forms (várias formas para mesma cobrança, sem comanda nominal por linha)
+        const isSplitForms = splitEnabled && !isSplitByComanda && splitPayments.length > 0;
+
         if (isSplitByComanda && isTablePayment) {
           for (const line of splitPayments) {
             if (!line.comandaId) continue;
@@ -625,6 +628,72 @@ export function PaymentDialog({
               installments: lineMethod === "credito" ? parseInt(line.installments) : undefined,
               cashReceived: lineMethod === "dinheiro" ? parseFloat(line.amount) : undefined,
             });
+          }
+        } else if (isSplitForms) {
+          // Resolve método de cada linha
+          const lines = splitPayments.map((line) => {
+            const lineMethod: PaymentMethod =
+              line.method === "cartao"
+                ? (line.cardType === "debito" ? "debito" : "credito")
+                : line.method;
+            const lineAmount = parseFloat(line.amount) || 0;
+            const lineCashReceived = line.method === "dinheiro"
+              ? (parseFloat(line.cashReceived) || lineAmount)
+              : undefined;
+            const lineChange = line.method === "dinheiro" && lineCashReceived !== undefined
+              ? Math.max(0, lineCashReceived - lineAmount)
+              : undefined;
+            const lineInstallments = lineMethod === "credito" ? parseInt(line.installments) : undefined;
+            return { lineMethod, lineAmount, lineCashReceived, lineChange, lineInstallments };
+          });
+
+          if (isTablePayment && table) {
+            // 1ª linha fecha mesa/comandas; demais apenas registram movimento + pagamento
+            const [first, ...rest] = lines;
+            await registerTablePayment({
+              tableId: table.id,
+              comandaIds: tableComandas.map((c) => c.id),
+              amount: first.lineAmount,
+              paymentMethod: first.lineMethod,
+              cashReceived: first.lineCashReceived,
+              changeAmount: first.lineChange,
+              installments: first.lineInstallments,
+            });
+            const refOrderId = tableComandas[0]?.order_id ?? null;
+            const refComandaId = tableComandas[0]?.id ?? null;
+            for (const ln of rest) {
+              await registerExtraPaymentLine({
+                orderId: refOrderId,
+                comandaId: refComandaId,
+                amount: ln.lineAmount,
+                paymentMethod: ln.lineMethod,
+                cashReceived: ln.lineCashReceived,
+                changeAmount: ln.lineChange,
+                installments: ln.lineInstallments,
+              });
+            }
+          } else if (comanda) {
+            const [first, ...rest] = lines;
+            await registerPayment({
+              comandaId: comanda.id,
+              orderId: comanda.order_id,
+              amount: first.lineAmount,
+              paymentMethod: first.lineMethod,
+              cashReceived: first.lineCashReceived,
+              changeAmount: first.lineChange,
+              installments: first.lineInstallments,
+            });
+            for (const ln of rest) {
+              await registerExtraPaymentLine({
+                orderId: comanda.order_id,
+                comandaId: comanda.id,
+                amount: ln.lineAmount,
+                paymentMethod: ln.lineMethod,
+                cashReceived: ln.lineCashReceived,
+                changeAmount: ln.lineChange,
+                installments: ln.lineInstallments,
+              });
+            }
           }
         } else if (isTablePayment && table) {
           await registerTablePayment({
