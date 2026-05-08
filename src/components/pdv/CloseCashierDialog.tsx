@@ -512,24 +512,24 @@ export function CloseCashierDialog({
   const totalDiff = declaredTotalNum != null ? declaredTotalNum - expectedTotal : 0;
   const hasTotalDiff = declaredTotalNum != null && Math.abs(totalDiff) > TOL;
 
-  const hasAnyDifference = rowsWithDiff.length > 0 || hasTotalDiff;
+  // NOVA REGRA: bloqueio considera APENAS a diferença total final.
+  // Diferenças entre formas que se compensam são apenas informativas.
+  const requiresJustification = hasTotalDiff;
+  const hasReconciledMismatch = rowsWithDiff.length > 0 && !hasTotalDiff && declaredTotalNum != null;
   const justificationValid = justification.trim().length >= MIN_JUSTIFICATION_LENGTH;
-  const justificationOk = !hasAnyDifference || justificationValid;
+  const justificationOk = !requiresJustification || justificationValid;
 
-  const isBlocked = cashRiskLevel === "critical";
-
-  const closingStatus: "no_difference" | "surplus" | "shortage" =
-    !hasAnyDifference ? "no_difference"
-      : (declaredTotalNum != null ? (totalDiff > 0 ? "surplus" : totalDiff < 0 ? "shortage" : "no_difference")
-        : (rowsWithDiff.reduce((a, r) => a + r.diff, 0) > 0 ? "surplus" : "shortage"));
+  const closingStatus: "no_difference" | "reconciled_with_mismatch" | "surplus" | "shortage" =
+    hasTotalDiff
+      ? (totalDiff > 0 ? "surplus" : "shortage")
+      : (rowsWithDiff.length > 0 ? "reconciled_with_mismatch" : "no_difference");
 
   const canClose = useMemo(() => {
     if (!hasCashDeclared) return false;
-    if (isBlocked) return false;
     if (declaredTotal === "") return false; // total do dia obrigatório
     if (!justificationOk) return false;
     return true;
-  }, [hasCashDeclared, isBlocked, declaredTotal, justificationOk]);
+  }, [hasCashDeclared, declaredTotal, justificationOk]);
 
   const buildPayload = (): Omit<CloseCashierPayload, "sessionId"> => {
     const parseOpt = (v: string) => (v === "" ? null : parseFloat(v));
