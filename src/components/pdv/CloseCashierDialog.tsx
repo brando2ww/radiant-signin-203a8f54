@@ -735,6 +735,12 @@ export function CloseCashierDialog({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <MethodConference
+                  icon={Banknote}
+                  label="Dinheiro (gaveta)"
+                  expected={expectedCash}
+                  declared={declaredCash}
+                  onChange={setDeclaredCash}
+                />
                   icon={CreditCard}
                   label="Cartão de Crédito"
                   expected={totalCredit}
