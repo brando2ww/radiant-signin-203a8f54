@@ -661,73 +661,74 @@ export function CloseCashierDialog({
               </div>
             </section>
 
-            {/* SEÇÃO 2 — Resumo da gaveta / dinheiro físico */}
+            {/* SEÇÃO 2 — Resumo do caixa e vendas por pagamento */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <Wallet className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">2. Resumo da gaveta / dinheiro físico</h3>
+                <h3 className="text-base font-semibold">2. Resumo do caixa e vendas por pagamento</h3>
               </div>
 
               <Card>
-                <CardContent className="pt-4 pb-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Abertura:</span>
-                    <span className="font-medium tabular-nums">{formatBRL(openingBalance)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Vendas em dinheiro:</span>
-                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Reforços:</span>
-                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalReinforcements)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Sangrias:</span>
-                    <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalWithdrawals)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-semibold">
-                    <span>Saldo Esperado da Gaveta:</span>
-                    <span className="tabular-nums">{formatBRL(expectedCash)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-
-            {/* SEÇÃO 3 — Vendas por forma de pagamento (esperado pelo sistema) */}
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">3. Vendas por forma de pagamento (sistema)</h3>
-              </div>
-              <Card className="bg-muted/30">
-                <CardContent className="pt-4 pb-4 space-y-1.5">
-                  {visibleRows.map((r) => (
-                    <div key={r.key} className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{r.label}</span>
-                      <span className="font-medium tabular-nums">{formatBRL(r.expected)}</span>
-                    </div>
-                  ))}
-                  <Separator />
-                  <div className="flex justify-between font-semibold">
-                    <span>Total esperado pelo sistema:</span>
-                    <span className="tabular-nums">{formatBRL(expectedTotal)}</span>
-                  </div>
-                  {totalSales !== expectedTotal && (
-                    <p className="text-[11px] text-muted-foreground pt-1">
-                      Total geral de vendas registradas no turno: {formatBRL(totalSales)}
+                <CardContent className="pt-4 pb-4 space-y-3">
+                  {/* Bloco 1 — Gaveta / dinheiro físico */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Gaveta / dinheiro físico
                     </p>
-                  )}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Abertura:</span>
+                      <span className="font-medium tabular-nums">{formatBRL(openingBalance)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Vendas em dinheiro:</span>
+                      <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Reforços:</span>
+                      <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalReinforcements)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Sangrias:</span>
+                      <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalWithdrawals)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold pt-1">
+                      <span>Saldo esperado da gaveta:</span>
+                      <span className="tabular-nums">{formatBRL(expectedCash)}</span>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Bloco 2 — Vendas registradas por forma de pagamento */}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Vendas registradas por forma de pagamento
+                    </p>
+                    {visibleRows.map((r) => (
+                      <div key={r.key} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{r.label}:</span>
+                        <span className="font-medium tabular-nums">{formatBRL(r.expected)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-semibold pt-1">
+                      <span>Total de vendas registradas:</span>
+                      <span className="tabular-nums">{formatBRL(expectedTotal)}</span>
+                    </div>
+                    {totalSales !== expectedTotal && (
+                      <p className="text-[11px] text-muted-foreground pt-1">
+                        Total geral de vendas registradas no turno: {formatBRL(totalSales)}
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </section>
 
-            {/* SEÇÃO 4 — Conferência dos valores apurados */}
+            {/* SEÇÃO 3 — Conferência dos valores apurados */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">4. Conferência dos valores apurados</h3>
+                <h3 className="text-base font-semibold">3. Conferência dos valores apurados</h3>
               </div>
               <p className="text-xs text-muted-foreground">
                 Informe o valor apurado em cada meio de pagamento. A diferença é calculada automaticamente.
@@ -811,12 +812,12 @@ export function CloseCashierDialog({
               )}
             </section>
 
-            {/* SEÇÃO 5 — Diferenças encontradas */}
+            {/* SEÇÃO 4 — Diferenças encontradas */}
             {(rowsWithDiff.length > 0 || hasTotalDiff) && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  <h3 className="text-base font-semibold">5. Diferenças encontradas</h3>
+                  <h3 className="text-base font-semibold">4. Diferenças encontradas</h3>
                 </div>
                 <Card className="border-orange-300 dark:border-orange-900">
                   <CardContent className="pt-3 pb-3 space-y-1.5">
@@ -840,12 +841,12 @@ export function CloseCashierDialog({
               </section>
             )}
 
-            {/* SEÇÃO 6 — Justificativa */}
+            {/* SEÇÃO 5 — Justificativa */}
             {hasAnyDifference && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-destructive" />
-                  <h3 className="text-base font-semibold">6. Justificativa da diferença</h3>
+                  <h3 className="text-base font-semibold">5. Justificativa da diferença</h3>
                 </div>
                 <p className="text-xs text-destructive">
                   Existe diferença no fechamento. Informe uma justificativa para continuar.
@@ -863,9 +864,9 @@ export function CloseCashierDialog({
               </section>
             )}
 
-            {/* SEÇÃO 7 — Resumo final */}
+            {/* SEÇÃO 6 — Resumo final */}
             <section className="space-y-2">
-              <h3 className="text-base font-semibold">7. Resumo final do fechamento</h3>
+              <h3 className="text-base font-semibold">6. Resumo final do fechamento</h3>
               <Card className="bg-muted/30">
                 <CardContent className="pt-4 pb-4 space-y-1.5">
                   <div className="flex justify-between text-sm">
