@@ -50,13 +50,22 @@ export interface CloseCashierPayload {
   declaredDebit?: number | null;
   declaredPix?: number | null;
   declaredVoucher?: number | null;
-  // Justificativas (texto livre por forma)
+  declaredOnlineDelivery?: number | null;
+  declaredOther?: number | null;
+  // Totais
+  declaredTotalSales?: number | null;
+  totalDifference?: number | null;
+  closingStatus?: "no_difference" | "surplus" | "shortage";
+  closingJustification?: string | null;
+  // Justificativas (texto livre por forma — legado)
   justifications: {
     cash?: string;
     credit?: string;
     debit?: string;
     pix?: string;
     voucher?: string;
+    onlineDelivery?: string;
+    other?: string;
   };
   notes?: string;
   riskLevel: "ok" | "low" | "medium" | "high" | "critical";
