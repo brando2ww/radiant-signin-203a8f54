@@ -908,7 +908,12 @@ export function CloseCashierDialog({
                     <span className="text-muted-foreground">Status:</span>
                     {closingStatus === "no_difference" && (
                       <span className="flex items-center gap-1 text-green-600 font-medium">
-                        <CheckCircle2 className="h-4 w-4" /> Sem diferença
+                        <CheckCircle2 className="h-4 w-4" /> Conciliado
+                      </span>
+                    )}
+                    {closingStatus === "reconciled_with_mismatch" && (
+                      <span className="flex items-center gap-1 text-yellow-600 font-medium">
+                        <AlertTriangle className="h-4 w-4" /> Conciliado com divergência entre formas
                       </span>
                     )}
                     {closingStatus === "surplus" && (
@@ -922,7 +927,7 @@ export function CloseCashierDialog({
                       </span>
                     )}
                   </div>
-                  {hasAnyDifference && justification.trim() && (
+                  {requiresJustification && justification.trim() && (
                     <>
                       <Separator />
                       <div className="text-xs">
