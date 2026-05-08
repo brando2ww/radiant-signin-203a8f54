@@ -656,45 +656,6 @@ export function CloseCashierDialog({
                   </div>
                 </CardContent>
               </Card>
-
-              <div className="space-y-2">
-                <Label htmlFor="declared-cash" className="font-semibold">
-                  Dinheiro contado na gaveta
-                </Label>
-                <CurrencyInput
-                  id="declared-cash"
-                  value={declaredCash}
-                  onChange={setDeclaredCash}
-                  autoFocus
-                />
-                {hasCashDeclared && (
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="text-muted-foreground">Diferença da gaveta:</span>
-                    <DiffBadge diff={cashDifference} />
-                  </div>
-                )}
-              </div>
-
-              {hasCashDeclared && (
-                <Card className={cn("border-2", cashRiskConfig.bgColor)}>
-                  <CardContent className="pt-3 pb-3">
-                    <div className="flex items-start gap-3">
-                      <RiskIcon className={cn("h-5 w-5 mt-0.5", cashRiskConfig.color)} />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className={cn("font-semibold text-sm", cashRiskConfig.color)}>
-                            {cashRiskConfig.label}
-                          </span>
-                          <span className={cn("font-mono font-bold text-sm", cashRiskConfig.color)}>
-                            {cashDifference >= 0 ? "+" : ""}{formatBRL(cashDifference)}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{cashRiskConfig.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </section>
 
             {/* SEÇÃO 2 — Valor total de venda do dia */}
