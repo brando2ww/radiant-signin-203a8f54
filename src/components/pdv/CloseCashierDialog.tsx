@@ -741,6 +741,7 @@ export function CloseCashierDialog({
                   declared={declaredCash}
                   onChange={setDeclaredCash}
                 />
+                <MethodConference
                   icon={CreditCard}
                   label="Cartão de Crédito"
                   expected={totalCredit}
