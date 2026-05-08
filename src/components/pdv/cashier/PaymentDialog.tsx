@@ -1612,9 +1612,16 @@ export function PaymentDialog({
                         </div>
                         <Select
                           value={payment.method}
-                          onValueChange={(v) =>
-                            updateSplitPayment(payment.id, { method: v as PaymentMethod })
-                          }
+                          onValueChange={(v) => {
+                            const newMethod = v as PaymentMethod;
+                            updateSplitPayment(payment.id, {
+                              method: newMethod,
+                              cardType:
+                                newMethod === "cartao"
+                                  ? (payment.cardType ?? "credito")
+                                  : payment.cardType,
+                            });
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -1630,6 +1637,30 @@ export function PaymentDialog({
                             ))}
                           </SelectContent>
                         </Select>
+                        {payment.method === "cartao" && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {(["credito", "debito"] as const).map((t) => {
+                              const active = (payment.cardType ?? "credito") === t;
+                              return (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() =>
+                                    updateSplitPayment(payment.id, { cardType: t })
+                                  }
+                                  className={cn(
+                                    "rounded-md border p-2 text-xs font-medium transition-colors",
+                                    active
+                                      ? "border-primary bg-primary/10 text-foreground"
+                                      : "border-border hover:bg-muted text-muted-foreground"
+                                  )}
+                                >
+                                  {t === "credito" ? "Crédito" : "Débito"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                         <CurrencyInput
                           value={payment.amount}
                           onChange={(v) => updateSplitPayment(payment.id, { amount: v })}
