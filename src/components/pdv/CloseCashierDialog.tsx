@@ -7,6 +7,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +36,8 @@ import {
   Ticket,
   Wallet,
   Receipt,
+  Globe,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -63,7 +75,8 @@ interface CloseCashierDialogProps {
 
 type RiskLevel = "ok" | "low" | "medium" | "high" | "critical";
 
-const MIN_JUSTIFICATION_LENGTH = 30;
+const MIN_JUSTIFICATION_LENGTH = 10;
+const TOL = 0.005; // tolerância para considerar diferença zero
 
 function getRiskLevel(difference: number): RiskLevel {
   const absDiff = Math.abs(difference);
@@ -115,6 +128,34 @@ function getRiskConfig(riskLevel: RiskLevel) {
   return configs[riskLevel];
 }
 
+function diffStatus(diff: number): "ok" | "surplus" | "shortage" {
+  if (Math.abs(diff) <= TOL) return "ok";
+  return diff > 0 ? "surplus" : "shortage";
+}
+
+function DiffBadge({ diff }: { diff: number }) {
+  const s = diffStatus(diff);
+  if (s === "ok") {
+    return (
+      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+        <CheckCircle2 className="h-3.5 w-3.5" /> Sem diferença
+      </span>
+    );
+  }
+  if (s === "surplus") {
+    return (
+      <span className="flex items-center gap-1 text-xs text-orange-600 font-medium">
+        <AlertTriangle className="h-3.5 w-3.5" /> Sobra +{formatBRL(diff)}
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs text-destructive font-medium">
+      <AlertCircle className="h-3.5 w-3.5" /> Falta {formatBRL(diff)}
+    </span>
+  );
+}
+
 export function printCashierReport(params: PrintCashierReportParams) {
   const { session, movements, closingBalance: finalBalance, notes: finalNotes, riskLevel: finalRisk } = params;
 
@@ -127,7 +168,6 @@ export function printCashierReport(params: PrintCashierReportParams) {
 
   const openingBal = Number(session?.opening_balance) || 0;
   const totalCash = Number(session?.total_cash) || 0;
-  const totalChange = Number(session?.total_change) || 0;
   const totalCredit = Number(session?.total_credit) || 0;
   const totalDebit = Number(session?.total_debit) || 0;
   const totalPix = Number(session?.total_pix) || 0;
@@ -140,20 +180,21 @@ export function printCashierReport(params: PrintCashierReportParams) {
     .filter((m) => m.type === "reforco")
     .reduce((acc, m) => acc + m.amount, 0);
 
-  const netCash = totalCash;
-  const expectedCash = openingBal + netCash + totalReinforcements - totalWithdrawals;
+  const expectedCash = openingBal + totalCash + totalReinforcements - totalWithdrawals;
   const cashDiff = finalBalance - expectedCash;
 
   const declaredCredit = session?.declared_credit;
   const declaredDebit = session?.declared_debit;
   const declaredPix = session?.declared_pix;
   const declaredVoucher = session?.declared_voucher;
+  const declaredOnline = session?.declared_online_delivery;
 
   const conferenceRows: Array<[string, number, number | null]> = [
     ["Crédito", totalCredit, declaredCredit],
     ["Débito", totalDebit, declaredDebit],
     ["PIX", totalPix, declaredPix],
     ["Vale-refeição", totalVoucher, declaredVoucher],
+    ["Online (Delivery)", totalOnlineDelivery, declaredOnline],
   ];
 
   const conferenceHtml = conferenceRows
@@ -225,13 +266,12 @@ export function printCashierReport(params: PrintCashierReportParams) {
 </div>
 ${conferenceHtml ? `<div class="divider"></div>
 <div class="section">
-  <div class="section-title">CONFERÊNCIA DAS MÁQUINAS / EXTRATOS</div>
+  <div class="section-title">CONFERÊNCIA POR FORMA</div>
   ${conferenceHtml}
 </div>` : ""}
 <div class="divider"></div>
 <div class="section">
-  <div class="row total"><span>Total de Vendas (todas as formas):</span><span>${formatBRL(totalSales)}</span></div>
-  ${totalOnlineDelivery > 0 ? `<div class="row"><span>↳ Online (Delivery) — informativo:</span><span>${formatBRL(totalOnlineDelivery)}</span></div>` : ""}
+  <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
 ${movements.length > 0 ? `
 <div class="divider"></div>
@@ -278,8 +318,6 @@ interface MethodConferenceProps {
   expected: number;
   declared: string;
   onChange: (v: string) => void;
-  justification: string;
-  onJustificationChange: (v: string) => void;
 }
 
 function MethodConference({
@@ -288,35 +326,21 @@ function MethodConference({
   expected,
   declared,
   onChange,
-  justification,
-  onJustificationChange,
 }: MethodConferenceProps) {
   const declaredNum = parseFloat(declared);
   const hasDeclared = declared !== "" && !isNaN(declaredNum);
   const diff = hasDeclared ? declaredNum - expected : 0;
-  const ok = hasDeclared && Math.abs(diff) <= 0.5;
-  const hasDivergence = hasDeclared && !ok;
-  const justOk = !hasDivergence || justification.trim().length >= MIN_JUSTIFICATION_LENGTH;
+  const hasDivergence = hasDeclared && Math.abs(diff) > TOL;
 
   return (
     <Card className={cn("border", hasDivergence && "border-orange-300 dark:border-orange-900")}>
       <CardContent className="p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{label}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium truncate">{label}</span>
           </div>
-          {hasDeclared && (
-            ok ? (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Conferido
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-orange-600">
-                <AlertTriangle className="h-3.5 w-3.5" /> {diff > 0 ? "+" : ""}{formatBRL(diff)}
-              </span>
-            )
-          )}
+          {hasDeclared && <DiffBadge diff={diff} />}
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
@@ -326,24 +350,10 @@ function MethodConference({
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Conforme máquina/extrato</Label>
+            <Label className="text-xs text-muted-foreground">Valor apurado</Label>
             <CurrencyInput value={declared} onChange={onChange} />
           </div>
         </div>
-        {hasDivergence && (
-          <div className="space-y-1 pt-1">
-            <Label className="text-xs text-orange-700">
-              Justificativa* ({justification.trim().length}/{MIN_JUSTIFICATION_LENGTH})
-            </Label>
-            <Textarea
-              rows={2}
-              placeholder="Explique a divergência (mínimo 30 caracteres)..."
-              value={justification}
-              onChange={(e) => onJustificationChange(e.target.value)}
-              className={cn(!justOk && "border-orange-400 focus-visible:ring-orange-400")}
-            />
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -359,22 +369,24 @@ export function CloseCashierDialog({
 }: CloseCashierDialogProps) {
   // Gaveta
   const [declaredCash, setDeclaredCash] = useState("");
-  const [cashJustification, setCashJustification] = useState("");
   // Conferência por forma
   const [declaredCredit, setDeclaredCredit] = useState("");
   const [declaredDebit, setDeclaredDebit] = useState("");
   const [declaredPix, setDeclaredPix] = useState("");
   const [declaredVoucher, setDeclaredVoucher] = useState("");
-  const [creditJust, setCreditJust] = useState("");
-  const [debitJust, setDebitJust] = useState("");
-  const [pixJust, setPixJust] = useState("");
-  const [voucherJust, setVoucherJust] = useState("");
-  // Observações gerais
+  const [declaredOnline, setDeclaredOnline] = useState("");
+  const [declaredOther, setDeclaredOther] = useState("");
+  // Total geral
+  const [declaredTotal, setDeclaredTotal] = useState("");
+  // Justificativa única
+  const [justification, setJustification] = useState("");
+  // Observações
   const [notes, setNotes] = useState("");
+  // Confirmação extra
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const openingBalance = Number(session?.opening_balance) || 0;
   const totalCash = Number(session?.total_cash) || 0;
-  const totalChange = Number(session?.total_change) || 0;
   const totalCredit = Number(session?.total_credit) || 0;
   const totalDebit = Number(session?.total_debit) || 0;
   const totalPix = Number(session?.total_pix) || 0;
@@ -391,69 +403,181 @@ export function CloseCashierDialog({
     [movements],
   );
 
-  const netCash = totalCash;
-  const expectedCash = openingBalance + netCash + totalReinforcements - totalWithdrawals;
+  // Detectar "Outros meios" (vendas com payment_method fora do conjunto conhecido)
+  const totalOther = useMemo(() => {
+    const known = new Set(["dinheiro", "credito", "debito", "pix", "vale_refeicao", "cartao"]);
+    return movements
+      .filter((m) => m.type === "venda" && m.payment_method && !known.has(m.payment_method))
+      .reduce((acc, m) => acc + Number(m.amount || 0), 0);
+  }, [movements]);
+
+  const expectedCash = openingBalance + totalCash + totalReinforcements - totalWithdrawals;
 
   const declaredCashNum = parseFloat(declaredCash) || 0;
   const cashDifference = declaredCashNum - expectedCash;
   const cashRiskLevel = getRiskLevel(cashDifference);
   const cashRiskConfig = getRiskConfig(cashRiskLevel);
   const hasCashDeclared = declaredCash !== "";
-  const cashHasDivergence = hasCashDeclared && cashRiskLevel !== "ok";
 
-  // Validação de justificativa por forma
-  const formMethods = [
-    { key: "credit" as const, total: totalCredit, declared: declaredCredit, just: creditJust },
-    { key: "debit" as const, total: totalDebit, declared: declaredDebit, just: debitJust },
-    { key: "pix" as const, total: totalPix, declared: declaredPix, just: pixJust },
-    { key: "voucher" as const, total: totalVoucher, declared: declaredVoucher, just: voucherJust },
+  // Estrutura unificada por meio (apenas os com expected>0 ou declarado preenchido)
+  type MethodRow = {
+    key: "cash" | "credit" | "debit" | "pix" | "voucher" | "online" | "other";
+    label: string;
+    expected: number;
+    declared: string;
+    diff: number;
+    hasDeclared: boolean;
+  };
+
+  const parseDecl = (v: string) => {
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  };
+
+  const methodRows: MethodRow[] = [
+    {
+      key: "cash",
+      label: "Dinheiro",
+      expected: expectedCash,
+      declared: declaredCash,
+      diff: hasCashDeclared ? declaredCashNum - expectedCash : 0,
+      hasDeclared: hasCashDeclared,
+    },
+    {
+      key: "credit",
+      label: "Cartão de Crédito",
+      expected: totalCredit,
+      declared: declaredCredit,
+      diff: declaredCredit !== "" ? parseDecl(declaredCredit) - totalCredit : 0,
+      hasDeclared: declaredCredit !== "",
+    },
+    {
+      key: "debit",
+      label: "Cartão de Débito",
+      expected: totalDebit,
+      declared: declaredDebit,
+      diff: declaredDebit !== "" ? parseDecl(declaredDebit) - totalDebit : 0,
+      hasDeclared: declaredDebit !== "",
+    },
+    {
+      key: "pix",
+      label: "PIX",
+      expected: totalPix,
+      declared: declaredPix,
+      diff: declaredPix !== "" ? parseDecl(declaredPix) - totalPix : 0,
+      hasDeclared: declaredPix !== "",
+    },
+    {
+      key: "voucher",
+      label: "Vale-refeição",
+      expected: totalVoucher,
+      declared: declaredVoucher,
+      diff: declaredVoucher !== "" ? parseDecl(declaredVoucher) - totalVoucher : 0,
+      hasDeclared: declaredVoucher !== "",
+    },
+    {
+      key: "online",
+      label: "Online (Delivery)",
+      expected: totalOnlineDelivery,
+      declared: declaredOnline,
+      diff: declaredOnline !== "" ? parseDecl(declaredOnline) - totalOnlineDelivery : 0,
+      hasDeclared: declaredOnline !== "",
+    },
+    {
+      key: "other",
+      label: "Outros meios",
+      expected: totalOther,
+      declared: declaredOther,
+      diff: declaredOther !== "" ? parseDecl(declaredOther) - totalOther : 0,
+      hasDeclared: declaredOther !== "",
+    },
   ];
 
-  const formsWithDivergence = formMethods.filter((f) => {
-    if (f.declared === "") return false;
-    const d = parseFloat(f.declared) - f.total;
-    return Math.abs(d) > 0.5;
+  // "Online" e "Outros" só aparecem se houver expected>0 ou se operador preencher
+  const visibleRows = methodRows.filter((r) => {
+    if (["cash", "credit", "debit", "pix", "voucher"].includes(r.key)) return true;
+    return r.expected > 0 || r.hasDeclared;
   });
 
-  const allFormJustificationsValid = formsWithDivergence.every(
-    (f) => f.just.trim().length >= MIN_JUSTIFICATION_LENGTH,
+  // Diferenças individuais ≠ 0
+  const rowsWithDiff = visibleRows.filter((r) => r.hasDeclared && Math.abs(r.diff) > TOL);
+
+  // Total esperado pelo sistema
+  const expectedTotal = useMemo(
+    () => visibleRows.reduce((acc, r) => acc + r.expected, 0),
+    [visibleRows],
   );
 
-  const cashJustificationValid =
-    !cashHasDivergence || cashJustification.trim().length >= MIN_JUSTIFICATION_LENGTH;
+  const declaredTotalNum = declaredTotal !== "" ? parseDecl(declaredTotal) : null;
+  const totalDiff = declaredTotalNum != null ? declaredTotalNum - expectedTotal : 0;
+  const hasTotalDiff = declaredTotalNum != null && Math.abs(totalDiff) > TOL;
+
+  const hasAnyDifference = rowsWithDiff.length > 0 || hasTotalDiff;
+  const justificationValid = justification.trim().length >= MIN_JUSTIFICATION_LENGTH;
+  const justificationOk = !hasAnyDifference || justificationValid;
 
   const isBlocked = cashRiskLevel === "critical";
+
+  const closingStatus: "no_difference" | "surplus" | "shortage" =
+    !hasAnyDifference ? "no_difference"
+      : (declaredTotalNum != null ? (totalDiff > 0 ? "surplus" : totalDiff < 0 ? "shortage" : "no_difference")
+        : (rowsWithDiff.reduce((a, r) => a + r.diff, 0) > 0 ? "surplus" : "shortage"));
 
   const canClose = useMemo(() => {
     if (!hasCashDeclared) return false;
     if (isBlocked) return false;
-    if (!cashJustificationValid) return false;
-    if (!allFormJustificationsValid) return false;
+    if (declaredTotal === "") return false; // total do dia obrigatório
+    if (!justificationOk) return false;
     return true;
-  }, [hasCashDeclared, isBlocked, cashJustificationValid, allFormJustificationsValid]);
+  }, [hasCashDeclared, isBlocked, declaredTotal, justificationOk]);
 
-  const handleClose = () => {
+  const buildPayload = (): Omit<CloseCashierPayload, "sessionId"> => {
     const parseOpt = (v: string) => (v === "" ? null : parseFloat(v));
+    const just = hasAnyDifference ? justification.trim() : undefined;
 
-    const payload: Omit<CloseCashierPayload, "sessionId"> = {
+    return {
       declaredCash: declaredCashNum,
       expectedCash,
       declaredCredit: parseOpt(declaredCredit),
       declaredDebit: parseOpt(declaredDebit),
       declaredPix: parseOpt(declaredPix),
       declaredVoucher: parseOpt(declaredVoucher),
+      declaredOnlineDelivery: parseOpt(declaredOnline),
+      declaredOther: parseOpt(declaredOther),
+      declaredTotalSales: declaredTotalNum,
+      totalDifference: declaredTotalNum != null ? totalDiff : null,
+      closingStatus,
+      closingJustification: just ?? null,
+      // Replica a justificativa única para cada meio com divergência (compat auditoria)
       justifications: {
-        cash: cashHasDivergence ? cashJustification.trim() : undefined,
-        credit: creditJust.trim() || undefined,
-        debit: debitJust.trim() || undefined,
-        pix: pixJust.trim() || undefined,
-        voucher: voucherJust.trim() || undefined,
+        cash: rowsWithDiff.find((r) => r.key === "cash") ? just : undefined,
+        credit: rowsWithDiff.find((r) => r.key === "credit") ? just : undefined,
+        debit: rowsWithDiff.find((r) => r.key === "debit") ? just : undefined,
+        pix: rowsWithDiff.find((r) => r.key === "pix") ? just : undefined,
+        voucher: rowsWithDiff.find((r) => r.key === "voucher") ? just : undefined,
+        onlineDelivery: rowsWithDiff.find((r) => r.key === "online") ? just : undefined,
+        other: rowsWithDiff.find((r) => r.key === "other") ? just : undefined,
       },
       notes: notes.trim() || undefined,
       riskLevel: cashRiskLevel,
     };
+  };
 
-    // Imprime recibo (com novos totais já inferidos da sessão atual)
+  const resetState = () => {
+    setDeclaredCash("");
+    setDeclaredCredit("");
+    setDeclaredDebit("");
+    setDeclaredPix("");
+    setDeclaredVoucher("");
+    setDeclaredOnline("");
+    setDeclaredOther("");
+    setDeclaredTotal("");
+    setJustification("");
+    setNotes("");
+  };
+
+  const finalizeClose = () => {
+    const payload = buildPayload();
     printCashierReport({
       session: {
         ...session,
@@ -461,298 +585,409 @@ export function CloseCashierDialog({
         declared_debit: payload.declaredDebit,
         declared_pix: payload.declaredPix,
         declared_voucher: payload.declaredVoucher,
+        declared_online_delivery: payload.declaredOnlineDelivery,
       },
       movements,
       closingBalance: declaredCashNum,
-      notes: notes.trim() || (cashHasDivergence ? cashJustification : ""),
+      notes: notes.trim() || (hasAnyDifference ? justification.trim() : ""),
       riskLevel: cashRiskLevel,
     });
-
     onClose(payload);
-    // Reset
-    setDeclaredCash("");
-    setCashJustification("");
-    setDeclaredCredit("");
-    setDeclaredDebit("");
-    setDeclaredPix("");
-    setDeclaredVoucher("");
-    setCreditJust("");
-    setDebitJust("");
-    setPixJust("");
-    setVoucherJust("");
-    setNotes("");
+    resetState();
+    setConfirmOpen(false);
+  };
+
+  const handleConfirmClick = () => {
+    if (!canClose) return;
+    if (hasAnyDifference) {
+      setConfirmOpen(true);
+    } else {
+      finalizeClose();
+    }
   };
 
   const RiskIcon = cashRiskConfig.icon;
 
-  // Resumo final: status por forma
-  const formStatuses = formMethods
-    .filter((f) => f.total > 0 || f.declared !== "")
-    .map((f) => {
-      if (f.declared === "") return { key: f.key, label: f.key, status: "pending" as const };
-      const d = parseFloat(f.declared) - f.total;
-      if (Math.abs(d) <= 0.5) return { key: f.key, label: f.key, status: "ok" as const };
-      const justOk = f.just.trim().length >= MIN_JUSTIFICATION_LENGTH;
-      return { key: f.key, label: f.key, status: justOk ? ("justified" as const) : ("missing" as const), diff: d };
-    });
-
-  const labelMap: Record<string, string> = {
-    credit: "Crédito",
-    debit: "Débito",
-    pix: "PIX",
-    voucher: "Vale-refeição",
-  };
+  // Valor absoluto da diferença total (ou soma das individuais quando total não foi declarado)
+  const summedDiff = rowsWithDiff.reduce((a, r) => a + r.diff, 0);
+  const displayedDiff = declaredTotalNum != null ? totalDiff : summedDiff;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] p-0 flex flex-col gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <DialogTitle>Fechar Caixa</DialogTitle>
-          <DialogDescription>
-            Confira o dinheiro físico da gaveta e os totais de cada máquina/extrato separadamente.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] p-0 flex flex-col gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle>Fechar Caixa</DialogTitle>
+            <DialogDescription>
+              Confira os valores do caixa, informe os valores apurados e justifique diferenças antes de finalizar.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-          {/* GRUPO 1 — Contagem da gaveta */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
-              <h3 className="text-base font-semibold">1. Contagem da gaveta</h3>
-            </div>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            {/* SEÇÃO 1 — Resumo da gaveta / dinheiro físico */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">1. Resumo da gaveta / dinheiro físico</h3>
+              </div>
 
-            <Card>
-              <CardContent className="pt-4 pb-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Abertura:</span>
-                  <span className="font-medium tabular-nums">{formatBRL(openingBalance)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Vendas em dinheiro:</span>
-                  <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Reforços:</span>
-                  <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalReinforcements)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Sangrias:</span>
-                  <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalWithdrawals)}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between font-semibold">
-                  <span>Saldo Esperado da Gaveta:</span>
-                  <span className="tabular-nums">{formatBRL(expectedCash)}</span>
-                </div>
-              </CardContent>
-            </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Abertura:</span>
+                    <span className="font-medium tabular-nums">{formatBRL(openingBalance)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Vendas em dinheiro:</span>
+                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Reforços:</span>
+                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalReinforcements)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Sangrias:</span>
+                    <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalWithdrawals)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-semibold">
+                    <span>Saldo Esperado da Gaveta:</span>
+                    <span className="tabular-nums">{formatBRL(expectedCash)}</span>
+                  </div>
+                </CardContent>
+              </Card>
 
+              <div className="space-y-2">
+                <Label htmlFor="declared-cash" className="font-semibold">
+                  Dinheiro contado na gaveta
+                </Label>
+                <CurrencyInput
+                  id="declared-cash"
+                  value={declaredCash}
+                  onChange={setDeclaredCash}
+                  autoFocus
+                />
+                {hasCashDeclared && (
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-muted-foreground">Diferença da gaveta:</span>
+                    <DiffBadge diff={cashDifference} />
+                  </div>
+                )}
+              </div>
+
+              {hasCashDeclared && (
+                <Card className={cn("border-2", cashRiskConfig.bgColor)}>
+                  <CardContent className="pt-3 pb-3">
+                    <div className="flex items-start gap-3">
+                      <RiskIcon className={cn("h-5 w-5 mt-0.5", cashRiskConfig.color)} />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={cn("font-semibold text-sm", cashRiskConfig.color)}>
+                            {cashRiskConfig.label}
+                          </span>
+                          <span className={cn("font-mono font-bold text-sm", cashRiskConfig.color)}>
+                            {cashDifference >= 0 ? "+" : ""}{formatBRL(cashDifference)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{cashRiskConfig.description}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </section>
+
+            {/* SEÇÃO 2 — Vendas por forma de pagamento (esperado pelo sistema) */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Receipt className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">2. Vendas por forma de pagamento (sistema)</h3>
+              </div>
+              <Card className="bg-muted/30">
+                <CardContent className="pt-4 pb-4 space-y-1.5">
+                  {visibleRows.map((r) => (
+                    <div key={r.key} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">{r.label}</span>
+                      <span className="font-medium tabular-nums">{formatBRL(r.expected)}</span>
+                    </div>
+                  ))}
+                  <Separator />
+                  <div className="flex justify-between font-semibold">
+                    <span>Total esperado pelo sistema:</span>
+                    <span className="tabular-nums">{formatBRL(expectedTotal)}</span>
+                  </div>
+                  {totalSales !== expectedTotal && (
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      Total geral de vendas registradas no turno: {formatBRL(totalSales)}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
+            {/* SEÇÃO 3 — Conferência dos valores apurados */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">3. Conferência dos valores apurados</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Informe o valor apurado em cada meio de pagamento. A diferença é calculada automaticamente.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <MethodConference
+                  icon={CreditCard}
+                  label="Cartão de Crédito"
+                  expected={totalCredit}
+                  declared={declaredCredit}
+                  onChange={setDeclaredCredit}
+                />
+                <MethodConference
+                  icon={CreditCard}
+                  label="Cartão de Débito"
+                  expected={totalDebit}
+                  declared={declaredDebit}
+                  onChange={setDeclaredDebit}
+                />
+                <MethodConference
+                  icon={Smartphone}
+                  label="PIX"
+                  expected={totalPix}
+                  declared={declaredPix}
+                  onChange={setDeclaredPix}
+                />
+                <MethodConference
+                  icon={Ticket}
+                  label="Vale-refeição"
+                  expected={totalVoucher}
+                  declared={declaredVoucher}
+                  onChange={setDeclaredVoucher}
+                />
+                {(totalOnlineDelivery > 0 || declaredOnline !== "") && (
+                  <MethodConference
+                    icon={Globe}
+                    label="Online (Delivery)"
+                    expected={totalOnlineDelivery}
+                    declared={declaredOnline}
+                    onChange={setDeclaredOnline}
+                  />
+                )}
+                {(totalOther > 0 || declaredOther !== "") && (
+                  <MethodConference
+                    icon={MoreHorizontal}
+                    label="Outros meios"
+                    expected={totalOther}
+                    declared={declaredOther}
+                    onChange={setDeclaredOther}
+                  />
+                )}
+              </div>
+
+              {/* Valor total de venda do dia */}
+              <div className="space-y-2 pt-2">
+                <Label htmlFor="declared-total" className="font-semibold flex items-center gap-1">
+                  Valor total de venda do dia <span className="text-destructive">*</span>
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Total geral apurado pelo operador, somando todos os meios de pagamento.
+                </p>
+                <CurrencyInput
+                  id="declared-total"
+                  value={declaredTotal}
+                  onChange={setDeclaredTotal}
+                />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Esperado:</span>
+                    <span className="font-medium tabular-nums">{formatBRL(expectedTotal)}</span>
+                  </div>
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Informado:</span>
+                    <span className="font-medium tabular-nums">
+                      {declaredTotalNum != null ? formatBRL(declaredTotalNum) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
+                    <span className="text-muted-foreground">Diferença:</span>
+                    {declaredTotalNum != null ? <DiffBadge diff={totalDiff} /> : <span>—</span>}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* SEÇÃO 4 — Diferenças encontradas */}
+            {(rowsWithDiff.length > 0 || hasTotalDiff) && (
+              <section className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  <h3 className="text-base font-semibold">4. Diferenças encontradas</h3>
+                </div>
+                <Card className="border-orange-300 dark:border-orange-900">
+                  <CardContent className="pt-3 pb-3 space-y-1.5">
+                    {rowsWithDiff.map((r) => (
+                      <div key={r.key} className="flex justify-between items-center text-sm">
+                        <span>{r.label}</span>
+                        <DiffBadge diff={r.diff} />
+                      </div>
+                    ))}
+                    {hasTotalDiff && (
+                      <>
+                        <Separator />
+                        <div className="flex justify-between items-center text-sm font-semibold">
+                          <span>Total do dia</span>
+                          <DiffBadge diff={totalDiff} />
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </section>
+            )}
+
+            {/* SEÇÃO 5 — Justificativa */}
+            {hasAnyDifference && (
+              <section className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-destructive" />
+                  <h3 className="text-base font-semibold">5. Justificativa da diferença</h3>
+                </div>
+                <p className="text-xs text-destructive">
+                  Existe diferença no fechamento. Informe uma justificativa para continuar.
+                </p>
+                <Label className="text-xs">
+                  Justificativa* ({justification.trim().length}/{MIN_JUSTIFICATION_LENGTH})
+                </Label>
+                <Textarea
+                  rows={3}
+                  placeholder="Explique o motivo da diferença (mínimo 10 caracteres)..."
+                  value={justification}
+                  onChange={(e) => setJustification(e.target.value)}
+                  className={cn(!justificationValid && "border-orange-400 focus-visible:ring-orange-400")}
+                />
+              </section>
+            )}
+
+            {/* SEÇÃO 6 — Resumo final */}
+            <section className="space-y-2">
+              <h3 className="text-base font-semibold">6. Resumo final do fechamento</h3>
+              <Card className="bg-muted/30">
+                <CardContent className="pt-4 pb-4 space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total esperado pelo sistema:</span>
+                    <span className="font-medium tabular-nums">{formatBRL(expectedTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total informado pelo operador:</span>
+                    <span className="font-medium tabular-nums">
+                      {declaredTotalNum != null ? formatBRL(declaredTotalNum) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="text-muted-foreground">Diferença total:</span>
+                    {declaredTotalNum != null ? <DiffBadge diff={totalDiff} /> : <span>—</span>}
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between text-sm items-center">
+                    <span className="text-muted-foreground">Status:</span>
+                    {closingStatus === "no_difference" && (
+                      <span className="flex items-center gap-1 text-green-600 font-medium">
+                        <CheckCircle2 className="h-4 w-4" /> Sem diferença
+                      </span>
+                    )}
+                    {closingStatus === "surplus" && (
+                      <span className="flex items-center gap-1 text-orange-600 font-medium">
+                        <AlertTriangle className="h-4 w-4" /> Fechado com sobra
+                      </span>
+                    )}
+                    {closingStatus === "shortage" && (
+                      <span className="flex items-center gap-1 text-destructive font-medium">
+                        <AlertCircle className="h-4 w-4" /> Fechado com falta
+                      </span>
+                    )}
+                  </div>
+                  {hasAnyDifference && justification.trim() && (
+                    <>
+                      <Separator />
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Justificativa:</span>
+                        <p className="mt-1 whitespace-pre-wrap">{justification.trim()}</p>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
+            {/* Observações gerais (opcional) */}
             <div className="space-y-2">
-              <Label htmlFor="declared-cash" className="font-semibold">
-                Dinheiro contado na gaveta
-              </Label>
-              <CurrencyInput
-                id="declared-cash"
-                value={declaredCash}
-                onChange={setDeclaredCash}
-                autoFocus
+              <Label htmlFor="notes">Observações gerais (opcional)</Label>
+              <Textarea
+                id="notes"
+                placeholder="Notas adicionais sobre o fechamento..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
               />
             </div>
 
-            {hasCashDeclared && (
-              <Card className={cn("border-2", cashRiskConfig.bgColor)}>
-                <CardContent className="pt-3 pb-3">
+            {isBlocked && (
+              <Card className="border-2 border-red-500 bg-red-50 dark:bg-red-950/20">
+                <CardContent className="pt-4 pb-4">
                   <div className="flex items-start gap-3">
-                    <RiskIcon className={cn("h-5 w-5 mt-0.5", cashRiskConfig.color)} />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className={cn("font-semibold text-sm", cashRiskConfig.color)}>
-                          {cashRiskConfig.label}
-                        </span>
-                        <span className={cn("font-mono font-bold text-sm", cashRiskConfig.color)}>
-                          {cashDifference >= 0 ? "+" : ""}{formatBRL(cashDifference)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{cashRiskConfig.description}</p>
+                    <ShieldX className="h-6 w-6 text-red-700 mt-0.5" />
+                    <div className="space-y-2">
+                      <p className="font-semibold text-red-700">Fechamento Bloqueado</p>
+                      <p className="text-sm text-red-600">
+                        A divergência da gaveta ({formatBRL(Math.abs(cashDifference))}) excede o limite permitido.
+                        Reconte o caixa ou contate um supervisor.
+                      </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             )}
-
-            {cashHasDivergence && !isBlocked && (
-              <div className="space-y-1">
-                <Label className="text-xs">
-                  Justificativa da diferença na gaveta* ({cashJustification.trim().length}/{MIN_JUSTIFICATION_LENGTH})
-                </Label>
-                <Textarea
-                  rows={2}
-                  placeholder="Explique detalhadamente o motivo da diferença na gaveta..."
-                  value={cashJustification}
-                  onChange={(e) => setCashJustification(e.target.value)}
-                  className={cn(!cashJustificationValid && "border-orange-400 focus-visible:ring-orange-400")}
-                />
-              </div>
-            )}
-          </section>
-
-          {/* GRUPO 2 — Conferência por forma */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
-              <h3 className="text-base font-semibold">2. Conferência das máquinas e extratos</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Informe o total recebido em cada forma conforme a máquina ou o extrato. Esses valores não afetam a
-              gaveta — servem para conferir o que foi efetivamente cobrado.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <MethodConference
-                icon={CreditCard}
-                label="Cartão de Crédito"
-                expected={totalCredit}
-                declared={declaredCredit}
-                onChange={setDeclaredCredit}
-                justification={creditJust}
-                onJustificationChange={setCreditJust}
-              />
-              <MethodConference
-                icon={CreditCard}
-                label="Cartão de Débito"
-                expected={totalDebit}
-                declared={declaredDebit}
-                onChange={setDeclaredDebit}
-                justification={debitJust}
-                onJustificationChange={setDebitJust}
-              />
-              <MethodConference
-                icon={Smartphone}
-                label="PIX"
-                expected={totalPix}
-                declared={declaredPix}
-                onChange={setDeclaredPix}
-                justification={pixJust}
-                onJustificationChange={setPixJust}
-              />
-              <MethodConference
-                icon={Ticket}
-                label="Vale-refeição"
-                expected={totalVoucher}
-                declared={declaredVoucher}
-                onChange={setDeclaredVoucher}
-                justification={voucherJust}
-                onJustificationChange={setVoucherJust}
-              />
-            </div>
-          </section>
-
-          {/* RESUMO FINAL */}
-          <section className="space-y-2">
-            <h3 className="text-base font-semibold">Resumo do fechamento</h3>
-            <Card className="bg-muted/30">
-              <CardContent className="pt-4 pb-4 space-y-1.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total geral de vendas do turno:</span>
-                  <span className="font-bold tabular-nums">{formatBRL(totalSales)}</span>
-                </div>
-                {totalOnlineDelivery > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">↳ Online (Delivery) — informativo:</span>
-                    <span className="tabular-nums">{formatBRL(totalOnlineDelivery)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Saldo esperado da gaveta:</span>
-                  <span className="font-medium tabular-nums">{formatBRL(expectedCash)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Contado pelo operador:</span>
-                  <span className="font-medium tabular-nums">{hasCashDeclared ? formatBRL(declaredCashNum) : "—"}</span>
-                </div>
-                {formStatuses.length > 0 && (
-                  <>
-                    <Separator className="my-2" />
-                    <div className="space-y-1">
-                      {formStatuses.map((s) => (
-                        <div key={s.key} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{labelMap[s.key]}</span>
-                          {s.status === "ok" && (
-                            <span className="flex items-center gap-1 text-green-600">
-                              <CheckCircle2 className="h-3 w-3" /> Conferido
-                            </span>
-                          )}
-                          {s.status === "justified" && (
-                            <span className="flex items-center gap-1 text-orange-600">
-                              <AlertTriangle className="h-3 w-3" /> Divergência justificada
-                            </span>
-                          )}
-                          {s.status === "missing" && (
-                            <span className="flex items-center gap-1 text-destructive">
-                              <AlertCircle className="h-3 w-3" /> Justificativa pendente
-                            </span>
-                          )}
-                          {s.status === "pending" && (
-                            <span className="text-muted-foreground">Não declarado</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </section>
-
-          {/* Observações gerais (opcional) */}
-          <div className="space-y-2">
-            <Label htmlFor="notes">Observações gerais (opcional)</Label>
-            <Textarea
-              id="notes"
-              placeholder="Notas adicionais sobre o fechamento..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-            />
           </div>
 
-          {isBlocked && (
-            <Card className="border-2 border-red-500 bg-red-50 dark:bg-red-950/20">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-start gap-3">
-                  <ShieldX className="h-6 w-6 text-red-700 mt-0.5" />
-                  <div className="space-y-2">
-                    <p className="font-semibold text-red-700">Fechamento Bloqueado</p>
-                    <p className="text-sm text-red-600">
-                      A divergência da gaveta ({formatBRL(Math.abs(cashDifference))}) excede o limite permitido.
-                      Recontagem o caixa ou contate um supervisor.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+          <DialogFooter className="px-6 py-4 border-t flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isClosing}
+              className="w-full sm:w-auto"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmClick}
+              disabled={isClosing || !canClose}
+              variant={isBlocked ? "destructive" : "default"}
+              className="w-full sm:w-auto"
+            >
+              {isClosing ? "Fechando..." : isBlocked ? "Bloqueado" : "Confirmar Fechamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <DialogFooter className="px-6 py-4 border-t flex-col-reverse sm:flex-row sm:justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isClosing}
-            className="w-full sm:w-auto"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleClose}
-            disabled={isClosing || !canClose}
-            variant={isBlocked ? "destructive" : "default"}
-            className="w-full sm:w-auto"
-          >
-            {isClosing ? "Fechando..." : isBlocked ? "Bloqueado" : "Confirmar Fechamento"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar fechamento com diferença</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este caixa possui diferença de <strong>{formatBRL(Math.abs(displayedDiff))}</strong>
+              {" "}({closingStatus === "surplus" ? "sobra" : "falta"}).
+              {" "}Deseja confirmar o fechamento com a justificativa informada?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClosing}>Voltar e revisar</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); finalizeClose(); }} disabled={isClosing}>
+              Confirmar fechamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

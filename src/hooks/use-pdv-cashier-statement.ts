@@ -12,12 +12,35 @@ export interface CashierStatementSession {
   total_sales: number;
   total_cash: number;
   total_card: number;
+  total_credit?: number | null;
+  total_debit?: number | null;
   total_pix: number;
+  total_voucher?: number | null;
+  total_online_delivery?: number | null;
   total_withdrawals: number;
   expected_balance: number | null;
   balance_difference: number | null;
   fraud_risk_level: string | null;
   notes: string | null;
+  // Conferência ampliada
+  declared_cash?: number | null;
+  declared_credit?: number | null;
+  declared_debit?: number | null;
+  declared_pix?: number | null;
+  declared_voucher?: number | null;
+  declared_online_delivery?: number | null;
+  declared_other?: number | null;
+  credit_difference?: number | null;
+  debit_difference?: number | null;
+  pix_difference?: number | null;
+  voucher_difference?: number | null;
+  online_delivery_difference?: number | null;
+  other_difference?: number | null;
+  declared_total_sales?: number | null;
+  total_difference?: number | null;
+  closing_status?: "no_difference" | "surplus" | "shortage" | null;
+  closing_justification?: string | null;
+  user_id?: string;
   movements: any[];
 }
 
@@ -73,7 +96,7 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
         allMovements = movements || [];
       }
 
-      const enrichedSessions: CashierStatementSession[] = (sessions || []).map((s) => ({
+      const enrichedSessions: CashierStatementSession[] = (sessions || []).map((s: any) => ({
         ...s,
         opening_balance: Number(s.opening_balance),
         closing_balance: s.closing_balance != null ? Number(s.closing_balance) : null,

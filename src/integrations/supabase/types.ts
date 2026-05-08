@@ -3066,13 +3066,18 @@ export type Database = {
           cash_difference: number | null
           closed_at: string | null
           closing_balance: number | null
+          closing_justification: string | null
+          closing_status: string | null
           created_at: string
           credit_difference: number | null
           debit_difference: number | null
           declared_cash: number | null
           declared_credit: number | null
           declared_debit: number | null
+          declared_online_delivery: number | null
+          declared_other: number | null
           declared_pix: number | null
+          declared_total_sales: number | null
           declared_voucher: number | null
           difference_justified: boolean | null
           expected_balance: number | null
@@ -3081,17 +3086,22 @@ export type Database = {
           justification_cash: string | null
           justification_credit: string | null
           justification_debit: string | null
+          justification_online_delivery: string | null
+          justification_other: string | null
           justification_pix: string | null
           justification_voucher: string | null
           notes: string | null
+          online_delivery_difference: number | null
           opened_at: string
           opening_balance: number
+          other_difference: number | null
           pix_difference: number | null
           total_card: number
           total_cash: number
           total_change: number
           total_credit: number
           total_debit: number
+          total_difference: number | null
           total_online_delivery: number
           total_pix: number
           total_sales: number
@@ -3106,13 +3116,18 @@ export type Database = {
           cash_difference?: number | null
           closed_at?: string | null
           closing_balance?: number | null
+          closing_justification?: string | null
+          closing_status?: string | null
           created_at?: string
           credit_difference?: number | null
           debit_difference?: number | null
           declared_cash?: number | null
           declared_credit?: number | null
           declared_debit?: number | null
+          declared_online_delivery?: number | null
+          declared_other?: number | null
           declared_pix?: number | null
+          declared_total_sales?: number | null
           declared_voucher?: number | null
           difference_justified?: boolean | null
           expected_balance?: number | null
@@ -3121,17 +3136,22 @@ export type Database = {
           justification_cash?: string | null
           justification_credit?: string | null
           justification_debit?: string | null
+          justification_online_delivery?: string | null
+          justification_other?: string | null
           justification_pix?: string | null
           justification_voucher?: string | null
           notes?: string | null
+          online_delivery_difference?: number | null
           opened_at?: string
           opening_balance?: number
+          other_difference?: number | null
           pix_difference?: number | null
           total_card?: number
           total_cash?: number
           total_change?: number
           total_credit?: number
           total_debit?: number
+          total_difference?: number | null
           total_online_delivery?: number
           total_pix?: number
           total_sales?: number
@@ -3146,13 +3166,18 @@ export type Database = {
           cash_difference?: number | null
           closed_at?: string | null
           closing_balance?: number | null
+          closing_justification?: string | null
+          closing_status?: string | null
           created_at?: string
           credit_difference?: number | null
           debit_difference?: number | null
           declared_cash?: number | null
           declared_credit?: number | null
           declared_debit?: number | null
+          declared_online_delivery?: number | null
+          declared_other?: number | null
           declared_pix?: number | null
+          declared_total_sales?: number | null
           declared_voucher?: number | null
           difference_justified?: boolean | null
           expected_balance?: number | null
@@ -3161,17 +3186,22 @@ export type Database = {
           justification_cash?: string | null
           justification_credit?: string | null
           justification_debit?: string | null
+          justification_online_delivery?: string | null
+          justification_other?: string | null
           justification_pix?: string | null
           justification_voucher?: string | null
           notes?: string | null
+          online_delivery_difference?: number | null
           opened_at?: string
           opening_balance?: number
+          other_difference?: number | null
           pix_difference?: number | null
           total_card?: number
           total_cash?: number
           total_change?: number
           total_credit?: number
           total_debit?: number
+          total_difference?: number | null
           total_online_delivery?: number
           total_pix?: number
           total_sales?: number
