@@ -159,6 +159,12 @@ export function usePDVCashier() {
         declaredDebit,
         declaredPix,
         declaredVoucher,
+        declaredOnlineDelivery,
+        declaredOther,
+        declaredTotalSales,
+        totalDifference,
+        closingStatus,
+        closingJustification,
         justifications,
         notes,
         riskLevel,
@@ -169,7 +175,7 @@ export function usePDVCashier() {
       // Buscar totais atuais para calcular diferenças por forma
       const { data: session } = await supabase
         .from("pdv_cashier_sessions")
-        .select("total_credit, total_debit, total_pix, total_voucher")
+        .select("total_credit, total_debit, total_pix, total_voucher, total_online_delivery")
         .eq("id", sessionId)
         .single();
 
@@ -177,11 +183,14 @@ export function usePDVCashier() {
       const totalDebit = Number(session?.total_debit) || 0;
       const totalPix = Number(session?.total_pix) || 0;
       const totalVoucher = Number(session?.total_voucher) || 0;
+      const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
 
       const creditDiff = declaredCredit != null ? declaredCredit - totalCredit : null;
       const debitDiff = declaredDebit != null ? declaredDebit - totalDebit : null;
       const pixDiff = declaredPix != null ? declaredPix - totalPix : null;
       const voucherDiff = declaredVoucher != null ? declaredVoucher - totalVoucher : null;
+      const onlineDiff = declaredOnlineDelivery != null ? declaredOnlineDelivery - totalOnlineDelivery : null;
+      const otherDiff = declaredOther != null ? declaredOther - 0 : null;
 
       const differenceJustified = !!(
         justifications.cash ||
@@ -189,6 +198,9 @@ export function usePDVCashier() {
         justifications.debit ||
         justifications.pix ||
         justifications.voucher ||
+        justifications.onlineDelivery ||
+        justifications.other ||
+        closingJustification ||
         notes
       );
 
@@ -208,15 +220,26 @@ export function usePDVCashier() {
         declared_debit: declaredDebit ?? null,
         declared_pix: declaredPix ?? null,
         declared_voucher: declaredVoucher ?? null,
+        declared_online_delivery: declaredOnlineDelivery ?? null,
+        declared_other: declaredOther ?? null,
         credit_difference: creditDiff,
         debit_difference: debitDiff,
         pix_difference: pixDiff,
         voucher_difference: voucherDiff,
+        online_delivery_difference: onlineDiff,
+        other_difference: otherDiff,
         justification_cash: justifications.cash ?? null,
         justification_credit: justifications.credit ?? null,
         justification_debit: justifications.debit ?? null,
         justification_pix: justifications.pix ?? null,
         justification_voucher: justifications.voucher ?? null,
+        justification_online_delivery: justifications.onlineDelivery ?? null,
+        justification_other: justifications.other ?? null,
+        // Conferência total
+        declared_total_sales: declaredTotalSales ?? null,
+        total_difference: totalDifference ?? null,
+        closing_status: closingStatus ?? null,
+        closing_justification: closingJustification ?? null,
       };
 
       const { data, error } = await supabase
