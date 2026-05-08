@@ -637,12 +637,8 @@ export function PaymentDialog({
                 ? (line.cardType === "debito" ? "debito" : "credito")
                 : line.method;
             const lineAmount = parseFloat(line.amount) || 0;
-            const lineCashReceived = line.method === "dinheiro"
-              ? (parseFloat(line.cashReceived) || lineAmount)
-              : undefined;
-            const lineChange = line.method === "dinheiro" && lineCashReceived !== undefined
-              ? Math.max(0, lineCashReceived - lineAmount)
-              : undefined;
+            const lineCashReceived = line.method === "dinheiro" ? lineAmount : undefined;
+            const lineChange = undefined;
             const lineInstallments = lineMethod === "credito" ? parseInt(line.installments) : undefined;
             return { lineMethod, lineAmount, lineCashReceived, lineChange, lineInstallments };
           });
