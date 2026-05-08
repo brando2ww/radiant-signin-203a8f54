@@ -533,7 +533,7 @@ export function CloseCashierDialog({
 
   const buildPayload = (): Omit<CloseCashierPayload, "sessionId"> => {
     const parseOpt = (v: string) => (v === "" ? null : parseFloat(v));
-    const just = hasAnyDifference ? justification.trim() : undefined;
+    const just = requiresJustification ? justification.trim() : undefined;
 
     return {
       declaredCash: declaredCashNum,
@@ -589,7 +589,7 @@ export function CloseCashierDialog({
       },
       movements,
       closingBalance: declaredCashNum,
-      notes: notes.trim() || (hasAnyDifference ? justification.trim() : ""),
+      notes: notes.trim() || (requiresJustification ? justification.trim() : ""),
       riskLevel: cashRiskLevel,
     });
     onClose(payload);
@@ -599,7 +599,7 @@ export function CloseCashierDialog({
 
   const handleConfirmClick = () => {
     if (!canClose) return;
-    if (hasAnyDifference) {
+    if (hasTotalDiff) {
       setConfirmOpen(true);
     } else {
       finalizeClose();
