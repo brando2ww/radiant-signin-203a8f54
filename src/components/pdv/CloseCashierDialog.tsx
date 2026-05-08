@@ -624,45 +624,11 @@ export function CloseCashierDialog({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-            {/* SEÇÃO 1 — Resumo da gaveta / dinheiro físico */}
-            <section className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">1. Resumo da gaveta / dinheiro físico</h3>
-              </div>
-
-              <Card>
-                <CardContent className="pt-4 pb-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Abertura:</span>
-                    <span className="font-medium tabular-nums">{formatBRL(openingBalance)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Vendas em dinheiro:</span>
-                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Reforços:</span>
-                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalReinforcements)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Sangrias:</span>
-                    <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalWithdrawals)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-semibold">
-                    <span>Saldo Esperado da Gaveta:</span>
-                    <span className="tabular-nums">{formatBRL(expectedCash)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </section>
-
-            {/* SEÇÃO 2 — Valor total de venda do dia */}
+            {/* SEÇÃO 1 — Valor total de venda do dia */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <Receipt className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">2. Valor total de venda do dia</h3>
+                <h3 className="text-base font-semibold">1. Valor total de venda do dia</h3>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="declared-total" className="font-semibold flex items-center gap-1">
@@ -693,6 +659,40 @@ export function CloseCashierDialog({
                   </div>
                 </div>
               </div>
+            </section>
+
+            {/* SEÇÃO 2 — Resumo da gaveta / dinheiro físico */}
+            <section className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold">2. Resumo da gaveta / dinheiro físico</h3>
+              </div>
+
+              <Card>
+                <CardContent className="pt-4 pb-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Abertura:</span>
+                    <span className="font-medium tabular-nums">{formatBRL(openingBalance)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Vendas em dinheiro:</span>
+                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalCash)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Reforços:</span>
+                    <span className="font-medium tabular-nums text-green-600">+ {formatBRL(totalReinforcements)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Sangrias:</span>
+                    <span className="font-medium tabular-nums text-destructive">- {formatBRL(totalWithdrawals)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-semibold">
+                    <span>Saldo Esperado da Gaveta:</span>
+                    <span className="tabular-nums">{formatBRL(expectedCash)}</span>
+                  </div>
+                </CardContent>
+              </Card>
             </section>
 
             {/* SEÇÃO 3 — Vendas por forma de pagamento (esperado pelo sistema) */}
