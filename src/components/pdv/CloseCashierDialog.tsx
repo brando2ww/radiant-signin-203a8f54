@@ -952,22 +952,7 @@ export function CloseCashierDialog({
               />
             </div>
 
-            {isBlocked && (
-              <Card className="border-2 border-red-500 bg-red-50 dark:bg-red-950/20">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-start gap-3">
-                    <ShieldX className="h-6 w-6 text-red-700 mt-0.5" />
-                    <div className="space-y-2">
-                      <p className="font-semibold text-red-700">Fechamento Bloqueado</p>
-                      <p className="text-sm text-red-600">
-                        A divergência da gaveta ({formatBRL(Math.abs(cashDifference))}) excede o limite permitido.
-                        Reconte o caixa ou contate um supervisor.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Bloco de bloqueio removido — fechamento agora depende apenas da diferença total final */}
           </div>
 
           <DialogFooter className="px-6 py-4 border-t flex-col-reverse sm:flex-row sm:justify-end gap-2">
