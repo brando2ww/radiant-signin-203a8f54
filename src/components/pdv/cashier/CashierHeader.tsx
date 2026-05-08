@@ -18,8 +18,8 @@ export function CashierHeader({ isOpen, openedAt }: CashierHeaderProps) {
   }, []);
 
   return (
-    <div className="bg-muted/50 border rounded-lg p-2">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="bg-muted/50 border rounded-lg p-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 items-center gap-3">
         {/* Operador */}
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -63,21 +63,19 @@ export function CashierHeader({ isOpen, openedAt }: CashierHeaderProps) {
 
         {/* Status do Caixa */}
         <div className="flex items-center gap-3">
-          <div
-            className={`h-3 w-3 rounded-full ${
-              isOpen ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
-            }`}
-          />
-          <Badge
-            variant={isOpen ? "default" : "secondary"}
-            className={`text-xs px-3 py-1 ${
-              isOpen
-                ? "bg-green-500/10 text-green-600 border-green-500/20 hover:bg-green-500/20"
-                : ""
-            }`}
-          >
-            {isOpen ? "Caixa Aberto" : "Caixa Fechado"}
-          </Badge>
+          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center relative">
+            <div
+              className={`h-3 w-3 rounded-full ${
+                isOpen ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
+              }`}
+            />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Status</p>
+            <p className="font-medium">
+              {isOpen ? "Caixa Aberto" : "Caixa Fechado"}
+            </p>
+          </div>
         </div>
       </div>
     </div>
