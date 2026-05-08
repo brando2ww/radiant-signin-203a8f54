@@ -762,11 +762,11 @@ export function CloseCashierDialog({
               </Card>
             </section>
 
-            {/* SEÇÃO 3 — Conferência dos valores apurados */}
+            {/* SEÇÃO 4 — Conferência dos valores apurados */}
             <section className="space-y-3">
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold">3. Conferência dos valores apurados</h3>
+                <h3 className="text-base font-semibold">4. Conferência dos valores apurados</h3>
               </div>
               <p className="text-xs text-muted-foreground">
                 Informe o valor apurado em cada meio de pagamento. A diferença é calculada automaticamente.
@@ -822,12 +822,12 @@ export function CloseCashierDialog({
               </div>
             </section>
 
-            {/* SEÇÃO 4 — Diferenças encontradas */}
+            {/* SEÇÃO 5 — Diferenças encontradas */}
             {(rowsWithDiff.length > 0 || hasTotalDiff) && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  <h3 className="text-base font-semibold">4. Diferenças encontradas</h3>
+                  <h3 className="text-base font-semibold">5. Diferenças encontradas</h3>
                 </div>
                 <Card className="border-orange-300 dark:border-orange-900">
                   <CardContent className="pt-3 pb-3 space-y-1.5">
@@ -851,12 +851,12 @@ export function CloseCashierDialog({
               </section>
             )}
 
-            {/* SEÇÃO 5 — Justificativa */}
+            {/* SEÇÃO 6 — Justificativa */}
             {hasAnyDifference && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-destructive" />
-                  <h3 className="text-base font-semibold">5. Justificativa da diferença</h3>
+                  <h3 className="text-base font-semibold">6. Justificativa da diferença</h3>
                 </div>
                 <p className="text-xs text-destructive">
                   Existe diferença no fechamento. Informe uma justificativa para continuar.
@@ -874,9 +874,9 @@ export function CloseCashierDialog({
               </section>
             )}
 
-            {/* SEÇÃO 6 — Resumo final */}
+            {/* SEÇÃO 7 — Resumo final */}
             <section className="space-y-2">
-              <h3 className="text-base font-semibold">6. Resumo final do fechamento</h3>
+              <h3 className="text-base font-semibold">7. Resumo final do fechamento</h3>
               <Card className="bg-muted/30">
                 <CardContent className="pt-4 pb-4 space-y-1.5">
                   <div className="flex justify-between text-sm">
