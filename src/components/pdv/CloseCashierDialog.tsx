@@ -967,10 +967,10 @@ export function CloseCashierDialog({
             <Button
               onClick={handleConfirmClick}
               disabled={isClosing || !canClose}
-              variant={isBlocked ? "destructive" : "default"}
+              variant="default"
               className="w-full sm:w-auto"
             >
-              {isClosing ? "Fechando..." : isBlocked ? "Bloqueado" : "Confirmar Fechamento"}
+              {isClosing ? "Fechando..." : "Confirmar Fechamento"}
             </Button>
           </DialogFooter>
         </DialogContent>
