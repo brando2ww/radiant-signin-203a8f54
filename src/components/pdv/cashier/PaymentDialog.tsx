@@ -179,7 +179,7 @@ export function PaymentDialog({
     | { kind: "error"; message: string; missing?: string[] }
   >({ kind: "idle" });
 
-  const { registerPayment, isRegisteringPayment, registerTablePayment, isRegisteringTablePayment, registerPartialPayment, isRegisteringPartialPayment } = usePDVPayments();
+  const { registerPayment, isRegisteringPayment, registerTablePayment, isRegisteringTablePayment, registerPartialPayment, isRegisteringPartialPayment, registerExtraPaymentLine, isRegisteringExtraPaymentLine } = usePDVPayments();
   const {
     markAsCharging,
     releaseFromCharging,
