@@ -512,28 +512,28 @@ export function CloseCashierDialog({
   const totalDiff = declaredTotalNum != null ? declaredTotalNum - expectedTotal : 0;
   const hasTotalDiff = declaredTotalNum != null && Math.abs(totalDiff) > TOL;
 
-  const hasAnyDifference = rowsWithDiff.length > 0 || hasTotalDiff;
+  // NOVA REGRA: bloqueio considera APENAS a diferença total final.
+  // Diferenças entre formas que se compensam são apenas informativas.
+  const requiresJustification = hasTotalDiff;
+  const hasReconciledMismatch = rowsWithDiff.length > 0 && !hasTotalDiff && declaredTotalNum != null;
   const justificationValid = justification.trim().length >= MIN_JUSTIFICATION_LENGTH;
-  const justificationOk = !hasAnyDifference || justificationValid;
+  const justificationOk = !requiresJustification || justificationValid;
 
-  const isBlocked = cashRiskLevel === "critical";
-
-  const closingStatus: "no_difference" | "surplus" | "shortage" =
-    !hasAnyDifference ? "no_difference"
-      : (declaredTotalNum != null ? (totalDiff > 0 ? "surplus" : totalDiff < 0 ? "shortage" : "no_difference")
-        : (rowsWithDiff.reduce((a, r) => a + r.diff, 0) > 0 ? "surplus" : "shortage"));
+  const closingStatus: "no_difference" | "reconciled_with_mismatch" | "surplus" | "shortage" =
+    hasTotalDiff
+      ? (totalDiff > 0 ? "surplus" : "shortage")
+      : (rowsWithDiff.length > 0 ? "reconciled_with_mismatch" : "no_difference");
 
   const canClose = useMemo(() => {
     if (!hasCashDeclared) return false;
-    if (isBlocked) return false;
     if (declaredTotal === "") return false; // total do dia obrigatório
     if (!justificationOk) return false;
     return true;
-  }, [hasCashDeclared, isBlocked, declaredTotal, justificationOk]);
+  }, [hasCashDeclared, declaredTotal, justificationOk]);
 
   const buildPayload = (): Omit<CloseCashierPayload, "sessionId"> => {
     const parseOpt = (v: string) => (v === "" ? null : parseFloat(v));
-    const just = hasAnyDifference ? justification.trim() : undefined;
+    const just = requiresJustification ? justification.trim() : undefined;
 
     return {
       declaredCash: declaredCashNum,
@@ -589,7 +589,7 @@ export function CloseCashierDialog({
       },
       movements,
       closingBalance: declaredCashNum,
-      notes: notes.trim() || (hasAnyDifference ? justification.trim() : ""),
+      notes: notes.trim() || (requiresJustification ? justification.trim() : ""),
       riskLevel: cashRiskLevel,
     });
     onClose(payload);
@@ -599,7 +599,7 @@ export function CloseCashierDialog({
 
   const handleConfirmClick = () => {
     if (!canClose) return;
-    if (hasAnyDifference) {
+    if (hasTotalDiff) {
       setConfirmOpen(true);
     } else {
       finalizeClose();
@@ -838,18 +838,38 @@ export function CloseCashierDialog({
                     )}
                   </CardContent>
                 </Card>
+
+                {hasReconciledMismatch && (
+                  <Card className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-900">
+                    <CardContent className="pt-3 pb-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
+                        <div className="space-y-1">
+                          <p className="font-semibold text-sm text-yellow-700 dark:text-yellow-500">
+                            Divergência entre formas de pagamento
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            O total final do caixa está correto, mas existem diferenças entre os meios de pagamento.
+                            Isso pode ocorrer por troca de forma de pagamento, lançamento incorreto ou ajuste operacional.
+                            Você pode continuar o fechamento normalmente.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </section>
             )}
 
-            {/* SEÇÃO 5 — Justificativa */}
-            {hasAnyDifference && (
+            {/* SEÇÃO 5 — Justificativa (apenas quando há diferença total real) */}
+            {requiresJustification && (
               <section className="space-y-2">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-destructive" />
                   <h3 className="text-base font-semibold">5. Justificativa da diferença</h3>
                 </div>
                 <p className="text-xs text-destructive">
-                  Existe diferença no fechamento. Informe uma justificativa para continuar.
+                  Existe diferença no total final do fechamento. Informe uma justificativa para continuar.
                 </p>
                 <Label className="text-xs">
                   Justificativa* ({justification.trim().length}/{MIN_JUSTIFICATION_LENGTH})
@@ -888,7 +908,12 @@ export function CloseCashierDialog({
                     <span className="text-muted-foreground">Status:</span>
                     {closingStatus === "no_difference" && (
                       <span className="flex items-center gap-1 text-green-600 font-medium">
-                        <CheckCircle2 className="h-4 w-4" /> Sem diferença
+                        <CheckCircle2 className="h-4 w-4" /> Conciliado
+                      </span>
+                    )}
+                    {closingStatus === "reconciled_with_mismatch" && (
+                      <span className="flex items-center gap-1 text-yellow-600 font-medium">
+                        <AlertTriangle className="h-4 w-4" /> Conciliado com divergência entre formas
                       </span>
                     )}
                     {closingStatus === "surplus" && (
@@ -902,7 +927,7 @@ export function CloseCashierDialog({
                       </span>
                     )}
                   </div>
-                  {hasAnyDifference && justification.trim() && (
+                  {requiresJustification && justification.trim() && (
                     <>
                       <Separator />
                       <div className="text-xs">
@@ -927,22 +952,7 @@ export function CloseCashierDialog({
               />
             </div>
 
-            {isBlocked && (
-              <Card className="border-2 border-red-500 bg-red-50 dark:bg-red-950/20">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex items-start gap-3">
-                    <ShieldX className="h-6 w-6 text-red-700 mt-0.5" />
-                    <div className="space-y-2">
-                      <p className="font-semibold text-red-700">Fechamento Bloqueado</p>
-                      <p className="text-sm text-red-600">
-                        A divergência da gaveta ({formatBRL(Math.abs(cashDifference))}) excede o limite permitido.
-                        Reconte o caixa ou contate um supervisor.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Bloco de bloqueio removido — fechamento agora depende apenas da diferença total final */}
           </div>
 
           <DialogFooter className="px-6 py-4 border-t flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -957,10 +967,10 @@ export function CloseCashierDialog({
             <Button
               onClick={handleConfirmClick}
               disabled={isClosing || !canClose}
-              variant={isBlocked ? "destructive" : "default"}
+              variant="default"
               className="w-full sm:w-auto"
             >
-              {isClosing ? "Fechando..." : isBlocked ? "Bloqueado" : "Confirmar Fechamento"}
+              {isClosing ? "Fechando..." : "Confirmar Fechamento"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,44 +1,51 @@
-## Bug
+## Objetivo
 
-Ao cobrar com **Várias formas** (split-forms) sem usar split-por-comanda (ex.: mesa única com Cartão Débito + Pix), o `handleSubmit` do `PaymentDialog` cai no `else` final e chama `registerTablePayment` (ou `registerPayment`) **uma única vez** com `paymentData.paymentMethod` — que vem do `selectedMethod` da aba "Tudo" (default `dinheiro`). As linhas de `splitPayments` (com `method` e `cardType` próprios) são ignoradas, então tudo é contabilizado como dinheiro no caixa.
+Mudar a regra de bloqueio do botão "Confirmar Fechamento" no `CloseCashierDialog` para considerar **somente a diferença total final** (Total apurado pelo operador − Total esperado pelo sistema), e tratar divergências entre formas de pagamento que se compensam como apenas informativas.
 
-Hoje só o caminho `isSplitByComanda` (`splitPayments[*].comandaId` definido) itera as linhas — mas no split-forms normal nenhuma linha tem `comandaId`.
+## Cenário hoje (bug)
 
-## Correção (mínima, só no front)
+`hasAnyDifference = rowsWithDiff.length > 0 || hasTotalDiff` exige justificativa sempre que QUALQUER linha individual diverge — mesmo quando o total fecha em R$ 0,00. Por isso o exemplo (dinheiro −25, débito +10, vale +15, total = 0) está bloqueado.
 
-Arquivo: `src/components/pdv/cashier/PaymentDialog.tsx`, no `handleSubmit` (≈ linhas 608-642).
+## Mudanças no `src/components/pdv/CloseCashierDialog.tsx`
 
-Adicionar um novo ramo **antes** do fallback `registerTablePayment/registerPayment`, ativado quando `splitEnabled && splitPayments.length > 0 && !isSplitByComanda`:
+### 1. Lógica de bloqueio (linhas ~515–532)
 
-1. Resolver método de cada linha igual ao caminho já existente:
-   ```ts
-   const lineMethod = line.method === "cartao"
-     ? (line.cardType === "debito" ? "debito" : "credito")
-     : line.method;
-   const lineAmount = parseFloat(line.amount) || 0;
-   ```
-2. **Mesa** (`isTablePayment && table`):
-   - Primeira linha: `registerTablePayment({ tableId, comandaIds, amount: lineAmount, paymentMethod: lineMethod, cashReceived/changeAmount/installments por linha })` — fecha comandas/mesa e registra a 1ª movimentação.
-   - Linhas seguintes: `registerPayment({ comandaId: tableComandas[0].id, orderId: tableComandas[0].order_id, amount: lineAmount, paymentMethod: lineMethod, ... })`. Como as comandas já estão `fechada`, o filtro `.in("status", ["aberta","aguardando_pagamento","em_cobranca"])` no `registerPayment` lançará "Comanda já finalizada" e bloqueia o registro do caixa.
+- `requiresJustification = hasTotalDiff` (apenas o total final dispara obrigatoriedade).
+- `hasReconciledMismatch = rowsWithDiff.length > 0 && !hasTotalDiff` (compensação entre formas).
+- `justificationOk = !requiresJustification || justificationValid`.
+- Remover `isBlocked` baseado em `cashRiskLevel === "critical"` (passa a depender apenas do total final; o "risco" continua sendo registrado para auditoria mas não bloqueia).
+- `canClose`: exige `declaredCash` preenchido, `declaredTotal` preenchido e `justificationOk`.
 
-   Para resolver isso de forma limpa, **adicionar uma nova mutation** em `src/hooks/use-pdv-payments.ts`: `registerExtraPaymentLine({ orderId, comandaId, amount, paymentMethod, cashReceived?, changeAmount?, installments? })` que apenas:
-   - Insere um `pdv_payments` (com `buildPaymentSnapshot` para taxas) quando houver `orderId`.
-   - Insere um `pdv_cashier_movements` do tipo `venda` com o `payment_method` e `amount` corretos, e aplica os `buildSessionDeltas` na sessão ativa.
-   - **Não** mexe em comandas / mesa / order (já fechados).
+### 2. `closingStatus` (4 estados conforme pedido)
 
-3. **Comanda única** (`!isTablePayment && comanda`):
-   - Primeira linha: `registerPayment({ comandaId, orderId, amount: lineAmount, paymentMethod: lineMethod, ... })`.
-   - Linhas seguintes: `registerExtraPaymentLine({ orderId: comanda.order_id, comandaId: comanda.id, ... })`.
+```
+no_difference            → totalDiff == 0 e nenhuma linha diverge
+reconciled_with_mismatch → totalDiff == 0 e alguma linha diverge (NOVO)
+surplus                  → totalDiff > 0
+shortage                 → totalDiff < 0
+```
 
-4. Validar `cashReceived/changeAmount` apenas em linhas `dinheiro`; `installments` só em `credito`.
+### 3. UI
 
-5. Manter `paymentDoneRef.current = true; setSuccessData; setShowSuccess` após processar todas as linhas.
+- **Seção 4 "Diferenças encontradas"**: quando `hasReconciledMismatch && !hasTotalDiff`, mostrar banner amarelo/laranja suave (não bloqueante) com:
+  - Título: "Divergência entre formas de pagamento"
+  - Texto: "O total final do caixa está correto, mas existem diferenças entre os meios de pagamento. Isso pode ocorrer por troca de forma de pagamento, lançamento incorreto ou ajuste operacional."
+  - Continuar listando as diferenças individuais como informativo.
+- **Seção 5 "Justificativa"**: só renderiza quando `requiresJustification` (totalDiff ≠ 0). No caso reconciliado, justificativa fica opcional num campo separado dentro de "Observações" (que já existe).
+- **Card de risco do dinheiro** (linhas 793–812): manter como informativo, sem bloquear.
+- **Confirmação extra (`confirmOpen`)**: abrir o `AlertDialog` apenas quando `hasTotalDiff` (sobra/falta real); fechamento conciliado vai direto.
 
-## Arquivos
+### 4. Payload (`buildPayload`)
 
-- `src/hooks/use-pdv-payments.ts` — adicionar mutation `registerExtraPaymentLine` + expor no retorno.
-- `src/components/pdv/cashier/PaymentDialog.tsx` — novo ramo no `handleSubmit` para `splitEnabled && !isSplitByComanda` (mesa e comanda única) usando a nova mutation para as linhas extras.
+- `closingStatus` passa a aceitar `"reconciled_with_mismatch"` além dos atuais.
+- `closingJustification` enviado somente se `requiresJustification`.
+- `justifications` por meio: continuar gravando texto da justificativa nas linhas com diff (apenas quando há justificativa real); para fechamento conciliado essas ficam nulas.
 
-## Resultado esperado
+### 5. Tipo `CloseCashierPayload` em `src/hooks/use-pdv-cashier.ts`
 
-Ao cobrar uma mesa/comanda em "Várias formas" com Cartão Débito + Pix, o fechamento de caixa mostrará exatamente os valores em "Débito" e "Pix" (e nada em "Dinheiro").
+Atualizar a união `closingStatus` para incluir `"reconciled_with_mismatch"`. O campo já é gravado em `closing_status` (text) na tabela `pdv_cashier_sessions` — nenhuma migração necessária.
+
+## Fora do escopo
+
+- Sem mudanças em backend/SQL além da string nova de status (coluna é texto livre).
+- Sem mudanças em `printCashierReport` além de, opcionalmente, refletir o novo status no rótulo (nice-to-have).
