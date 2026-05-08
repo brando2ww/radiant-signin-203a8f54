@@ -783,37 +783,6 @@ export function CloseCashierDialog({
                   />
                 )}
               </div>
-
-              {/* Valor total de venda do dia */}
-              <div className="space-y-2 pt-2">
-                <Label htmlFor="declared-total" className="font-semibold flex items-center gap-1">
-                  Valor total de venda do dia <span className="text-destructive">*</span>
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Total geral apurado pelo operador, somando todos os meios de pagamento.
-                </p>
-                <CurrencyInput
-                  id="declared-total"
-                  value={declaredTotal}
-                  onChange={setDeclaredTotal}
-                />
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1">
-                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
-                    <span className="text-muted-foreground">Esperado:</span>
-                    <span className="font-medium tabular-nums">{formatBRL(expectedTotal)}</span>
-                  </div>
-                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
-                    <span className="text-muted-foreground">Informado:</span>
-                    <span className="font-medium tabular-nums">
-                      {declaredTotalNum != null ? formatBRL(declaredTotalNum) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between sm:flex-col sm:gap-0.5">
-                    <span className="text-muted-foreground">Diferença:</span>
-                    {declaredTotalNum != null ? <DiffBadge diff={totalDiff} /> : <span>—</span>}
-                  </div>
-                </div>
-              </div>
             </section>
 
             {/* SEÇÃO 4 — Diferenças encontradas */}
