@@ -55,7 +55,7 @@ export interface CloseCashierPayload {
   // Totais
   declaredTotalSales?: number | null;
   totalDifference?: number | null;
-  closingStatus?: "no_difference" | "surplus" | "shortage";
+  closingStatus?: "no_difference" | "reconciled_with_mismatch" | "surplus" | "shortage";
   closingJustification?: string | null;
   // Justificativas (texto livre por forma — legado)
   justifications: {
