@@ -96,7 +96,7 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
         allMovements = movements || [];
       }
 
-      const enrichedSessions: CashierStatementSession[] = (sessions || []).map((s) => ({
+      const enrichedSessions: CashierStatementSession[] = (sessions || []).map((s: any) => ({
         ...s,
         opening_balance: Number(s.opening_balance),
         closing_balance: s.closing_balance != null ? Number(s.closing_balance) : null,
