@@ -1,19 +1,16 @@
-## Reordenação do modal "Fechar Caixa"
+## Mover "Dinheiro contado na gaveta" para a Seção 3
 
-Mover o campo **"Valor total de venda do dia"** para logo após a **Seção 1 — Resumo da gaveta**, antes da Seção 2 (Totais por forma de pagamento).
+Mover o input **"Dinheiro contado na gaveta"** (e a Card de risco/diferença associada) da Seção 1 para dentro da Seção 3 — Conferência dos valores apurados, como o primeiro item do grid de métodos (antes de Crédito/Débito/PIX), usando o componente `MethodConference`.
 
 ### Arquivo afetado
 - `src/components/pdv/CloseCashierDialog.tsx`
 
-### Nova ordem das seções
-1. Resumo da gaveta (abertura, suprimentos, sangrias, dinheiro contado)
-2. **Valor total de venda do dia** (movido para cá)
-3. Totais por forma de pagamento (sistema)
-4. Conferência por método (informado vs esperado)
-5. Resumo das diferenças
-6. Justificativa única (se houver diferença)
-7. Resumo final + status
+### Mudanças
+- **Seção 1** passa a mostrar apenas o resumo da gaveta (abertura, vendas em dinheiro, reforços, sangrias, saldo esperado). Sem campo de input.
+- **Seção 3 (Conferência)** ganha como primeiro card:
+  - `MethodConference` rotulado "Dinheiro (gaveta)" com `expected={expectedCash}` e `declared={declaredCash}`
+  - A Card de risco/aviso (`cashRiskConfig`) renderizada logo abaixo do grid quando `hasCashDeclared` for verdadeiro
+- Estado, hooks, payload e validação permanecem inalterados — apenas reposicionamento de JSX.
 
-### Detalhes técnicos
-- Apenas reordenação de JSX. Nenhuma mudança em estado, validação, payload ou hooks.
-- O cálculo de diferença do total de vendas continua o mesmo.
+### Observação
+A diferença de gaveta continua sendo tratada como hoje (mesmo cálculo, mesmo aviso de risco, mesma exigência de justificativa).
