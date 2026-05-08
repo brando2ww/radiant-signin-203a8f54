@@ -521,6 +521,75 @@ export function usePDVPayments() {
     },
   });
 
+  // Registra apenas uma linha extra de pagamento (split-forms): grava em
+  // pdv_payments + movimento de caixa + atualiza totais da sessão.
+  // NÃO mexe em comandas/order/mesa (já fechados pela 1ª chamada).
+  const registerExtraPaymentLine = useMutation({
+    mutationFn: async ({
+      orderId,
+      comandaId,
+      amount,
+      paymentMethod,
+      cashReceived,
+      changeAmount,
+      installments,
+    }: {
+      orderId?: string | null;
+      comandaId?: string | null;
+      amount: number;
+      paymentMethod: PaymentMethod;
+      cashReceived?: number;
+      changeAmount?: number;
+      installments?: number;
+    }) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      const method = normalizeMethod(paymentMethod);
+      const ownerId = visibleUserId || user.id;
+
+      if (orderId) {
+        const { columns: feeColumns } = await buildPaymentSnapshot(ownerId, method, amount);
+        await supabase.from("pdv_payments").insert({
+          order_id: orderId,
+          payment_method: method,
+          amount,
+          cash_received: cashReceived || null,
+          change_amount: changeAmount || null,
+          installments: installments || 1,
+          ...feeColumns,
+        });
+      }
+
+      const { data: activeSession } = await supabase
+        .from("pdv_cashier_sessions")
+        .select("*")
+        .eq("user_id", ownerId)
+        .is("closed_at", null)
+        .maybeSingle();
+
+      if (activeSession) {
+        await supabase.from("pdv_cashier_movements").insert({
+          cashier_session_id: activeSession.id,
+          type: "venda",
+          amount,
+          payment_method: method,
+          description: comandaId ? `Comanda #${comandaId.slice(0, 8)}` : "Pagamento adicional",
+        });
+        const deltas = buildSessionDeltas(method, amount, changeAmount);
+        const updates = applyDeltas(activeSession, deltas);
+        await supabase.from("pdv_cashier_sessions").update(updates).eq("id", activeSession.id);
+      }
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
+    },
+    onError: (error) => {
+      console.error("Erro ao registrar linha extra de pagamento:", error);
+      toast.error("Erro ao registrar forma de pagamento adicional");
+    },
+  });
+
   return {
     registerPayment: registerPayment.mutateAsync,
     isRegisteringPayment: registerPayment.isPending,
@@ -528,5 +597,7 @@ export function usePDVPayments() {
     isRegisteringTablePayment: registerTablePayment.isPending,
     registerPartialPayment: registerPartialPayment.mutateAsync,
     isRegisteringPartialPayment: registerPartialPayment.isPending,
+    registerExtraPaymentLine: registerExtraPaymentLine.mutateAsync,
+    isRegisteringExtraPaymentLine: registerExtraPaymentLine.isPending,
   };
 }
