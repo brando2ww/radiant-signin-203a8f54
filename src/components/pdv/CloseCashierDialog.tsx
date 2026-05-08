@@ -788,6 +788,27 @@ export function CloseCashierDialog({
                   />
                 )}
               </div>
+
+              {hasCashDeclared && (
+                <Card className={cn("border-2", cashRiskConfig.bgColor)}>
+                  <CardContent className="pt-3 pb-3">
+                    <div className="flex items-start gap-3">
+                      <RiskIcon className={cn("h-5 w-5 mt-0.5", cashRiskConfig.color)} />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={cn("font-semibold text-sm", cashRiskConfig.color)}>
+                            {cashRiskConfig.label}
+                          </span>
+                          <span className={cn("font-mono font-bold text-sm", cashRiskConfig.color)}>
+                            {cashDifference >= 0 ? "+" : ""}{formatBRL(cashDifference)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{cashRiskConfig.description}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </section>
 
             {/* SEÇÃO 5 — Diferenças encontradas */}
