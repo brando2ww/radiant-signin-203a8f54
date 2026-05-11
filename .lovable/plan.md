@@ -1,57 +1,99 @@
-## Contexto
+## Objetivo
 
-A base já existe:
-- Campo **Link do Google Reviews** já está em `Configurações de Avaliações` (`user_settings.google_review_url`).
-- Em `PublicEvaluation.tsx` já existe um botão *"Avaliar no Google"* na tela final quando NPS ≥ 9.
+Expandir a página `/pdv/relatorios` adicionando uma seção de **Evolução de Faturamento** com gráfico mês a mês (separado por canal: Salão, Balcão e Delivery) e cards comparativos MoM / YoY / acumulado do ano.
 
-O que falta para fechar o pedido:
-1. Tornar o redirecionamento **automático** (não depender do clique).
-2. Para promotores (NPS 9-10), **não mostrar a tela de cupom/sorteio** — substituir pelo CTA do Google.
-3. Manter o fluxo atual (cupom/roleta) intacto para neutros e detratores.
+## Estrutura visual da nova página
 
-## Mudanças
+```text
+┌─────────────────────────────────────────────────────┐
+│ 📊 Relatórios                                       │
+├─────────────────────────────────────────────────────┤
+│ [ Filtros de período atuais — mantidos ]            │
+│ [ Cards de resumo + gráficos atuais — mantidos ]    │
+├─────────────────────────────────────────────────────┤
+│ 📈 Evolução de Faturamento                          │
+│                                                      │
+│ ┌─ Mês atual ─┐ ┌─ vs mês ant. ─┐ ┌─ vs ano ant. ─┐ │
+│ │ R$ 42.300   │ │ +12,4% ▲      │ │ +28,1% ▲      │ │
+│ └─────────────┘ └───────────────┘ └───────────────┘ │
+│ ┌─ Acum. ano ─┐ ┌─ Acum. ano-1 ─┐ ┌─ Variação ───┐  │
+│ │ R$ 312.500  │ │ R$ 244.700    │ │ +27,7% ▲     │  │
+│ └─────────────┘ └───────────────┘ └──────────────┘  │
+│                                                      │
+│ [ Tabs: Mês a Mês | Ano vs Ano ]                    │
+│                                                      │
+│ Mês a Mês (últimos 24 meses):                       │
+│   gráfico de barras empilhadas por canal            │
+│   (Salão / Balcão / Delivery)                       │
+│                                                      │
+│ Ano vs Ano:                                         │
+│   gráfico de linha — 2 séries                       │
+│   (ano corrente vs ano anterior, jan→dez)           │
+│                                                      │
+│ [ Tabela detalhada exportável CSV ]                 │
+└─────────────────────────────────────────────────────┘
+```
 
-### 1. `src/pages/PublicEvaluation.tsx` — desviar antes da fase `coupon`
+## Arquivos novos
 
-No ponto onde decidimos a próxima fase após enviar a avaliação (hoje vai para `coupon` se ganhou prêmio, senão `done`):
+### `src/hooks/use-pdv-monthly-revenue.ts`
+Hook único que retorna a evolução agregada por mês e canal para os **últimos 24 meses** (cobre comparativo YoY automático).
 
-- Calcular `isPromoter = npsScore >= 9 && !!googleReviewUrl`.
-- Se `isPromoter`:
-  - Pular completamente a fase `coupon` (mesmo que tenha sorteio configurado).
-  - Ir direto para uma nova micro-fase visual `google_redirect` (ou reutilizar `done` com um flag).
-  - Não emitir/atribuir cupom para esses casos (alinhado à escolha do usuário).
-- Se NÃO promotor: fluxo atual permanece (cupom → done).
+Forma do retorno:
+```ts
+{
+  months: Array<{
+    month: string;          // "2025-01"
+    label: string;          // "jan/25"
+    salao: number;
+    balcao: number;
+    delivery: number;
+    total: number;
+  }>,
+  summary: {
+    currentMonth: number;
+    previousMonth: number;
+    sameMonthLastYear: number;
+    momChange: number;        // %
+    yoyChange: number;        // %
+    ytdCurrent: number;
+    ytdPrevious: number;
+    ytdChange: number;        // %
+  }
+}
+```
 
-### 2. Tela do promotor — redirecionamento automático
+Fontes de dados:
+- **Salão**: `pdv_orders` onde `source = 'salao'` e `status = 'fechada'`, agregado por `date_trunc('month', closed_at)` (fallback `created_at`).
+- **Balcão**: `pdv_orders` onde `source = 'balcao'` e `status = 'fechada'`.
+- **Delivery**: `delivery_orders` onde `status IN ('completed','delivered')` e `payment_status = 'paid'`, agregado por `created_at`.
 
-Substituir o bloco atual de "Avaliar no Google" por uma tela dedicada:
+Implementação no client: 3 queries em paralelo limitadas aos últimos 24 meses (`gte(start_of_month_24_ago)`), agregação JS por `YYYY-MM`. Usa `useEstablishmentId` para resolver dono.
 
-- Ícone + mensagem: *"Que bom que você gostou! 🎉 Vamos te levar ao Google para deixar sua avaliação..."*
-- Contador regressivo de **3 segundos** visível.
-- Ao zerar: `window.location.href = googleReviewUrl` (mesma aba — funciona melhor em mobile que `window.open`, que costuma ser bloqueado por pop-up blockers em iOS Safari).
-- Botão secundário **"Ir agora"** (atalho que dispara o redirect imediato).
-- Link discreto **"Pular"** que troca a fase para `done` simples (apenas agradecimento).
+### `src/components/pdv/MonthlyRevenueSection.tsx`
+- Cards com `formatBRL` e badge de variação (▲ verde / ▼ vermelho) **sem cores customizadas** — usa `text-foreground` + `text-muted-foreground` (sem violar a regra de design do projeto: variação positiva/negativa é sinalizada por ícone, não por cor saturada).
+- 2 gráficos `recharts`:
+  - **Mês a Mês**: `BarChart` empilhado, 24 meses, séries Salão/Balcão/Delivery em tons da paleta semântica (`hsl(var(--primary))`, `hsl(var(--muted-foreground))`, `hsl(var(--accent))`).
+  - **Ano vs Ano**: `LineChart` com 2 séries (ano corrente, ano anterior) eixo X jan→dez.
+- Tabela colapsável com botão **"Exportar CSV"** (reutiliza `src/lib/export-utils.ts` se houver helper, senão geração inline).
 
-### 3. Backend — sem cupom para promotor
+## Arquivo modificado
 
-No fluxo de submissão da avaliação, quando `isPromoter && googleReviewUrl` definido:
-- Não chamar a lógica de sorteio/atribuição de cupom.
-- A avaliação em si (`customer_evaluations` + `evaluation_answers`) continua sendo gravada normalmente.
-
-### 4. Settings — pequeno ajuste de copy (opcional, sem mudança de schema)
-
-Em `EvaluationsSettings.tsx`, atualizar o texto explicativo:
-
-> *"Quando o cliente der nota 9 ou 10 no NPS, ele será **redirecionado automaticamente** para avaliar no Google e **não receberá cupom de sorteio** (o incentivo passa a ser a avaliação pública)."*
+### `src/pages/pdv/Reports.tsx`
+- Mantém todo o conteúdo atual (filtros, `ReportSummaryCards`, `PaymentMethodChart`, `ProductsTable`, `HourlySalesChart`).
+- Adiciona `<MonthlyRevenueSection />` ao final, fora do filtro de período (sempre últimos 24 meses, independente do filtro acima).
+- Pequeno separador visual + título "Evolução de Faturamento".
 
 ## Detalhes técnicos
 
-- Nenhuma migração de banco necessária — `google_review_url` já existe em `user_settings`.
-- Validação leve do URL no save (já existente): se vazio, o fluxo cai de volta no comportamento antigo (cupom + tela "Obrigado").
-- Acessibilidade: `aria-live="polite"` no contador para leitores de tela; respeitar `prefers-reduced-motion` removendo a animação fade do contador.
-- Mobile-first: usar `window.location.href` em vez de `window.open` para evitar pop-up blockers.
+- **Localização**: nomes de meses via `format(date, "LLL/yy", { locale: ptBR })` → "jan/25".
+- **Acessibilidade dos gráficos**: `<Tooltip formatter={formatBRL}>` para valores legíveis.
+- **Loading**: skeleton dentro da seção, sem bloquear o resto da página.
+- **Performance**: queries com `select` apenas das colunas necessárias (`total, source, status, closed_at, created_at`) — limite teórico de 1000 linhas por query do Supabase é suficiente em 24 meses para a grande maioria dos estabelecimentos; adicionar paginação manual (`range`) se algum tenant ultrapassar — incluir no hook desde já um loop paginado defensivo de 1000 em 1000.
+- **RBAC**: a rota `/pdv/relatorios` já está protegida por `RoleRoute`; nada novo.
 
 ## Fora de escopo
 
-- Postar a estrela diretamente no Google (não é permitido pela API do Google — todo restaurante usa o mesmo padrão de redirecionar para `writereview?placeid=...`).
-- Métricas de conversão "abriu o Google → realmente avaliou" (Google não expõe esse callback). Podemos discutir um proxy depois, se quiser.
+- Projeções/forecast (sazonalidade, médias móveis preditivas).
+- Drill-down clicando no mês para ver o relatório daquele mês (pode ser adicionado em iteração futura).
+- Filtro para escolher o número de meses (24 fixo é suficiente para mostrar YoY completo).
