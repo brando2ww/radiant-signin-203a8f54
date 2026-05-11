@@ -34,7 +34,7 @@ export interface MonthlyRevenueResult {
 const PAGE_SIZE = 1000;
 
 async function fetchAllPaged<T>(
-  build: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
 ): Promise<T[]> {
   const out: T[] = [];
   let from = 0;
