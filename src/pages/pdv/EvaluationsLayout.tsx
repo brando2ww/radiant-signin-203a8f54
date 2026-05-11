@@ -4,6 +4,7 @@ import { lazy, Suspense } from "react";
 const EvaluationsDashboard = lazy(() => import("@/pages/evaluations/EvaluationsDashboard"));
 const EvaluationsCampaigns = lazy(() => import("@/pages/evaluations/EvaluationsCampaigns"));
 const EvaluationsSettings = lazy(() => import("@/pages/evaluations/EvaluationsSettings"));
+const EvaluationsArte = lazy(() => import("@/pages/pdv/evaluations/EvaluationsArte"));
 
 // Relatórios
 const ReportDaily = lazy(() => import("@/pages/pdv/evaluations/reports/ReportDaily"));
@@ -58,6 +59,7 @@ export default function EvaluationsLayout() {
           <Route path="cupons/sorteio" element={<CouponsDraw />} />
           <Route path="cupons/roletas" element={<CouponsRoulettes />} />
 
+          <Route path="arte" element={<EvaluationsArte />} />
           <Route path="configuracoes" element={<EvaluationsSettings />} />
           <Route path="*" element={<Navigate to="" replace />} />
         </Routes>

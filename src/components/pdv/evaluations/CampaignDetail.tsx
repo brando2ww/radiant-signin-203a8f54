@@ -6,8 +6,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QRCodeSVG } from "qrcode.react";
-import { Copy, ExternalLink, QrCode, Pencil } from "lucide-react";
+import { Copy, ExternalLink, QrCode, Pencil, Printer } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import {
   useEvaluationCampaigns,
   useUpdateCampaign,
@@ -96,6 +97,11 @@ export function CampaignDetail({ campaignId }: CampaignDetailProps) {
                   <a href={publicUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
                   </a>
+                </Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={`/pdv/avaliacoes/arte?campaign=${campaignId}`}>
+                    <Printer className="h-4 w-4 mr-2" /> Gerar arte
+                  </Link>
                 </Button>
               </div>
               <div className="flex items-center gap-2">
