@@ -51,6 +51,19 @@ interface DraftCartContextValue {
   clear: (comandaId: string) => void;
   total: (comandaId: string) => number;
   count: (comandaId: string) => number;
+  /**
+   * Move drafts entre comandas, com suporte a quantidade parcial.
+   * `qtyMap` (opcional) define quantidade a mover por draftId; se ausente
+   * para um draftId, move a quantidade inteira. Se mover < quantidade total,
+   * o item original permanece na origem com a quantidade remanescente e um
+   * novo draft é criado no destino.
+   */
+  transferDraftItems: (
+    fromComandaId: string,
+    toComandaId: string,
+    draftIds: string[],
+    qtyMap?: Record<string, number>,
+  ) => void;
 }
 
 const DraftCartContext = createContext<DraftCartContextValue | null>(null);
