@@ -1,51 +1,57 @@
-## Objetivo
+## Contexto
 
-Mudar a regra de bloqueio do botão "Confirmar Fechamento" no `CloseCashierDialog` para considerar **somente a diferença total final** (Total apurado pelo operador − Total esperado pelo sistema), e tratar divergências entre formas de pagamento que se compensam como apenas informativas.
+A base já existe:
+- Campo **Link do Google Reviews** já está em `Configurações de Avaliações` (`user_settings.google_review_url`).
+- Em `PublicEvaluation.tsx` já existe um botão *"Avaliar no Google"* na tela final quando NPS ≥ 9.
 
-## Cenário hoje (bug)
+O que falta para fechar o pedido:
+1. Tornar o redirecionamento **automático** (não depender do clique).
+2. Para promotores (NPS 9-10), **não mostrar a tela de cupom/sorteio** — substituir pelo CTA do Google.
+3. Manter o fluxo atual (cupom/roleta) intacto para neutros e detratores.
 
-`hasAnyDifference = rowsWithDiff.length > 0 || hasTotalDiff` exige justificativa sempre que QUALQUER linha individual diverge — mesmo quando o total fecha em R$ 0,00. Por isso o exemplo (dinheiro −25, débito +10, vale +15, total = 0) está bloqueado.
+## Mudanças
 
-## Mudanças no `src/components/pdv/CloseCashierDialog.tsx`
+### 1. `src/pages/PublicEvaluation.tsx` — desviar antes da fase `coupon`
 
-### 1. Lógica de bloqueio (linhas ~515–532)
+No ponto onde decidimos a próxima fase após enviar a avaliação (hoje vai para `coupon` se ganhou prêmio, senão `done`):
 
-- `requiresJustification = hasTotalDiff` (apenas o total final dispara obrigatoriedade).
-- `hasReconciledMismatch = rowsWithDiff.length > 0 && !hasTotalDiff` (compensação entre formas).
-- `justificationOk = !requiresJustification || justificationValid`.
-- Remover `isBlocked` baseado em `cashRiskLevel === "critical"` (passa a depender apenas do total final; o "risco" continua sendo registrado para auditoria mas não bloqueia).
-- `canClose`: exige `declaredCash` preenchido, `declaredTotal` preenchido e `justificationOk`.
+- Calcular `isPromoter = npsScore >= 9 && !!googleReviewUrl`.
+- Se `isPromoter`:
+  - Pular completamente a fase `coupon` (mesmo que tenha sorteio configurado).
+  - Ir direto para uma nova micro-fase visual `google_redirect` (ou reutilizar `done` com um flag).
+  - Não emitir/atribuir cupom para esses casos (alinhado à escolha do usuário).
+- Se NÃO promotor: fluxo atual permanece (cupom → done).
 
-### 2. `closingStatus` (4 estados conforme pedido)
+### 2. Tela do promotor — redirecionamento automático
 
-```
-no_difference            → totalDiff == 0 e nenhuma linha diverge
-reconciled_with_mismatch → totalDiff == 0 e alguma linha diverge (NOVO)
-surplus                  → totalDiff > 0
-shortage                 → totalDiff < 0
-```
+Substituir o bloco atual de "Avaliar no Google" por uma tela dedicada:
 
-### 3. UI
+- Ícone + mensagem: *"Que bom que você gostou! 🎉 Vamos te levar ao Google para deixar sua avaliação..."*
+- Contador regressivo de **3 segundos** visível.
+- Ao zerar: `window.location.href = googleReviewUrl` (mesma aba — funciona melhor em mobile que `window.open`, que costuma ser bloqueado por pop-up blockers em iOS Safari).
+- Botão secundário **"Ir agora"** (atalho que dispara o redirect imediato).
+- Link discreto **"Pular"** que troca a fase para `done` simples (apenas agradecimento).
 
-- **Seção 4 "Diferenças encontradas"**: quando `hasReconciledMismatch && !hasTotalDiff`, mostrar banner amarelo/laranja suave (não bloqueante) com:
-  - Título: "Divergência entre formas de pagamento"
-  - Texto: "O total final do caixa está correto, mas existem diferenças entre os meios de pagamento. Isso pode ocorrer por troca de forma de pagamento, lançamento incorreto ou ajuste operacional."
-  - Continuar listando as diferenças individuais como informativo.
-- **Seção 5 "Justificativa"**: só renderiza quando `requiresJustification` (totalDiff ≠ 0). No caso reconciliado, justificativa fica opcional num campo separado dentro de "Observações" (que já existe).
-- **Card de risco do dinheiro** (linhas 793–812): manter como informativo, sem bloquear.
-- **Confirmação extra (`confirmOpen`)**: abrir o `AlertDialog` apenas quando `hasTotalDiff` (sobra/falta real); fechamento conciliado vai direto.
+### 3. Backend — sem cupom para promotor
 
-### 4. Payload (`buildPayload`)
+No fluxo de submissão da avaliação, quando `isPromoter && googleReviewUrl` definido:
+- Não chamar a lógica de sorteio/atribuição de cupom.
+- A avaliação em si (`customer_evaluations` + `evaluation_answers`) continua sendo gravada normalmente.
 
-- `closingStatus` passa a aceitar `"reconciled_with_mismatch"` além dos atuais.
-- `closingJustification` enviado somente se `requiresJustification`.
-- `justifications` por meio: continuar gravando texto da justificativa nas linhas com diff (apenas quando há justificativa real); para fechamento conciliado essas ficam nulas.
+### 4. Settings — pequeno ajuste de copy (opcional, sem mudança de schema)
 
-### 5. Tipo `CloseCashierPayload` em `src/hooks/use-pdv-cashier.ts`
+Em `EvaluationsSettings.tsx`, atualizar o texto explicativo:
 
-Atualizar a união `closingStatus` para incluir `"reconciled_with_mismatch"`. O campo já é gravado em `closing_status` (text) na tabela `pdv_cashier_sessions` — nenhuma migração necessária.
+> *"Quando o cliente der nota 9 ou 10 no NPS, ele será **redirecionado automaticamente** para avaliar no Google e **não receberá cupom de sorteio** (o incentivo passa a ser a avaliação pública)."*
 
-## Fora do escopo
+## Detalhes técnicos
 
-- Sem mudanças em backend/SQL além da string nova de status (coluna é texto livre).
-- Sem mudanças em `printCashierReport` além de, opcionalmente, refletir o novo status no rótulo (nice-to-have).
+- Nenhuma migração de banco necessária — `google_review_url` já existe em `user_settings`.
+- Validação leve do URL no save (já existente): se vazio, o fluxo cai de volta no comportamento antigo (cupom + tela "Obrigado").
+- Acessibilidade: `aria-live="polite"` no contador para leitores de tela; respeitar `prefers-reduced-motion` removendo a animação fade do contador.
+- Mobile-first: usar `window.location.href` em vez de `window.open` para evitar pop-up blockers.
+
+## Fora de escopo
+
+- Postar a estrela diretamente no Google (não é permitido pela API do Google — todo restaurante usa o mesmo padrão de redirecionar para `writereview?placeid=...`).
+- Métricas de conversão "abriu o Google → realmente avaliou" (Google não expõe esse callback). Podemos discutir um proxy depois, se quiser.
