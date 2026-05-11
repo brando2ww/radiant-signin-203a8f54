@@ -162,6 +162,8 @@ export default function FinancialTransactions() {
         transaction={selectedTransaction}
         onSubmit={handleMarkAsPaidSubmit}
       />
+
+      <QuickExpenseDialog open={quickExpenseOpen} onOpenChange={setQuickExpenseOpen} />
     </div>
   );
 }
