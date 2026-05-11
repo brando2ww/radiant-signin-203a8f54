@@ -26,9 +26,9 @@ const SIZE_DIMENSIONS: Record<
   Size,
   { w: number; h: number; label: string; pdfFormat: any; scale: number }
 > = {
-  a4: { w: 794, h: 1123, label: "A4 (210×297mm)", pdfFormat: "a4", scale: 0.55 },
-  a5: { w: 559, h: 794, label: "A5 (148×210mm)", pdfFormat: "a5", scale: 0.7 },
-  label: { w: 378, h: 378, label: "Etiqueta 10×10cm", pdfFormat: [100, 100], scale: 0.95 },
+  a4: { w: 794, h: 1123, label: "A4 (210×297mm)", pdfFormat: "a4", scale: 0.5 },
+  a5: { w: 559, h: 794, label: "A5 (148×210mm)", pdfFormat: "a5", scale: 0.65 },
+  label: { w: 378, h: 378, label: "Etiqueta 10×10cm", pdfFormat: [100, 100], scale: 0.9 },
 };
 
 export default function EvaluationsArte() {
