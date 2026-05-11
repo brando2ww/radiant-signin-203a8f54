@@ -244,7 +244,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogPro
                   <SelectItem value={NONE}>Nenhum</SelectItem>
                   {(suppliers || []).map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.company_name}
+                      {s.name || s.company_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
