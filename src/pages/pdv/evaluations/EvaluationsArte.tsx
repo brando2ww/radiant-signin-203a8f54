@@ -458,7 +458,7 @@ function PosterContent({
               powered by
             </span>
             <img
-              src="/logo_velara_preto.png"
+              src={velaraLogo}
               alt="Velara"
               crossOrigin="anonymous"
               style={{
