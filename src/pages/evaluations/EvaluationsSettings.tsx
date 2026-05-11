@@ -208,7 +208,7 @@ export default function EvaluationsSettings() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Quando o cliente der nota 9 ou 10 no NPS, ele será convidado a avaliar no Google.
+              Quando o cliente der nota 9 ou 10 no NPS, ele será <strong>redirecionado automaticamente</strong> para avaliar no Google e <strong>não receberá cupom de sorteio</strong> (o incentivo passa a ser a avaliação pública).
             </p>
             <div className="space-y-2">
               <Label>Link do Google Reviews</Label>

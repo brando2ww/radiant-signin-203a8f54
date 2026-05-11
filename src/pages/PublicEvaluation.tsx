@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { usePublicCampaignPrizes, useRegisterPrizeWin, type CampaignPrize } from
 import { SpinWheel } from "@/components/public-evaluation/SpinWheel";
 import { PrizeResult } from "@/components/public-evaluation/PrizeResult";
 
-type Phase = "roulette" | "form" | "coupon" | "done";
+type Phase = "roulette" | "form" | "coupon" | "google_redirect" | "done";
 
 function ProgressBar({ value }: { value: number }) {
   return (
@@ -204,6 +204,12 @@ export default function PublicEvaluation() {
       },
       {
         onSuccess: (result) => {
+          const isPromoter = npsScore !== null && npsScore >= 9 && !!googleReviewUrl;
+          // Promotores são redirecionados para o Google e não recebem cupom de sorteio
+          if (isPromoter) {
+            setPhase("google_redirect");
+            return;
+          }
           if (wonPrize && result?.id) {
             registerWin.mutate(
               {
@@ -252,10 +258,20 @@ export default function PublicEvaluation() {
     );
   }
 
+  // === PHASE: GOOGLE REDIRECT (auto) ===
+  if (currentPhase === "google_redirect" && googleReviewUrl) {
+    return (
+      <GoogleRedirectScreen
+        Logo={Logo}
+        bgColor={bgColor}
+        url={googleReviewUrl}
+        onSkip={() => setPhase("done")}
+      />
+    );
+  }
+
   // === PHASE: DONE ===
   if (currentPhase === "done") {
-    const showGoogleRedirect = npsScore !== null && npsScore >= 9 && googleReviewUrl;
-
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: bgColor }}>
         <div className="text-center space-y-5 max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -267,27 +283,6 @@ export default function PublicEvaluation() {
           <p className="text-muted-foreground leading-relaxed text-sm">
             {thankYouMsg || "Sua avaliação foi enviada com sucesso. Agradecemos pelo seu feedback!"}
           </p>
-          {showGoogleRedirect && (
-            <div className="space-y-3 pt-2 animate-in fade-in duration-700">
-              <p className="text-sm font-medium text-foreground">
-                Ficamos felizes com sua nota! 🎉<br />
-                Que tal compartilhar sua experiência no Google?
-              </p>
-              <Button
-                className="gap-2 w-full"
-                onClick={() => window.open(googleReviewUrl, "_blank")}
-              >
-                <ExternalLink className="h-4 w-4" />
-                Avaliar no Google
-              </Button>
-              <button
-                className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
-                onClick={() => {}}
-              >
-                Pular
-              </button>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -584,6 +579,60 @@ export default function PublicEvaluation() {
             <div className="h-6" />
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface GoogleRedirectScreenProps {
+  Logo: React.ReactNode;
+  bgColor: string;
+  url: string;
+  onSkip: () => void;
+}
+
+function GoogleRedirectScreen({ Logo, bgColor, url, onSkip }: GoogleRedirectScreenProps) {
+  const [seconds, setSeconds] = useState(3);
+
+  useEffect(() => {
+    if (seconds <= 0) {
+      window.location.href = url;
+      return;
+    }
+    const t = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [seconds, url]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: bgColor }}>
+      <div className="text-center space-y-5 max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {Logo}
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mx-auto">
+          <Star className="h-10 w-10 text-primary" />
+        </div>
+        <h1 className="text-2xl font-semibold text-foreground">Que bom que você gostou! 🎉</h1>
+        <p className="text-muted-foreground leading-relaxed text-sm">
+          Sua opinião faz toda a diferença. Vamos te levar ao Google para deixar sua avaliação...
+        </p>
+        <p
+          className="text-sm font-medium text-foreground"
+          aria-live="polite"
+        >
+          Redirecionando em <span className="font-bold text-primary">{seconds}</span>s
+        </p>
+        <Button
+          className="gap-2 w-full"
+          onClick={() => { window.location.href = url; }}
+        >
+          <ExternalLink className="h-4 w-4" />
+          Ir agora
+        </Button>
+        <button
+          className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+          onClick={onSkip}
+        >
+          Pular
+        </button>
       </div>
     </div>
   );
