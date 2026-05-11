@@ -231,23 +231,37 @@ export default function GarcomComandaDetalhe() {
             )}
           </div>
         ) : selectMode ? (
-          // Em modo seleção, listamos apenas os itens persistidos. O rascunho
-          // local é editável diretamente nos cards "draft" e não faz sentido
-          // ser transferido (ainda não foi enviado).
-          sentItems.map((item) => (
-            <ComandaItemCard
-              key={item.id}
-              productName={item.product_name}
-              quantity={item.quantity}
-              unitPrice={item.unit_price}
-              notes={item.notes}
-              kitchenStatus={item.kitchen_status}
-              sentToKitchenAt={item.sent_to_kitchen_at}
-              selectMode
-              selected={selectedIds.has(item.id)}
-              onToggleSelect={() => toggleSelect(item.id)}
-            />
-          ))
+          <>
+            {sentItems.map((item) => (
+              <ComandaItemCard
+                key={item.id}
+                productName={item.product_name}
+                quantity={item.quantity}
+                unitPrice={item.unit_price}
+                notes={item.notes}
+                kitchenStatus={item.kitchen_status}
+                sentToKitchenAt={item.sent_to_kitchen_at}
+                selectMode
+                selected={selectedIds.has(item.id)}
+                onToggleSelect={() => toggleSelect(item.id)}
+              />
+            ))}
+            {draftItems.map((item) => (
+              <ComandaItemCard
+                key={item.draftId}
+                variant="draft"
+                productName={item.productName}
+                quantity={item.quantity}
+                unitPrice={item.unitPrice}
+                notes={item.notes}
+                kitchenStatus="pendente"
+                sentToKitchenAt={null}
+                selectMode
+                selected={selectedIds.has(item.draftId)}
+                onToggleSelect={() => toggleSelect(item.draftId)}
+              />
+            ))}
+          </>
         ) : (
           <>
             {/* Grupo: Novos itens — não enviados ainda (rascunho local) */}
