@@ -182,11 +182,25 @@ export default function GarcomComandaDetalhe() {
             {statusBadge}
           </div>
         </div>
+        {canEdit && (sentItems.length + draftItems.length) > 0 && !selectMode && (
+          <button
+            type="button"
+            onClick={handleTransferWholeComanda}
+            className="ml-auto h-9 px-2.5 rounded-md text-xs font-medium hover:bg-accent active:scale-95 transition-all inline-flex items-center gap-1.5"
+            aria-label="Mover comanda inteira"
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Mover comanda</span>
+          </button>
+        )}
         {canEdit && (sentItems.length + draftItems.length) > 0 && (
           <button
             type="button"
             onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-            className="ml-auto h-9 px-3 rounded-md text-xs font-medium hover:bg-accent active:scale-95 transition-all inline-flex items-center gap-1.5"
+            className={cn(
+              "h-9 px-3 rounded-md text-xs font-medium hover:bg-accent active:scale-95 transition-all inline-flex items-center gap-1.5",
+              selectMode && "ml-auto",
+            )}
           >
             {selectMode ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
             {selectMode ? "Cancelar" : "Selecionar"}
