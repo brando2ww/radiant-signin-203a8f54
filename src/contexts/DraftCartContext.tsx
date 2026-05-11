@@ -51,6 +51,19 @@ interface DraftCartContextValue {
   clear: (comandaId: string) => void;
   total: (comandaId: string) => number;
   count: (comandaId: string) => number;
+  /**
+   * Move drafts entre comandas, com suporte a quantidade parcial.
+   * `qtyMap` (opcional) define quantidade a mover por draftId; se ausente
+   * para um draftId, move a quantidade inteira. Se mover < quantidade total,
+   * o item original permanece na origem com a quantidade remanescente e um
+   * novo draft é criado no destino.
+   */
+  transferDraftItems: (
+    fromComandaId: string,
+    toComandaId: string,
+    draftIds: string[],
+    qtyMap?: Record<string, number>,
+  ) => void;
 }
 
 const DraftCartContext = createContext<DraftCartContextValue | null>(null);
@@ -177,6 +190,47 @@ export function DraftCartProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const transferDraftItems: DraftCartContextValue["transferDraftItems"] =
+    useCallback((fromComandaId, toComandaId, draftIds, qtyMap) => {
+      if (!draftIds.length || fromComandaId === toComandaId) return;
+      setCart((prev) => {
+        const fromList = prev[fromComandaId];
+        if (!fromList) return prev;
+        const next: DraftCart = { ...prev };
+        const toList = next[toComandaId] ? [...next[toComandaId]] : [];
+        const newFromList: DraftItem[] = [];
+        for (const it of fromList) {
+          if (!draftIds.includes(it.draftId)) {
+            newFromList.push(it);
+            continue;
+          }
+          const requested = qtyMap?.[it.draftId];
+          const moveQty =
+            requested && requested > 0 && requested < it.quantity
+              ? requested
+              : it.quantity;
+          // cria item novo no destino (novo draftId)
+          toList.push({
+            ...it,
+            draftId:
+              typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            quantity: moveQty,
+            createdAt: Date.now(),
+          });
+          // mantém remanescente na origem
+          if (moveQty < it.quantity) {
+            newFromList.push({ ...it, quantity: it.quantity - moveQty });
+          }
+        }
+        if (newFromList.length === 0) delete next[fromComandaId];
+        else next[fromComandaId] = newFromList;
+        next[toComandaId] = toList;
+        return next;
+      });
+    }, []);
+
   const getItems = useCallback(
     (comandaId: string) => cart[comandaId] ?? [],
     [cart],
@@ -198,8 +252,8 @@ export function DraftCartProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<DraftCartContextValue>(
-    () => ({ getItems, addItem, updateQuantity, removeItem, clear, total, count }),
-    [getItems, addItem, updateQuantity, removeItem, clear, total, count],
+    () => ({ getItems, addItem, updateQuantity, removeItem, clear, total, count, transferDraftItems }),
+    [getItems, addItem, updateQuantity, removeItem, clear, total, count, transferDraftItems],
   );
 
   return (

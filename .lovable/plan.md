@@ -1,99 +1,54 @@
-## Objetivo
+# Transferência de itens entre mesas — app do garçom
 
-Expandir a página `/pdv/relatorios` adicionando uma seção de **Evolução de Faturamento** com gráfico mês a mês (separado por canal: Salão, Balcão e Delivery) e cards comparativos MoM / YoY / acumulado do ano.
+Hoje o app do garçom (`/garcom/comanda/:id`) já permite mover **itens já enviados** para outra **comanda aberta** (em mesa ocupada ou avulsa) via botão "Selecionar → Mover". O RPC `pdv_transfer_items` já suporta destino mesa (`targetKind="table"`) e quantidade parcial (`qtyMap`).
 
-## Estrutura visual da nova página
+Esta entrega cobre 4 melhorias para corrigir lançamentos errados rapidamente, sem exigir senha (qualquer garçom pode mover).
 
-```text
-┌─────────────────────────────────────────────────────┐
-│ 📊 Relatórios                                       │
-├─────────────────────────────────────────────────────┤
-│ [ Filtros de período atuais — mantidos ]            │
-│ [ Cards de resumo + gráficos atuais — mantidos ]    │
-├─────────────────────────────────────────────────────┤
-│ 📈 Evolução de Faturamento                          │
-│                                                      │
-│ ┌─ Mês atual ─┐ ┌─ vs mês ant. ─┐ ┌─ vs ano ant. ─┐ │
-│ │ R$ 42.300   │ │ +12,4% ▲      │ │ +28,1% ▲      │ │
-│ └─────────────┘ └───────────────┘ └───────────────┘ │
-│ ┌─ Acum. ano ─┐ ┌─ Acum. ano-1 ─┐ ┌─ Variação ───┐  │
-│ │ R$ 312.500  │ │ R$ 244.700    │ │ +27,7% ▲     │  │
-│ └─────────────┘ └───────────────┘ └──────────────┘  │
-│                                                      │
-│ [ Tabs: Mês a Mês | Ano vs Ano ]                    │
-│                                                      │
-│ Mês a Mês (últimos 24 meses):                       │
-│   gráfico de barras empilhadas por canal            │
-│   (Salão / Balcão / Delivery)                       │
-│                                                      │
-│ Ano vs Ano:                                         │
-│   gráfico de linha — 2 séries                       │
-│   (ano corrente vs ano anterior, jan→dez)           │
-│                                                      │
-│ [ Tabela detalhada exportável CSV ]                 │
-└─────────────────────────────────────────────────────┘
-```
+## 1. Transferir para mesa vazia
 
-## Arquivos novos
+No `TransferItemsDialog`, adicionar uma seção **"Mesas livres"** acima de "Mesas ocupadas":
+- Lista mesas com `status = "livre"` (sem `current_order_id`).
+- Ao selecionar, chama `transferItems({ targetKind: "table", targetId: tableId })`. O RPC já cuida de abrir um `pdv_order` + `pdv_comanda` na mesa destino.
+- Ícone/label distintos ("Mesa X — livre"), busca por número de mesa funciona normalmente.
 
-### `src/hooks/use-pdv-monthly-revenue.ts`
-Hook único que retorna a evolução agregada por mês e canal para os **últimos 24 meses** (cobre comparativo YoY automático).
+## 2. Transferir comanda inteira
 
-Forma do retorno:
-```ts
-{
-  months: Array<{
-    month: string;          // "2025-01"
-    label: string;          // "jan/25"
-    salao: number;
-    balcao: number;
-    delivery: number;
-    total: number;
-  }>,
-  summary: {
-    currentMonth: number;
-    previousMonth: number;
-    sameMonthLastYear: number;
-    momChange: number;        // %
-    yoyChange: number;        // %
-    ytdCurrent: number;
-    ytdPrevious: number;
-    ytdChange: number;        // %
-  }
-}
-```
+Atalho rápido no `GarcomComandaDetalhe`:
+- Novo item no header (ao lado de "Selecionar"): **"Mover comanda"** (ícone `ArrowRightLeft`).
+- Abre o mesmo `TransferItemsDialog` pré-selecionando todos os `sentItems` (sem entrar em `selectMode`).
+- Título do diálogo muda para "Mover comanda inteira para…".
+- Após sucesso, navega de volta para `/garcom/mesas` (a comanda origem fica vazia/aberta — comportamento já documentado no diálogo).
 
-Fontes de dados:
-- **Salão**: `pdv_orders` onde `source = 'salao'` e `status = 'fechada'`, agregado por `date_trunc('month', closed_at)` (fallback `created_at`).
-- **Balcão**: `pdv_orders` onde `source = 'balcao'` e `status = 'fechada'`.
-- **Delivery**: `delivery_orders` onde `status IN ('completed','delivered')` e `payment_status = 'paid'`, agregado por `created_at`.
+## 3. Transferir itens do rascunho (não enviados)
 
-Implementação no client: 3 queries em paralelo limitadas aos últimos 24 meses (`gte(start_of_month_24_ago)`), agregação JS por `YYYY-MM`. Usa `useEstablishmentId` para resolver dono.
+Itens em `draftItems` ficam no `localStorage` (DraftCartContext) e não existem no banco — então a transferência precisa ser puramente client-side:
+- Em `selectMode`, listar **também** os `draftItems` (com badge "Rascunho") junto dos `sentItems`.
+- Ao confirmar mover N itens de rascunho para comanda destino C:
+  1. Remove os `draftItems` do `DraftCartContext` da comanda origem.
+  2. Adiciona os mesmos itens ao `DraftCartContext` da comanda destino C (via `draft.addItem` por item).
+  3. Para itens "mistos" (rascunho + enviados), o fluxo executa as duas operações em sequência (RPC para enviados + manipulação local para rascunho) e mostra um único toast.
+- Restrição: itens de rascunho **só podem ir para outra comanda existente** (não para mesa livre, pois a comanda destino precisa existir para receber os drafts). Se o garçom escolher mesa livre com drafts selecionados, mostrar aviso explicando.
 
-### `src/components/pdv/MonthlyRevenueSection.tsx`
-- Cards com `formatBRL` e badge de variação (▲ verde / ▼ vermelho) **sem cores customizadas** — usa `text-foreground` + `text-muted-foreground` (sem violar a regra de design do projeto: variação positiva/negativa é sinalizada por ícone, não por cor saturada).
-- 2 gráficos `recharts`:
-  - **Mês a Mês**: `BarChart` empilhado, 24 meses, séries Salão/Balcão/Delivery em tons da paleta semântica (`hsl(var(--primary))`, `hsl(var(--muted-foreground))`, `hsl(var(--accent))`).
-  - **Ano vs Ano**: `LineChart` com 2 séries (ano corrente, ano anterior) eixo X jan→dez.
-- Tabela colapsável com botão **"Exportar CSV"** (reutiliza `src/lib/export-utils.ts` se houver helper, senão geração inline).
+## 4. Quantidade parcial
 
-## Arquivo modificado
+No passo "Confirmar transferência" do `TransferItemsDialog`:
+- Para cada item enviado com `quantity > 1`, exibir um stepper (`− N +`) ao lado, default = quantidade total.
+- Estado local `qtyMap: Record<itemId, number>` é passado para `transferItems({ qtyMap })`.
+- Itens de rascunho usam o mesmo padrão, mas a divisão é feita no `DraftCartContext` (split do item local em dois).
+- Validação: cada quantidade entre 1 e quantidade original.
 
-### `src/pages/pdv/Reports.tsx`
-- Mantém todo o conteúdo atual (filtros, `ReportSummaryCards`, `PaymentMethodChart`, `ProductsTable`, `HourlySalesChart`).
-- Adiciona `<MonthlyRevenueSection />` ao final, fora do filtro de período (sempre últimos 24 meses, independente do filtro acima).
-- Pequeno separador visual + título "Evolução de Faturamento".
+---
 
-## Detalhes técnicos
+## Arquivos afetados
 
-- **Localização**: nomes de meses via `format(date, "LLL/yy", { locale: ptBR })` → "jan/25".
-- **Acessibilidade dos gráficos**: `<Tooltip formatter={formatBRL}>` para valores legíveis.
-- **Loading**: skeleton dentro da seção, sem bloquear o resto da página.
-- **Performance**: queries com `select` apenas das colunas necessárias (`total, source, status, closed_at, created_at`) — limite teórico de 1000 linhas por query do Supabase é suficiente em 24 meses para a grande maioria dos estabelecimentos; adicionar paginação manual (`range`) se algum tenant ultrapassar — incluir no hook desde já um loop paginado defensivo de 1000 em 1000.
-- **RBAC**: a rota `/pdv/relatorios` já está protegida por `RoleRoute`; nada novo.
+**Modificados:**
+- `src/components/pdv/transfer/TransferItemsDialog.tsx` — adiciona seção "Mesas livres", stepper de quantidade parcial, suporte a items "draft" como entrada (nova prop `draftItems` + callback `onDraftTransferred`).
+- `src/pages/garcom/GarcomComandaDetalhe.tsx` — botão "Mover comanda" no header; em `selectMode`, listar também drafts; orquestra transferência mista (drafts + enviados).
+- `src/contexts/DraftCartContext.tsx` — exposição de helper `transferDraftItems(fromComandaId, toComandaId, draftIds, qtyMap)` para mover/dividir itens entre carrinhos locais.
+
+**Sem mudanças no backend** — o RPC `pdv_transfer_items` já cobre mesa-destino e qtyMap; drafts são puramente client-side.
 
 ## Fora de escopo
-
-- Projeções/forecast (sazonalidade, médias móveis preditivas).
-- Drill-down clicando no mês para ver o relatório daquele mês (pode ser adicionado em iteração futura).
-- Filtro para escolher o número de meses (24 fixo é suficiente para mostrar YoY completo).
+- Senha de gerente para autorizar (mantido livre).
+- Histórico visual de transferências dentro do app do garçom (já fica no log de auditoria do RPC).
+- Replicar essas melhorias no diálogo do Salon/Comandas desktop — pode ser feito depois reutilizando o mesmo componente.

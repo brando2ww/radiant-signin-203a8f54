@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatTableLabel } from "@/utils/formatTableNumber";
 import { formatBRL } from "@/lib/format";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function GarcomComandaDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -87,6 +88,7 @@ export default function GarcomComandaDetalhe() {
 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Quando aberto, contém ids de itens enviados E/OU draftIds.
   const [transferIds, setTransferIds] = useState<string[] | null>(null);
 
   const toggleSelect = (id: string) => {
@@ -106,6 +108,15 @@ export default function GarcomComandaDetalhe() {
   const handleTransferSelected = () => {
     if (selectedIds.size === 0) return;
     setTransferIds(Array.from(selectedIds));
+  };
+
+  const handleTransferWholeComanda = () => {
+    const allIds = [
+      ...sentItems.map((i) => i.id),
+      ...draftItems.map((d) => d.draftId),
+    ];
+    if (allIds.length === 0) return;
+    setTransferIds(allIds);
   };
 
   if (isLoading) {
@@ -172,11 +183,25 @@ export default function GarcomComandaDetalhe() {
             {statusBadge}
           </div>
         </div>
+        {canEdit && (sentItems.length + draftItems.length) > 0 && !selectMode && (
+          <button
+            type="button"
+            onClick={handleTransferWholeComanda}
+            className="ml-auto h-9 px-2.5 rounded-md text-xs font-medium hover:bg-accent active:scale-95 transition-all inline-flex items-center gap-1.5"
+            aria-label="Mover comanda inteira"
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Mover comanda</span>
+          </button>
+        )}
         {canEdit && (sentItems.length + draftItems.length) > 0 && (
           <button
             type="button"
             onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
-            className="ml-auto h-9 px-3 rounded-md text-xs font-medium hover:bg-accent active:scale-95 transition-all inline-flex items-center gap-1.5"
+            className={cn(
+              "h-9 px-3 rounded-md text-xs font-medium hover:bg-accent active:scale-95 transition-all inline-flex items-center gap-1.5",
+              selectMode && "ml-auto",
+            )}
           >
             {selectMode ? <X className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
             {selectMode ? "Cancelar" : "Selecionar"}
@@ -206,23 +231,37 @@ export default function GarcomComandaDetalhe() {
             )}
           </div>
         ) : selectMode ? (
-          // Em modo seleção, listamos apenas os itens persistidos. O rascunho
-          // local é editável diretamente nos cards "draft" e não faz sentido
-          // ser transferido (ainda não foi enviado).
-          sentItems.map((item) => (
-            <ComandaItemCard
-              key={item.id}
-              productName={item.product_name}
-              quantity={item.quantity}
-              unitPrice={item.unit_price}
-              notes={item.notes}
-              kitchenStatus={item.kitchen_status}
-              sentToKitchenAt={item.sent_to_kitchen_at}
-              selectMode
-              selected={selectedIds.has(item.id)}
-              onToggleSelect={() => toggleSelect(item.id)}
-            />
-          ))
+          <>
+            {sentItems.map((item) => (
+              <ComandaItemCard
+                key={item.id}
+                productName={item.product_name}
+                quantity={item.quantity}
+                unitPrice={item.unit_price}
+                notes={item.notes}
+                kitchenStatus={item.kitchen_status}
+                sentToKitchenAt={item.sent_to_kitchen_at}
+                selectMode
+                selected={selectedIds.has(item.id)}
+                onToggleSelect={() => toggleSelect(item.id)}
+              />
+            ))}
+            {draftItems.map((item) => (
+              <ComandaItemCard
+                key={item.draftId}
+                variant="draft"
+                productName={item.productName}
+                quantity={item.quantity}
+                unitPrice={item.unitPrice}
+                notes={item.notes}
+                kitchenStatus="pendente"
+                sentToKitchenAt={null}
+                selectMode
+                selected={selectedIds.has(item.draftId)}
+                onToggleSelect={() => toggleSelect(item.draftId)}
+              />
+            ))}
+          </>
         ) : (
           <>
             {/* Grupo: Novos itens — não enviados ainda (rascunho local) */}
@@ -374,6 +413,9 @@ export default function GarcomComandaDetalhe() {
         onOpenChange={(o) => !o && setTransferIds(null)}
         sourceComanda={comanda ?? null}
         items={transferIds ? sentItems.filter((it) => transferIds.includes(it.id)) : []}
+        draftItems={
+          transferIds ? draftItems.filter((d) => transferIds.includes(d.draftId)) : []
+        }
         onTransferred={() => {
           setTransferIds(null);
           exitSelectMode();
