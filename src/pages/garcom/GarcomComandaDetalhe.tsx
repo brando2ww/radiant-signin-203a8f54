@@ -87,6 +87,7 @@ export default function GarcomComandaDetalhe() {
 
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Quando aberto, contém ids de itens enviados E/OU draftIds.
   const [transferIds, setTransferIds] = useState<string[] | null>(null);
 
   const toggleSelect = (id: string) => {
@@ -106,6 +107,15 @@ export default function GarcomComandaDetalhe() {
   const handleTransferSelected = () => {
     if (selectedIds.size === 0) return;
     setTransferIds(Array.from(selectedIds));
+  };
+
+  const handleTransferWholeComanda = () => {
+    const allIds = [
+      ...sentItems.map((i) => i.id),
+      ...draftItems.map((d) => d.draftId),
+    ];
+    if (allIds.length === 0) return;
+    setTransferIds(allIds);
   };
 
   if (isLoading) {
