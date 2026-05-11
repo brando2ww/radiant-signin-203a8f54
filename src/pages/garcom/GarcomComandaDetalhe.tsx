@@ -413,6 +413,9 @@ export default function GarcomComandaDetalhe() {
         onOpenChange={(o) => !o && setTransferIds(null)}
         sourceComanda={comanda ?? null}
         items={transferIds ? sentItems.filter((it) => transferIds.includes(it.id)) : []}
+        draftItems={
+          transferIds ? draftItems.filter((d) => transferIds.includes(d.draftId)) : []
+        }
         onTransferred={() => {
           setTransferIds(null);
           exitSelectMode();
