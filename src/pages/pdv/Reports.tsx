@@ -12,6 +12,7 @@ import { ReportSummaryCards } from "@/components/pdv/ReportSummaryCards";
 import { PaymentMethodChart } from "@/components/pdv/PaymentMethodChart";
 import { ProductsTable } from "@/components/pdv/ProductsTable";
 import { HourlySalesChart } from "@/components/pdv/HourlySalesChart";
+import { MonthlyRevenueSection } from "@/components/pdv/MonthlyRevenueSection";
 
 export default function PDVReports() {
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
@@ -130,6 +131,8 @@ export default function PDVReports() {
       </div>
 
       <ProductsTable data={productReport} isLoading={isLoading} />
+
+      <MonthlyRevenueSection />
     </div>
   );
 }
