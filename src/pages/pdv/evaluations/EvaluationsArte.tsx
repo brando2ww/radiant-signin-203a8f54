@@ -26,9 +26,9 @@ const SIZE_DIMENSIONS: Record<
   Size,
   { w: number; h: number; label: string; pdfFormat: any; scale: number }
 > = {
-  a4: { w: 794, h: 1123, label: "A4 (210×297mm)", pdfFormat: "a4", scale: 0.55 },
-  a5: { w: 559, h: 794, label: "A5 (148×210mm)", pdfFormat: "a5", scale: 0.7 },
-  label: { w: 378, h: 378, label: "Etiqueta 10×10cm", pdfFormat: [100, 100], scale: 0.95 },
+  a4: { w: 794, h: 1123, label: "A4 (210×297mm)", pdfFormat: "a4", scale: 0.5 },
+  a5: { w: 559, h: 794, label: "A5 (148×210mm)", pdfFormat: "a5", scale: 0.65 },
+  label: { w: 378, h: 378, label: "Etiqueta 10×10cm", pdfFormat: [100, 100], scale: 0.9 },
 };
 
 export default function EvaluationsArte() {
@@ -212,159 +212,70 @@ export default function EvaluationsArte() {
               Selecione uma campanha para gerar a arte.
             </div>
           ) : (
-            <div
-              style={{
-                width: dim.w * dim.scale,
-                height: dim.h * dim.scale,
-                flexShrink: 0,
-              }}
-            >
+            <>
+              {/* Visual scaled wrapper (preview only) — reserves exact scaled space */}
               <div
-                ref={posterRef}
-                className="qr-poster relative bg-white text-foreground shadow-lg print:shadow-none flex flex-col"
+                className="print:hidden"
                 style={{
-                  width: dim.w,
-                  height: dim.h,
-                  transform: `scale(${dim.scale})`,
-                  transformOrigin: "top left",
+                  width: dim.w * dim.scale,
+                  height: dim.h * dim.scale,
+                  flexShrink: 0,
+                  position: "relative",
+                  overflow: "hidden",
                 }}
               >
-                {/* Top accent bar */}
-                {coloredAccent && (
-                  <div
-                    className="w-full"
-                    style={{
-                      height: isLabel ? 8 : 14,
-                      background: "hsl(var(--primary))",
-                    }}
-                  />
-                )}
-
                 <div
-                  className="flex-1 flex flex-col items-center"
-                  style={{ padding: isLabel ? "20px" : "56px" }}
+                  style={{
+                    width: dim.w,
+                    height: dim.h,
+                    transform: `scale(${dim.scale})`,
+                    transformOrigin: "top left",
+                  }}
                 >
-                  {/* Logo */}
-                  <div
-                    className="flex items-center justify-center"
-                    style={{ height: isLabel ? 48 : 110 }}
-                  >
-                    {logoUrl ? (
-                      <img
-                        src={logoUrl}
-                        alt={businessName}
-                        crossOrigin="anonymous"
-                        style={{
-                          maxHeight: isLabel ? 48 : 110,
-                          maxWidth: "80%",
-                          objectFit: "contain",
-                        }}
-                      />
-                    ) : (
-                      <span
-                        className="font-semibold tracking-tight text-foreground"
-                        style={{ fontSize: isLabel ? 20 : 36 }}
-                      >
-                        {businessName || "Seu estabelecimento"}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Headline */}
-                  <div
-                    className="text-center"
-                    style={{ marginTop: isLabel ? 10 : 36 }}
-                  >
-                    <h2
-                      className="font-bold leading-[1.05] tracking-tight"
-                      style={{ fontSize: isLabel ? 22 : size === "a5" ? 44 : 60 }}
-                    >
-                      Sua opinião
-                    </h2>
-                    <h2
-                      className="font-bold leading-[1.05] tracking-tight"
-                      style={{
-                        fontSize: isLabel ? 22 : size === "a5" ? 44 : 60,
-                        color: "hsl(var(--primary))",
-                      }}
-                    >
-                      vale um agrado
-                    </h2>
-                  </div>
-
-                  {/* QR */}
-                  <div
-                    className="bg-white rounded-2xl border"
-                    style={{
-                      marginTop: isLabel ? 12 : 40,
-                      padding: isLabel ? 8 : 20,
-                      boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
-                    }}
-                  >
-                    <QRCodeSVG
-                      value={url}
-                      size={isLabel ? 180 : size === "a5" ? 300 : 400}
-                      level="H"
-                      includeMargin={false}
-                    />
-                  </div>
-
-                  {/* Instruction */}
-                  <p
-                    className="font-semibold text-center"
-                    style={{
-                      marginTop: isLabel ? 10 : 28,
-                      fontSize: isLabel ? 13 : size === "a5" ? 20 : 26,
-                    }}
-                  >
-                    Aponte a câmera do celular
-                  </p>
-                  {!isLabel && (
-                    <p
-                      className="text-center text-muted-foreground"
-                      style={{
-                        fontSize: size === "a5" ? 14 : 18,
-                        marginTop: 4,
-                      }}
-                    >
-                      Avalie e ganhe um cupom na hora
-                    </p>
-                  )}
-
-                  {/* Footer */}
-                  <div
-                    className="mt-auto w-full text-center"
-                    style={{ paddingTop: isLabel ? 8 : 28 }}
-                  >
-                    <div
-                      className="mx-auto"
-                      style={{
-                        height: 2,
-                        width: isLabel ? 50 : 120,
-                        background: "hsl(var(--primary))",
-                        marginBottom: isLabel ? 6 : 16,
-                      }}
-                    />
-                    {businessName && (
-                      <p
-                        className="font-medium text-foreground truncate"
-                        style={{ fontSize: isLabel ? 11 : 16 }}
-                      >
-                        {businessName}
-                      </p>
-                    )}
-                    {!isLabel && (
-                      <p
-                        className="font-mono text-muted-foreground truncate"
-                        style={{ fontSize: 12, marginTop: 2 }}
-                      >
-                        {domainOnly}
-                      </p>
-                    )}
-                  </div>
+                  <PosterContent
+                    size={size}
+                    isLabel={isLabel}
+                    coloredAccent={coloredAccent}
+                    logoUrl={logoUrl}
+                    businessName={businessName}
+                    url={url}
+                    domainOnly={domainOnly}
+                    dim={dim}
+                  />
                 </div>
               </div>
-            </div>
+
+              {/* Real-size hidden export node + print node */}
+              <div
+                style={{
+                  position: "fixed",
+                  left: -99999,
+                  top: 0,
+                  width: dim.w,
+                  height: dim.h,
+                  pointerEvents: "none",
+                }}
+                className="print:static print:left-0 print:top-0"
+                aria-hidden
+              >
+                <div
+                  ref={posterRef}
+                  className="qr-poster"
+                  style={{ width: dim.w, height: dim.h, background: "#fff" }}
+                >
+                  <PosterContent
+                    size={size}
+                    isLabel={isLabel}
+                    coloredAccent={coloredAccent}
+                    logoUrl={logoUrl}
+                    businessName={businessName}
+                    url={url}
+                    domainOnly={domainOnly}
+                    dim={dim}
+                  />
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -378,14 +289,162 @@ export default function EvaluationsArte() {
             position: fixed !important;
             left: 0 !important;
             top: 0 !important;
-            transform: none !important;
-            width: 100vw !important;
-            height: 100vh !important;
+            width: ${size === "label" ? "100mm" : size === "a5" ? "148mm" : "210mm"} !important;
+            height: ${size === "label" ? "100mm" : size === "a5" ? "210mm" : "297mm"} !important;
             box-shadow: none !important;
           }
           @page { margin: 0; size: ${size === "label" ? "100mm 100mm" : size}; }
         }
       `}</style>
+    </div>
+  );
+}
+
+type PosterProps = {
+  size: Size;
+  isLabel: boolean;
+  coloredAccent: boolean;
+  logoUrl: string;
+  businessName: string;
+  url: string;
+  domainOnly: string;
+  dim: { w: number; h: number };
+};
+
+function PosterContent({
+  size,
+  isLabel,
+  coloredAccent,
+  logoUrl,
+  businessName,
+  url,
+  domainOnly,
+}: PosterProps) {
+  const isA5 = size === "a5";
+  const padding = isLabel ? 16 : isA5 ? 36 : 56;
+  const accentH = isLabel ? 6 : isA5 ? 10 : 14;
+  const logoH = isLabel ? 36 : isA5 ? 70 : 110;
+  const headlineSize = isLabel ? 20 : isA5 ? 36 : 60;
+  const headlineGap = isLabel ? 8 : isA5 ? 22 : 36;
+  const qrPadding = isLabel ? 6 : isA5 ? 14 : 20;
+  const qrSize = isLabel ? 170 : isA5 ? 240 : 400;
+  const qrGap = isLabel ? 10 : isA5 ? 24 : 40;
+  const instructionSize = isLabel ? 12 : isA5 ? 18 : 26;
+  const instructionGap = isLabel ? 8 : isA5 ? 18 : 28;
+  const subInstructionSize = isA5 ? 13 : 18;
+  const footerPad = isLabel ? 6 : isA5 ? 18 : 28;
+  const dividerW = isLabel ? 40 : isA5 ? 90 : 120;
+  const dividerMb = isLabel ? 4 : isA5 ? 10 : 16;
+  const businessSize = isLabel ? 10 : isA5 ? 13 : 16;
+
+  return (
+    <div
+      className="relative bg-white text-foreground flex flex-col h-full w-full"
+      style={{ width: "100%", height: "100%" }}
+    >
+      {coloredAccent && (
+        <div
+          className="w-full"
+          style={{ height: accentH, background: "hsl(var(--primary))" }}
+        />
+      )}
+
+      <div
+        className="flex-1 flex flex-col items-center min-h-0"
+        style={{ padding }}
+      >
+        {/* Logo */}
+        <div className="flex items-center justify-center" style={{ height: logoH }}>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={businessName}
+              crossOrigin="anonymous"
+              style={{ maxHeight: logoH, maxWidth: "80%", objectFit: "contain" }}
+            />
+          ) : (
+            <span
+              className="font-semibold tracking-tight text-foreground"
+              style={{ fontSize: isLabel ? 18 : isA5 ? 26 : 36 }}
+            >
+              {businessName || "Seu estabelecimento"}
+            </span>
+          )}
+        </div>
+
+        {/* Headline */}
+        <div className="text-center" style={{ marginTop: headlineGap }}>
+          <h2
+            className="font-bold leading-[1.05] tracking-tight"
+            style={{ fontSize: headlineSize }}
+          >
+            Sua opinião
+          </h2>
+          <h2
+            className="font-bold leading-[1.05] tracking-tight"
+            style={{ fontSize: headlineSize, color: "hsl(var(--primary))" }}
+          >
+            vale um agrado
+          </h2>
+        </div>
+
+        {/* QR */}
+        <div
+          className="bg-white rounded-2xl border"
+          style={{
+            marginTop: qrGap,
+            padding: qrPadding,
+            boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+          }}
+        >
+          <QRCodeSVG value={url} size={qrSize} level="H" includeMargin={false} />
+        </div>
+
+        {/* Instruction */}
+        <p
+          className="font-semibold text-center"
+          style={{ marginTop: instructionGap, fontSize: instructionSize }}
+        >
+          Aponte a câmera do celular
+        </p>
+        {!isLabel && (
+          <p
+            className="text-center text-muted-foreground"
+            style={{ fontSize: subInstructionSize, marginTop: 4 }}
+          >
+            Avalie e ganhe um cupom na hora
+          </p>
+        )}
+
+        {/* Footer */}
+        <div className="mt-auto w-full text-center" style={{ paddingTop: footerPad }}>
+          <div
+            className="mx-auto"
+            style={{
+              height: 2,
+              width: dividerW,
+              background: "hsl(var(--primary))",
+              marginBottom: dividerMb,
+            }}
+          />
+          {businessName && (
+            <p
+              className="font-medium text-foreground truncate"
+              style={{ fontSize: businessSize }}
+            >
+              {businessName}
+            </p>
+          )}
+          {!isLabel && (
+            <p
+              className="font-mono text-muted-foreground truncate"
+              style={{ fontSize: isA5 ? 11 : 12, marginTop: 2 }}
+            >
+              {domainOnly}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
