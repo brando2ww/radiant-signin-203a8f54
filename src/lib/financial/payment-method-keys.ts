@@ -44,3 +44,19 @@ export function canonicalPaymentMethodKey(method: string | null | undefined): st
   const k = method.toString().trim().toLowerCase();
   return MAP[k] ?? k;
 }
+
+export const PT_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Dinheiro",
+  pix: "PIX",
+  credit: "Crédito",
+  debit: "Débito",
+  voucher: "Vale-refeição",
+  ifood: "iFood",
+  rappi: "Rappi",
+  uber_eats: "Uber Eats",
+};
+
+export function paymentMethodLabel(method: string | null | undefined): string {
+  const key = canonicalPaymentMethodKey(method);
+  return PT_PAYMENT_METHOD_LABELS[key] ?? key;
+}
