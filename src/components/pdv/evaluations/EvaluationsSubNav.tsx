@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Megaphone, BarChart3, Users, Gift, Settings, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Megaphone, BarChart3, Users, Gift, Settings, ChevronDown, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -45,6 +45,7 @@ const navItems: NavItem[] = [
       { to: "cupons/roletas", label: "Roletas" },
     ],
   },
+  { to: "arte", label: "Arte para o caixa", icon: Printer },
   { to: "configuracoes", label: "Configurações", icon: Settings },
 ];
 
