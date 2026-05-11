@@ -388,14 +388,6 @@ export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogPro
               </div>
             )}
           </div>
-
-          {notes !== undefined && (
-            <Textarea
-              className="hidden"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          )}
         </div>
 
         <DialogFooter>
