@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
+import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePDVFinancialTransactions, type TransactionFilters } from "@/hooks/use-pdv-financial-transactions";
 import { FinancialStatsCards } from "@/components/pdv/financial/FinancialStatsCards";
@@ -16,6 +17,7 @@ export default function FinancialTransactions() {
   const [filters, setFilters] = useState<TransactionFilters>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [markAsPaidOpen, setMarkAsPaidOpen] = useState(false);
+  const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PDVFinancialTransaction | undefined>();
   const [activeTab, setActiveTab] = useState('all');
 
@@ -78,10 +80,16 @@ export default function FinancialTransactions() {
             Registre e gerencie todas as transações financeiras
           </p>
         </div>
-        <Button onClick={handleNewTransaction}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Lançamento
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setQuickExpenseOpen(true)}>
+            <Zap className="mr-2 h-4 w-4" />
+            Despesa rápida
+          </Button>
+          <Button onClick={handleNewTransaction}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Lançamento
+          </Button>
+        </div>
       </div>
 
       <FinancialStatsCards stats={stats} />
@@ -154,6 +162,8 @@ export default function FinancialTransactions() {
         transaction={selectedTransaction}
         onSubmit={handleMarkAsPaidSubmit}
       />
+
+      <QuickExpenseDialog open={quickExpenseOpen} onOpenChange={setQuickExpenseOpen} />
     </div>
   );
 }
