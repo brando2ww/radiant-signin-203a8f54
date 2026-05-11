@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatTableLabel } from "@/utils/formatTableNumber";
 import { formatBRL } from "@/lib/format";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function GarcomComandaDetalhe() {
   const { id } = useParams<{ id: string }>();
