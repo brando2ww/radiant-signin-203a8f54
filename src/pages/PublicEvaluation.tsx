@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { usePublicCampaignPrizes, useRegisterPrizeWin, type CampaignPrize } from
 import { SpinWheel } from "@/components/public-evaluation/SpinWheel";
 import { PrizeResult } from "@/components/public-evaluation/PrizeResult";
 
-type Phase = "roulette" | "form" | "coupon" | "done";
+type Phase = "roulette" | "form" | "coupon" | "google_redirect" | "done";
 
 function ProgressBar({ value }: { value: number }) {
   return (
@@ -204,6 +204,12 @@ export default function PublicEvaluation() {
       },
       {
         onSuccess: (result) => {
+          const isPromoter = npsScore !== null && npsScore >= 9 && !!googleReviewUrl;
+          // Promotores são redirecionados para o Google e não recebem cupom de sorteio
+          if (isPromoter) {
+            setPhase("google_redirect");
+            return;
+          }
           if (wonPrize && result?.id) {
             registerWin.mutate(
               {
