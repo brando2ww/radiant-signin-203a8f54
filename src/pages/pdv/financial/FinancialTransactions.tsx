@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
+import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePDVFinancialTransactions, type TransactionFilters } from "@/hooks/use-pdv-financial-transactions";
 import { FinancialStatsCards } from "@/components/pdv/financial/FinancialStatsCards";
