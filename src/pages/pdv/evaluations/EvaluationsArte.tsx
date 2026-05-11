@@ -58,6 +58,8 @@ export default function EvaluationsArte() {
 
   const url = campaign ? `${window.location.origin}/avaliacao/${campaign.id}` : "";
   const shortUrl = url.replace(/^https?:\/\//, "");
+  const domainOnly = shortUrl.split("/")[0];
+  const isLabel = size === "label";
   const dim = SIZE_DIMENSIONS[size];
 
   const businessName = settings?.business_name ?? "";
@@ -204,150 +206,162 @@ export default function EvaluationsArte() {
         </Card>
 
         {/* Preview */}
-        <div className="flex justify-center bg-muted/30 rounded-lg p-4 print:bg-transparent print:p-0 overflow-hidden">
+        <div className="flex justify-center bg-muted/30 rounded-lg p-4 print:bg-transparent print:p-0 overflow-auto">
           {!campaign ? (
             <div className="h-[400px] flex items-center justify-center text-sm text-muted-foreground">
               Selecione uma campanha para gerar a arte.
             </div>
           ) : (
             <div
-              ref={posterRef}
-              className="qr-poster relative bg-white text-foreground shadow-lg print:shadow-none flex flex-col"
               style={{
-                width: dim.w,
-                height: dim.h,
-                transform: `scale(${dim.scale})`,
-                transformOrigin: "top center",
+                width: dim.w * dim.scale,
+                height: dim.h * dim.scale,
+                flexShrink: 0,
               }}
             >
-              {/* Top accent bar */}
-              {coloredAccent && (
-                <div
-                  className="w-full"
-                  style={{
-                    height: size === "label" ? 8 : 14,
-                    background: "hsl(var(--primary))",
-                  }}
-                />
-              )}
-
               <div
-                className="flex-1 flex flex-col items-center"
-                style={{ padding: size === "label" ? "20px" : "56px" }}
+                ref={posterRef}
+                className="qr-poster relative bg-white text-foreground shadow-lg print:shadow-none flex flex-col"
+                style={{
+                  width: dim.w,
+                  height: dim.h,
+                  transform: `scale(${dim.scale})`,
+                  transformOrigin: "top left",
+                }}
               >
-                {/* Logo */}
-                <div
-                  className="flex items-center justify-center"
-                  style={{ height: size === "label" ? 56 : 110 }}
-                >
-                  {logoUrl ? (
-                    <img
-                      src={logoUrl}
-                      alt={businessName}
-                      crossOrigin="anonymous"
-                      style={{
-                        maxHeight: size === "label" ? 56 : 110,
-                        maxWidth: "80%",
-                        objectFit: "contain",
-                      }}
-                    />
-                  ) : (
-                    <span
-                      className="font-semibold tracking-tight text-foreground"
-                      style={{ fontSize: size === "label" ? 22 : 36 }}
-                    >
-                      {businessName || "Seu estabelecimento"}
-                    </span>
-                  )}
-                </div>
-
-                {/* Headline */}
-                <div
-                  className="text-center"
-                  style={{ marginTop: size === "label" ? 14 : 36 }}
-                >
-                  <h2
-                    className="font-bold leading-[1.05] tracking-tight"
-                    style={{ fontSize: size === "label" ? 26 : size === "a5" ? 44 : 60 }}
-                  >
-                    Sua opinião
-                  </h2>
-                  <h2
-                    className="font-bold leading-[1.05] tracking-tight"
-                    style={{
-                      fontSize: size === "label" ? 26 : size === "a5" ? 44 : 60,
-                      color: "hsl(var(--primary))",
-                    }}
-                  >
-                    vale um agrado
-                  </h2>
-                </div>
-
-                {/* QR */}
-                <div
-                  className="bg-white rounded-2xl border"
-                  style={{
-                    marginTop: size === "label" ? 16 : 40,
-                    padding: size === "label" ? 10 : 20,
-                    boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
-                  }}
-                >
-                  <QRCodeSVG
-                    value={url}
-                    size={size === "label" ? 200 : size === "a5" ? 300 : 400}
-                    level="H"
-                    includeMargin={false}
-                  />
-                </div>
-
-                {/* Instruction */}
-                <p
-                  className="font-semibold text-center"
-                  style={{
-                    marginTop: size === "label" ? 14 : 28,
-                    fontSize: size === "label" ? 14 : size === "a5" ? 20 : 26,
-                  }}
-                >
-                  Aponte a câmera do celular
-                </p>
-                <p
-                  className="text-center text-muted-foreground"
-                  style={{
-                    fontSize: size === "label" ? 11 : size === "a5" ? 14 : 18,
-                    marginTop: 4,
-                  }}
-                >
-                  Avalie e ganhe um cupom na hora
-                </p>
-
-                {/* Footer */}
-                <div
-                  className="mt-auto w-full text-center"
-                  style={{ paddingTop: size === "label" ? 12 : 28 }}
-                >
+                {/* Top accent bar */}
+                {coloredAccent && (
                   <div
-                    className="mx-auto"
+                    className="w-full"
                     style={{
-                      height: 2,
-                      width: size === "label" ? 60 : 120,
+                      height: isLabel ? 8 : 14,
                       background: "hsl(var(--primary))",
-                      marginBottom: size === "label" ? 8 : 16,
                     }}
                   />
-                  {businessName && (
-                    <p
-                      className="font-medium text-foreground"
-                      style={{ fontSize: size === "label" ? 12 : 16 }}
+                )}
+
+                <div
+                  className="flex-1 flex flex-col items-center"
+                  style={{ padding: isLabel ? "20px" : "56px" }}
+                >
+                  {/* Logo */}
+                  <div
+                    className="flex items-center justify-center"
+                    style={{ height: isLabel ? 48 : 110 }}
+                  >
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={businessName}
+                        crossOrigin="anonymous"
+                        style={{
+                          maxHeight: isLabel ? 48 : 110,
+                          maxWidth: "80%",
+                          objectFit: "contain",
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className="font-semibold tracking-tight text-foreground"
+                        style={{ fontSize: isLabel ? 20 : 36 }}
+                      >
+                        {businessName || "Seu estabelecimento"}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Headline */}
+                  <div
+                    className="text-center"
+                    style={{ marginTop: isLabel ? 10 : 36 }}
+                  >
+                    <h2
+                      className="font-bold leading-[1.05] tracking-tight"
+                      style={{ fontSize: isLabel ? 22 : size === "a5" ? 44 : 60 }}
                     >
-                      {businessName}
+                      Sua opinião
+                    </h2>
+                    <h2
+                      className="font-bold leading-[1.05] tracking-tight"
+                      style={{
+                        fontSize: isLabel ? 22 : size === "a5" ? 44 : 60,
+                        color: "hsl(var(--primary))",
+                      }}
+                    >
+                      vale um agrado
+                    </h2>
+                  </div>
+
+                  {/* QR */}
+                  <div
+                    className="bg-white rounded-2xl border"
+                    style={{
+                      marginTop: isLabel ? 12 : 40,
+                      padding: isLabel ? 8 : 20,
+                      boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+                    }}
+                  >
+                    <QRCodeSVG
+                      value={url}
+                      size={isLabel ? 180 : size === "a5" ? 300 : 400}
+                      level="H"
+                      includeMargin={false}
+                    />
+                  </div>
+
+                  {/* Instruction */}
+                  <p
+                    className="font-semibold text-center"
+                    style={{
+                      marginTop: isLabel ? 10 : 28,
+                      fontSize: isLabel ? 13 : size === "a5" ? 20 : 26,
+                    }}
+                  >
+                    Aponte a câmera do celular
+                  </p>
+                  {!isLabel && (
+                    <p
+                      className="text-center text-muted-foreground"
+                      style={{
+                        fontSize: size === "a5" ? 14 : 18,
+                        marginTop: 4,
+                      }}
+                    >
+                      Avalie e ganhe um cupom na hora
                     </p>
                   )}
-                  <p
-                    className="font-mono text-muted-foreground"
-                    style={{ fontSize: size === "label" ? 9 : 12, marginTop: 2 }}
+
+                  {/* Footer */}
+                  <div
+                    className="mt-auto w-full text-center"
+                    style={{ paddingTop: isLabel ? 8 : 28 }}
                   >
-                    {shortUrl}
-                  </p>
+                    <div
+                      className="mx-auto"
+                      style={{
+                        height: 2,
+                        width: isLabel ? 50 : 120,
+                        background: "hsl(var(--primary))",
+                        marginBottom: isLabel ? 6 : 16,
+                      }}
+                    />
+                    {businessName && (
+                      <p
+                        className="font-medium text-foreground truncate"
+                        style={{ fontSize: isLabel ? 11 : 16 }}
+                      >
+                        {businessName}
+                      </p>
+                    )}
+                    {!isLabel && (
+                      <p
+                        className="font-mono text-muted-foreground truncate"
+                        style={{ fontSize: 12, marginTop: 2 }}
+                      >
+                        {domainOnly}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
