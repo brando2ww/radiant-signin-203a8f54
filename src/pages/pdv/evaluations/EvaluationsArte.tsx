@@ -19,6 +19,7 @@ import {
 import { useEvaluationCampaigns } from "@/hooks/use-evaluation-campaigns";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { cn } from "@/lib/utils";
+import velaraLogo from "@/assets/logo_velara_preto.png";
 
 type Size = "a4" | "a5" | "label";
 
