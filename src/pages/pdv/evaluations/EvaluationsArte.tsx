@@ -443,6 +443,30 @@ function PosterContent({
               {domainOnly}
             </p>
           )}
+          <div
+            className="flex items-center justify-center gap-1"
+            style={{ marginTop: isLabel ? 4 : isA5 ? 8 : 12 }}
+          >
+            <span
+              style={{
+                fontSize: isLabel ? 7 : isA5 ? 9 : 10,
+                color: "#9ca3af",
+                letterSpacing: "0.04em",
+              }}
+            >
+              powered by
+            </span>
+            <img
+              src="/logo_velara_preto.png"
+              alt="Velara"
+              crossOrigin="anonymous"
+              style={{
+                height: isLabel ? 10 : isA5 ? 14 : 18,
+                width: "auto",
+                objectFit: "contain",
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
