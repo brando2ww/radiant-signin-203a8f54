@@ -30,7 +30,7 @@ import {
 } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
-import { canonicalPaymentMethodKey } from "@/lib/financial/payment-method-keys";
+import { canonicalPaymentMethodKey, paymentMethodLabel } from "@/lib/financial/payment-method-keys";
 import { usePaymentMethodFees } from "@/hooks/use-payment-method-fees";
 
 interface PeriodTotals {
@@ -109,7 +109,7 @@ export function PaymentFeesReport() {
         const cur =
           totalsByMethod.get(key) ?? {
             method: key,
-            label: labelByKey.get(key) ?? key,
+            label: labelByKey.get(key) ?? paymentMethodLabel(key),
             count: 0,
             gross: 0,
             feePercentageAvg: 0,
