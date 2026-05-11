@@ -80,10 +80,16 @@ export default function FinancialTransactions() {
             Registre e gerencie todas as transações financeiras
           </p>
         </div>
-        <Button onClick={handleNewTransaction}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Lançamento
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setQuickExpenseOpen(true)}>
+            <Zap className="mr-2 h-4 w-4" />
+            Despesa rápida
+          </Button>
+          <Button onClick={handleNewTransaction}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Lançamento
+          </Button>
+        </div>
       </div>
 
       <FinancialStatsCards stats={stats} />
