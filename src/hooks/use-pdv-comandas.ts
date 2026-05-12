@@ -477,12 +477,14 @@ export function usePDVComandas() {
       targetId,
       qtyMap,
       reason,
+      targetComandaName,
     }: {
       itemIds: string[];
       targetKind?: "comanda" | "table";
       targetId: string;
       qtyMap?: Record<string, number>;
       reason?: string | null;
+      targetComandaName?: string | null;
       // backward-compat (callers passing targetComandaId/sourceComandaId)
       targetComandaId?: string;
       sourceComandaId?: string;
@@ -494,7 +496,8 @@ export function usePDVComandas() {
         p_target_kind: targetKind,
         p_target_id: targetId,
         p_reason: reason ?? null,
-      });
+        p_target_comanda_name: targetComandaName ?? null,
+      } as any);
       if (error) throw error;
       return data;
     },
