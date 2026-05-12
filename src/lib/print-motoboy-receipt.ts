@@ -82,25 +82,25 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
 <title>Comanda Delivery #${escape(order.order_number)}</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
-  * { box-sizing: border-box; }
-  body { font-family: 'Courier New', monospace; font-size: 12px; color: #000; margin: 0; padding: 6px; }
-  h1 { font-size: 16px; margin: 0 0 4px; text-align: center; }
-  .sub { text-align: center; font-size: 11px; margin-bottom: 6px; }
-  .order-number { font-size: 17px; font-weight: bold; margin: 2px 0 4px; }
-  .sec { border-top: 1px dashed #000; padding: 6px 0; }
-  .label { font-weight: bold; text-transform: uppercase; font-size: 11px; margin-bottom: 2px; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Courier New', monospace; font-size: 13px; color: #000; margin: 0; padding: 6px; font-weight: bold; letter-spacing: 0.3px; }
+  h1 { font-size: 18px; margin: 0 0 4px; text-align: center; font-weight: bold; }
+  .sub { text-align: center; font-size: 12px; margin-bottom: 6px; font-weight: bold; }
+  .order-number { font-size: 18px; font-weight: bold; margin: 2px 0 4px; }
+  .sec { border-top: 2px dashed #000; padding: 6px 0; }
+  .label { font-weight: bold; text-transform: uppercase; font-size: 12px; margin-bottom: 2px; }
   .row { display: flex; justify-content: space-between; gap: 6px; }
   .qty { width: 28px; flex-shrink: 0; }
   .name { flex: 1; }
   .price { white-space: nowrap; }
-  .opt, .notes { font-size: 11px; padding-left: 30px; }
+  .opt, .notes { font-size: 12px; padding-left: 30px; font-weight: bold; }
   .notes { font-style: italic; }
   .item { margin-bottom: 4px; }
-  .total { font-size: 14px; font-weight: bold; }
-  .big { font-size: 13px; font-weight: bold; }
+  .total { font-size: 16px; font-weight: bold; }
+  .big { font-size: 14px; font-weight: bold; }
   .center { text-align: center; }
-  .badge { display: inline-block; border: 1px solid #000; padding: 1px 6px; font-size: 11px; font-weight: bold; }
-  .footer { margin-top: 8px; text-align: center; font-size: 10px; }
+  .badge { display: inline-block; border: 2px solid #000; padding: 1px 6px; font-size: 12px; font-weight: bold; }
+  .footer { margin-top: 8px; text-align: center; font-size: 11px; font-weight: bold; }
 </style>
 </head>
 <body>
