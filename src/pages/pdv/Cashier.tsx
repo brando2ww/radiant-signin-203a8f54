@@ -233,7 +233,12 @@ export default function PDVCashier() {
           if (activeSession) {
             // Atalho rápido: cobra a comanda mais antiga da fila do salão.
             // Se a fila estiver vazia, abre o dialog de cobrança avulsa/mesa direta.
-            const pending = getPendingPaymentComandas();
+            const pending = getPendingPaymentComandas().filter((c) => {
+              // Defesa: ignora comandas cujo pedido foi cancelado e
+              // comandas sem itens vivos (em transição/realtime).
+              if (c.order_id && cancelledOrderIds.has(c.order_id)) return false;
+              return getItemsByComanda(c.id).length > 0;
+            });
             if (pending.length > 0) {
               const sorted = [...pending].sort((a, b) => {
                 const at = new Date(a.closed_by_waiter_at ?? a.updated_at).getTime();
