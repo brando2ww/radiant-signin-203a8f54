@@ -1,19 +1,29 @@
-Do I know what the issue is? Sim.
+## Plano
 
-O problema restante tem dois pontos prováveis:
+1. **Aplicar o padrão anti-travamento nos dialogs do caixa**
+   - Abrir `PaymentDialog` e `ChargeSelectionDialog` de forma deferida (`setTimeout(0)`) quando vierem de atalho F5 ou seleção em lista.
+   - Fechar primeiro o modal de seleção e só depois abrir o modal de pagamento, evitando dois Radix Dialogs ativos no mesmo ciclo.
 
-1. O preview ficou em tela branca por um erro de carregamento do Vite: o navegador tentou buscar `src/components/pdv/StandaloneComandasBar.tsx` e recebeu 404 em cache/HMR, mesmo o arquivo existindo no projeto. Isso deixa a tela parecendo “travada”.
-2. O fluxo do F5 ainda depende de snapshots locais de `comandas`, `orders` e `items`; se a mesa foi cancelada/transferida há poucos instantes, o atalho pode abrir o `PaymentDialog` com uma comanda que já mudou no banco, em vez de abrir a seleção limpa ou mostrar aviso.
+2. **Tornar o `PaymentDialog` seguro contra bloqueios invisíveis**
+   - Usar `Dialog modal={false}` com `DialogContent hideOverlay` no pagamento, seguindo a memória do projeto para dialogs complexos.
+   - Resetar estados aninhados ao fechar: confirmação de remover item, adicionar item, busca/produto selecionado, seleção parcial e estados de sucesso quando necessário.
+   - Fechar automaticamente se abrir sem contexto válido de cobrança ou sem itens pendentes, mostrando aviso em vez de deixar a tela presa.
 
-Plano de correção:
+3. **Corrigir dialogs aninhados dentro do pagamento**
+   - Converter o modal “Adicionar item” e o alerta “Remover item” para o mesmo padrão seguro: sem overlay bloqueante quando estiverem sobre o pagamento e com limpeza de estado no fechamento.
+   - Garantir que Selects/portais usados dentro do pagamento não deixem camada residual bloqueando clique.
 
-- Reiniciar/limpar o estado do preview para remover o 404 stale do Vite e validar se a tela volta a renderizar.
-- Endurecer o F5 em `src/pages/pdv/Cashier.tsx`:
-  - recalcular a fila válida no momento do atalho;
-  - ignorar comandas canceladas, sem itens pendentes, sem pedido ativo ou de mesa já liberada;
-  - não abrir `PaymentDialog` se a comanda selecionada não estiver mais em estado cobravel;
-  - mostrar um aviso e atualizar a fila quando não houver cobrança válida.
-- Endurecer o painel do salão em `src/components/pdv/cashier/SalonQueuePanel.tsx` para não agrupar comandas órfãs de pedidos cancelados/liberados.
-- Ajustar `PaymentDialog` para fechar com segurança quando abrir sem comanda/mesa válida ou sem itens pendentes, evitando uma tela presa no modal.
-- Pequeno ajuste na função `pdv_cancel_order`: tratar também status `fechada` como finalizado, para evitar inconsistência futura.
-- Verificar novamente no preview: carregar `/pdv/caixa`, pressionar F5 e confirmar que abre a cobrança correta ou a seleção, sem tela branca/travamento.
+4. **Proteger o F5 contra reentrada**
+   - Ignorar F5 enquanto qualquer abertura/fechamento de modal estiver em andamento.
+   - Centralizar a abertura do pagamento em uma função única que limpa seleção anterior antes de abrir a nova cobrança.
+
+## Arquivos previstos
+
+- `src/pages/pdv/Cashier.tsx`
+- `src/components/pdv/cashier/PaymentDialog.tsx`
+- Possivelmente `src/components/pdv/cashier/ChargeSelectionDialog.tsx`, se o travamento também vier do cancelamento dentro do modal de cobrança.
+
+## Validação
+
+- Testar o caminho: cancelar mesa → ir ao caixa → pressionar F5.
+- Confirmar que a tela não fica bloqueada, que nenhum overlay invisível sobra e que o operador consegue continuar usando o caixa.
