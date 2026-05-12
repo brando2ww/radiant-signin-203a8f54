@@ -125,6 +125,36 @@ export default function PDVCashier() {
     setCloseDialog(true);
   };
 
+  const openPaymentDeferred = () => {
+    if (paymentOpenTimerRef.current !== null) {
+      window.clearTimeout(paymentOpenTimerRef.current);
+    }
+    isOpeningPaymentRef.current = true;
+    setPaymentDialog(false);
+    paymentOpenTimerRef.current = window.setTimeout(() => {
+      setPaymentDialog(true);
+      isOpeningPaymentRef.current = false;
+      paymentOpenTimerRef.current = null;
+    }, 0);
+  };
+
+  const handlePaymentOpenChange = (open: boolean) => {
+    if (!open && paymentOpenTimerRef.current !== null) {
+      window.clearTimeout(paymentOpenTimerRef.current);
+      paymentOpenTimerRef.current = null;
+      isOpeningPaymentRef.current = false;
+    }
+    setPaymentDialog(open);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (paymentOpenTimerRef.current !== null) {
+        window.clearTimeout(paymentOpenTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleSelectComanda = (comanda: Comanda, items: ComandaItem[]) => {
     setSelectedComanda(comanda);
     setSelectedComandaItems(items);
@@ -133,7 +163,7 @@ export default function PDVCashier() {
     setSelectedTableItems([]);
     setPaymentSplitByComanda(false);
     setChargeDialog(false);
-    setPaymentDialog(true);
+    openPaymentDeferred();
   };
 
   const handleSelectTable = (table: PDVTable, comandas: Comanda[], items: ComandaItem[]) => {
@@ -144,7 +174,7 @@ export default function PDVCashier() {
     setSelectedComandaItems([]);
     setPaymentSplitByComanda(false);
     setChargeDialog(false);
-    setPaymentDialog(true);
+    openPaymentDeferred();
   };
 
   const handleSelectTablePending = (table: PDVTable, comandas: Comanda[], items: ComandaItem[]) => {
@@ -155,7 +185,7 @@ export default function PDVCashier() {
     setSelectedComandaItems([]);
     setPaymentSplitByComanda(comandas.length > 1);
     setChargeDialog(false);
-    setPaymentDialog(true);
+    openPaymentDeferred();
   };
 
   const handlePaymentSuccess = () => {
