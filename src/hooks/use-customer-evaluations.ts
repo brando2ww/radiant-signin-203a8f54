@@ -23,6 +23,7 @@ export interface EvaluationAnswer {
   created_at?: string;
   comment?: string | null;
   selected_options?: unknown;
+  text_answer?: string | null;
   /** Tipo da pergunta — apenas "stars" entra nos cálculos numéricos.
    *  Outros tipos (multiple_choice, single_choice, text...) NÃO. */
   question_type?: string;
@@ -64,7 +65,8 @@ export const useCustomerEvaluations = (filters?: { startDate?: string; endDate?:
             question_id,
             score,
             comment,
-            selected_options
+            selected_options,
+            text_answer
           )
         `)
         // nps_comment is included via * selector
@@ -379,7 +381,8 @@ export const useEvaluationById = (id: string) => {
               question_id,
               score,
               comment,
-              selected_options
+              selected_options,
+              text_answer
             )
           `)
           .eq("id", id)
