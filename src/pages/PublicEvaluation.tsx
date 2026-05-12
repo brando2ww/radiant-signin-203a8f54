@@ -67,9 +67,10 @@ export default function PublicEvaluation() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [answers, setAnswers] = useState<Record<string, { score: number; comment: string; selectedOptions?: string[] }>>({});
+  const [answers, setAnswers] = useState<Record<string, { score: number; comment: string; selectedOptions?: string[]; textAnswer?: string }>>({});
   const [npsScore, setNpsScore] = useState<number | null>(null);
   const [npsComment, setNpsComment] = useState("");
+  const [showValidation, setShowValidation] = useState(false);
 
   const { settings: businessSettings } = usePublicBusinessSettings((campaign as any)?.user_id || "");
 
@@ -85,7 +86,9 @@ export default function PublicEvaluation() {
     const answeredQuestions = questions?.filter((q) => {
       const a = answers[q.id];
       const qType = (q as any).question_type || "stars";
+      const isReq = !!(q as any).is_required;
       if (qType === "stars") return a?.score > 0;
+      if (qType === "free_text") return isReq ? !!a?.textAnswer?.trim() : true;
       return a?.selectedOptions && a.selectedOptions.length > 0;
     }).length || 0;
     const hasNps = npsScore !== null ? 1 : 0;
@@ -166,7 +169,9 @@ export default function PublicEvaluation() {
   const allQuestionsAnswered = questions?.every((q) => {
     const a = answers[q.id];
     const qType = (q as any).question_type || "stars";
+    const isReq = !!(q as any).is_required;
     if (qType === "stars") return a?.score > 0;
+    if (qType === "free_text") return isReq ? !!a?.textAnswer?.trim() : true;
     return a?.selectedOptions && a.selectedOptions.length > 0;
   }) ?? true;
   const canSubmit =
