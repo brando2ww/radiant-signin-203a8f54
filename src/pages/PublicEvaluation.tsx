@@ -377,11 +377,19 @@ export default function PublicEvaluation() {
                   const qType = (q as any).question_type || "stars";
                   const qOptions = ((q as any).options || []) as string[];
                   const selected = answers[q.id]?.selectedOptions || [];
+                  const isReq = !!(q as any).is_required;
+                  const maxLen = Number((q as any).max_length) || 500;
+                  const ftPlaceholder = (q as any).placeholder || "Escreva sua resposta...";
+                  const textVal = answers[q.id]?.textAnswer || "";
+                  const ftError = qType === "free_text" && isReq && showValidation && !textVal.trim();
 
                   return (
                     <div key={q.id} className="space-y-3">
                       <p className="text-sm font-medium text-foreground leading-snug">
                         {idx + 1}. {q.question_text}
+                        {qType === "free_text" && !isReq && (
+                          <span className="text-xs text-muted-foreground font-normal ml-1">(opcional)</span>
+                        )}
                       </p>
 
                       {qType === "stars" && (
@@ -464,6 +472,24 @@ export default function PublicEvaluation() {
                               </label>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {qType === "free_text" && (
+                        <div className="space-y-1">
+                          <Textarea
+                            value={textVal}
+                            onChange={(e) => handleSetTextAnswer(q.id, e.target.value)}
+                            placeholder={ftPlaceholder}
+                            maxLength={maxLen}
+                            className={`min-h-[90px] rounded-xl text-sm bg-white/50 dark:bg-background/50 ${ftError ? "border-destructive" : "border-border/40"}`}
+                          />
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span className={ftError ? "text-destructive" : ""}>
+                              {ftError ? "Por favor, responda esta pergunta" : ""}
+                            </span>
+                            <span>{textVal.length}/{maxLen}</span>
+                          </div>
                         </div>
                       )}
 
