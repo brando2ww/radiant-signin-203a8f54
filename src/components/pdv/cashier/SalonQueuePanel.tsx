@@ -121,7 +121,12 @@ export function SalonQueuePanel({
     return m;
   }, [tables]);
 
-  const pendingComandas = getPendingPaymentComandas();
+  const pendingComandas = getPendingPaymentComandas().filter((c) => {
+    // Defesa: comanda com order_id mas sem mesa viva apontando para ele
+    // significa que o pedido foi cancelado/liberado — não exibir.
+    if (c.order_id && !tablesByOrderId.has(c.order_id)) return false;
+    return true;
+  });
 
   const openCountByOrderId = useMemo(() => {
     const m = new Map<string, number>();

@@ -43,11 +43,18 @@ export default function PDVCashier() {
   } = usePDVCashier();
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
-  const { updateTable } = usePDVTables();
+  const { tables, updateTable } = usePDVTables();
   const { orders, cancelOrder } = usePDVOrders();
   const { all: deliveryOrders } = usePDVDeliveryQueue();
-  const cancelledOrderIds = new Set(
-    (orders || []).filter((o: any) => o.status === "cancelada").map((o: any) => o.id),
+  const inactiveOrderIds = new Set(
+    (orders || [])
+      .filter((o: any) => ["cancelada", "fechada", "fechado"].includes(o.status))
+      .map((o: any) => o.id),
+  );
+  const liveTableOrderIds = new Set(
+    (tables || [])
+      .map((t: any) => t.current_order_id)
+      .filter((id: string | null): id is string => !!id),
   );
 
   const [openDialog, setOpenDialog] = useState(false);
@@ -234,9 +241,12 @@ export default function PDVCashier() {
             // Atalho rápido: cobra a comanda mais antiga da fila do salão.
             // Se a fila estiver vazia, abre o dialog de cobrança avulsa/mesa direta.
             const pending = getPendingPaymentComandas().filter((c) => {
-              // Defesa: ignora comandas cujo pedido foi cancelado e
-              // comandas sem itens vivos (em transição/realtime).
-              if (c.order_id && cancelledOrderIds.has(c.order_id)) return false;
+              // Defesa: ignora comandas órfãs / pedidos finalizados / mesa liberada / sem itens vivos.
+              if (c.order_id && inactiveOrderIds.has(c.order_id)) return false;
+              if (c.order_id && !liveTableOrderIds.has(c.order_id)) {
+                // Pedido órfão: nenhuma mesa aponta mais para ele
+                return false;
+              }
               return getItemsByComanda(c.id).length > 0;
             });
             if (pending.length > 0) {
