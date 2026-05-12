@@ -10,7 +10,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Star, List, CheckSquare, X, Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Star, List, CheckSquare, MessageSquare, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const QUESTION_TYPES = [
@@ -38,12 +40,21 @@ const QUESTION_TYPES = [
     color: "border-purple-400 bg-purple-50 dark:bg-purple-950/30",
     iconColor: "text-purple-500",
   },
+  {
+    value: "free_text",
+    label: "Texto Livre",
+    description: "Cliente escreve livremente",
+    icon: MessageSquare,
+    color: "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30",
+    iconColor: "text-emerald-500",
+  },
 ] as const;
 
 const PLACEHOLDERS: Record<string, string> = {
   stars: "Ex: Como avalia a qualidade da comida?",
   single_choice: "Ex: Como conheceu nosso restaurante?",
   multiple_choice: "Ex: O que mais gostou na experiência?",
+  free_text: "Ex: O que podemos melhorar?",
 };
 
 interface QuestionInitialData {
@@ -51,6 +62,9 @@ interface QuestionInitialData {
   question_text: string;
   question_type: string;
   options?: string[];
+  placeholder?: string | null;
+  is_required?: boolean;
+  max_length?: number | null;
 }
 
 interface QuestionFormDialogProps {
@@ -60,6 +74,9 @@ interface QuestionFormDialogProps {
     question_text: string;
     question_type: string;
     options?: string[];
+    placeholder?: string | null;
+    is_required?: boolean;
+    max_length?: number;
   }) => void;
   isPending?: boolean;
   initialData?: QuestionInitialData | null;
@@ -70,6 +87,9 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
   const [text, setText] = useState("");
   const [options, setOptions] = useState<string[]>([]);
   const [newOption, setNewOption] = useState("");
+  const [placeholder, setPlaceholder] = useState("");
+  const [isRequired, setIsRequired] = useState(false);
+  const [maxLength, setMaxLength] = useState<number>(500);
 
   const isEditing = !!initialData;
 
@@ -79,15 +99,22 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
       setText(initialData.question_text);
       setOptions(initialData.options || []);
       setNewOption("");
+      setPlaceholder(initialData.placeholder || "");
+      setIsRequired(!!initialData.is_required);
+      setMaxLength(initialData.max_length ?? 500);
     } else if (!open) {
       setType("stars");
       setText("");
       setOptions([]);
       setNewOption("");
+      setPlaceholder("");
+      setIsRequired(false);
+      setMaxLength(500);
     }
   }, [open, initialData]);
 
-  const isChoiceType = type !== "stars";
+  const isChoiceType = type === "single_choice" || type === "multiple_choice";
+  const isFreeText = type === "free_text";
   const canSubmit = text.trim() && (!isChoiceType || options.length >= 2);
 
   const resetForm = () => {
@@ -95,6 +122,9 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
     setText("");
     setOptions([]);
     setNewOption("");
+    setPlaceholder("");
+    setIsRequired(false);
+    setMaxLength(500);
   };
 
   const handleClose = (val: boolean) => {
@@ -115,13 +145,16 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
       question_text: text.trim(),
       question_type: type,
       options: isChoiceType ? options : undefined,
+      placeholder: isFreeText ? (placeholder.trim() || null) : null,
+      is_required: isFreeText ? isRequired : false,
+      max_length: isFreeText ? Math.max(10, Math.min(2000, maxLength || 500)) : 500,
     });
     resetForm();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[560px] gap-0 p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[560px] gap-0 p-0 overflow-hidden max-h-[90vh] flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{isEditing ? "Editar Pergunta" : "Nova Pergunta"}</DialogTitle>
           <DialogDescription>
@@ -129,11 +162,11 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 space-y-5 pb-5">
+        <div className="px-6 space-y-5 pb-5 overflow-y-auto">
           {/* Step 1 — Type selection */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Tipo da pergunta</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {QUESTION_TYPES.map((qt) => {
                 const Icon = qt.icon;
                 const selected = type === qt.value;
@@ -143,7 +176,7 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
                     type="button"
                     onClick={() => {
                       setType(qt.value);
-                      if (qt.value === "stars") setOptions([]);
+                      if (qt.value === "stars" || qt.value === "free_text") setOptions([]);
                     }}
                     className={cn(
                       "flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-all hover:shadow-sm",
@@ -232,12 +265,53 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
             </div>
           )}
 
+          {/* Step 3 — Free text settings */}
+          {isFreeText && (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="ft-placeholder" className="text-xs font-medium">Placeholder (opcional)</Label>
+                <Input
+                  id="ft-placeholder"
+                  value={placeholder}
+                  onChange={(e) => setPlaceholder(e.target.value)}
+                  placeholder="Ex: Escreva sua opinião..."
+                  maxLength={100}
+                  className="h-9 text-sm"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label className="text-xs font-medium">Resposta obrigatória</Label>
+                  <p className="text-[11px] text-muted-foreground">Cliente precisa preencher para enviar</p>
+                </div>
+                <Switch checked={isRequired} onCheckedChange={setIsRequired} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="ft-maxlen" className="text-xs font-medium">Tamanho máximo (caracteres)</Label>
+                <Input
+                  id="ft-maxlen"
+                  type="number"
+                  min={10}
+                  max={2000}
+                  value={maxLength}
+                  onChange={(e) => setMaxLength(Number(e.target.value) || 500)}
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Preview */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-muted-foreground">Pré-visualização</Label>
             <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
               <p className="text-sm font-medium">
                 {text || <span className="text-muted-foreground italic">Texto da pergunta...</span>}
+                {isFreeText && !isRequired && (
+                  <span className="text-xs text-muted-foreground font-normal ml-1">(opcional)</span>
+                )}
               </p>
               {type === "stars" && (
                 <div className="flex gap-1">
@@ -264,6 +338,16 @@ export function QuestionFormDialog({ open, onOpenChange, onSubmit, isPending, in
                       {opt}
                     </label>
                   ))}
+                </div>
+              )}
+              {isFreeText && (
+                <div className="space-y-1">
+                  <Textarea
+                    disabled
+                    placeholder={placeholder || "Escreva sua resposta..."}
+                    className="min-h-[70px] text-sm bg-background/60"
+                  />
+                  <p className="text-[10px] text-muted-foreground text-right">0 / {maxLength}</p>
                 </div>
               )}
               {isChoiceType && options.length === 0 && (
