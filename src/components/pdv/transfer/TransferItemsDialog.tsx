@@ -101,6 +101,7 @@ export function TransferItemsDialog({
       setSearch("");
       setDestination(null);
       setExpandedTableId(null);
+      setTargetComandaName("");
     }
     onOpenChange(next);
   };
