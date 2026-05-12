@@ -93,11 +93,11 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
   .qty { width: 28px; flex-shrink: 0; }
   .name { flex: 1; }
   .price { white-space: nowrap; }
-  .opt, .notes { font-size: 12px; padding-left: 30px; font-weight: bold; }
+  .opt, .notes { font-size: 13px; padding-left: 30px; font-weight: bold; font-style: italic; }
   .notes { font-style: italic; }
   .item { margin-bottom: 4px; }
   .total { font-size: 16px; font-weight: bold; }
-  .big { font-size: 14px; font-weight: bold; }
+  .big { font-size: 14px; font-weight: bold; font-style: italic; }
   .center { text-align: center; }
   .badge { display: inline-block; border: 2px solid #000; padding: 1px 6px; font-size: 12px; font-weight: bold; }
   .footer { margin-top: 8px; text-align: center; font-size: 11px; font-weight: bold; }
