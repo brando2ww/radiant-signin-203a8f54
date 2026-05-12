@@ -166,6 +166,13 @@ export default function PublicEvaluation() {
     }));
   };
 
+  const handleSetTextAnswer = (questionId: string, textAnswer: string) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: { ...prev[questionId], score: prev[questionId]?.score || 0, comment: prev[questionId]?.comment || "", textAnswer },
+    }));
+  };
+
   const allQuestionsAnswered = questions?.every((q) => {
     const a = answers[q.id];
     const qType = (q as any).question_type || "stars";
@@ -191,6 +198,10 @@ export default function PublicEvaluation() {
 
   const handleSubmit = () => {
     if (!questions || !campaignId || npsScore === null) return;
+    if (!allQuestionsAnswered) {
+      setShowValidation(true);
+      return;
+    }
     submitEvaluation.mutate(
       {
         campaignId,
@@ -205,6 +216,7 @@ export default function PublicEvaluation() {
           score: answers[q.id]?.score || 0,
           comment: answers[q.id]?.comment?.trim() || undefined,
           selectedOptions: answers[q.id]?.selectedOptions,
+          textAnswer: answers[q.id]?.textAnswer?.trim() || undefined,
         })),
       },
       {
