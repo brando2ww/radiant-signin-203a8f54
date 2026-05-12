@@ -848,8 +848,8 @@ export function PaymentDialog({
     const nfceEnabled = !!settings?.nfe_enable_nfce;
     const nfceConfigured = nfceEnabled && !!settings?.nfe_certificate_url && !!settings?.nfe_csc_id && !!settings?.nfe_csc_token;
     return (
-      <Dialog open={open} onOpenChange={(o) => { if (!o) handleFinish(); }}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog modal={false} open={open} onOpenChange={(o) => { if (!o) handleFinish(); }}>
+        <DialogContent hideOverlay className="sm:max-w-md">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -982,8 +982,10 @@ export function PaymentDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={paymentContentRef}
+        hideOverlay
         className="sm:max-w-3xl max-h-[90vh] overflow-hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
@@ -1715,7 +1717,7 @@ export function PaymentDialog({
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent container={paymentContentRef.current}>
                             {paymentMethods.map((m) => (
                               <SelectItem key={m.id} value={m.id}>
                                 <div className="flex items-center gap-2">
@@ -1973,7 +1975,7 @@ export function PaymentDialog({
                             <SelectTrigger className="h-12">
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent container={paymentContentRef.current}>
                               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
                                 <SelectItem key={i} value={String(i)}>
                                   <span className="font-medium">{i}x</span>{" "}
