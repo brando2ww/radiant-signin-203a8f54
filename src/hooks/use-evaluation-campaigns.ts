@@ -235,7 +235,8 @@ export const useCampaignResponses = (campaignId: string) => {
             question_id,
             score,
             comment,
-            selected_options
+            selected_options,
+            text_answer
           )
         `)
         .eq("campaign_id", campaignId)
@@ -246,7 +247,7 @@ export const useCampaignResponses = (campaignId: string) => {
       // Fetch questions for this campaign to map question_id -> { text, type, options }
       const { data: questions } = await supabase
         .from("evaluation_campaign_questions")
-        .select("id, question_text, question_type, options")
+        .select("id, question_text, question_type, options, placeholder, is_required, max_length")
         .eq("campaign_id", campaignId);
 
       const questionMap = new Map(
@@ -325,7 +326,7 @@ export const useSubmitCampaignEvaluation = () => {
       customerName: string;
       customerWhatsapp: string;
       customerBirthDate: string;
-      answers: { questionId: string; score: number; comment?: string; selectedOptions?: string[] }[];
+      answers: { questionId: string; score: number; comment?: string; selectedOptions?: string[]; textAnswer?: string }[];
       npsScore: number;
       npsComment?: string;
     }) => {
@@ -352,11 +353,12 @@ export const useSubmitCampaignEvaluation = () => {
         score: a.score,
         comment: a.comment || null,
         selected_options: a.selectedOptions || null,
+        text_answer: a.textAnswer || null,
       }));
 
       const { error: answersError } = await supabase
         .from("evaluation_answers")
-        .insert(answers);
+        .insert(answers as any);
 
       if (answersError) throw answersError;
 
