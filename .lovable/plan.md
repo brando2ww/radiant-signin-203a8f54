@@ -1,25 +1,58 @@
-## Causa
+## Problemas identificados
 
-O erro `record "v_item" has no field "status"` vem da função SQL `public.pdv_transfer_items`, que valida os itens antes de movê-los entre comandas/mesas usando:
+### 1. Mesa de origem continua mostrando valor após transferência
+A trigger `update_comanda_subtotal_trigger` (em `pdv_comanda_items`) só recalcula **uma** comanda por linha:
 
 ```sql
-IF COALESCE(v_item.status,'ativo') = 'cancelado' THEN ...
+v_comanda_id := COALESCE(NEW.comanda_id, OLD.comanda_id);
 ```
 
-A tabela `pdv_comanda_items` não tem coluna `status` (nem `updated_at`). Os campos reais relevantes são `kitchen_status`, `paid_quantity` e `charging_session_id`. Como o SELECT usa `ci.*`, o registro `v_item` não possui `status`, e o Postgres aborta a transferência logo no primeiro item.
+Quando o `pdv_transfer_items` faz `UPDATE pdv_comanda_items SET comanda_id = <destino>`, `NEW.comanda_id` é o destino e o `COALESCE` ignora `OLD.comanda_id`. Resultado: a comanda de origem **nunca é recalculada**, então `subtotal` e `pending_subtotal` ficam congelados com o valor antigo — exatamente o que aparece na Mesa 4.
 
-Também há dois `UPDATE pdv_comanda_items SET ... updated_at = now()` dentro da mesma função que falhariam pelo mesmo motivo (coluna inexistente) caso a execução chegasse até lá.
+Além disso, se a transferência esvaziar todas as comandas da mesa de origem, hoje a mesa permanece marcada como `ocupada` com `current_order_id` apontando para o `pdv_orders` antigo, em vez de voltar a `livre`.
 
-## Correção (apenas no banco, via migration)
+### 2. Não dá para nomear a comanda criada na mesa destino
+Quando o destino é uma mesa livre, o RPC `pdv_transfer_items` cria automaticamente uma `pdv_comanda` com nome genérico (`CMD-yyyymmddHH...`) e `customer_name = NULL`. O `TransferItemsDialog` não oferece nenhum campo para nomear essa comanda nova, então o garçom perde a referência do cliente.
 
-Substituir a função `pdv_transfer_items` por uma versão idêntica, exceto:
+## Correção
 
-1. Remover a checagem `IF COALESCE(v_item.status,'ativo') = 'cancelado'` — a tabela não tem esse conceito hoje. As outras travas (`paid_quantity`, `charging_session_id`) continuam protegendo contra mover itens já pagos ou em cobrança.
-2. Remover `updated_at = now()` dos dois `UPDATE public.pdv_comanda_items` (a coluna não existe).
+### Migration (banco)
 
-Nenhuma mudança no frontend é necessária — `usePDVItemTransfer` segue chamando `pdv_transfer_items(...)` com a mesma assinatura.
+**A.** Atualizar a função `update_comanda_subtotal` para recalcular **ambas** as comandas envolvidas em um `UPDATE` (origem e destino):
+
+```sql
+-- recalcula tanto OLD.comanda_id quanto NEW.comanda_id quando diferentes
+FOR v_id IN SELECT DISTINCT unnest(ARRAY[OLD.comanda_id, NEW.comanda_id]) ...
+```
+Isso resolve sozinho o "valor fantasma" da Mesa 4.
+
+**B.** Estender `pdv_transfer_items` para, ao final, verificar se a comanda de origem ficou sem itens; se sim, fechá-la (`status = 'cancelada'` ou manter `aberta` mas zerada — manter `aberta` é mais seguro para histórico). E se o `pdv_orders` de origem ficou sem nenhuma comanda com itens, liberar a mesa:
+
+```sql
+-- após o loop:
+IF NOT EXISTS (SELECT 1 FROM pdv_comanda_items WHERE comanda_id IN (...origem...)) THEN
+   UPDATE pdv_tables
+      SET status = 'livre', current_order_id = NULL, updated_at = now()
+    WHERE current_order_id = v_src_order_id
+      AND NOT EXISTS (SELECT 1 FROM pdv_comanda_items ci
+                      JOIN pdv_comandas c ON c.id = ci.comanda_id
+                      WHERE c.order_id = v_src_order_id);
+   UPDATE pdv_orders SET status='fechado', closed_at=now() WHERE id = v_src_order_id;
+END IF;
+```
+
+**C.** Aceitar um parâmetro opcional `p_target_comanda_name text` que, quando o RPC criar a `pdv_comanda` nova na mesa destino, popula `customer_name`.
+
+### Frontend
+
+**D.** Em `TransferItemsDialog.tsx`, quando o destino selecionado for uma mesa livre (`destination.kind === "table"` e a mesa não tem `current_order_id`), exibir no passo "Confirmar" um `Input` "Nome da comanda (opcional)" — análogo ao `ComandaDialog`. Passar esse valor para `transferItems({ ..., targetComandaName })`.
+
+**E.** Em `use-pdv-comandas.ts`, adicionar `targetComandaName` ao payload do `supabase.rpc("pdv_transfer_items", { ..., p_target_comanda_name })`.
+
+Nada mais muda — invalidações de cache já existem em `usePDVComandas` + realtime em `usePDVComandasRealtime` e atualizarão Mesa 4 e Mesa 5 automaticamente assim que o subtotal correto for gravado.
 
 ## Verificação
 
-- Reproduzir o fluxo "Transferir item" entre Mesa 04 → Mesa 02 do screenshot e confirmar sucesso.
-- Conferir no `pdv_action_audit_log` que a entrada de auditoria foi criada.
+1. Reproduzir Mesa 4 → Mesa 5: a Mesa 4 deve voltar ao status livre (R$ 0,00) imediatamente.
+2. Transferir para mesa livre informando nome "João" → a comanda criada deve aparecer com "João" na Mesa 5.
+3. Conferir `pdv_action_audit_log` continua registrando a transferência.
