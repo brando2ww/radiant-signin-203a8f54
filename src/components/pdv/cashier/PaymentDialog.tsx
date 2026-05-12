@@ -2051,7 +2051,7 @@ export function PaymentDialog({
 
     {/* Confirmação de remoção de item */}
     <AlertDialog open={!!itemToRemove} onOpenChange={(o) => { if (!o) setItemToRemove(null); }}>
-      <AlertDialogContent>
+      <AlertDialogContent hideOverlay container={paymentContentRef.current}>
         <AlertDialogHeader>
           <AlertDialogTitle>Remover item?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -2102,8 +2102,20 @@ export function PaymentDialog({
     </AlertDialog>
 
     {/* Dialog para adicionar item */}
-    <Dialog open={addItemDialogOpen} onOpenChange={setAddItemDialogOpen}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog
+      modal={false}
+      open={addItemDialogOpen}
+      onOpenChange={(next) => {
+        setAddItemDialogOpen(next);
+        if (!next) {
+          setProductSearch("");
+          setSelectedProductId(null);
+          setAddItemQty("1");
+          setAddItemNotes("");
+        }
+      }}
+    >
+      <DialogContent hideOverlay container={paymentContentRef.current} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
