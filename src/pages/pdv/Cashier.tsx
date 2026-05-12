@@ -253,7 +253,7 @@ export default function PDVCashier() {
       }
 
       // Ignorar se estiver processando
-      const isProcessing = isOpeningCashier || isClosingCashier || isAddingMovement;
+      const isProcessing = isOpeningCashier || isClosingCashier || isAddingMovement || isOpeningPaymentRef.current;
       if (isProcessing) return;
 
       switch (e.key) {
@@ -296,7 +296,7 @@ export default function PDVCashier() {
               const first = sorted[0];
               handleSelectComanda(first, getItemsByComanda(first.id));
             } else {
-              setChargeDialog(true);
+              window.setTimeout(() => setChargeDialog(true), 0);
             }
           }
           break;
@@ -309,7 +309,7 @@ export default function PDVCashier() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement]);
+  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
 
   if (isLoading) {
     return (
@@ -391,7 +391,7 @@ export default function PDVCashier() {
               onCloseCashier={handleTryCloseCashier}
               onAddReinforcement={() => handleOpenMovementDialog("reforco")}
               onAddWithdrawal={() => handleOpenMovementDialog("sangria")}
-              onCharge={() => setChargeDialog(true)}
+              onCharge={() => window.setTimeout(() => setChargeDialog(true), 0)}
               onShowHelp={() => setShortcutsDialog(true)}
               onReprintLast={lastClosedSession ? handleReprintLastCashier : undefined}
               onEmployeeConsumption={() => setEmployeeDialog(true)}
@@ -405,7 +405,7 @@ export default function PDVCashier() {
             isOpen={!!activeSession}
             onSelectComanda={handleSelectComanda}
             onSelectTablePending={handleSelectTablePending}
-            onOpenDirectCharge={() => setChargeDialog(true)}
+              onOpenDirectCharge={() => window.setTimeout(() => setChargeDialog(true), 0)}
           />
         </Card>
       </div>
@@ -461,7 +461,7 @@ export default function PDVCashier() {
 
       <PaymentDialog
         open={paymentDialog}
-        onOpenChange={setPaymentDialog}
+        onOpenChange={handlePaymentOpenChange}
         comanda={selectedComanda}
         items={selectedComandaItems}
         table={selectedTable}
