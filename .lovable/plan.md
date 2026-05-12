@@ -1,29 +1,18 @@
-## Plano
+# Destacar número do pedido na comanda do delivery
 
-1. **Aplicar o padrão anti-travamento nos dialogs do caixa**
-   - Abrir `PaymentDialog` e `ChargeSelectionDialog` de forma deferida (`setTimeout(0)`) quando vierem de atalho F5 ou seleção em lista.
-   - Fechar primeiro o modal de seleção e só depois abrir o modal de pagamento, evitando dois Radix Dialogs ativos no mesmo ciclo.
+Ajuste visual no template de impressão da comanda do motoboy (`src/lib/print-motoboy-receipt.ts`) para dar mais destaque ao número do pedido.
 
-2. **Tornar o `PaymentDialog` seguro contra bloqueios invisíveis**
-   - Usar `Dialog modal={false}` com `DialogContent hideOverlay` no pagamento, seguindo a memória do projeto para dialogs complexos.
-   - Resetar estados aninhados ao fechar: confirmação de remover item, adicionar item, busca/produto selecionado, seleção parcial e estados de sucesso quando necessário.
-   - Fechar automaticamente se abrir sem contexto válido de cobrança ou sem itens pendentes, mostrando aviso em vez de deixar a tela presa.
+## Mudanças
 
-3. **Corrigir dialogs aninhados dentro do pagamento**
-   - Converter o modal “Adicionar item” e o alerta “Remover item” para o mesmo padrão seguro: sem overlay bloqueante quando estiverem sobre o pagamento e com limpeza de estado no fechamento.
-   - Garantir que Selects/portais usados dentro do pagamento não deixem camada residual bloqueando clique.
+No bloco do cabeçalho (`.sub`), separar o número do pedido da data e aplicar:
+- Fonte aproximadamente 20% maior que o atual (de ~11px para ~14px)
+- Negrito (`font-weight: bold`)
+- Mantém centralizado, logo abaixo do título "COMANDA DELIVERY/RETIRADA"
 
-4. **Proteger o F5 contra reentrada**
-   - Ignorar F5 enquanto qualquer abertura/fechamento de modal estiver em andamento.
-   - Centralizar a abertura do pagamento em uma função única que limpa seleção anterior antes de abrir a nova cobrança.
+A data permanece no tamanho atual, em linha separada abaixo do número.
 
-## Arquivos previstos
+## Arquivo afetado
 
-- `src/pages/pdv/Cashier.tsx`
-- `src/components/pdv/cashier/PaymentDialog.tsx`
-- Possivelmente `src/components/pdv/cashier/ChargeSelectionDialog.tsx`, se o travamento também vier do cancelamento dentro do modal de cobrança.
+- `src/lib/print-motoboy-receipt.ts` — adicionar classe `.order-number` no CSS e envolver `Pedido #...` em um `<div class="order-number">`.
 
-## Validação
-
-- Testar o caminho: cancelar mesa → ir ao caixa → pressionar F5.
-- Confirmar que a tela não fica bloqueada, que nenhum overlay invisível sobra e que o operador consegue continuar usando o caixa.
+Nenhuma mudança em lógica, dados ou outros componentes.

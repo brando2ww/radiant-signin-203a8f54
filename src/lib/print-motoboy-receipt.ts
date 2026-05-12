@@ -86,6 +86,7 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
   body { font-family: 'Courier New', monospace; font-size: 12px; color: #000; margin: 0; padding: 6px; }
   h1 { font-size: 16px; margin: 0 0 4px; text-align: center; }
   .sub { text-align: center; font-size: 11px; margin-bottom: 6px; }
+  .order-number { font-size: 17px; font-weight: bold; margin: 2px 0 4px; }
   .sec { border-top: 1px dashed #000; padding: 6px 0; }
   .label { font-weight: bold; text-transform: uppercase; font-size: 11px; margin-bottom: 2px; }
   .row { display: flex; justify-content: space-between; gap: 6px; }
@@ -105,7 +106,7 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
 <body>
   <h1>COMANDA ${isPickup ? "RETIRADA" : "DELIVERY"}</h1>
   <div class="sub">
-    Pedido #${escape(order.order_number)}<br/>
+    <div class="order-number">Pedido #${escape(order.order_number)}</div>
     ${dateStr}
   </div>
 
