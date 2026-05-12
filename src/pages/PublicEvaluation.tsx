@@ -67,9 +67,10 @@ export default function PublicEvaluation() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [answers, setAnswers] = useState<Record<string, { score: number; comment: string; selectedOptions?: string[] }>>({});
+  const [answers, setAnswers] = useState<Record<string, { score: number; comment: string; selectedOptions?: string[]; textAnswer?: string }>>({});
   const [npsScore, setNpsScore] = useState<number | null>(null);
   const [npsComment, setNpsComment] = useState("");
+  const [showValidation, setShowValidation] = useState(false);
 
   const { settings: businessSettings } = usePublicBusinessSettings((campaign as any)?.user_id || "");
 
@@ -85,7 +86,9 @@ export default function PublicEvaluation() {
     const answeredQuestions = questions?.filter((q) => {
       const a = answers[q.id];
       const qType = (q as any).question_type || "stars";
+      const isReq = !!(q as any).is_required;
       if (qType === "stars") return a?.score > 0;
+      if (qType === "free_text") return isReq ? !!a?.textAnswer?.trim() : true;
       return a?.selectedOptions && a.selectedOptions.length > 0;
     }).length || 0;
     const hasNps = npsScore !== null ? 1 : 0;
@@ -163,10 +166,19 @@ export default function PublicEvaluation() {
     }));
   };
 
+  const handleSetTextAnswer = (questionId: string, textAnswer: string) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [questionId]: { ...prev[questionId], score: prev[questionId]?.score || 0, comment: prev[questionId]?.comment || "", textAnswer },
+    }));
+  };
+
   const allQuestionsAnswered = questions?.every((q) => {
     const a = answers[q.id];
     const qType = (q as any).question_type || "stars";
+    const isReq = !!(q as any).is_required;
     if (qType === "stars") return a?.score > 0;
+    if (qType === "free_text") return isReq ? !!a?.textAnswer?.trim() : true;
     return a?.selectedOptions && a.selectedOptions.length > 0;
   }) ?? true;
   const canSubmit =
@@ -186,6 +198,10 @@ export default function PublicEvaluation() {
 
   const handleSubmit = () => {
     if (!questions || !campaignId || npsScore === null) return;
+    if (!allQuestionsAnswered) {
+      setShowValidation(true);
+      return;
+    }
     submitEvaluation.mutate(
       {
         campaignId,
@@ -200,6 +216,7 @@ export default function PublicEvaluation() {
           score: answers[q.id]?.score || 0,
           comment: answers[q.id]?.comment?.trim() || undefined,
           selectedOptions: answers[q.id]?.selectedOptions,
+          textAnswer: answers[q.id]?.textAnswer?.trim() || undefined,
         })),
       },
       {
@@ -360,11 +377,19 @@ export default function PublicEvaluation() {
                   const qType = (q as any).question_type || "stars";
                   const qOptions = ((q as any).options || []) as string[];
                   const selected = answers[q.id]?.selectedOptions || [];
+                  const isReq = !!(q as any).is_required;
+                  const maxLen = Number((q as any).max_length) || 500;
+                  const ftPlaceholder = (q as any).placeholder || "Escreva sua resposta...";
+                  const textVal = answers[q.id]?.textAnswer || "";
+                  const ftError = qType === "free_text" && isReq && showValidation && !textVal.trim();
 
                   return (
                     <div key={q.id} className="space-y-3">
                       <p className="text-sm font-medium text-foreground leading-snug">
                         {idx + 1}. {q.question_text}
+                        {qType === "free_text" && !isReq && (
+                          <span className="text-xs text-muted-foreground font-normal ml-1">(opcional)</span>
+                        )}
                       </p>
 
                       {qType === "stars" && (
@@ -447,6 +472,24 @@ export default function PublicEvaluation() {
                               </label>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {qType === "free_text" && (
+                        <div className="space-y-1">
+                          <Textarea
+                            value={textVal}
+                            onChange={(e) => handleSetTextAnswer(q.id, e.target.value)}
+                            placeholder={ftPlaceholder}
+                            maxLength={maxLen}
+                            className={`min-h-[90px] rounded-xl text-sm bg-white/50 dark:bg-background/50 ${ftError ? "border-destructive" : "border-border/40"}`}
+                          />
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span className={ftError ? "text-destructive" : ""}>
+                              {ftError ? "Por favor, responda esta pergunta" : ""}
+                            </span>
+                            <span>{textVal.length}/{maxLen}</span>
+                          </div>
                         </div>
                       )}
 

@@ -18,6 +18,9 @@ export interface CampaignQuestion {
   question_text: string;
   question_type: string;
   options: string[] | null;
+  placeholder: string | null;
+  is_required: boolean;
+  max_length: number;
   order_position: number;
   is_active: boolean;
   created_at: string;
@@ -159,11 +162,14 @@ export const useCampaignQuestions = (campaignId: string) => {
 export const useCreateCampaignQuestion = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { campaign_id: string; question_text: string; order_position: number; question_type?: string; options?: string[] }) => {
-      const { question_type, options, ...rest } = data;
+    mutationFn: async (data: { campaign_id: string; question_text: string; order_position: number; question_type?: string; options?: string[]; placeholder?: string | null; is_required?: boolean; max_length?: number }) => {
+      const { question_type, options, placeholder, is_required, max_length, ...rest } = data;
       const insertData: any = { ...rest };
       if (question_type) insertData.question_type = question_type;
       if (options) insertData.options = options;
+      if (placeholder !== undefined) insertData.placeholder = placeholder;
+      if (is_required !== undefined) insertData.is_required = is_required;
+      if (max_length !== undefined) insertData.max_length = max_length;
       const { error } = await supabase
         .from("evaluation_campaign_questions")
         .insert(insertData);
@@ -180,10 +186,10 @@ export const useCreateCampaignQuestion = () => {
 export const useUpdateCampaignQuestion = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, campaign_id, ...data }: { id: string; campaign_id: string; question_text?: string; question_type?: string; options?: string[] | null; is_active?: boolean; order_position?: number }) => {
+    mutationFn: async ({ id, campaign_id, ...data }: { id: string; campaign_id: string; question_text?: string; question_type?: string; options?: string[] | null; is_active?: boolean; order_position?: number; placeholder?: string | null; is_required?: boolean; max_length?: number }) => {
       const { error } = await supabase
         .from("evaluation_campaign_questions")
-        .update(data)
+        .update(data as any)
         .eq("id", id);
       if (error) throw error;
       return campaign_id;
@@ -229,7 +235,8 @@ export const useCampaignResponses = (campaignId: string) => {
             question_id,
             score,
             comment,
-            selected_options
+            selected_options,
+            text_answer
           )
         `)
         .eq("campaign_id", campaignId)
@@ -240,7 +247,7 @@ export const useCampaignResponses = (campaignId: string) => {
       // Fetch questions for this campaign to map question_id -> { text, type, options }
       const { data: questions } = await supabase
         .from("evaluation_campaign_questions")
-        .select("id, question_text, question_type, options")
+        .select("id, question_text, question_type, options, placeholder, is_required, max_length")
         .eq("campaign_id", campaignId);
 
       const questionMap = new Map(
@@ -319,7 +326,7 @@ export const useSubmitCampaignEvaluation = () => {
       customerName: string;
       customerWhatsapp: string;
       customerBirthDate: string;
-      answers: { questionId: string; score: number; comment?: string; selectedOptions?: string[] }[];
+      answers: { questionId: string; score: number; comment?: string; selectedOptions?: string[]; textAnswer?: string }[];
       npsScore: number;
       npsComment?: string;
     }) => {
@@ -346,11 +353,12 @@ export const useSubmitCampaignEvaluation = () => {
         score: a.score,
         comment: a.comment || null,
         selected_options: a.selectedOptions || null,
+        text_answer: a.textAnswer || null,
       }));
 
       const { error: answersError } = await supabase
         .from("evaluation_answers")
-        .insert(answers);
+        .insert(answers as any);
 
       if (answersError) throw answersError;
 

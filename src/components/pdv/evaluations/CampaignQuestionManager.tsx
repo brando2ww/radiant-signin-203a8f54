@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, GripVertical, FileDown, Star, List, CheckSquare, Pencil } from "lucide-react";
+import { Plus, Trash2, GripVertical, FileDown, Star, List, CheckSquare, MessageSquare, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCampaignQuestions,
@@ -35,6 +35,7 @@ const QUESTION_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNod
   stars: { label: "Estrelas (1-5)", icon: <Star className="h-3.5 w-3.5" /> },
   single_choice: { label: "Escolha única", icon: <List className="h-3.5 w-3.5" /> },
   multiple_choice: { label: "Múltipla escolha", icon: <CheckSquare className="h-3.5 w-3.5" /> },
+  free_text: { label: "Texto livre", icon: <MessageSquare className="h-3.5 w-3.5" /> },
 };
 
 interface Props {
@@ -48,6 +49,9 @@ export function CampaignQuestionManager({ campaignId }: Props) {
     question_text: string;
     question_type: string;
     options?: string[];
+    placeholder?: string | null;
+    is_required?: boolean;
+    max_length?: number | null;
   } | null>(null);
 
   const { data: questions, isLoading } = useCampaignQuestions(campaignId);
@@ -55,7 +59,7 @@ export function CampaignQuestionManager({ campaignId }: Props) {
   const updateQuestion = useUpdateCampaignQuestion();
   const deleteQuestion = useDeleteCampaignQuestion();
 
-  const handleSubmitQuestion = (data: { question_text: string; question_type: string; options?: string[] }) => {
+  const handleSubmitQuestion = (data: { question_text: string; question_type: string; options?: string[]; placeholder?: string | null; is_required?: boolean; max_length?: number }) => {
     if (editingQuestion) {
       updateQuestion.mutate(
         {
@@ -64,6 +68,9 @@ export function CampaignQuestionManager({ campaignId }: Props) {
           question_text: data.question_text,
           question_type: data.question_type,
           options: data.options || null,
+          placeholder: data.placeholder ?? null,
+          is_required: !!data.is_required,
+          max_length: data.max_length ?? 500,
         },
         {
           onSuccess: () => {
@@ -80,6 +87,9 @@ export function CampaignQuestionManager({ campaignId }: Props) {
           order_position: (questions?.length || 0) + 1,
           question_type: data.question_type,
           options: data.options,
+          placeholder: data.placeholder ?? null,
+          is_required: !!data.is_required,
+          max_length: data.max_length ?? 500,
         },
         {
           onSuccess: () => setDialogOpen(false),
@@ -94,6 +104,9 @@ export function CampaignQuestionManager({ campaignId }: Props) {
       question_text: q.question_text,
       question_type: (q as any).question_type || "stars",
       options: ((q as any).options as string[]) || [],
+      placeholder: (q as any).placeholder ?? null,
+      is_required: !!(q as any).is_required,
+      max_length: (q as any).max_length ?? 500,
     });
     setDialogOpen(true);
   };

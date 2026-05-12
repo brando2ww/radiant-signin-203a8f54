@@ -2242,6 +2242,7 @@ export type Database = {
           question_id: string
           score: number
           selected_options: Json | null
+          text_answer: string | null
         }
         Insert: {
           comment?: string | null
@@ -2251,6 +2252,7 @@ export type Database = {
           question_id: string
           score: number
           selected_options?: Json | null
+          text_answer?: string | null
         }
         Update: {
           comment?: string | null
@@ -2260,6 +2262,7 @@ export type Database = {
           question_id?: string
           score?: number
           selected_options?: Json | null
+          text_answer?: string | null
         }
         Relationships: [
           {
@@ -2277,8 +2280,11 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_required: boolean
+          max_length: number
           options: Json | null
           order_position: number
+          placeholder: string | null
           question_text: string
           question_type: string
           updated_at: string
@@ -2288,8 +2294,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_required?: boolean
+          max_length?: number
           options?: Json | null
           order_position?: number
+          placeholder?: string | null
           question_text: string
           question_type?: string
           updated_at?: string
@@ -2299,8 +2308,11 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_required?: boolean
+          max_length?: number
           options?: Json | null
           order_position?: number
+          placeholder?: string | null
           question_text?: string
           question_type?: string
           updated_at?: string

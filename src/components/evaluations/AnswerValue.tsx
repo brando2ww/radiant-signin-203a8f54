@@ -6,6 +6,7 @@ interface AnswerValueProps {
   score: number;
   selectedOptions?: unknown;
   comment?: string | null;
+  textAnswer?: string | null;
 }
 
 function parseOptions(raw: unknown): string[] {
@@ -55,7 +56,7 @@ export function AnswerValue({ questionType, score, selectedOptions, comment }: A
         </div>
       )}
 
-      {type !== "stars" && type !== "single_choice" && type !== "multiple_choice" && (
+      {type !== "stars" && type !== "single_choice" && type !== "multiple_choice" && type !== "free_text" && (
         <span className="text-sm">
           {options.length > 0 ? options.join(", ") : score ? String(score) : "—"}
         </span>

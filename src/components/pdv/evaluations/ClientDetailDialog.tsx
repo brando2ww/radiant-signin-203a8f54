@@ -154,6 +154,7 @@ export default function ClientDetailDialog({ open, onOpenChange, client }: Clien
                             score={answer.score}
                             selectedOptions={answer.selected_options}
                             comment={answer.comment}
+                            textAnswer={(answer as any).text_answer}
                           />
                         </div>
                       );
