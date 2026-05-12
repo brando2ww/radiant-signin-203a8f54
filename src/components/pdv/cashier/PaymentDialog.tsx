@@ -277,6 +277,15 @@ export function PaymentDialog({
         ? tableComandas.reduce((sum, c) => sum + c.subtotal, 0)
         : (comanda?.subtotal || 0));
 
+  useEffect(() => {
+    if (!open || showSuccess) return;
+    const hasPaymentContext = !!comanda || !!table;
+    if (!hasPaymentContext || displayItems.length === 0 || fullSubtotal <= 0) {
+      toast.warning("Não há itens pendentes para cobrar.");
+      onOpenChange(false);
+    }
+  }, [open, showSuccess, comanda, table, displayItems.length, fullSubtotal, onOpenChange]);
+
   // Pagamento parcial (modo by-product) é suportado apenas quando temos itens reais persistidos.
   const supportsByProduct = liveItemsForPayment.length > 0 && !isTablePayment;
 
