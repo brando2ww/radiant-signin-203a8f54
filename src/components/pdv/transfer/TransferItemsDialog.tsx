@@ -230,6 +230,7 @@ export function TransferItemsDialog({
           targetId:
             destination.kind === "comanda" ? destination.comandaId : destination.tableId,
           qtyMap: Object.keys(sentQtyMap).length ? sentQtyMap : undefined,
+          targetComandaName: targetComandaName.trim() || null,
         });
       }
 
