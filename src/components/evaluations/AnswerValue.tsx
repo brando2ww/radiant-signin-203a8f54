@@ -6,6 +6,7 @@ interface AnswerValueProps {
   score: number;
   selectedOptions?: unknown;
   comment?: string | null;
+  textAnswer?: string | null;
 }
 
 function parseOptions(raw: unknown): string[] {
