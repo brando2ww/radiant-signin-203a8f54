@@ -63,6 +63,7 @@ export function TransferItemsDialog({
   const [expandedTableId, setExpandedTableId] = useState<string | null>(null);
   // qtyMap unifica IDs de sent items (uuid do banco) e drafts (draftId).
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({});
+  const [targetComandaName, setTargetComandaName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const hasDrafts = draftItems.length > 0;
