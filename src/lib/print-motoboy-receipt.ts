@@ -106,7 +106,7 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
 <body>
   <h1>COMANDA ${isPickup ? "RETIRADA" : "DELIVERY"}</h1>
   <div class="sub">
-    Pedido #${escape(order.order_number)}<br/>
+    <div class="order-number">Pedido #${escape(order.order_number)}</div>
     ${dateStr}
   </div>
 
