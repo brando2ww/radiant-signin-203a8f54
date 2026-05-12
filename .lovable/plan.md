@@ -1,58 +1,45 @@
-## Problemas identificados
+## Causa
 
-### 1. Mesa de origem continua mostrando valor após transferência
-A trigger `update_comanda_subtotal_trigger` (em `pdv_comanda_items`) só recalcula **uma** comanda por linha:
+Ao "Cancelar mesa" no salão, `useCancelOrder` (em `src/hooks/use-pdv-orders.ts`) só executa:
 
 ```sql
-v_comanda_id := COALESCE(NEW.comanda_id, OLD.comanda_id);
+UPDATE pdv_orders SET status='cancelada', cancelled_at=now()
 ```
 
-Quando o `pdv_transfer_items` faz `UPDATE pdv_comanda_items SET comanda_id = <destino>`, `NEW.comanda_id` é o destino e o `COALESCE` ignora `OLD.comanda_id`. Resultado: a comanda de origem **nunca é recalculada**, então `subtotal` e `pending_subtotal` ficam congelados com o valor antigo — exatamente o que aparece na Mesa 4.
+e em `Salon.tsx` libera a `pdv_tables`. Porém **nada cancela as `pdv_comandas` filhas**. Elas continuam com `status='aberta'` e seus itens (`sent_to_kitchen_at`) seguem aparecendo em `getPendingPaymentComandas()` no caixa.
 
-Além disso, se a transferência esvaziar todas as comandas da mesa de origem, hoje a mesa permanece marcada como `ocupada` com `current_order_id` apontando para o `pdv_orders` antigo, em vez de voltar a `livre`.
-
-### 2. Não dá para nomear a comanda criada na mesa destino
-Quando o destino é uma mesa livre, o RPC `pdv_transfer_items` cria automaticamente uma `pdv_comanda` com nome genérico (`CMD-yyyymmddHH...`) e `customer_name = NULL`. O `TransferItemsDialog` não oferece nenhum campo para nomear essa comanda nova, então o garçom perde a referência do cliente.
+Resultado:
+- A "comanda fantasma" (sem mesa, com pedido cancelado) aparece na fila do salão / é elegível ao atalho F5.
+- Ao apertar F5 em `Cashier.tsx` (linhas 226–244), o handler chama `handleSelectComanda(first, …)` → abre `PaymentDialog`.
+- `PaymentDialog` (efeito da linha 370) imediatamente chama `markAsCharging` para travar `em_cobranca`. Como a comanda referencia um order cancelado e uma mesa já liberada, derivações como `tableComandas`/`liveItemsForPayment` ficam inconsistentes — combinado com realtime do `usePDVComandasRealtime` reinvalidando queries enquanto o `markAsCharging` está em voo, a UI entra num ciclo de re-render que parece "congelar".
 
 ## Correção
 
-### Migration (banco)
+### A. Banco — RPC `pdv_cancel_order` que cascateia (migration)
 
-**A.** Atualizar a função `update_comanda_subtotal` para recalcular **ambas** as comandas envolvidas em um `UPDATE` (origem e destino):
+Criar (e usar) função `public.pdv_cancel_order(p_order_id uuid, p_reason text)` que numa única transação:
 
-```sql
--- recalcula tanto OLD.comanda_id quanto NEW.comanda_id quando diferentes
-FOR v_id IN SELECT DISTINCT unnest(ARRAY[OLD.comanda_id, NEW.comanda_id]) ...
-```
-Isso resolve sozinho o "valor fantasma" da Mesa 4.
+1. Marca `pdv_orders` como `cancelada` (com `cancelled_at`, `cancellation_reason`).
+2. Atualiza todas as `pdv_comandas` desse `order_id` que estejam em `aberta`/`aguardando_pagamento`/`em_cobranca` para `cancelada` (com `updated_at = now()`, `close_reason = p_reason`).
+3. Libera a mesa (`pdv_tables`: `current_order_id = NULL`, `status='livre'`) se ela ainda apontar para esse pedido.
+4. Registra `log_pdv_action('close_attendance', 'order', …)`.
+5. Verifica permissão via `has_pdv_action('cancel_item')` ou similar (papel já permite cancelar pelo caixa/proprietário/gerente).
 
-**B.** Estender `pdv_transfer_items` para, ao final, verificar se a comanda de origem ficou sem itens; se sim, fechá-la (`status = 'cancelada'` ou manter `aberta` mas zerada — manter `aberta` é mais seguro para histórico). E se o `pdv_orders` de origem ficou sem nenhuma comanda com itens, liberar a mesa:
+Bloqueia se houver itens já pagos (`paid_quantity > 0`) ou em cobrança (`charging_session_id IS NOT NULL`) — nesse caso `RAISE EXCEPTION 'Mesa possui itens pagos/em cobrança'`.
 
-```sql
--- após o loop:
-IF NOT EXISTS (SELECT 1 FROM pdv_comanda_items WHERE comanda_id IN (...origem...)) THEN
-   UPDATE pdv_tables
-      SET status = 'livre', current_order_id = NULL, updated_at = now()
-    WHERE current_order_id = v_src_order_id
-      AND NOT EXISTS (SELECT 1 FROM pdv_comanda_items ci
-                      JOIN pdv_comandas c ON c.id = ci.comanda_id
-                      WHERE c.order_id = v_src_order_id);
-   UPDATE pdv_orders SET status='fechado', closed_at=now() WHERE id = v_src_order_id;
-END IF;
-```
+### B. Frontend
 
-**C.** Aceitar um parâmetro opcional `p_target_comanda_name text` que, quando o RPC criar a `pdv_comanda` nova na mesa destino, popula `customer_name`.
+1. `src/hooks/use-pdv-orders.ts` → `cancelOrder` passa a chamar `supabase.rpc('pdv_cancel_order', { p_order_id, p_reason })`. `onSuccess` invalida `pdv-orders`, `pdv-comandas`, `pdv-comanda-items`, `pdv-tables`.
+2. `src/pages/pdv/Salon.tsx` → `handleCancelOrder` deixa de fazer o `updateTable(... livre ...)` manual (RPC já libera).
+3. `src/pages/pdv/Cashier.tsx` → handler `onCancelTable` (linhas 397–404) também passa a chamar a mesma RPC, removendo o loop de `cancelComanda` por comanda.
+4. **Cinto e suspensório** em `getPendingPaymentComandas` (`src/hooks/use-pdv-comandas.ts`): também filtrar comandas cujo `pdv_orders.status === 'cancelada'`. Para isso, juntar com `orders` já carregadas em `usePDVOrders` ou adicionar `cancelled_at`/`order_status` ao select de comandas. Mais simples: no `Cashier.tsx`, ao montar a lista exibida, descartar comandas cujo `order_id` esteja entre `salonOrders.filter(o => o.status === 'cancelada')`.
 
-### Frontend
+### C. Atalho F5 — proteção
 
-**D.** Em `TransferItemsDialog.tsx`, quando o destino selecionado for uma mesa livre (`destination.kind === "table"` e a mesa não tem `current_order_id`), exibir no passo "Confirmar" um `Input` "Nome da comanda (opcional)" — análogo ao `ComandaDialog`. Passar esse valor para `transferItems({ ..., targetComandaName })`.
-
-**E.** Em `use-pdv-comandas.ts`, adicionar `targetComandaName` ao payload do `supabase.rpc("pdv_transfer_items", { ..., p_target_comanda_name })`.
-
-Nada mais muda — invalidações de cache já existem em `usePDVComandas` + realtime em `usePDVComandasRealtime` e atualizarão Mesa 4 e Mesa 5 automaticamente assim que o subtotal correto for gravado.
+Em `Cashier.tsx` (case "F5"): após `getPendingPaymentComandas()`, descartar entradas sem itens vivos (`getItemsByComanda(c.id).length === 0`) antes de escolher a primeira. Garante que mesmo dados em transição (cache invalidando) não levem o dialog para um estado vazio.
 
 ## Verificação
 
-1. Reproduzir Mesa 4 → Mesa 5: a Mesa 4 deve voltar ao status livre (R$ 0,00) imediatamente.
-2. Transferir para mesa livre informando nome "João" → a comanda criada deve aparecer com "João" na Mesa 5.
-3. Conferir `pdv_action_audit_log` continua registrando a transferência.
+1. Cancelar Mesa 4 no salão → ver `pdv_comandas` e `pdv_tables` voltarem a `cancelada` / `livre`.
+2. F5 no caixa logo em seguida → não deve abrir nenhum PaymentDialog se não houver outras pendências; se houver, deve abrir a próxima válida sem travar.
+3. Conferir log em `pdv_action_audit_log` com `action='close_attendance'`, `target_type='order'`.
