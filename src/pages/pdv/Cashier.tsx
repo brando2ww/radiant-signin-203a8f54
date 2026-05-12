@@ -20,6 +20,7 @@ import { EmployeeConsumptionDialog } from "@/components/pdv/cashier/EmployeeCons
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
+import { usePDVOrders } from "@/hooks/use-pdv-orders";
 
 export default function PDVCashier() {
   // Realtime: nova comanda do garçom aparece na fila sem reload
@@ -43,7 +44,11 @@ export default function PDVCashier() {
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
   const { updateTable } = usePDVTables();
+  const { orders, cancelOrder } = usePDVOrders();
   const { all: deliveryOrders } = usePDVDeliveryQueue();
+  const cancelledOrderIds = new Set(
+    (orders || []).filter((o: any) => o.status === "cancelada").map((o: any) => o.id),
+  );
 
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
@@ -228,7 +233,12 @@ export default function PDVCashier() {
           if (activeSession) {
             // Atalho rápido: cobra a comanda mais antiga da fila do salão.
             // Se a fila estiver vazia, abre o dialog de cobrança avulsa/mesa direta.
-            const pending = getPendingPaymentComandas();
+            const pending = getPendingPaymentComandas().filter((c) => {
+              // Defesa: ignora comandas cujo pedido foi cancelado e
+              // comandas sem itens vivos (em transição/realtime).
+              if (c.order_id && cancelledOrderIds.has(c.order_id)) return false;
+              return getItemsByComanda(c.id).length > 0;
+            });
             if (pending.length > 0) {
               const sorted = [...pending].sort((a, b) => {
                 const at = new Date(a.closed_by_waiter_at ?? a.updated_at).getTime();
@@ -394,12 +404,9 @@ export default function PDVCashier() {
           cancelComanda(comandaId);
           setChargeDialog(false);
         }}
-        onCancelTable={(tableId, orderId) => {
-          // Cancel all comandas of the table
-          const tableComandas = comandas.filter(c => c.order_id === orderId && c.status === "aberta");
-          tableComandas.forEach(c => cancelComanda(c.id));
-          // Release table
-          updateTable({ id: tableId, updates: { status: "livre", current_order_id: null } });
+        onCancelTable={(_tableId, orderId) => {
+          // RPC pdv_cancel_order cancela comandas e libera a mesa numa transação
+          cancelOrder({ id: orderId, reason: "Cancelado pelo caixa" });
           setChargeDialog(false);
         }}
       />

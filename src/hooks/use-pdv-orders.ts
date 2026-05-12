@@ -332,23 +332,19 @@ export function usePDVOrders() {
 
   const cancelOrder = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { data, error } = await supabase
-        .from("pdv_orders")
-        .update({
-          status: "cancelada",
-          cancelled_at: new Date().toISOString(),
-          cancellation_reason: reason,
-        })
-        .eq("id", id)
-        .select()
-        .single();
-
+      const { data, error } = await supabase.rpc("pdv_cancel_order", {
+        p_order_id: id,
+        p_reason: reason,
+      });
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-orders"] });
-      toast.success("Pedido cancelado");
+      queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+      toast.success("Mesa cancelada");
     },
     onError: (error: any) => {
       toast.error("Erro ao cancelar pedido: " + error.message);

@@ -7359,6 +7359,10 @@ export type Database = {
         Returns: string
       }
       pdv_assign_order_ticket: { Args: { p_order_id: string }; Returns: number }
+      pdv_cancel_order: {
+        Args: { p_order_id: string; p_reason?: string }
+        Returns: Json
+      }
       pdv_change_table: {
         Args: {
           p_reason?: string
