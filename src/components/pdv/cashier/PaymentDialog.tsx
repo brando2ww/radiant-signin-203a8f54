@@ -215,11 +215,26 @@ export function PaymentDialog({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [addItemQty, setAddItemQty] = useState("1");
   const [addItemNotes, setAddItemNotes] = useState("");
+  const paymentContentRef = useRef<HTMLDivElement | null>(null);
+
+  const resetNestedPaymentState = () => {
+    setItemToRemove(null);
+    setAddItemDialogOpen(false);
+    setProductSearch("");
+    setSelectedProductId(null);
+    setAddItemQty("1");
+    setAddItemNotes("");
+    setSelectedItemQtys(new Map());
+    setOptimisticallyRemoved(new Set());
+    setShowSuccess(false);
+    setSuccessData(null);
+    setNfceState({ kind: "idle" });
+  };
 
   // Limpa o set de remoções otimistas quando o dialog fecha,
   // evitando vazamento entre aberturas consecutivas.
   useEffect(() => {
-    if (!open) setOptimisticallyRemoved(new Set());
+    if (!open) resetNestedPaymentState();
   }, [open]);
 
   // Comandas envolvidas neste pagamento (1 ou várias)
@@ -261,6 +276,15 @@ export function PaymentDialog({
     : (isTablePayment
         ? tableComandas.reduce((sum, c) => sum + c.subtotal, 0)
         : (comanda?.subtotal || 0));
+
+  useEffect(() => {
+    if (!open || showSuccess) return;
+    const hasPaymentContext = !!comanda || !!table;
+    if (!hasPaymentContext || displayItems.length === 0 || fullSubtotal <= 0) {
+      toast.warning("Não há itens pendentes para cobrar.");
+      onOpenChange(false);
+    }
+  }, [open, showSuccess, comanda, table, displayItems.length, fullSubtotal, onOpenChange]);
 
   // Pagamento parcial (modo by-product) é suportado apenas quando temos itens reais persistidos.
   const supportsByProduct = liveItemsForPayment.length > 0 && !isTablePayment;
@@ -824,8 +848,8 @@ export function PaymentDialog({
     const nfceEnabled = !!settings?.nfe_enable_nfce;
     const nfceConfigured = nfceEnabled && !!settings?.nfe_certificate_url && !!settings?.nfe_csc_id && !!settings?.nfe_csc_token;
     return (
-      <Dialog open={open} onOpenChange={(o) => { if (!o) handleFinish(); }}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog modal={false} open={open} onOpenChange={(o) => { if (!o) handleFinish(); }}>
+        <DialogContent hideOverlay className="sm:max-w-md">
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -958,8 +982,10 @@ export function PaymentDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={paymentContentRef}
+        hideOverlay
         className="sm:max-w-3xl max-h-[90vh] overflow-hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
@@ -1691,7 +1717,7 @@ export function PaymentDialog({
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent container={paymentContentRef.current}>
                             {paymentMethods.map((m) => (
                               <SelectItem key={m.id} value={m.id}>
                                 <div className="flex items-center gap-2">
@@ -1949,7 +1975,7 @@ export function PaymentDialog({
                             <SelectTrigger className="h-12">
                               <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent container={paymentContentRef.current}>
                               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => (
                                 <SelectItem key={i} value={String(i)}>
                                   <span className="font-medium">{i}x</span>{" "}
@@ -2025,7 +2051,7 @@ export function PaymentDialog({
 
     {/* Confirmação de remoção de item */}
     <AlertDialog open={!!itemToRemove} onOpenChange={(o) => { if (!o) setItemToRemove(null); }}>
-      <AlertDialogContent>
+      <AlertDialogContent hideOverlay container={paymentContentRef.current}>
         <AlertDialogHeader>
           <AlertDialogTitle>Remover item?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -2076,8 +2102,20 @@ export function PaymentDialog({
     </AlertDialog>
 
     {/* Dialog para adicionar item */}
-    <Dialog open={addItemDialogOpen} onOpenChange={setAddItemDialogOpen}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog
+      modal={false}
+      open={addItemDialogOpen}
+      onOpenChange={(next) => {
+        setAddItemDialogOpen(next);
+        if (!next) {
+          setProductSearch("");
+          setSelectedProductId(null);
+          setAddItemQty("1");
+          setAddItemNotes("");
+        }
+      }}
+    >
+      <DialogContent hideOverlay container={paymentContentRef.current} className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -99,6 +99,7 @@ export function ChargeSelectionDialog({
   const [sortBy, setSortBy] = useState<SortOption>("time");
   const [cancelTarget, setCancelTarget] = useState<{ type: "comanda" | "table"; id: string; orderId?: string; label: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const dialogContentRef = useRef<HTMLDivElement | null>(null);
 
   const {
     comandas,
@@ -106,6 +107,13 @@ export function ChargeSelectionDialog({
     getStandaloneComandas,
   } = usePDVComandas();
   const { tables } = usePDVTables();
+
+  useEffect(() => {
+    if (!open) {
+      setCancelTarget(null);
+      setCancelReason("");
+    }
+  }, [open]);
 
   const standaloneComandas = getStandaloneComandas();
   const occupiedTables = tables.filter(
@@ -198,8 +206,8 @@ export function ChargeSelectionDialog({
 
   return (
     <>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+    <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+      <DialogContent ref={dialogContentRef} hideOverlay className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
@@ -226,7 +234,7 @@ export function ChargeSelectionDialog({
               <ArrowUpDown className="h-4 w-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent container={dialogContentRef.current}>
               <SelectItem value="time">Mais recente</SelectItem>
               <SelectItem value="value">Maior valor</SelectItem>
               <SelectItem value="number">Número</SelectItem>
@@ -477,7 +485,7 @@ export function ChargeSelectionDialog({
     </Dialog>
 
     <AlertDialog open={!!cancelTarget} onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelReason(""); } }}>
-      <AlertDialogContent>
+      <AlertDialogContent hideOverlay container={dialogContentRef.current}>
         <AlertDialogHeader>
           <AlertDialogTitle>Cancelar {cancelTarget?.label}?</AlertDialogTitle>
           <AlertDialogDescription>

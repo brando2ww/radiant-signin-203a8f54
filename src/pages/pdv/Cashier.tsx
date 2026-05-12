@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -43,18 +43,24 @@ export default function PDVCashier() {
   } = usePDVCashier();
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
-  const { tables, updateTable } = usePDVTables();
+  const { tables } = usePDVTables();
   const { orders, cancelOrder } = usePDVOrders();
   const { all: deliveryOrders } = usePDVDeliveryQueue();
-  const inactiveOrderIds = new Set(
-    (orders || [])
-      .filter((o: any) => ["cancelada", "fechada", "fechado"].includes(o.status))
-      .map((o: any) => o.id),
+  const inactiveOrderIds = useMemo(
+    () => new Set(
+      (orders || [])
+        .filter((o: any) => ["cancelada", "fechada", "fechado"].includes(o.status))
+        .map((o: any) => o.id),
+    ),
+    [orders],
   );
-  const liveTableOrderIds = new Set(
-    (tables || [])
-      .map((t: any) => t.current_order_id)
-      .filter((id: string | null): id is string => !!id),
+  const liveTableOrderIds = useMemo(
+    () => new Set(
+      (tables || [])
+        .map((t: any) => t.current_order_id)
+        .filter((id: string | null): id is string => !!id),
+    ),
+    [tables],
   );
 
   const [openDialog, setOpenDialog] = useState(false);
@@ -73,6 +79,8 @@ export default function PDVCashier() {
   const [selectedTable, setSelectedTable] = useState<PDVTable | null>(null);
   const [selectedTableComandas, setSelectedTableComandas] = useState<Comanda[]>([]);
   const [selectedTableItems, setSelectedTableItems] = useState<ComandaItem[]>([]);
+  const paymentOpenTimerRef = useRef<number | null>(null);
+  const isOpeningPaymentRef = useRef(false);
 
   const handleOpenCashier = (openingBalance: number) => {
     openCashier({ openingBalance });
@@ -117,6 +125,36 @@ export default function PDVCashier() {
     setCloseDialog(true);
   };
 
+  const openPaymentDeferred = () => {
+    if (paymentOpenTimerRef.current !== null) {
+      window.clearTimeout(paymentOpenTimerRef.current);
+    }
+    isOpeningPaymentRef.current = true;
+    setPaymentDialog(false);
+    paymentOpenTimerRef.current = window.setTimeout(() => {
+      setPaymentDialog(true);
+      isOpeningPaymentRef.current = false;
+      paymentOpenTimerRef.current = null;
+    }, 0);
+  };
+
+  const handlePaymentOpenChange = (open: boolean) => {
+    if (!open && paymentOpenTimerRef.current !== null) {
+      window.clearTimeout(paymentOpenTimerRef.current);
+      paymentOpenTimerRef.current = null;
+      isOpeningPaymentRef.current = false;
+    }
+    setPaymentDialog(open);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (paymentOpenTimerRef.current !== null) {
+        window.clearTimeout(paymentOpenTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleSelectComanda = (comanda: Comanda, items: ComandaItem[]) => {
     setSelectedComanda(comanda);
     setSelectedComandaItems(items);
@@ -125,7 +163,7 @@ export default function PDVCashier() {
     setSelectedTableItems([]);
     setPaymentSplitByComanda(false);
     setChargeDialog(false);
-    setPaymentDialog(true);
+    openPaymentDeferred();
   };
 
   const handleSelectTable = (table: PDVTable, comandas: Comanda[], items: ComandaItem[]) => {
@@ -136,7 +174,7 @@ export default function PDVCashier() {
     setSelectedComandaItems([]);
     setPaymentSplitByComanda(false);
     setChargeDialog(false);
-    setPaymentDialog(true);
+    openPaymentDeferred();
   };
 
   const handleSelectTablePending = (table: PDVTable, comandas: Comanda[], items: ComandaItem[]) => {
@@ -147,7 +185,7 @@ export default function PDVCashier() {
     setSelectedComandaItems([]);
     setPaymentSplitByComanda(comandas.length > 1);
     setChargeDialog(false);
-    setPaymentDialog(true);
+    openPaymentDeferred();
   };
 
   const handlePaymentSuccess = () => {
@@ -215,7 +253,7 @@ export default function PDVCashier() {
       }
 
       // Ignorar se estiver processando
-      const isProcessing = isOpeningCashier || isClosingCashier || isAddingMovement;
+      const isProcessing = isOpeningCashier || isClosingCashier || isAddingMovement || isOpeningPaymentRef.current;
       if (isProcessing) return;
 
       switch (e.key) {
@@ -258,7 +296,7 @@ export default function PDVCashier() {
               const first = sorted[0];
               handleSelectComanda(first, getItemsByComanda(first.id));
             } else {
-              setChargeDialog(true);
+              window.setTimeout(() => setChargeDialog(true), 0);
             }
           }
           break;
@@ -271,7 +309,7 @@ export default function PDVCashier() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement]);
+  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
 
   if (isLoading) {
     return (
@@ -353,7 +391,7 @@ export default function PDVCashier() {
               onCloseCashier={handleTryCloseCashier}
               onAddReinforcement={() => handleOpenMovementDialog("reforco")}
               onAddWithdrawal={() => handleOpenMovementDialog("sangria")}
-              onCharge={() => setChargeDialog(true)}
+              onCharge={() => window.setTimeout(() => setChargeDialog(true), 0)}
               onShowHelp={() => setShortcutsDialog(true)}
               onReprintLast={lastClosedSession ? handleReprintLastCashier : undefined}
               onEmployeeConsumption={() => setEmployeeDialog(true)}
@@ -367,7 +405,7 @@ export default function PDVCashier() {
             isOpen={!!activeSession}
             onSelectComanda={handleSelectComanda}
             onSelectTablePending={handleSelectTablePending}
-            onOpenDirectCharge={() => setChargeDialog(true)}
+              onOpenDirectCharge={() => window.setTimeout(() => setChargeDialog(true), 0)}
           />
         </Card>
       </div>
@@ -423,7 +461,7 @@ export default function PDVCashier() {
 
       <PaymentDialog
         open={paymentDialog}
-        onOpenChange={setPaymentDialog}
+        onOpenChange={handlePaymentOpenChange}
         comanda={selectedComanda}
         items={selectedComandaItems}
         table={selectedTable}
