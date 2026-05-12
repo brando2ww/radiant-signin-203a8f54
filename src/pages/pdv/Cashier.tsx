@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -43,18 +43,24 @@ export default function PDVCashier() {
   } = usePDVCashier();
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
-  const { tables, updateTable } = usePDVTables();
+  const { tables } = usePDVTables();
   const { orders, cancelOrder } = usePDVOrders();
   const { all: deliveryOrders } = usePDVDeliveryQueue();
-  const inactiveOrderIds = new Set(
-    (orders || [])
-      .filter((o: any) => ["cancelada", "fechada", "fechado"].includes(o.status))
-      .map((o: any) => o.id),
+  const inactiveOrderIds = useMemo(
+    () => new Set(
+      (orders || [])
+        .filter((o: any) => ["cancelada", "fechada", "fechado"].includes(o.status))
+        .map((o: any) => o.id),
+    ),
+    [orders],
   );
-  const liveTableOrderIds = new Set(
-    (tables || [])
-      .map((t: any) => t.current_order_id)
-      .filter((id: string | null): id is string => !!id),
+  const liveTableOrderIds = useMemo(
+    () => new Set(
+      (tables || [])
+        .map((t: any) => t.current_order_id)
+        .filter((id: string | null): id is string => !!id),
+    ),
+    [tables],
   );
 
   const [openDialog, setOpenDialog] = useState(false);
@@ -73,6 +79,8 @@ export default function PDVCashier() {
   const [selectedTable, setSelectedTable] = useState<PDVTable | null>(null);
   const [selectedTableComandas, setSelectedTableComandas] = useState<Comanda[]>([]);
   const [selectedTableItems, setSelectedTableItems] = useState<ComandaItem[]>([]);
+  const paymentOpenTimerRef = useRef<number | null>(null);
+  const isOpeningPaymentRef = useRef(false);
 
   const handleOpenCashier = (openingBalance: number) => {
     openCashier({ openingBalance });
