@@ -1,65 +1,57 @@
-## Adicionar tipo de pergunta "Texto livre" nas campanhas de Avaliações
+## Diagnóstico
 
-### 1. Banco de dados (migração)
+O upload de fotos no módulo de Checklists falha com erro de RLS no Storage.
 
-Adicionar colunas em `evaluation_campaign_questions`:
-- `placeholder text` — texto de exemplo da caixa
-- `is_required boolean DEFAULT false` — resposta obrigatória
-- `max_length integer DEFAULT 500` — limite de caracteres
+**Causa raiz:** O bucket `checklist-evidence` tem políticas de Storage restritas ao role `authenticated`:
 
-Adicionar coluna em `evaluation_answers`:
-- `text_answer text` — resposta digitada pelo cliente
+- INSERT/UPDATE/DELETE → apenas `authenticated`
+- SELECT → `public` (ok)
 
-Sem alteração de RLS (políticas existentes cobrem as novas colunas).
+Porém os checklists são executados pela página **`/PublicChecklistAccess`** (acesso por QR Code + PIN do operador), que **não autentica** no Supabase — a sessão é anônima (`anon`). Resultado: `new row violates row-level security policy` ao chamar `supabase.storage.from("checklist-evidence").upload(...)` em `src/components/pdv/checklists/execution/ExecutionItemRenderer.tsx:73`.
 
-### 2. Configuração da campanha (admin)
+Não existe Edge Function ligada a esse fluxo (a menção a "edge functions" no relato parece referir-se ao endpoint `/storage/v1` do Supabase, que retorna 403 nesse caso).
 
-`src/components/pdv/evaluations/QuestionFormDialog.tsx`:
-- Novo tipo `free_text` no array `QUESTION_TYPES` (ícone `MessageSquare`, descrição "Cliente escreve livremente").
-- Novos campos quando `type === 'free_text'`:
-  - Input "Placeholder" (opcional, maxLength 100)
-  - Switch "Resposta obrigatória" (default off)
-  - Input numérico "Tamanho máximo" (default 500, max 2000)
-- `canSubmit`: para `free_text` exige apenas texto da pergunta (sem opções).
-- Pré-visualização: textarea desabilitada com o placeholder configurado e contador discreto.
+## Correção proposta (migration de Storage)
 
-`src/components/pdv/evaluations/CampaignQuestionManager.tsx`:
-- Adicionar entrada em `QUESTION_TYPE_LABELS` para `free_text` (ícone `MessageSquare`, label "Texto livre").
-- Repassar/aceitar os novos campos `placeholder`, `is_required`, `max_length` no fluxo de criar/editar.
+Ajustar as políticas do bucket `checklist-evidence` para permitir uploads/atualizações/deletes também ao role `anon`, mantendo o caminho `{ownerUserId}/{executionId}/{itemId}.{ext}` (pasta = user_id do dono do checklist).
 
-`src/hooks/use-evaluation-campaigns.ts`:
-- Tipos e mutations (create/update) aceitam `placeholder`, `is_required`, `max_length`.
-- No mapping enriquecido das respostas, propagar esses campos.
+```sql
+-- INSERT: anon + authenticated
+DROP POLICY IF EXISTS checklist_evidence_insert ON storage.objects;
+CREATE POLICY checklist_evidence_insert
+  ON storage.objects FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (bucket_id = 'checklist-evidence');
 
-### 3. Formulário público (`src/pages/PublicEvaluation.tsx` + `src/hooks/use-public-evaluation.ts`)
+-- UPDATE (necessário para upsert: true)
+DROP POLICY IF EXISTS checklist_evidence_update ON storage.objects;
+CREATE POLICY checklist_evidence_update
+  ON storage.objects FOR UPDATE
+  TO anon, authenticated
+  USING (bucket_id = 'checklist-evidence')
+  WITH CHECK (bucket_id = 'checklist-evidence');
 
-- `usePublicCampaignQuestions` deve trazer também `question_type`, `placeholder`, `is_required`, `max_length` (já trazia; confirmar no select).
-- Estado `answers[questionId]` ganha campo `textAnswer: string`.
-- Renderização para `qType === 'free_text'`:
-  - Título com sufixo "(opcional)" quando não obrigatória.
-  - `<Textarea>` com placeholder configurado e `maxLength={max_length}`.
-  - Contador "X/MAX" discreto abaixo.
-  - Validação inline "Por favor, responda esta pergunta" se obrigatória e vazia ao tentar enviar.
-- `allQuestionsAnswered`/`progress` consideram texto preenchido (quando obrigatória) ou sempre verdadeiro (quando opcional).
-- Submit envia `text_answer` no payload de `evaluation_answers` (score = 0, selected_options = null).
+-- DELETE (limpeza pelo painel autenticado)
+DROP POLICY IF EXISTS checklist_evidence_delete ON storage.objects;
+CREATE POLICY checklist_evidence_delete
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'checklist-evidence');
+```
 
-`useSubmitCampaignEvaluation` (em `use-evaluation-campaigns.ts`): aceitar e gravar `text_answer` em cada answer.
+SELECT permanece público (URLs já são `getPublicUrl`).
 
-### 4. Relatórios / Respostas
+## Considerações de segurança
 
-`src/components/evaluations/AnswerValue.tsx`:
-- Novo branch para `type === 'free_text'`: renderizar a string `text_answer` em bloco citável (como o `comment` atual, ícone `MessageSquare`). Sem médias nem gráficos.
+- O bucket é dedicado a evidências de checklist; não contém PII sensível.
+- O acesso anônimo é intencional: o operador não tem conta Supabase, autentica-se via PIN no app.
+- Mantemos DELETE restrito a `authenticated` para evitar remoção indevida de evidências.
+- Caminho continua sob `{owner_user_id}/...`, o que limita colisões e facilita auditoria.
 
-`src/hooks/use-evaluation-report-helpers.ts`:
-- Mapa de info de pergunta inclui `type === 'free_text'` (já genérico — apenas garantir que não seja agregado em médias).
+## Validação
 
-Componentes de agregação (`NpsPerQuestion`, dashboards): pular perguntas `free_text` ao calcular médias/gráficos.
+1. Aplicar migration.
+2. Abrir `/checklist/<token>` (público), digitar PIN, executar item com foto.
+3. Confirmar 200 no `POST /storage/v1/object/checklist-evidence/...` e foto visível na galeria de evidências (`/pdv/checklists` → Evidências).
 
-Exportação CSV (onde existir, ex. `src/lib/export-utils.ts` se aplicável a respostas): incluir coluna com `text_answer` quando o tipo for `free_text`.
-
-### Detalhes técnicos
-
-- Novas colunas são nullable / com defaults seguros para não quebrar perguntas existentes.
-- Tipo `question_type` continua `text` (sem enum), aceitando o valor `'free_text'`.
-- Score gravado como 0 e `selected_options` como `null` para respostas de texto, mantendo a constraint `score >= 0 AND score <= 10`.
-- Validação client-side com `maxLength` no `<Textarea>`; sanitização padrão do React (sem `dangerouslySetInnerHTML`).
+Sem alterações de código no frontend.
