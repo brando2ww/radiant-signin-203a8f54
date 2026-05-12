@@ -7390,16 +7390,28 @@ export type Database = {
         Args: { p_item_id: string; p_qty: number }
         Returns: string
       }
-      pdv_transfer_items: {
-        Args: {
-          p_item_ids: string[]
-          p_qty_map: Json
-          p_reason?: string
-          p_target_id: string
-          p_target_kind: string
-        }
-        Returns: Json
-      }
+      pdv_transfer_items:
+        | {
+            Args: {
+              p_item_ids: string[]
+              p_qty_map: Json
+              p_reason?: string
+              p_target_id: string
+              p_target_kind: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_item_ids: string[]
+              p_qty_map: Json
+              p_reason?: string
+              p_target_comanda_name?: string
+              p_target_id: string
+              p_target_kind: string
+            }
+            Returns: Json
+          }
       pdv_unlock_comanda_items: {
         Args: { p_item_ids: string[]; p_session_id: string }
         Returns: undefined

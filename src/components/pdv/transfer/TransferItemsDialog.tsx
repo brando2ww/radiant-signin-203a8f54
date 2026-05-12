@@ -63,6 +63,7 @@ export function TransferItemsDialog({
   const [expandedTableId, setExpandedTableId] = useState<string | null>(null);
   // qtyMap unifica IDs de sent items (uuid do banco) e drafts (draftId).
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({});
+  const [targetComandaName, setTargetComandaName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const hasDrafts = draftItems.length > 0;
@@ -100,6 +101,7 @@ export function TransferItemsDialog({
       setSearch("");
       setDestination(null);
       setExpandedTableId(null);
+      setTargetComandaName("");
     }
     onOpenChange(next);
   };
@@ -228,6 +230,7 @@ export function TransferItemsDialog({
           targetId:
             destination.kind === "comanda" ? destination.comandaId : destination.tableId,
           qtyMap: Object.keys(sentQtyMap).length ? sentQtyMap : undefined,
+          targetComandaName: targetComandaName.trim() || null,
         });
       }
 
@@ -639,9 +642,23 @@ export function TransferItemsDialog({
                 </div>
               )}
 
+              {destination.kind === "table" && targetTable && !targetTable.current_order_id && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Nome da comanda (opcional)
+                  </label>
+                  <Input
+                    value={targetComandaName}
+                    onChange={(e) => setTargetComandaName(e.target.value)}
+                    placeholder="Ex.: João, Mesa do fundo…"
+                    disabled={isBusy}
+                  />
+                </div>
+              )}
+
               <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
                 Esta ação é registrada no log de auditoria e atualiza os subtotais imediatamente.
-                A comanda de origem permanecerá aberta mesmo se ficar vazia.
+                Se a mesa de origem ficar vazia, ela será liberada automaticamente.
               </div>
             </div>
 
