@@ -404,12 +404,9 @@ export default function PDVCashier() {
           cancelComanda(comandaId);
           setChargeDialog(false);
         }}
-        onCancelTable={(tableId, orderId) => {
-          // Cancel all comandas of the table
-          const tableComandas = comandas.filter(c => c.order_id === orderId && c.status === "aberta");
-          tableComandas.forEach(c => cancelComanda(c.id));
-          // Release table
-          updateTable({ id: tableId, updates: { status: "livre", current_order_id: null } });
+        onCancelTable={(_tableId, orderId) => {
+          // RPC pdv_cancel_order cancela comandas e libera a mesa numa transação
+          cancelOrder({ id: orderId, reason: "Cancelado pelo caixa" });
           setChargeDialog(false);
         }}
       />
