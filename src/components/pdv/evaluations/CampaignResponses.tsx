@@ -198,6 +198,7 @@ export function CampaignResponses({ campaignId }: Props) {
                         score={answer.score}
                         selectedOptions={answer.selected_options}
                         comment={answer.comment}
+                        textAnswer={answer.text_answer}
                       />
                     </div>
                   ))}
