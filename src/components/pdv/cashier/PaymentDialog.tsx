@@ -215,11 +215,26 @@ export function PaymentDialog({
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [addItemQty, setAddItemQty] = useState("1");
   const [addItemNotes, setAddItemNotes] = useState("");
+  const paymentContentRef = useRef<HTMLDivElement | null>(null);
+
+  const resetNestedPaymentState = () => {
+    setItemToRemove(null);
+    setAddItemDialogOpen(false);
+    setProductSearch("");
+    setSelectedProductId(null);
+    setAddItemQty("1");
+    setAddItemNotes("");
+    setSelectedItemQtys(new Map());
+    setOptimisticallyRemoved(new Set());
+    setShowSuccess(false);
+    setSuccessData(null);
+    setNfceState({ kind: "idle" });
+  };
 
   // Limpa o set de remoções otimistas quando o dialog fecha,
   // evitando vazamento entre aberturas consecutivas.
   useEffect(() => {
-    if (!open) setOptimisticallyRemoved(new Set());
+    if (!open) resetNestedPaymentState();
   }, [open]);
 
   // Comandas envolvidas neste pagamento (1 ou várias)
