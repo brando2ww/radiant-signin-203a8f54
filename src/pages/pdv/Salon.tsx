@@ -378,17 +378,11 @@ export default function PDVSalon() {
   };
 
   const handleCancelOrder = (id: string, reason: string) => {
-    const order = salonOrders.find((o) => o.id === id);
     cancelOrder(
       { id, reason },
       {
         onSuccess: () => {
-          if (order?.table_id) {
-            updateTable({
-              id: order.table_id,
-              updates: { status: "livre", current_order_id: null },
-            });
-          }
+          // RPC pdv_cancel_order já libera a mesa e cancela comandas filhas
           setOrderDetailsOpen(false);
         },
       }
