@@ -43,7 +43,11 @@ export default function PDVCashier() {
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
   const { updateTable } = usePDVTables();
+  const { orders, cancelOrder } = usePDVOrders();
   const { all: deliveryOrders } = usePDVDeliveryQueue();
+  const cancelledOrderIds = new Set(
+    (orders || []).filter((o: any) => o.status === "cancelada").map((o: any) => o.id),
+  );
 
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
