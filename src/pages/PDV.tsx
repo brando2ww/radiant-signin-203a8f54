@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { ModuleGuard } from "@/components/ModuleGuard";
 import { PDVHeaderNav } from "@/components/pdv/PDVHeaderNav";
 import { PDVUserMenu } from "@/components/pdv/PDVUserMenu";
