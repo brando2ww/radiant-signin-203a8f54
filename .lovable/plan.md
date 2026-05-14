@@ -1,21 +1,38 @@
-## Objetivo
+## Diagnóstico
 
-Atualmente, em `/pdv/tarefas`, o menu lateral de seções (Painel, Checklists, Agendamento, Equipe, etc.) rola junto com a página. No módulo de Avaliações o menu permanece visível porque está dentro de um header `sticky top-0`. Quero replicar esse comportamento no módulo de Tarefas/Checklists, mantendo o layout vertical já validado.
+A tentativa anterior (`sticky top-14`) não funciona porque o `<main>` do PDV (`src/pages/PDV.tsx` linha 93) usa `flex-1 overflow-auto`, então o scroll acontece dentro do `<main>`, não do body. O `sticky` da sidebar é relativo a esse container, mas o header global está fora dele — `top-14` empurra a sidebar para fora da viewport.
+
+A página de Avaliações resolve isso de outro jeito: o `<main>` recebe um modo especial (`h-[calc(100vh-3.5rem)] overflow-hidden`) e o `EvaluationsLayout` cria um flex de altura fixa com sidebar `h-full overflow-y-auto` e conteúdo `flex-1 h-full overflow-y-auto`. Assim a sidebar nunca rola.
+
+Vou replicar exatamente esse padrão para `/pdv/tarefas`.
 
 ## Mudanças
 
+### `src/pages/PDV.tsx`
+
+- Trocar `const isEvaluations = pathname.startsWith("/pdv/avaliacoes")` por uma flag genérica que também ative para a rota raiz `/pdv/tarefas` (mantendo scroll padrão para `tarefas/checklists/...`):
+  ```ts
+  const isFixedHeight =
+    pathname.startsWith("/pdv/avaliacoes") ||
+    pathname === "/pdv/tarefas" || pathname === "/pdv/tarefas/";
+  ```
+- Usar `isFixedHeight` no `className` do `<main>`.
+
 ### `src/pages/pdv/Tasks.tsx`
 
-1. **Sidebar desktop fixa**: adicionar `sticky top-14 self-start max-h-[calc(100vh-3.5rem)] overflow-y-auto` à `<nav>` desktop (linha 92) para que ela acompanhe a rolagem mas permaneça visível abaixo do header global de altura `h-14`.
-2. **Container raiz**: trocar `overflow-auto` da área de conteúdo (linha 115) por scroll natural da página, garantindo que o `sticky` do sidebar funcione (o scroll precisa ser do `body`, não do filho).
-3. **Nav mobile sticky**: tornar a `<nav>` mobile (linha 122) `sticky top-14 z-30 bg-background -mx-4 px-4 py-2 border-b` para o mesmo efeito em telas pequenas.
+Reestruturar o layout para espelhar `EvaluationsLayout`:
+
+- Container raiz: `flex h-[calc(100vh-3.5rem)]` (em vez de `min-h-...`).
+- Sidebar desktop: remover `sticky/top-14/max-h`, manter `hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-1 h-full overflow-y-auto`.
+- Área de conteúdo: `flex-1 min-w-0 h-full overflow-y-auto` com padding interno.
+- Mover `<ResponsivePageHeader>` para dentro da área de conteúdo (já está).
+- Nav mobile: manter no topo da área de conteúdo, sem `sticky`, com `border-b bg-card` (igual ao EvaluationsLayout).
 
 ### Sem mudanças em
 
-- Estrutura/ordem dos itens do menu.
-- Lógica de `activeSection` ou roteamento.
-- Componentes filhos renderizados em `renderContent()`.
+- Itens de menu, lógica de `activeSection`, `renderContent()`.
+- Rotas filhas (`tarefas/checklists/novo`, `tarefas/checklists/:id`) continuam usando o `<main>` com scroll padrão.
 
-## Resultado esperado
+## Resultado
 
-Ao rolar qualquer seção (ex.: Checklists com muitos cards, Logs, Evidências), o menu lateral continua visível e clicável, igual ao header sticky de Avaliações.
+A sidebar de Tarefas/Checklists fica realmente fixa enquanto o conteúdo rola, idêntico ao módulo de Avaliações.

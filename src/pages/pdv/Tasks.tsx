@@ -87,9 +87,9 @@ export default function Tasks() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100vh-3.5rem)]">
       {/* Desktop sidebar */}
-      <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-1 sticky top-14 self-start max-h-[calc(100vh-3.5rem)] overflow-y-auto">
+      <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-1 h-full overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.key;
@@ -112,14 +112,9 @@ export default function Tasks() {
       </nav>
 
       {/* Content area */}
-      <div className="flex-1 min-w-0 p-4 md:p-6 space-y-4">
-        <ResponsivePageHeader
-          title="Checklists Operacionais"
-          description="Gestão completa de checklists, equipe e agendamentos"
-        />
-
+      <div className="flex-1 min-w-0 h-full overflow-y-auto">
         {/* Mobile nav */}
-        <nav className="flex md:hidden gap-2 overflow-x-auto pb-2 -mx-4 px-4 py-2 scrollbar-hide sticky top-14 z-30 bg-background border-b">
+        <nav className="flex md:hidden gap-2 overflow-x-auto p-3 scrollbar-hide border-b border-border bg-card">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.key;
@@ -141,7 +136,11 @@ export default function Tasks() {
           })}
         </nav>
 
-        <div className="min-w-0">
+        <div className="p-4 md:p-6 space-y-4 min-w-0">
+          <ResponsivePageHeader
+            title="Checklists Operacionais"
+            description="Gestão completa de checklists, equipe e agendamentos"
+          />
           {renderContent()}
         </div>
       </div>
