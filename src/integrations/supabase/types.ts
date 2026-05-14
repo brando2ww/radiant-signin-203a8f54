@@ -495,6 +495,7 @@ export type Database = {
           id: string
           reviewer_id: string | null
           status: Database["public"]["Enums"]["evidence_review_status"]
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -504,6 +505,7 @@ export type Database = {
           id?: string
           reviewer_id?: string | null
           status?: Database["public"]["Enums"]["evidence_review_status"]
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -513,13 +515,14 @@ export type Database = {
           id?: string
           reviewer_id?: string | null
           status?: Database["public"]["Enums"]["evidence_review_status"]
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "checklist_evidence_reviews_execution_item_id_fkey"
             columns: ["execution_item_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "checklist_execution_items"
             referencedColumns: ["id"]
           },
