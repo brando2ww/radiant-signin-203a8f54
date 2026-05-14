@@ -100,9 +100,9 @@ export default function EvaluationsLayout() {
   const isActive = useIsActive();
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)]">
+    <div className="flex h-[calc(100vh-3.5rem)]">
       {/* Desktop sidebar */}
-      <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-3 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto">
+      <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-3 h-full overflow-y-auto">
         {SECTIONS.map((section, idx) => (
           <div key={idx} className="flex flex-col gap-1">
             {section.title && (
@@ -134,7 +134,7 @@ export default function EvaluationsLayout() {
       </nav>
 
       {/* Content area */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 h-full overflow-y-auto">
         {/* Mobile nav */}
         <nav className="flex md:hidden gap-2 overflow-x-auto p-3 scrollbar-hide border-b border-border bg-card">
           {FLAT_ITEMS.map((item) => {

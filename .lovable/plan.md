@@ -1,21 +1,22 @@
-## Sidebar fixa no módulo de Avaliações
+Plano para corrigir o menu lateral do módulo de Avaliações:
 
-Tornar o menu lateral do `EvaluationsLayout` fixo (sticky) ao rolar o conteúdo, sem afetar o layout em mobile.
+1. Ajustar o contêiner principal do PDV
+- O problema ocorre porque o scroll real está em `<main className="flex-1 overflow-auto">`, não na janela.
+- Como o `sticky` do menu de Avaliações está tentando se prender ao viewport, ele não acompanha corretamente esse contêiner rolável.
 
-### Mudança
+2. Aplicar a correção apenas na rota de Avaliações
+- Detectar quando a rota atual estiver em `/pdv/avaliacoes`.
+- Nessa rota, trocar o comportamento do `<main>` para um layout com altura fixa abaixo do header: `h-[calc(100vh-3.5rem)] overflow-hidden`.
+- Assim, o módulo de Avaliações passa a controlar internamente a rolagem.
 
-`src/pages/pdv/EvaluationsLayout.tsx`:
+3. Ajustar o layout de Avaliações
+- Manter o menu lateral com altura `h-[calc(100vh-3.5rem)]` e `overflow-y-auto`.
+- Remover a dependência de `sticky`, pois o menu ficará fixo naturalmente dentro do layout de altura travada.
+- Fazer apenas a área de conteúdo rolar com `overflow-auto`.
 
-- **Container externo** (`flex min-h-[calc(100vh-3.5rem)]`): manter — já garante altura mínima da viewport menos o header h-14.
-- **Sidebar desktop** (`<nav className="hidden md:flex ... w-52 ...">`): trocar para fixar via `sticky`:
-  - Adicionar `sticky top-14 self-start h-[calc(100vh-3.5rem)]`
-  - `top-14` alinha logo abaixo do header global (3.5rem = h-14)
-  - `self-start` impede o flex-stretch de descolar o sticky
-  - `h-[calc(100vh-3.5rem)]` mantém o `overflow-y-auto` interno do nav funcional caso a lista de itens cresça
-  - `overflow-y-auto` já existente é preservado para scroll interno do menu
-- **Área de conteúdo**: remover `overflow-auto` do wrapper `<div className="flex-1 overflow-auto">`, deixando apenas `flex-1 min-w-0`. O scroll passa a ser da janela (necessário para que `sticky` funcione — `overflow-auto` no pai cria contexto de rolagem que quebra o sticky).
-- **Mobile nav**: continua como está (rolagem horizontal, sem sticky vertical).
+4. Preservar mobile e padrão visual
+- Manter o menu mobile horizontal como está.
+- Não alterar cores, espaçamentos ou estrutura visual do menu.
+- Manter o padrão visual igual ao módulo de Tarefas.
 
-### Resultado
-
-Ao rolar a página dentro de qualquer subrota de `/pdv/avaliacoes/*`, o menu lateral desktop permanece visível, fixado abaixo do header. Mobile mantém o comportamento atual.
+Resultado esperado: ao rolar qualquer tela dentro de `/pdv/avaliacoes`, somente o conteúdo da direita rola; o menu lateral permanece fixo abaixo do header, como na imagem esperada.
