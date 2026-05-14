@@ -152,6 +152,13 @@ export default function EvaluationsDashboard() {
         uniqueCustomers={uniqueCustomers}
         totalCoupons={couponData?.totalCoupons || 0}
         redeemedCoupons={couponData?.redeemedCoupons || 0}
+        onNpsClick={setNpsFilter}
+      />
+
+      <NPSDetailDialog
+        category={npsFilter}
+        evaluations={evaluations || []}
+        onClose={() => setNpsFilter(null)}
       />
 
       {/* Charts row */}
