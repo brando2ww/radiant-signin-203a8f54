@@ -1,22 +1,37 @@
-Plano para corrigir o menu lateral do módulo de Avaliações:
+Tornar todos os cards do Dashboard de Avaliações clicáveis, navegando para a página correspondente, com cursor pointer e hover sutil.
 
-1. Ajustar o contêiner principal do PDV
-- O problema ocorre porque o scroll real está em `<main className="flex-1 overflow-auto">`, não na janela.
-- Como o `sticky` do menu de Avaliações está tentando se prender ao viewport, ele não acompanha corretamente esse contêiner rolável.
+## Mapeamento de cliques
 
-2. Aplicar a correção apenas na rota de Avaliações
-- Detectar quando a rota atual estiver em `/pdv/avaliacoes`.
-- Nessa rota, trocar o comportamento do `<main>` para um layout com altura fixa abaixo do header: `h-[calc(100vh-3.5rem)] overflow-hidden`.
-- Assim, o módulo de Avaliações passa a controlar internamente a rolagem.
+- NPS Global → `/pdv/avaliacoes/relatorios/por-pergunta?tipo=nps`
+- Média Geral → `/pdv/avaliacoes/relatorios/por-pergunta`
+- Campanhas Ativas → `/pdv/avaliacoes/campanhas`
+- Aniversariantes do Mês → `/pdv/avaliacoes/clientes/aniversariantes`
+- Promotores → `/pdv/avaliacoes/relatorios/por-pergunta?nps=promoters`
+- Neutros → `/pdv/avaliacoes/relatorios/por-pergunta?nps=neutrals`
+- Detratores → `/pdv/avaliacoes/relatorios/por-pergunta?nps=detractors`
+- Total de Respostas → `/pdv/avaliacoes/relatorios/por-pergunta`
+- Cadastros (únicos) → `/pdv/avaliacoes/clientes/gestao`
+- Cupons Gerados → `/pdv/avaliacoes/cupons/gestao`
+- Cupons Utilizados → `/pdv/avaliacoes/cupons/validacao`
 
-3. Ajustar o layout de Avaliações
-- Manter o menu lateral com altura `h-[calc(100vh-3.5rem)]` e `overflow-y-auto`.
-- Remover a dependência de `sticky`, pois o menu ficará fixo naturalmente dentro do layout de altura travada.
-- Fazer apenas a área de conteúdo rolar com `overflow-auto`.
+Observação: o módulo não tem uma página dedicada de "Respostas". O destino mais próximo com listagem por resposta filtrável é "Por Pergunta", então ele recebe os cliques de Promotores/Neutros/Detratores e Total de Respostas via querystring. Os filtros via URL serão lidos pela página alvo em uma etapa futura, se necessário; por ora, o Dashboard apenas envia o parâmetro.
 
-4. Preservar mobile e padrão visual
-- Manter o menu mobile horizontal como está.
-- Não alterar cores, espaçamentos ou estrutura visual do menu.
-- Manter o padrão visual igual ao módulo de Tarefas.
+## Comportamento visual
 
-Resultado esperado: ao rolar qualquer tela dentro de `/pdv/avaliacoes`, somente o conteúdo da direita rola; o menu lateral permanece fixo abaixo do header, como na imagem esperada.
+- Cursor `pointer` em todos os cards.
+- Hover: `hover:shadow-md` + `hover:border-foreground/20` com `transition-all`. Sem alteração de cor de fundo nem de texto, mantendo o padrão neutro do sistema.
+- Card inteiro clicável (envolver `<Card>` em `<button>` ou usar `onClick` no próprio Card, mantendo acessibilidade com `role="button"` e `tabIndex={0}`).
+- Acessibilidade: tecla Enter/Espaço também ativa a navegação.
+
+## Implementação técnica
+
+- `DashboardKPICards.tsx`:
+  - Adicionar `useNavigate` do react-router-dom.
+  - Criar um wrapper `ClickableCard` interno que recebe `to` e renderiza `<Card>` com `onClick`, `cursor-pointer`, `hover:shadow-md hover:border-foreground/20 transition-all`, `role="button"`, `tabIndex={0}` e handler de teclado.
+  - Aplicar a todos os 11 cards com seus respectivos destinos.
+  - Remover a prop `onNpsClick` (não será mais usada para abrir dialog) — manter o componente `NPSDetailDialog` no Dashboard apenas se ainda houver outro gatilho; caso contrário, remover seu uso e o estado `npsFilter` em `EvaluationsDashboard.tsx`.
+
+- `EvaluationsDashboard.tsx`:
+  - Remover `npsFilter`, `setNpsFilter`, render de `NPSDetailDialog` e a prop `onNpsClick`.
+
+Sem mudanças de cor, mantendo a paleta neutra do sistema.
