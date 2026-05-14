@@ -68,9 +68,48 @@ export function DailyTasksView({ onNavigate }: Props) {
   const [skipTask, setSkipTask] = useState<DailyTask | null>(null);
   const [skipReason, setSkipReason] = useState("");
 
-  const { reassignOperator } = useDailyTasks();
+  const { reassignOperator } = useDailyTasks(selectedDate);
 
-  // Filter tasks
+  const shiftDate = (delta: number) => {
+    const d = new Date(`${selectedDate}T12:00:00`);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(toLocalDateStr(d));
+  };
+
+  const dateLabel = format(new Date(`${selectedDate}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR });
+
+  const DateBar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="icon" onClick={() => shiftDate(-1)} aria-label="Dia anterior">
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Input
+        type="date"
+        value={selectedDate}
+        max={todayStr}
+        onChange={(e) => setSelectedDate(e.target.value || todayStr)}
+        className="w-[170px]"
+      />
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => shiftDate(1)}
+        disabled={selectedDate >= todayStr}
+        aria-label="Próximo dia"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      {!isToday && (
+        <Button variant="ghost" size="sm" onClick={() => setSelectedDate(todayStr)}>
+          Hoje
+        </Button>
+      )}
+      <span className="text-sm text-muted-foreground capitalize">{dateLabel}</span>
+      {isPast && (
+        <Badge variant="outline" className="text-xs">Histórico (somente leitura)</Badge>
+      )}
+    </div>
+  );
   const filtered = tasks.filter(t => {
     if (filters.shift !== "Todos" && t.shift !== filters.shift) return false;
     if (filters.sector !== "all" && t.sector !== filters.sector) return false;
