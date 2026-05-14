@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ModuleGuard } from "@/components/ModuleGuard";
 import { PDVHeaderNav } from "@/components/pdv/PDVHeaderNav";
 import { PDVUserMenu } from "@/components/pdv/PDVUserMenu";
@@ -63,6 +63,8 @@ function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; 
 export default function PDV() {
   const { canAccess, defaultRoute, isLoading } = useUserRole();
   useDeliveryOrdersWatcher();
+  const { pathname } = useLocation();
+  const isEvaluations = pathname.startsWith("/pdv/avaliacoes");
 
   if (isLoading) {
     return (
@@ -88,7 +90,7 @@ export default function PDV() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto">
+        <main className={isEvaluations ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
           <Routes>
               <Route index element={<Navigate to={defaultRoute} replace />} />
               
