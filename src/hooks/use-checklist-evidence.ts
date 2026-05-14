@@ -156,7 +156,7 @@ export function useReviewEvidence() {
         if (reviewerId) payload.reviewer_id = reviewerId;
         const { error } = await supabase
           .from("checklist_evidence_reviews")
-          .upsert(payload, { onConflict: "execution_item_id" });
+          .upsert(payload as any, { onConflict: "execution_item_id" });
         if (error) throw error;
       }
     },
