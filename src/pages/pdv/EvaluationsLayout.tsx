@@ -53,6 +53,7 @@ const SECTIONS: Section[] = [
       { to: "relatorios/diario", label: "Diário", icon: CalendarDays },
       { to: "relatorios/semanal", label: "Semanal", icon: CalendarRange },
       { to: "relatorios/mensal", label: "Mensal", icon: CalendarClock },
+      { to: "relatorios/por-pergunta", label: "Por Pergunta", icon: MessageSquare },
     ],
   },
   {
