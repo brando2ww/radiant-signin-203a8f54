@@ -104,7 +104,7 @@ export default function DashboardKPICards({
 
       {/* Row 2: NPS Breakdown */}
       <div className="grid gap-4 grid-cols-3">
-        <ClickableCard to="/pdv/avaliacoes/relatorios/por-pergunta?nps=promoters" className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNpsClick?.("promoters")}>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 mb-1">
               <ThumbsUp className="h-4 w-4 text-emerald-500" />
@@ -113,8 +113,8 @@ export default function DashboardKPICards({
             <p className="text-2xl font-bold text-emerald-600">{promoters}</p>
             <p className="text-xs text-muted-foreground">{pct(promoters)}% do total</p>
           </CardContent>
-        </ClickableCard>
-        <ClickableCard to="/pdv/avaliacoes/relatorios/por-pergunta?nps=neutrals" className="border-l-4 border-l-amber-500">
+        </Card>
+        <Card className="border-l-4 border-l-amber-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNpsClick?.("neutrals")}>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 mb-1">
               <Minus className="h-4 w-4 text-amber-500" />
@@ -123,8 +123,8 @@ export default function DashboardKPICards({
             <p className="text-2xl font-bold text-amber-600">{neutrals}</p>
             <p className="text-xs text-muted-foreground">{pct(neutrals)}% do total</p>
           </CardContent>
-        </ClickableCard>
-        <ClickableCard to="/pdv/avaliacoes/relatorios/por-pergunta?nps=detractors" className="border-l-4 border-l-red-500">
+        </Card>
+        <Card className="border-l-4 border-l-red-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNpsClick?.("detractors")}>
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 mb-1">
               <ThumbsDown className="h-4 w-4 text-red-500" />
@@ -133,7 +133,7 @@ export default function DashboardKPICards({
             <p className="text-2xl font-bold text-destructive">{detractors}</p>
             <p className="text-xs text-muted-foreground">{pct(detractors)}% do total</p>
           </CardContent>
-        </ClickableCard>
+        </Card>
       </div>
 
       {/* Row 3: Funnel metrics */}
