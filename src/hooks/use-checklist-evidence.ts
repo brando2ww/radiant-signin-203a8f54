@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import type { Database } from "@/integrations/supabase/types";
 
 type ReviewStatus = Database["public"]["Enums"]["evidence_review_status"];
@@ -124,19 +125,38 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
 
 export function useReviewEvidence() {
   const { user } = useAuth();
+  const { visibleUserId } = useEstablishmentId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ executionItemIds, status, comment }: { executionItemIds: string | string[]; status: ReviewStatus; comment?: string }) => {
-      if (!user?.id) throw new Error("No user");
+      const ownerId = visibleUserId || user?.id;
+      if (!ownerId) throw new Error("No user");
       const ids = Array.isArray(executionItemIds) ? executionItemIds : [executionItemIds];
+
+      // Try to map current auth user to a checklist_operator (for reviewer_id)
+      let reviewerId: string | null = null;
+      if (user?.id) {
+        const { data: op } = await supabase
+          .from("checklist_operators")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .maybeSingle();
+        reviewerId = op?.id ?? null;
+      }
+
       for (const id of ids) {
-        const { error } = await supabase.from("checklist_evidence_reviews").upsert({
+        const payload: Record<string, any> = {
           execution_item_id: id,
           status,
           comment: comment || null,
-          user_id: user.id,
-        }, { onConflict: "execution_item_id" });
+          user_id: ownerId,
+        };
+        if (reviewerId) payload.reviewer_id = reviewerId;
+        const { error } = await supabase
+          .from("checklist_evidence_reviews")
+          .upsert(payload as any, { onConflict: "execution_item_id" });
         if (error) throw error;
       }
     },

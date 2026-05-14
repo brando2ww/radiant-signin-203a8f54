@@ -15,7 +15,7 @@ interface ChecklistExecutionPageProps {
 }
 
 export function ChecklistExecutionPage({ executionId, userId, onBack, onComplete }: ChecklistExecutionPageProps) {
-  const { loadExecution, saveItemValue, completeExecution, createAlert } = useChecklistExecution(userId);
+  const { loadExecution, saveItemValue, completeExecution, createAlert, acknowledgeAlertsForItem } = useChecklistExecution(userId);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
@@ -52,8 +52,20 @@ export function ChecklistExecutionPage({ executionId, userId, onBack, onComplete
         setAlertedItems((prev) => new Set(prev).add(execItemId));
         toast({ title: "⚠️ Alerta gerado", description: `${savedItem.title} fora da faixa permitida`, variant: "destructive" });
       }
+
+      // Auto-resolve when value comes back in range
+      if (isCompliant === true && savedItem) {
+        await acknowledgeAlertsForItem(executionId, savedItem.id);
+        if (alertedItems.has(execItemId)) {
+          setAlertedItems((prev) => {
+            const next = new Set(prev);
+            next.delete(execItemId);
+            return next;
+          });
+        }
+      }
     },
-    [saveItemValue, createAlert, executionId, alertedItems]
+    [saveItemValue, createAlert, acknowledgeAlertsForItem, executionId, alertedItems]
   );
 
   const handleComplete = async () => {

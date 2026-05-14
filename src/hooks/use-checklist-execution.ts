@@ -302,6 +302,21 @@ export function useChecklistExecution(userId: string) {
     [userId]
   );
 
+  // Auto-resolve any unacknowledged alerts for an item once it goes back in range
+  const acknowledgeAlertsForItem = useCallback(
+    async (executionId: string, itemId: string) => {
+      await supabase
+        .from("checklist_alerts")
+        .update({ is_acknowledged: true, acknowledged_at: new Date().toISOString() })
+        .eq("execution_id", executionId)
+        .eq("item_id", itemId)
+        .eq("is_acknowledged", false);
+      qc.invalidateQueries({ queryKey: ["checklist-alerts"] });
+      qc.invalidateQueries({ queryKey: ["checklist-dashboard"] });
+    },
+    [qc]
+  );
+
   // Complete execution
   const completeExecution = useCallback(
     async (executionId: string) => {
@@ -338,6 +353,7 @@ export function useChecklistExecution(userId: string) {
     saveItemValue,
     completeExecution,
     createAlert,
+    acknowledgeAlertsForItem,
     getCurrentShift,
   };
 }

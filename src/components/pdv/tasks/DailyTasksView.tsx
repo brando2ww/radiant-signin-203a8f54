@@ -11,7 +11,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, ListChecks, CalendarPlus, ArrowLeft } from "lucide-react";
+import { Clock, ListChecks, CalendarPlus, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { DailyOverview } from "./DailyOverview";
 import { DailyTaskFilters, type DailyFilters } from "./DailyTaskFilters";
 import { DailyTaskCard } from "./DailyTaskCard";
@@ -24,14 +25,25 @@ import { useChecklistExecution } from "@/hooks/use-checklist-execution";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useOperationalTasks } from "@/hooks/use-operational-tasks";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface Props {
   onNavigate?: (section: string) => void;
 }
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function DailyTasksView({ onNavigate }: Props) {
   const { visibleUserId } = useEstablishmentId();
-  const { tasks, metrics, isLoading, refetch, currentShift } = useDailyTasks();
+  const todayStr = toLocalDateStr(new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const { tasks, metrics, isLoading, refetch, currentShift, isToday, isPast } = useDailyTasks(selectedDate);
   const { operators } = useChecklistOperators();
   const { startExecution } = useChecklistExecution(visibleUserId || "");
   const { generateDaily, isGenerating } = useOperationalTasks();
@@ -56,9 +68,48 @@ export function DailyTasksView({ onNavigate }: Props) {
   const [skipTask, setSkipTask] = useState<DailyTask | null>(null);
   const [skipReason, setSkipReason] = useState("");
 
-  const { reassignOperator } = useDailyTasks();
+  const { reassignOperator } = useDailyTasks(selectedDate);
 
-  // Filter tasks
+  const shiftDate = (delta: number) => {
+    const d = new Date(`${selectedDate}T12:00:00`);
+    d.setDate(d.getDate() + delta);
+    setSelectedDate(toLocalDateStr(d));
+  };
+
+  const dateLabel = format(new Date(`${selectedDate}T12:00:00`), "EEEE, dd 'de' MMMM", { locale: ptBR });
+
+  const DateBar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="icon" onClick={() => shiftDate(-1)} aria-label="Dia anterior">
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Input
+        type="date"
+        value={selectedDate}
+        max={todayStr}
+        onChange={(e) => setSelectedDate(e.target.value || todayStr)}
+        className="w-[170px]"
+      />
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={() => shiftDate(1)}
+        disabled={selectedDate >= todayStr}
+        aria-label="Próximo dia"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      {!isToday && (
+        <Button variant="ghost" size="sm" onClick={() => setSelectedDate(todayStr)}>
+          Hoje
+        </Button>
+      )}
+      <span className="text-sm text-muted-foreground capitalize">{dateLabel}</span>
+      {isPast && (
+        <Badge variant="outline" className="text-xs">Histórico (somente leitura)</Badge>
+      )}
+    </div>
+  );
   const filtered = tasks.filter(t => {
     if (filters.shift !== "Todos" && t.shift !== filters.shift) return false;
     if (filters.sector !== "all" && t.sector !== filters.sector) return false;
@@ -78,6 +129,10 @@ export function DailyTasksView({ onNavigate }: Props) {
   })).filter(g => g.tasks.length > 0);
 
   const handleStart = useCallback(async (task: DailyTask) => {
+    if (isPast) {
+      toast.info("Tarefas de datas passadas são apenas para consulta");
+      return;
+    }
     try {
       if (task.executionId) {
         setActiveExecutionId(task.executionId);
@@ -92,7 +147,7 @@ export function DailyTasksView({ onNavigate }: Props) {
     } catch (err: any) {
       toast.error(err.message || "Erro ao iniciar execução");
     }
-  }, [startExecution]);
+  }, [startExecution, isPast]);
 
   const handleViewDetails = (task: DailyTask) => {
     setDetailTask(task);
@@ -154,32 +209,41 @@ export function DailyTasksView({ onNavigate }: Props) {
   // Empty state
   if (tasks.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-16 text-center">
-          <ListChecks className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Nenhuma tarefa para hoje</h3>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-            As tarefas são geradas automaticamente a partir dos checklists agendados.
-            Verifique se há agendamentos configurados para hoje.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button onClick={() => generateDaily(undefined)} disabled={isGenerating}>
-              <CalendarPlus className="h-4 w-4 mr-1" />
-              Gerar Tarefas do Dia
-            </Button>
-            {onNavigate && (
-              <Button variant="outline" onClick={() => onNavigate("agendamento")}>
-                Ir para Agendamento
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {DateBar}
+        <Card>
+          <CardContent className="py-16 text-center">
+            <ListChecks className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              {isToday ? "Nenhuma tarefa para hoje" : `Nenhuma tarefa em ${format(new Date(`${selectedDate}T12:00:00`), "dd/MM/yyyy")}`}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+              {isPast
+                ? "Não há registros de tarefas para esta data. Verifique se havia agendamentos ativos no dia selecionado."
+                : "As tarefas são geradas automaticamente a partir dos checklists agendados. Verifique se há agendamentos configurados."}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {!isPast && (
+                <Button onClick={() => generateDaily(undefined)} disabled={isGenerating}>
+                  <CalendarPlus className="h-4 w-4 mr-1" />
+                  Gerar Tarefas do Dia
+                </Button>
+              )}
+              {onNavigate && (
+                <Button variant="outline" onClick={() => onNavigate("agendamento")}>
+                  Ir para Agendamento
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {DateBar}
       <DailyOverview
         metrics={metrics}
         currentShift={currentShift}
