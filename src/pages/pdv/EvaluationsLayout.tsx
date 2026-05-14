@@ -134,7 +134,7 @@ export default function EvaluationsLayout() {
       </nav>
 
       {/* Content area */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 min-w-0">
         {/* Mobile nav */}
         <nav className="flex md:hidden gap-2 overflow-x-auto p-3 scrollbar-hide border-b border-border bg-card">
           {FLAT_ITEMS.map((item) => {
