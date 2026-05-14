@@ -353,6 +353,7 @@ export function useChecklistExecution(userId: string) {
     saveItemValue,
     completeExecution,
     createAlert,
+    acknowledgeAlertsForItem,
     getCurrentShift,
   };
 }
