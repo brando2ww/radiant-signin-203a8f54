@@ -18,6 +18,7 @@ const EvaluationsArte = lazy(() => import("@/pages/pdv/evaluations/EvaluationsAr
 const ReportDaily = lazy(() => import("@/pages/pdv/evaluations/reports/ReportDaily"));
 const ReportWeekly = lazy(() => import("@/pages/pdv/evaluations/reports/ReportWeekly"));
 const ReportMonthly = lazy(() => import("@/pages/pdv/evaluations/reports/ReportMonthly"));
+const ReportPerQuestion = lazy(() => import("@/pages/pdv/evaluations/reports/ReportPerQuestion"));
 
 // Clientes
 const ClientsPanel = lazy(() => import("@/pages/pdv/evaluations/clients/ClientsPanel"));
