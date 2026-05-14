@@ -168,6 +168,7 @@ export default function EvaluationsLayout() {
             <Route path="relatorios/diario" element={<ReportDaily />} />
             <Route path="relatorios/semanal" element={<ReportWeekly />} />
             <Route path="relatorios/mensal" element={<ReportMonthly />} />
+            <Route path="relatorios/por-pergunta" element={<ReportPerQuestion />} />
 
             {/* Clientes */}
             <Route path="clientes" element={<Navigate to="painel" replace />} />
