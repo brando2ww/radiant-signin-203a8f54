@@ -46,7 +46,6 @@ import Integrations from "./pdv/Integrations";
 import Users from "./pdv/Users";
 import UserForm from "./pdv/UserForm";
 import EvaluationsLayout from "./pdv/EvaluationsLayout";
-import { EvaluationsSubNav } from "@/components/pdv/evaluations/EvaluationsSubNav";
 import FranchiseImport from "./pdv/FranchiseImport";
 import Tasks from "./pdv/Tasks";
 import ChecklistEditor from "./pdv/ChecklistEditor";
@@ -63,9 +62,6 @@ function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; 
 
 export default function PDV() {
   const { canAccess, defaultRoute, isLoading } = useUserRole();
-  const location = useLocation();
-  const isEvaluations = location.pathname.startsWith("/pdv/avaliacoes");
-
   useDeliveryOrdersWatcher();
 
   if (isLoading) {
@@ -91,8 +87,6 @@ export default function PDV() {
             </div>
           </div>
         </header>
-
-        {isEvaluations && <EvaluationsSubNav />}
 
         <main className="flex-1 overflow-auto">
           <Routes>
