@@ -129,6 +129,10 @@ export function DailyTasksView({ onNavigate }: Props) {
   })).filter(g => g.tasks.length > 0);
 
   const handleStart = useCallback(async (task: DailyTask) => {
+    if (isPast) {
+      toast.info("Tarefas de datas passadas são apenas para consulta");
+      return;
+    }
     try {
       if (task.executionId) {
         setActiveExecutionId(task.executionId);
@@ -143,7 +147,7 @@ export function DailyTasksView({ onNavigate }: Props) {
     } catch (err: any) {
       toast.error(err.message || "Erro ao iniciar execução");
     }
-  }, [startExecution]);
+  }, [startExecution, isPast]);
 
   const handleViewDetails = (task: DailyTask) => {
     setDetailTask(task);
