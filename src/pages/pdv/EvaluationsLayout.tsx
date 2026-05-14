@@ -5,6 +5,7 @@ import {
   BarChart3, CalendarDays, CalendarRange, CalendarClock,
   Users, UserCog, Cake,
   Gift, ListChecks, ShieldCheck, Ticket, Disc3,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
