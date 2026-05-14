@@ -5,6 +5,7 @@ import {
   BarChart3, CalendarDays, CalendarRange, CalendarClock,
   Users, UserCog, Cake,
   Gift, ListChecks, ShieldCheck, Ticket, Disc3,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ const EvaluationsArte = lazy(() => import("@/pages/pdv/evaluations/EvaluationsAr
 const ReportDaily = lazy(() => import("@/pages/pdv/evaluations/reports/ReportDaily"));
 const ReportWeekly = lazy(() => import("@/pages/pdv/evaluations/reports/ReportWeekly"));
 const ReportMonthly = lazy(() => import("@/pages/pdv/evaluations/reports/ReportMonthly"));
+const ReportPerQuestion = lazy(() => import("@/pages/pdv/evaluations/reports/ReportPerQuestion"));
 
 // Clientes
 const ClientsPanel = lazy(() => import("@/pages/pdv/evaluations/clients/ClientsPanel"));
@@ -51,6 +53,7 @@ const SECTIONS: Section[] = [
       { to: "relatorios/diario", label: "Diário", icon: CalendarDays },
       { to: "relatorios/semanal", label: "Semanal", icon: CalendarRange },
       { to: "relatorios/mensal", label: "Mensal", icon: CalendarClock },
+      { to: "relatorios/por-pergunta", label: "Por Pergunta", icon: MessageSquare },
     ],
   },
   {
@@ -165,6 +168,7 @@ export default function EvaluationsLayout() {
             <Route path="relatorios/diario" element={<ReportDaily />} />
             <Route path="relatorios/semanal" element={<ReportWeekly />} />
             <Route path="relatorios/mensal" element={<ReportMonthly />} />
+            <Route path="relatorios/por-pergunta" element={<ReportPerQuestion />} />
 
             {/* Clientes */}
             <Route path="clientes" element={<Navigate to="painel" replace />} />

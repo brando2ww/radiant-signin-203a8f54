@@ -1,37 +1,72 @@
-## Objetivo
+# Análise Por Pergunta — Relatórios de Avaliações
 
-Padronizar o menu do módulo **Avaliações** (`/pdv/avaliacoes/*`) para usar o mesmo padrão visual do módulo **Tarefas** (`/pdv/tasks`): sidebar vertical à esquerda no desktop e barra horizontal rolável no mobile, em vez do subnav superior atual com dropdowns.
+Nova subseção dentro de Relatórios para analisar individualmente cada pergunta de uma campanha, com painéis adaptados ao tipo (nota / múltipla escolha / texto livre).
 
-## Mudanças
+## 1. Navegação
 
-### 1. `src/pages/PDV.tsx`
-- Remover a renderização do `<EvaluationsSubNav />` (linha ~95) e o import (linha 49).
-- O menu passa a viver dentro do próprio layout das avaliações.
+- Adicionar item **"Por Pergunta"** (ícone `MessageSquare`) na seção "Relatórios" do `EvaluationsLayout.tsx`, após Mensal.
+- Nova rota: `/pdv/avaliacoes/relatorios/por-pergunta` → `ReportPerQuestion.tsx`.
 
-### 2. `src/pages/pdv/EvaluationsLayout.tsx`
-- Substituir o wrapper atual (`<div className="flex flex-col">`) pelo mesmo shell do `Tasks.tsx`:
-  - Container externo `flex min-h-[calc(100vh-3.5rem)]`.
-  - Sidebar desktop: `<nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-1">`.
-  - Área de conteúdo: `<div className="flex-1 overflow-auto">` com a `<Suspense>` + `<Routes>` existentes (rotas inalteradas).
-  - Nav mobile: `<nav className="flex md:hidden gap-2 overflow-x-auto ...">` igual à do Tasks.
-- Itens do menu (flat, agrupados por seção visual com `SidebarGroupLabel`-style headings simples para acomodar o que hoje é dropdown):
-  - **Geral**: Dashboard (`""`), Campanhas (`campanhas`), Arte para o caixa (`arte`), Configurações (`configuracoes`).
-  - **Relatórios**: Diário, Semanal, Mensal.
-  - **Clientes**: Painel, Gestão, Aniversariantes.
-  - **Cupons**: Painel, Gestão, Validação, Sorteio, Roletas.
-- Estado ativo via `useLocation()` comparando `location.pathname` com `\`/pdv/avaliacoes/${to}\`` (mesmo helper `fullPath` do `EvaluationsSubNav`).
-- Estilos idênticos aos do Tasks: botão ativo `bg-primary text-primary-foreground shadow-sm`, inativo `text-card-foreground hover:bg-muted`, ícones `h-4 w-4`.
-- Reaproveitar o array de itens com `icon` (Lucide) já usado no `EvaluationsSubNav` (LayoutDashboard, Megaphone, BarChart3, Users, Gift, Settings, Printer) + ícones das sub-rotas.
+## 2. Estrutura da página (`ReportPerQuestion.tsx`)
 
-### 3. `src/components/pdv/evaluations/EvaluationsSubNav.tsx`
-- Manter o arquivo (não excluir nesta etapa) caso seja referenciado em outro lugar; apenas deixa de ser montado. Confirmar via busca antes; se não houver outros usos, pode ser removido.
+**Filtros globais no topo (sticky):**
+- Seletor de campanha (`Select` com lista de `useEvaluationCampaigns`)
+- Seletor de período: presets (7 dias, 30 dias, mês atual) + range personalizado (`DatePickerWithRange`)
+- Ambos filtros propagam para todos os painéis da página
 
-## Não muda
+**Lista de perguntas:**
+- Cards-resumo (uma linha cada) com: texto da pergunta, tipo (badge), total de respostas e indicador-chave (NPS / opção dominante / "n respostas")
+- Padrão accordion: clicar expande o painel completo abaixo. Múltiplos podem ficar abertos.
+- Ordem: respeita `order_position` da pergunta na campanha
 
-- Rotas, lazy imports, conteúdo das páginas, permissões.
-- `EvaluationsPanel` (painel standalone `/avaliacoes/*`) continua com seu próprio header.
-- Cores e tokens seguem o design system (sem cores hardcoded).
+## 3. Painéis por tipo
 
-## Resultado
+Componentes em `src/components/evaluations/reports/per-question/`:
 
-Layout idêntico ao de Tarefas: sidebar fixa de 208px à esquerda no desktop com itens agrupados, scroll horizontal de chips no mobile, e a área de conteúdo ocupando o restante.
+### Tipo "stars" / nota → `QuestionPanelStars.tsx`
+- **KPIs (3 cartões):** NPS calculado em número grande + classificação (Excelente ≥75 / Ótimo ≥50 / Bom ≥0 / Ruim <0); Total de respostas; Média (ex: `4.7 / 5`)
+- **Distribuição:** três blocos coloridos (Promotores 9-10 verde / Neutros 7-8 amarelo / Detratores 0-6 vermelho) com quantidade, %, barra de progresso
+- **Evolução:** `AreaChart` (recharts) do NPS/média ao longo do período, agrupado por dia
+- **Tabela paginada (20/página):** data, nota, nome do cliente, ordenável por data e nota
+- Adapta cortes para escala 1-5 quando a pergunta usar estrelas (Promotores 5, Neutros 4, Detratores ≤3); detectado pelo valor máximo observado
+
+### Tipo "multiple_choice" / "single_choice" → `QuestionPanelChoice.tsx`
+- **KPIs:** Total de respostas; Opção mais escolhida em destaque
+- **Gráfico:** `BarChart` horizontal (recharts), uma barra por opção, com qtd e % no rótulo, ordenado desc
+- Lê `selected_options` (array) e `options` da pergunta (`evaluation_campaign_questions.options`)
+- Sem lista individual
+
+### Tipo "text" → `QuestionPanelText.tsx`
+- **KPI:** Total de respostas
+- **Lista paginada (20/página):** cards com data, hora e `text_answer` completo, ordenado por data desc
+- Sem gráficos
+
+## 4. Dados
+
+Hook novo `useCampaignQuestionAnalytics(campaignId, startDate, endDate)` em `src/hooks/use-campaign-question-analytics.ts`:
+- Carrega perguntas da campanha (`evaluation_campaign_questions` ativas, com `order_position`, `question_type`, `options`)
+- Carrega `customer_evaluations` filtradas por `campaign_id` + período, com `evaluation_answers` (incluindo `selected_options`, `text_answer`, `comment`)
+- Junta `customer_name` por evaluation
+- Retorna estrutura agrupada por pergunta: `{ question, answers[] }` pronta para os 3 painéis
+- Reaproveita filtros já usados em `useCustomerEvaluations`
+
+## 5. Arquivos
+
+**Novos:**
+- `src/pages/pdv/evaluations/reports/ReportPerQuestion.tsx`
+- `src/components/evaluations/reports/per-question/QuestionPanelStars.tsx`
+- `src/components/evaluations/reports/per-question/QuestionPanelChoice.tsx`
+- `src/components/evaluations/reports/per-question/QuestionPanelText.tsx`
+- `src/components/evaluations/reports/per-question/QuestionSummaryCard.tsx` (linha-resumo do accordion)
+- `src/hooks/use-campaign-question-analytics.ts`
+
+**Editados:**
+- `src/pages/pdv/EvaluationsLayout.tsx`: adicionar item de menu + rota lazy
+
+## 6. Notas técnicas
+
+- Cores via tokens semânticos (sem cores hardcoded fora de `chart-*` já usados nos relatórios atuais)
+- `date-fns` com `ptBR` para formatação
+- Reutilizar `DatePickerWithRange` e padrão visual dos relatórios existentes (`ReportDaily`/`EvaluationsReports`)
+- Paginação client-side simples (estado local), já que volumes por pergunta são pequenos
+- Acessibilidade do accordion via `@/components/ui/accordion` (Radix)
