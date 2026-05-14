@@ -1,72 +1,21 @@
-# Análise Por Pergunta — Relatórios de Avaliações
+## Sidebar fixa no módulo de Avaliações
 
-Nova subseção dentro de Relatórios para analisar individualmente cada pergunta de uma campanha, com painéis adaptados ao tipo (nota / múltipla escolha / texto livre).
+Tornar o menu lateral do `EvaluationsLayout` fixo (sticky) ao rolar o conteúdo, sem afetar o layout em mobile.
 
-## 1. Navegação
+### Mudança
 
-- Adicionar item **"Por Pergunta"** (ícone `MessageSquare`) na seção "Relatórios" do `EvaluationsLayout.tsx`, após Mensal.
-- Nova rota: `/pdv/avaliacoes/relatorios/por-pergunta` → `ReportPerQuestion.tsx`.
+`src/pages/pdv/EvaluationsLayout.tsx`:
 
-## 2. Estrutura da página (`ReportPerQuestion.tsx`)
+- **Container externo** (`flex min-h-[calc(100vh-3.5rem)]`): manter — já garante altura mínima da viewport menos o header h-14.
+- **Sidebar desktop** (`<nav className="hidden md:flex ... w-52 ...">`): trocar para fixar via `sticky`:
+  - Adicionar `sticky top-14 self-start h-[calc(100vh-3.5rem)]`
+  - `top-14` alinha logo abaixo do header global (3.5rem = h-14)
+  - `self-start` impede o flex-stretch de descolar o sticky
+  - `h-[calc(100vh-3.5rem)]` mantém o `overflow-y-auto` interno do nav funcional caso a lista de itens cresça
+  - `overflow-y-auto` já existente é preservado para scroll interno do menu
+- **Área de conteúdo**: remover `overflow-auto` do wrapper `<div className="flex-1 overflow-auto">`, deixando apenas `flex-1 min-w-0`. O scroll passa a ser da janela (necessário para que `sticky` funcione — `overflow-auto` no pai cria contexto de rolagem que quebra o sticky).
+- **Mobile nav**: continua como está (rolagem horizontal, sem sticky vertical).
 
-**Filtros globais no topo (sticky):**
-- Seletor de campanha (`Select` com lista de `useEvaluationCampaigns`)
-- Seletor de período: presets (7 dias, 30 dias, mês atual) + range personalizado (`DatePickerWithRange`)
-- Ambos filtros propagam para todos os painéis da página
+### Resultado
 
-**Lista de perguntas:**
-- Cards-resumo (uma linha cada) com: texto da pergunta, tipo (badge), total de respostas e indicador-chave (NPS / opção dominante / "n respostas")
-- Padrão accordion: clicar expande o painel completo abaixo. Múltiplos podem ficar abertos.
-- Ordem: respeita `order_position` da pergunta na campanha
-
-## 3. Painéis por tipo
-
-Componentes em `src/components/evaluations/reports/per-question/`:
-
-### Tipo "stars" / nota → `QuestionPanelStars.tsx`
-- **KPIs (3 cartões):** NPS calculado em número grande + classificação (Excelente ≥75 / Ótimo ≥50 / Bom ≥0 / Ruim <0); Total de respostas; Média (ex: `4.7 / 5`)
-- **Distribuição:** três blocos coloridos (Promotores 9-10 verde / Neutros 7-8 amarelo / Detratores 0-6 vermelho) com quantidade, %, barra de progresso
-- **Evolução:** `AreaChart` (recharts) do NPS/média ao longo do período, agrupado por dia
-- **Tabela paginada (20/página):** data, nota, nome do cliente, ordenável por data e nota
-- Adapta cortes para escala 1-5 quando a pergunta usar estrelas (Promotores 5, Neutros 4, Detratores ≤3); detectado pelo valor máximo observado
-
-### Tipo "multiple_choice" / "single_choice" → `QuestionPanelChoice.tsx`
-- **KPIs:** Total de respostas; Opção mais escolhida em destaque
-- **Gráfico:** `BarChart` horizontal (recharts), uma barra por opção, com qtd e % no rótulo, ordenado desc
-- Lê `selected_options` (array) e `options` da pergunta (`evaluation_campaign_questions.options`)
-- Sem lista individual
-
-### Tipo "text" → `QuestionPanelText.tsx`
-- **KPI:** Total de respostas
-- **Lista paginada (20/página):** cards com data, hora e `text_answer` completo, ordenado por data desc
-- Sem gráficos
-
-## 4. Dados
-
-Hook novo `useCampaignQuestionAnalytics(campaignId, startDate, endDate)` em `src/hooks/use-campaign-question-analytics.ts`:
-- Carrega perguntas da campanha (`evaluation_campaign_questions` ativas, com `order_position`, `question_type`, `options`)
-- Carrega `customer_evaluations` filtradas por `campaign_id` + período, com `evaluation_answers` (incluindo `selected_options`, `text_answer`, `comment`)
-- Junta `customer_name` por evaluation
-- Retorna estrutura agrupada por pergunta: `{ question, answers[] }` pronta para os 3 painéis
-- Reaproveita filtros já usados em `useCustomerEvaluations`
-
-## 5. Arquivos
-
-**Novos:**
-- `src/pages/pdv/evaluations/reports/ReportPerQuestion.tsx`
-- `src/components/evaluations/reports/per-question/QuestionPanelStars.tsx`
-- `src/components/evaluations/reports/per-question/QuestionPanelChoice.tsx`
-- `src/components/evaluations/reports/per-question/QuestionPanelText.tsx`
-- `src/components/evaluations/reports/per-question/QuestionSummaryCard.tsx` (linha-resumo do accordion)
-- `src/hooks/use-campaign-question-analytics.ts`
-
-**Editados:**
-- `src/pages/pdv/EvaluationsLayout.tsx`: adicionar item de menu + rota lazy
-
-## 6. Notas técnicas
-
-- Cores via tokens semânticos (sem cores hardcoded fora de `chart-*` já usados nos relatórios atuais)
-- `date-fns` com `ptBR` para formatação
-- Reutilizar `DatePickerWithRange` e padrão visual dos relatórios existentes (`ReportDaily`/`EvaluationsReports`)
-- Paginação client-side simples (estado local), já que volumes por pergunta são pequenos
-- Acessibilidade do accordion via `@/components/ui/accordion` (Radix)
+Ao rolar a página dentro de qualquer subrota de `/pdv/avaliacoes/*`, o menu lateral desktop permanece visível, fixado abaixo do header. Mobile mantém o comportamento atual.
