@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import type { Database } from "@/integrations/supabase/types";
 
 type ReviewStatus = Database["public"]["Enums"]["evidence_review_status"];
