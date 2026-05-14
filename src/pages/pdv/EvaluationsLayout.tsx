@@ -102,7 +102,7 @@ export default function EvaluationsLayout() {
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)]">
       {/* Desktop sidebar */}
-      <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-3 overflow-y-auto">
+      <nav className="hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-3 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto">
         {SECTIONS.map((section, idx) => (
           <div key={idx} className="flex flex-col gap-1">
             {section.title && (
