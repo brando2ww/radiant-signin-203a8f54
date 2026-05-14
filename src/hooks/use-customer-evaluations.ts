@@ -413,6 +413,7 @@ export const useExportEvaluations = () => {
         .from("customer_evaluations")
         .select(`
           *,
+          evaluation_campaigns ( name ),
           evaluation_answers (
             question_id,
             score,
@@ -432,40 +433,56 @@ export const useExportEvaluations = () => {
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      // Carrega tipos para excluir múltipla escolha da Média Geral do CSV
       const typeMap = await fetchQuestionTypeMap();
 
-      // Criar CSV
-      const csvRows = [];
-      csvRows.push(["Data", "Nome", "WhatsApp", "Data Nascimento", "NPS", "Média Geral"].join(","));
+      const SEP = ";";
+      const csvEscape = (v: any) => {
+        if (v === null || v === undefined) return '""';
+        const s = String(v).replace(/\r?\n/g, " ").replace(/"/g, '""');
+        return `"${s}"`;
+      };
+      const formatDate = (v: any) => {
+        if (!v) return "";
+        const d = new Date(v);
+        return isNaN(d.getTime()) ? "" : d.toLocaleDateString("pt-BR");
+      };
 
-      data.forEach((evaluation: any) => {
+      const headers = ["Data", "Campanha", "Nome", "WhatsApp", "Data Nascimento", "NPS", "Comentário", "Média Geral"];
+      const lines: string[] = [];
+      lines.push(headers.map(csvEscape).join(SEP));
+
+      (data || []).forEach((evaluation: any) => {
         const starsAnswers = (evaluation.evaluation_answers as any[]).filter(
           (a) => (typeMap.get(a.question_id) || "stars") === "stars"
         );
         const avgScore = starsAnswers.length > 0
-          ? starsAnswers.reduce((sum: number, a: any) => sum + a.score, 0) / starsAnswers.length
-          : 0;
+          ? (starsAnswers.reduce((sum: number, a: any) => sum + a.score, 0) / starsAnswers.length).toFixed(2)
+          : "";
 
-        csvRows.push([
-          new Date(evaluation.evaluation_date).toLocaleDateString("pt-BR"),
-          evaluation.customer_name,
-          evaluation.customer_whatsapp,
-          new Date(evaluation.customer_birth_date).toLocaleDateString("pt-BR"),
-          evaluation.nps_score || "",
-          avgScore.toFixed(2),
-        ].join(","));
+        const row = [
+          formatDate(evaluation.evaluation_date),
+          evaluation.evaluation_campaigns?.name || "",
+          evaluation.customer_name || "",
+          evaluation.customer_whatsapp || "",
+          formatDate(evaluation.customer_birth_date),
+          evaluation.nps_score ?? "",
+          evaluation.nps_comment || "",
+          avgScore,
+        ];
+        lines.push(row.map(csvEscape).join(SEP));
       });
 
-      const csv = csvRows.join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
+      const csv = "\ufeff" + `sep=${SEP}\r\n` + lines.join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `avaliacoes-${new Date().toISOString().split('T')[0]}.csv`;
+      const range = filters?.startDate && filters?.endDate
+        ? `_${filters.startDate}_a_${filters.endDate}`
+        : `_${new Date().toISOString().split("T")[0]}`;
+      a.download = `avaliacoes${range}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
     },
