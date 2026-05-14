@@ -15,6 +15,7 @@ import DashboardKPICards from "@/components/evaluations/dashboard/DashboardKPICa
 import { FunnelChart, WeeklyResponsesChart } from "@/components/evaluations/dashboard/DashboardCharts";
 import NPSCriteriaSection from "@/components/evaluations/dashboard/NPSCriteriaSection";
 import RecentResponsesTable from "@/components/evaluations/dashboard/RecentResponsesTable";
+import NPSDetailDialog, { NpsCategory } from "@/components/evaluations/dashboard/NPSDetailDialog";
 
 
 export default function EvaluationsDashboard() {
@@ -22,7 +23,7 @@ export default function EvaluationsDashboard() {
     from: subDays(new Date(), 30),
     to: new Date(),
   });
-  
+  const [npsFilter, setNpsFilter] = useState<NpsCategory | null>(null);
 
   const startDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
   const endDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
