@@ -7,7 +7,7 @@ import { toast } from "sonner";
 export type DailyTaskStatus = "pending" | "in_progress" | "done" | "overdue" | "done_late" | "skipped";
 
 export interface DailyTask {
-  id: string; // schedule id or execution id
+  id: string;
   scheduleId: string;
   checklistId: string;
   checklistName: string;
@@ -16,7 +16,7 @@ export interface DailyTask {
   shift: string;
   startTime: string;
   maxDurationMinutes: number;
-  deadlineTime: string; // calculated start + duration
+  deadlineTime: string;
   assignedOperatorId: string | null;
   assignedOperatorName: string | null;
   assignedSector: string | null;
@@ -40,6 +40,13 @@ export interface DailyMetrics {
   progress: number;
 }
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getCurrentShiftName(): string {
   const h = new Date().getHours();
   if (h >= 6 && h < 11) return "Abertura";
@@ -58,13 +65,12 @@ function deriveStatus(
   startTime: string,
   maxDuration: number,
   completedAt: string | null,
+  isToday: boolean,
+  isPast: boolean,
 ): DailyTaskStatus {
-  const now = new Date();
-  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const deadline = addMinutesToTime(startTime, maxDuration);
 
   if (executionStatus === "concluido") {
-    // Check if it was completed after deadline
     if (completedAt) {
       const compDate = new Date(completedAt);
       const compHhmm = `${String(compDate.getHours()).padStart(2, "0")}:${String(compDate.getMinutes()).padStart(2, "0")}`;
@@ -74,28 +80,41 @@ function deriveStatus(
   }
   if (executionStatus === "cancelado") return "skipped";
   if (executionStatus === "em_andamento") {
-    if (hhmm > deadline) return "overdue";
+    if (isPast) return "overdue";
+    if (isToday) {
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      return hhmm > deadline ? "overdue" : "in_progress";
+    }
     return "in_progress";
   }
   // No execution yet
-  if (hhmm > deadline) return "overdue";
+  if (isPast) return "overdue";
+  if (isToday) {
+    const now = new Date();
+    const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    return hhmm > deadline ? "overdue" : "pending";
+  }
   return "pending";
 }
 
-export function useDailyTasks() {
+export function useDailyTasks(date?: string) {
   const { visibleUserId } = useEstablishmentId();
   const qc = useQueryClient();
   const prevOverdueIds = useRef<Set<string>>(new Set());
 
-  const todayStr = new Date().toISOString().split("T")[0];
-  const dayOfWeek = new Date().getDay();
+  const todayStr = toLocalDateStr(new Date());
+  const targetDate = date || todayStr;
+  const isToday = targetDate === todayStr;
+  const isPast = targetDate < todayStr;
+  // Use noon to avoid DST/timezone edge cases when computing day-of-week
+  const dayOfWeek = new Date(`${targetDate}T12:00:00`).getDay();
 
   const { data: tasks = [], isLoading, refetch } = useQuery({
-    queryKey: ["daily-tasks", visibleUserId, todayStr],
+    queryKey: ["daily-tasks", visibleUserId, targetDate],
     queryFn: async (): Promise<DailyTask[]> => {
       if (!visibleUserId) return [];
 
-      // Fetch active schedules for today's day of week
       const { data: schedules, error: schedErr } = await supabase
         .from("checklist_schedules")
         .select("*, checklists(id, name, sector, color), checklist_operators(id, name)")
@@ -110,15 +129,13 @@ export function useDailyTasks() {
 
       if (todaySchedules.length === 0) return [];
 
-      // Fetch today's executions
       const { data: executions, error: execErr } = await supabase
         .from("checklist_executions")
         .select("*, checklist_execution_items(id, completed_at)")
         .eq("user_id", visibleUserId)
-        .eq("execution_date", todayStr);
+        .eq("execution_date", targetDate);
       if (execErr) throw execErr;
 
-      // Check which checklists have critical items
       const checklistIds = [...new Set(todaySchedules.map((s: any) => s.checklist_id))];
       const { data: criticalItems } = await supabase
         .from("checklist_items")
@@ -127,7 +144,6 @@ export function useDailyTasks() {
         .eq("is_critical", true);
       const criticalChecklistIds = new Set((criticalItems || []).map((i: any) => i.checklist_id));
 
-      // Count total items per checklist
       const { data: itemCounts } = await supabase
         .from("checklist_items")
         .select("checklist_id")
@@ -166,7 +182,7 @@ export function useDailyTasks() {
           startedAt: exec?.started_at || null,
           completedAt: exec?.completed_at || null,
           score: exec?.score || null,
-          status: deriveStatus(exec?.status || null, s.start_time, s.max_duration_minutes, exec?.completed_at || null),
+          status: deriveStatus(exec?.status || null, s.start_time, s.max_duration_minutes, exec?.completed_at || null, isToday, isPast),
           hasCriticalItems: criticalChecklistIds.has(s.checklist_id),
           totalItems,
           completedItems,
@@ -174,11 +190,15 @@ export function useDailyTasks() {
       });
     },
     enabled: !!visibleUserId,
-    refetchInterval: 30000,
+    refetchInterval: isToday ? 30000 : false,
   });
 
-  // Toast when new tasks become overdue
+  // Toast when new tasks become overdue (only for today)
   useEffect(() => {
+    if (!isToday) {
+      prevOverdueIds.current = new Set();
+      return;
+    }
     const currentOverdue = new Set(tasks.filter(t => t.status === "overdue").map(t => t.scheduleId));
     currentOverdue.forEach(id => {
       if (!prevOverdueIds.current.has(id)) {
@@ -187,7 +207,7 @@ export function useDailyTasks() {
       }
     });
     prevOverdueIds.current = currentOverdue;
-  }, [tasks]);
+  }, [tasks, isToday]);
 
   const metrics: DailyMetrics = {
     total: tasks.length,
@@ -221,5 +241,8 @@ export function useDailyTasks() {
     refetch,
     currentShift: getCurrentShiftName(),
     reassignOperator: reassignOperator.mutate,
+    selectedDate: targetDate,
+    isToday,
+    isPast,
   };
 }
