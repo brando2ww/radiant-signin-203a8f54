@@ -17,6 +17,7 @@ interface Props {
   uniqueCustomers: number;
   totalCoupons: number;
   redeemedCoupons: number;
+  onNpsClick?: (category: "promoters" | "neutrals" | "detractors" | "all") => void;
 }
 
 function ClickableCard({
@@ -54,7 +55,7 @@ function ClickableCard({
 export default function DashboardKPICards({
   totalResponses, nps, avgSatisfaction, activeCampaigns, totalCampaigns,
   promoters, neutrals, detractors, totalNpsVotes,
-  birthdayCount, uniqueCustomers, totalCoupons, redeemedCoupons,
+  birthdayCount, uniqueCustomers, totalCoupons, redeemedCoupons, onNpsClick,
 }: Props) {
   const npsColor = nps >= 50 ? "text-emerald-600" : nps >= 0 ? "text-amber-600" : "text-destructive";
   const pct = (v: number) => totalNpsVotes > 0 ? ((v / totalNpsVotes) * 100).toFixed(1) : "0";
