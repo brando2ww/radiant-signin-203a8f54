@@ -11,7 +11,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Clock, ListChecks, CalendarPlus, ArrowLeft } from "lucide-react";
+import { Clock, ListChecks, CalendarPlus, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { DailyOverview } from "./DailyOverview";
 import { DailyTaskFilters, type DailyFilters } from "./DailyTaskFilters";
 import { DailyTaskCard } from "./DailyTaskCard";
@@ -24,14 +25,25 @@ import { useChecklistExecution } from "@/hooks/use-checklist-execution";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useOperationalTasks } from "@/hooks/use-operational-tasks";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface Props {
   onNavigate?: (section: string) => void;
 }
 
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function DailyTasksView({ onNavigate }: Props) {
   const { visibleUserId } = useEstablishmentId();
-  const { tasks, metrics, isLoading, refetch, currentShift } = useDailyTasks();
+  const todayStr = toLocalDateStr(new Date());
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const { tasks, metrics, isLoading, refetch, currentShift, isToday, isPast } = useDailyTasks(selectedDate);
   const { operators } = useChecklistOperators();
   const { startExecution } = useChecklistExecution(visibleUserId || "");
   const { generateDaily, isGenerating } = useOperationalTasks();
