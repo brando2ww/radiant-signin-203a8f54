@@ -209,32 +209,41 @@ export function DailyTasksView({ onNavigate }: Props) {
   // Empty state
   if (tasks.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-16 text-center">
-          <ListChecks className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Nenhuma tarefa para hoje</h3>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-            As tarefas são geradas automaticamente a partir dos checklists agendados.
-            Verifique se há agendamentos configurados para hoje.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button onClick={() => generateDaily(undefined)} disabled={isGenerating}>
-              <CalendarPlus className="h-4 w-4 mr-1" />
-              Gerar Tarefas do Dia
-            </Button>
-            {onNavigate && (
-              <Button variant="outline" onClick={() => onNavigate("agendamento")}>
-                Ir para Agendamento
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {DateBar}
+        <Card>
+          <CardContent className="py-16 text-center">
+            <ListChecks className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              {isToday ? "Nenhuma tarefa para hoje" : `Nenhuma tarefa em ${format(new Date(`${selectedDate}T12:00:00`), "dd/MM/yyyy")}`}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
+              {isPast
+                ? "Não há registros de tarefas para esta data. Verifique se havia agendamentos ativos no dia selecionado."
+                : "As tarefas são geradas automaticamente a partir dos checklists agendados. Verifique se há agendamentos configurados."}
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {!isPast && (
+                <Button onClick={() => generateDaily(undefined)} disabled={isGenerating}>
+                  <CalendarPlus className="h-4 w-4 mr-1" />
+                  Gerar Tarefas do Dia
+                </Button>
+              )}
+              {onNavigate && (
+                <Button variant="outline" onClick={() => onNavigate("agendamento")}>
+                  Ir para Agendamento
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {DateBar}
       <DailyOverview
         metrics={metrics}
         currentShift={currentShift}
