@@ -64,7 +64,10 @@ export default function PDV() {
   const { canAccess, defaultRoute, isLoading } = useUserRole();
   useDeliveryOrdersWatcher();
   const { pathname } = useLocation();
-  const isEvaluations = pathname.startsWith("/pdv/avaliacoes");
+  const isFixedHeight =
+    pathname.startsWith("/pdv/avaliacoes") ||
+    pathname === "/pdv/tarefas" ||
+    pathname === "/pdv/tarefas/";
 
   if (isLoading) {
     return (
@@ -90,7 +93,7 @@ export default function PDV() {
           </div>
         </header>
 
-        <main className={isEvaluations ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
+        <main className={isFixedHeight ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
           <Routes>
               <Route index element={<Navigate to={defaultRoute} replace />} />
               
