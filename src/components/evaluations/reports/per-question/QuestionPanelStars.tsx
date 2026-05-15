@@ -190,16 +190,21 @@ export function QuestionPanelStars({ answers }: Props) {
                   </button>
                 </th>
                 <th className="text-left p-2">Cliente</th>
+                <th className="text-left p-2">Resposta</th>
               </tr>
             </thead>
             <tbody>
-              {pageRows.map((r, i) => (
-                <tr key={i} className="border-t border-border">
-                  <td className="p-2">{format(parseISO(r.evaluation_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
-                  <td className="p-2 font-medium">{r.score}</td>
-                  <td className="p-2">{r.customer_name || "—"}</td>
-                </tr>
-              ))}
+              {pageRows.map((r, i) => {
+                const resp = r.comment || r.text_answer || "—";
+                return (
+                  <tr key={i} className="border-t border-border align-top">
+                    <td className="p-2 whitespace-nowrap">{format(parseISO(r.evaluation_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
+                    <td className="p-2 font-medium">{r.score}</td>
+                    <td className="p-2">{r.customer_name || "—"}</td>
+                    <td className="p-2 whitespace-pre-wrap break-words max-w-md text-muted-foreground">{resp}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
