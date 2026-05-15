@@ -18,6 +18,7 @@ export interface QuestionAnswer {
   text_answer: string | null;
   selected_options: string[] | null;
   comment: string | null;
+  nps_comment: string | null;
 }
 
 export interface CampaignQuestionAnalytics {
