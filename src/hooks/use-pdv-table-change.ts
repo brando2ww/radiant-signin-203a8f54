@@ -19,11 +19,11 @@ export function usePDVTableChange() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-orders"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
-      toast.success("Mesa trocada");
+      toast.success(data?.merged ? "Mesas mescladas" : "Mesa trocada");
     },
     onError: (e: Error) => toast.error("Erro ao trocar mesa: " + e.message),
   });
