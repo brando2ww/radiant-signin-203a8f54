@@ -90,6 +90,64 @@ export function QuestionPanelChoice({ answers, question }: Props) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Tabela de respostas individuais */}
+      {(() => {
+        const sorted = [...answers].sort((a, b) => b.evaluation_date.localeCompare(a.evaluation_date));
+        const pages = Math.ceil(sorted.length / pageSize);
+        const pageRows = sorted.slice(page * pageSize, (page + 1) * pageSize);
+        if (sorted.length === 0) return null;
+        return (
+          <div className="rounded-lg border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-2">Data</th>
+                    <th className="text-left p-2">Cliente</th>
+                    <th className="text-left p-2">Escolha</th>
+                    <th className="text-left p-2">Comentário</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((r, i) => {
+                    const opts = r.selected_options && r.selected_options.length > 0
+                      ? r.selected_options
+                      : (r.text_answer ? [r.text_answer] : []);
+                    return (
+                      <tr key={i} className="border-t border-border align-top">
+                        <td className="p-2 whitespace-nowrap">{format(parseISO(r.evaluation_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
+                        <td className="p-2">{r.customer_name || "—"}</td>
+                        <td className="p-2">
+                          {opts.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {opts.map((o, idx) => (
+                                <Badge key={idx} variant="secondary" className="font-normal">{o}</Badge>
+                              ))}
+                            </div>
+                          ) : "—"}
+                        </td>
+                        <td className="p-2 whitespace-pre-wrap break-words max-w-md text-muted-foreground">
+                          {r.comment || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {pages > 1 && (
+              <div className="flex items-center justify-between p-2 border-t border-border bg-muted/40">
+                <span className="text-xs text-muted-foreground">Página {page + 1} de {pages}</span>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
+                  <Button size="sm" variant="outline" disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)}>Próxima</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
