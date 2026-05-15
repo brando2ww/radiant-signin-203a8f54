@@ -1,6 +1,10 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LabelList } from "recharts";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import type { QuestionAnswer, CampaignQuestionMeta } from "@/hooks/use-campaign-question-analytics";
 
 interface Props {
@@ -9,6 +13,8 @@ interface Props {
 }
 
 export function QuestionPanelChoice({ answers, question }: Props) {
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
   const data = useMemo(() => {
     const counts = new Map<string, number>();
     (question.options || []).forEach(o => counts.set(o, 0));
