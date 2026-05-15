@@ -128,7 +128,7 @@ export function QuestionPanelChoice({ answers, question }: Props) {
                           ) : "—"}
                         </td>
                         <td className="p-2 whitespace-pre-wrap break-words max-w-md text-muted-foreground">
-                          {r.comment || "—"}
+                          {r.comment || r.nps_comment || "—"}
                         </td>
                       </tr>
                     );

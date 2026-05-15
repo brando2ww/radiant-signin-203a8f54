@@ -18,6 +18,7 @@ export interface QuestionAnswer {
   text_answer: string | null;
   selected_options: string[] | null;
   comment: string | null;
+  nps_comment: string | null;
 }
 
 export interface CampaignQuestionAnalytics {
@@ -71,6 +72,7 @@ export function useCampaignQuestionAnalytics(
           id,
           customer_name,
           evaluation_date,
+          nps_comment,
           evaluation_answers (
             question_id,
             score,
@@ -102,6 +104,7 @@ export function useCampaignQuestionAnalytics(
             text_answer: a.text_answer ?? null,
             selected_options: parseOptions(a.selected_options),
             comment: a.comment ?? null,
+            nps_comment: e.nps_comment ?? null,
           });
         });
       });
