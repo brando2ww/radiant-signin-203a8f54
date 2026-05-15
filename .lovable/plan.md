@@ -1,38 +1,56 @@
 ## Diagnóstico
 
-A tentativa anterior (`sticky top-14`) não funciona porque o `<main>` do PDV (`src/pages/PDV.tsx` linha 93) usa `flex-1 overflow-auto`, então o scroll acontece dentro do `<main>`, não do body. O `sticky` da sidebar é relativo a esse container, mas o header global está fora dele — `top-14` empurra a sidebar para fora da viewport.
+Hoje existem dois fluxos distintos no PDV:
 
-A página de Avaliações resolve isso de outro jeito: o `<main>` recebe um modo especial (`h-[calc(100vh-3.5rem)] overflow-hidden`) e o `EvaluationsLayout` cria um flex de altura fixa com sidebar `h-full overflow-y-auto` e conteúdo `flex-1 h-full overflow-y-auto`. Assim a sidebar nunca rola.
+1. **Trocar mesa** (`ChangeTableDialog` + RPC `pdv_change_table`)
+   - Move toda a ocupação de uma mesa para **outra mesa livre**.
+   - O dialog só lista mesas com `status = 'livre'`.
+   - O RPC bloqueia explicitamente destinos ocupados:
+     ```
+     IF v_dst.current_order_id IS NOT NULL OR v_dst.status <> 'livre' THEN
+       RAISE EXCEPTION 'Mesa de destino não está livre';
+     ```
+   - É por isso que “não deixa enviar para mesa aberta”.
 
-Vou replicar exatamente esse padrão para `/pdv/tarefas`.
+2. **Mover itens** (`TransferItemsDialog` + RPC `pdv_transfer_items`)
+   - Move itens individuais para outra comanda/mesa.
+   - Já aceita mesa ocupada como destino, mas exige selecionar item por item — não serve para “juntar duas mesas”.
 
-## Mudanças
+O usuário quer poder mandar uma mesa para outra **mesa já aberta** (juntar/mesclar mesas), o que hoje é impossível pelos dois fluxos.
 
-### `src/pages/PDV.tsx`
+## Plano
 
-- Trocar `const isEvaluations = pathname.startsWith("/pdv/avaliacoes")` por uma flag genérica que também ative para a rota raiz `/pdv/tarefas` (mantendo scroll padrão para `tarefas/checklists/...`):
-  ```ts
-  const isFixedHeight =
-    pathname.startsWith("/pdv/avaliacoes") ||
-    pathname === "/pdv/tarefas" || pathname === "/pdv/tarefas/";
-  ```
-- Usar `isFixedHeight` no `className` do `<main>`.
+### 1. Permitir mesclar mesa origem em mesa destino ocupada
 
-### `src/pages/pdv/Tasks.tsx`
+**Backend — novo comportamento do `pdv_change_table`:**
+- Se a mesa destino estiver **livre**: comportamento atual (move o order da origem).
+- Se a mesa destino estiver **ocupada**: mesclar
+  - Reatribuir todas as comandas abertas do `order` da origem para o `order` da mesa destino (`UPDATE pdv_comandas SET order_id = destino`).
+  - Cancelar/fechar o `order` antigo da origem (sem itens restantes) e liberar a mesa origem (`status = 'livre'`, `current_order_id = NULL`).
+  - Logar a ação como merge (`log_pdv_action` com flag `merged: true`).
+- Bloquear merge se a mesa destino tiver comandas com status `em_cobranca` (alguma cobrança ativa) — mensagem clara.
+- Validar capacidade: se ocupação combinada exceder `capacity` da mesa destino, apenas avisar (não bloquear) via retorno; o frontend mostra confirmação.
 
-Reestruturar o layout para espelhar `EvaluationsLayout`:
+### 2. Atualizar `ChangeTableDialog` para listar mesas ocupadas
 
-- Container raiz: `flex h-[calc(100vh-3.5rem)]` (em vez de `min-h-...`).
-- Sidebar desktop: remover `sticky/top-14/max-h`, manter `hidden md:flex flex-col w-52 shrink-0 border-r border-border bg-card p-3 gap-1 h-full overflow-y-auto`.
-- Área de conteúdo: `flex-1 min-w-0 h-full overflow-y-auto` com padding interno.
-- Mover `<ResponsivePageHeader>` para dentro da área de conteúdo (já está).
-- Nav mobile: manter no topo da área de conteúdo, sem `sticky`, com `border-b bg-card` (igual ao EvaluationsLayout).
+- Mostrar duas seções: **Mesas livres** e **Mesas ocupadas** (com nome/quantidade de comandas).
+- Ao escolher mesa ocupada, exibir aviso: “As comandas da {origem} serão mescladas em {destino}. A {origem} ficará livre.”
+- Exigir motivo obrigatório quando o destino for ocupado, mesmo que `requiresReason('change_table')` esteja desligado.
+- Manter a permissão `change_table`.
 
-### Sem mudanças em
+### 3. Validação visual
 
-- Itens de menu, lógica de `activeSection`, `renderContent()`.
-- Rotas filhas (`tarefas/checklists/novo`, `tarefas/checklists/:id`) continuam usando o `<main>` com scroll padrão.
+- Após a operação, refetch de `pdv_tables`, `pdv_orders`, `pdv_comandas`.
+- Toast: “Mesa {origem} mesclada em {destino}”.
 
-## Resultado
+### Arquivos afetados
 
-A sidebar de Tarefas/Checklists fica realmente fixa enquanto o conteúdo rola, idêntico ao módulo de Avaliações.
+- `supabase/migrations/<nova>.sql` — atualizar `pdv_change_table` para aceitar destino ocupado e mesclar.
+- `src/components/pdv/operations/ChangeTableDialog.tsx` — listar mesas ocupadas + aviso de merge + motivo.
+- `src/hooks/use-pdv-table-change.ts` — manter assinatura, ajustar mensagem do toast (origem/destino).
+
+### Critério de aceitação
+
+- Em uma mesa A ocupada, abrir “Trocar mesa” e selecionar a mesa B (também ocupada): operação conclui com sucesso, mesa A fica livre e a mesa B passa a ter as comandas das duas.
+- Mesa B com comanda `em_cobranca`: operação bloqueada com mensagem clara.
+- Mesa B livre: comportamento atual continua funcionando igual.
