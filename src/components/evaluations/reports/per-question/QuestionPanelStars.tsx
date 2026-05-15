@@ -195,7 +195,7 @@ export function QuestionPanelStars({ answers }: Props) {
             </thead>
             <tbody>
               {pageRows.map((r, i) => {
-                const resp = r.comment || r.text_answer || "—";
+                const resp = r.comment || r.text_answer || r.nps_comment || "—";
                 return (
                   <tr key={i} className="border-t border-border align-top">
                     <td className="p-2 whitespace-nowrap">{format(parseISO(r.evaluation_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</td>
