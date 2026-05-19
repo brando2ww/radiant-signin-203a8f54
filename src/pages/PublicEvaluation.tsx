@@ -277,6 +277,20 @@ export default function PublicEvaluation() {
               expiresAt={couponData.expiresAt}
             />
           </div>
+          {pendingRedirect && googleReviewUrl && (
+            <div className="mt-6 space-y-3 text-center">
+              <p className="text-sm text-muted-foreground">
+                Que tal nos ajudar com uma avaliação no Google?
+              </p>
+              <Button
+                className="gap-2 w-full"
+                onClick={() => { window.location.href = googleReviewUrl; }}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Avaliar no Google
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
