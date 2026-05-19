@@ -71,7 +71,7 @@ export const useEvaluationCampaigns = () => {
         const avg_nps = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
 
         campaigns.push({
-          ...campaign,
+          ...(campaign as any),
           total_responses: count || 0,
           avg_nps,
           last_response_at: evals && evals.length > 0 ? evals[0].created_at : null,
