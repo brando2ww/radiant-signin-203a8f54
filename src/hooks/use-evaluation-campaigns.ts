@@ -111,7 +111,7 @@ export const useCreateCampaign = () => {
 export const useUpdateCampaign = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name?: string; description?: string; is_active?: boolean; logo_url?: string | null; background_color?: string; welcome_message?: string | null; thank_you_message?: string | null; roulette_enabled?: boolean; wheel_primary_color?: string; wheel_secondary_color?: string; roulette_cooldown_hours?: number }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; description?: string; is_active?: boolean; logo_url?: string | null; background_color?: string; welcome_message?: string | null; thank_you_message?: string | null; roulette_enabled?: boolean; wheel_primary_color?: string; wheel_secondary_color?: string; roulette_cooldown_hours?: number; google_redirect_mode?: GoogleRedirectMode }) => {
       const { error } = await supabase
         .from("evaluation_campaigns")
         .update(data)
