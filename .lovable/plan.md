@@ -1,59 +1,63 @@
-## Objetivo
-Permitir múltiplos turnos (1 a 3) por dia em "Horários de Funcionamento" — tanto em **Administrador > Configurações > Geral** (PDV) quanto em **Delivery > Configurações** — com validação de sobreposição e exibição de todos os turnos no cardápio público.
+## Auditoria de Exportação/Importação — Módulo Financeiro
 
-## Modelo de dados (retrocompatível, sem migração SQL)
-`business_hours` é `JSONB` nos dois lados (`pdv_settings` e `delivery_settings`). Estender o formato:
+### O que foi encontrado
 
-```ts
-{
-  [day]: {
-    closed?: boolean;
-    shifts: { open: string; close: string }[]; // novo, 1..3 itens
-    // campos legados open/close/is_closed permanecem gravados para retrocompatibilidade
-  }
-}
-```
+Varri todas as 10 páginas listadas em `src/pages/pdv/financial/`. Apenas **2 seções possuem botão de Exportar/Importar visível hoje**:
 
-Helpers em **novo arquivo** `src/lib/business-hours.ts`:
-- `normalizeDayHours(raw)` — aceita formato legado (`{open, close, is_closed|closed}`) e converte para `{closed, shifts:[{open,close}]}`.
-- `serializeDayHours({closed, shifts})` — devolve objeto com `shifts` + `open`/`close`/`is_closed`/`closed` do 1º turno (compat).
-- `hasShiftOverlap(shifts)` — valida sobreposição considerando turnos que cruzam meia-noite.
-- `formatTodayShifts(hours, dayKey)` — retorna string `"12h–15h e 18h–22h"`.
+| Seção | Botão presente | Estado atual |
+|---|---|---|
+| Lançamentos (`FinancialTransactions.tsx`) | Nenhum | — |
+| Contas a Pagar (`AccountsPayable.tsx`) | Nenhum | — |
+| Contas a Receber (`AccountsReceivable.tsx`) | Nenhum | — |
+| Fluxo de Caixa (`CashFlow.tsx`) | Nenhum | — |
+| Plano de Contas (`ChartOfAccounts.tsx`) | Nenhum | — |
+| Centros de Custo (`CostCenters.tsx`) | Nenhum | — |
+| **DRE** (`DRE.tsx`) | **"Exportar DRE"** (CSV) | Funcional, com 3 melhorias pequenas |
+| CMV Produtos (`ProductCMV.tsx`) | Nenhum | — |
+| CMV Geral (`GeneralCMV.tsx`) | Nenhum | — |
+| **Demo. Caixa** (`CashierStatement.tsx`) | **"Exportar"** (CSV) | Funcional, com 3 melhorias pequenas |
 
-## UI compartilhada
-**Novo componente** `src/components/shared/BusinessHoursEditor.tsx`:
-- Lista os 7 dias da semana.
-- Cabeçalho do dia: nome + switch "Aberto/Fechado" (Fechado desabilita todos os inputs do dia).
-- Lista de turnos numerados ("Turno 1", "Turno 2"...) com `Abertura — Fechamento — [🗑]`.
-- Lixeira oculta quando há apenas 1 turno.
-- Botão "+ Adicionar turno" abaixo da lista (oculto quando há 3 turnos).
-- Validação inline: mensagem em `text-destructive` abaixo do dia quando `hasShiftOverlap` detecta conflito.
-- Props: `value: BusinessHours`, `onChange`, `errors` (computados internamente).
-- Expõe `hasErrors` via callback para o pai bloquear o salvamento.
+Conforme sua regra ("nunca deixar botão que não faz nada" — agir apenas quando o botão está visível), as 8 seções sem botão **não exigem ação**. Se quiser que sejam adicionadas exportações nelas, isso vira escopo novo (ver "Fora de escopo" abaixo).
 
-## Integração nos dois pontos
-1. **`src/components/pdv/settings/GeneralTab.tsx`** — substituir o bloco atual (linhas 161–219) pelo `BusinessHoursEditor` controlado via `form.watch("business_hours")` + `form.setValue`. Bloquear submit se houver overlap.
-2. **`src/components/delivery/settings/BusinessHoursSettings.tsx`** — substituir o conteúdo do `CardContent` pelo mesmo `BusinessHoursEditor`. Bloquear botão "Salvar Horários" se houver overlap.
+### Diagnóstico das 2 exportações existentes
 
-## Lógica "aberto agora" — `src/lib/delivery-hours.ts`
-- `isStoreCurrentlyOpen`: normalizar via `normalizeDayHours`, iterar `shifts[]` do dia atual e do anterior (para turnos cruzando meia-noite).
-- `getNextOpenLabel`: escolher o próximo `open` mais cedo entre todos os turnos futuros.
+**DRE → CSV** (`handleExport`, linhas 21–48)
+- Gera CSV com dados reais do mês selecionado (`usePDVDre`). ✅
+- Disable correto quando `data` é nulo. ✅
+- **Problemas pequenos**:
+  1. Sem BOM UTF-8 → acentos saem corrompidos no Excel BR.
+  2. Anchor não anexada ao DOM → falha silenciosa no Firefox em alguns casos.
+  3. `URL.createObjectURL` nunca é revogado → vazamento de memória.
+  4. MIME `text/csv` ok, mas como o separador é `;`, idealmente `text/csv;charset=utf-8`.
 
-## Cardápio público
-Em `src/components/public-menu/PublicMenuHeader.tsx` (e demais consumidores que exibirem horário do dia — `ShoppingCart.tsx`, `OrderConfirmation.tsx` se aplicável), substituir a exibição de turno único por `formatTodayShifts(...)`:
-> "Aberto hoje: 12h–15h e 18h–22h"
+**Demo. Caixa → CSV** (`handleExport`, linhas 33–66)
+- Gera CSV com sessões + KPIs do dia/mês (`usePDVCashierStatement`). ✅
+- Disable correto quando `data` é nulo. ✅
+- Mesmos 4 problemas pequenos da DRE.
 
-## Validação de sobreposição
-Cada turno vira intervalo em minutos. Turno que cruza meia-noite (`close <= open`) é tratado como dois intervalos `[open, 1440)` e `[0, close)`. Sobreposição = interseção não vazia entre qualquer par de turnos do mesmo dia.
+### O que vou alterar
 
-## Arquivos tocados
-- **Novo**: `src/lib/business-hours.ts`
-- **Novo**: `src/components/shared/BusinessHoursEditor.tsx`
-- Editar: `src/components/pdv/settings/GeneralTab.tsx`
-- Editar: `src/components/delivery/settings/BusinessHoursSettings.tsx`
-- Editar: `src/lib/delivery-hours.ts`
-- Editar: `src/components/public-menu/PublicMenuHeader.tsx` (e outros consumidores onde fizer sentido)
+Criar um helper compartilhado `src/lib/csv-export.ts` com `downloadCsv(filename, rows)` que:
+- Prepara o conteúdo com **BOM UTF-8** (`\ufeff`),
+- Usa MIME `text/csv;charset=utf-8;`,
+- Anexa a `<a>` ao DOM, dispara click, remove e chama `URL.revokeObjectURL`.
 
-## Fora de escopo
-- Migração SQL (campo já é JSONB; normalização lê o formato legado).
-- Múltiplos fusos horários (segue usando America/Sao_Paulo).
+Trocar `handleExport` em:
+- `src/pages/pdv/financial/DRE.tsx`
+- `src/pages/pdv/financial/CashierStatement.tsx`
+
+para usar `downloadCsv(...)` — mesma estrutura de linhas, só o final do método muda.
+
+### Validação
+
+- Clicar "Exportar DRE" em um mês com dados → baixa `DRE_YYYY-MM.csv`, abre no Excel/LibreOffice com acentos corretos.
+- Clicar "Exportar" em Demo. Caixa (diário e mensal) → baixa CSV com sessões e totais.
+- Clicar em ambos quando não há dados → botão desabilitado (já funciona).
+
+### Fora de escopo (precisa sua decisão)
+
+Nenhuma das 8 seções abaixo tem hoje botão de exportar/importar. Posso **adicionar exportação CSV** em todas — mas isso não é "consertar", é nova feature. Confirme se quer que eu inclua na mesma rodada:
+
+- Lançamentos · Contas a Pagar · Contas a Receber · Fluxo de Caixa · Plano de Contas · Centros de Custo · CMV Produtos · CMV Geral
+
+Importação (CSV/XLSX para criar lançamentos, contas, plano de contas etc.) também não existe em nenhuma seção. Como exige modelo de planilha + validação + matching, fica como escopo separado caso queira.
