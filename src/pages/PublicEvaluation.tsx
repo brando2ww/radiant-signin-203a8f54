@@ -222,12 +222,12 @@ export default function PublicEvaluation() {
       },
       {
         onSuccess: (result) => {
-          const isPromoter = npsScore !== null && npsScore >= 9 && !!googleReviewUrl;
-          // Promotores são redirecionados para o Google e não recebem cupom de sorteio
-          if (isPromoter) {
-            setPhase("google_redirect");
-            return;
-          }
+          const mode = (campaign as any)?.google_redirect_mode ?? "promoters";
+          const shouldRedirect = !!googleReviewUrl && (
+            mode === "always" ||
+            (mode === "promoters" && npsScore !== null && npsScore >= 9)
+          );
+
           if (wonPrize && result?.id) {
             registerWin.mutate(
               {
@@ -241,11 +241,17 @@ export default function PublicEvaluation() {
               {
                 onSuccess: (win) => {
                   setCouponData({ code: win.coupon_code, expiresAt: win.coupon_expires_at });
+                  setPendingRedirect(shouldRedirect);
                   setPhase("coupon");
                 },
-                onError: () => setPhase("done"),
+                onError: () => {
+                  if (shouldRedirect) setPhase("google_redirect");
+                  else setPhase("done");
+                },
               }
             );
+          } else if (shouldRedirect) {
+            setPhase("google_redirect");
           } else {
             setPhase("done");
           }
