@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Building2, Clock, Save } from "lucide-react";
+import { BusinessHoursEditor } from "@/components/shared/BusinessHoursEditor";
+import { serializeBusinessHours } from "@/lib/business-hours";
 
 const generalSchema = z.object({
   business_name: z.string().optional(),
@@ -26,16 +29,6 @@ interface GeneralTabProps {
   isSubmitting?: boolean;
 }
 
-const daysOfWeek = [
-  { key: "monday", label: "Segunda-feira" },
-  { key: "tuesday", label: "Terça-feira" },
-  { key: "wednesday", label: "Quarta-feira" },
-  { key: "thursday", label: "Quinta-feira" },
-  { key: "friday", label: "Sexta-feira" },
-  { key: "saturday", label: "Sábado" },
-  { key: "sunday", label: "Domingo" },
-];
-
 export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabProps) {
   const form = useForm<GeneralFormValues>({
     resolver: zodResolver(generalSchema),
@@ -44,6 +37,7 @@ export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabPr
       ...defaultValues,
     },
   });
+  const [hoursHaveErrors, setHoursHaveErrors] = useState(false);
 
   return (
     <Form {...form}>
@@ -165,61 +159,22 @@ export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabPr
               Horários de Funcionamento
             </CardTitle>
             <CardDescription>
-              Configure os horários de abertura e fechamento
+              Configure os horários de abertura e fechamento. Você pode adicionar até 3 turnos por dia.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {daysOfWeek.map((day) => (
-              <div key={day.key} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="font-medium">{day.label}</div>
-                <FormField
-                  control={form.control}
-                  name={`business_hours.${day.key}.open` as any}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Abertura</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`business_hours.${day.key}.close` as any}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fechamento</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`business_hours.${day.key}.is_closed` as any}
-                  render={({ field }) => (
-                    <FormItem className="flex items-center gap-2">
-                      <FormControl>
-                        <input
-                          type="checkbox"
-                          checked={field.value}
-                          onChange={field.onChange}
-                          className="h-4 w-4"
-                        />
-                      </FormControl>
-                      <FormLabel className="!mt-0">Fechado</FormLabel>
-                    </FormItem>
-                  )}
-                />
-              </div>
-            ))}
+            <BusinessHoursEditor
+              value={form.watch("business_hours")}
+              onChange={(next) =>
+                form.setValue("business_hours", serializeBusinessHours(next) as any, { shouldDirty: true })
+              }
+              onValidityChange={setHoursHaveErrors}
+            />
           </CardContent>
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || hoursHaveErrors}>
             <Save className="mr-2 h-4 w-4" />
             {isSubmitting ? "Salvando..." : "Salvar Configurações"}
           </Button>

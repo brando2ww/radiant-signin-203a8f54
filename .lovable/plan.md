@@ -1,60 +1,59 @@
-# Fix de fuso horário no módulo de Checklists
+## Objetivo
+Permitir múltiplos turnos (1 a 3) por dia em "Horários de Funcionamento" — tanto em **Administrador > Configurações > Geral** (PDV) quanto em **Delivery > Configurações** — com validação de sobreposição e exibição de todos os turnos no cardápio público.
 
-`new Date().toISOString().split("T")[0]` retorna a data em UTC. Para o horário de Brasília (UTC-3), qualquer ação executada entre 21h e 23h59 grava/filtra com a data do dia seguinte, e tudo feito antes acaba indo para o "bucket" errado. Os timestamps `timestamptz` (`started_at`, `completed_at`, `acknowledged_at`) devem continuar em UTC — só as colunas `date` (sem fuso) precisam virar local.
-
-## 1. Helper compartilhado
-
-Adicionar em `src/lib/date.ts` (novo arquivo):
+## Modelo de dados (retrocompatível, sem migração SQL)
+`business_hours` é `JSONB` nos dois lados (`pdv_settings` e `delivery_settings`). Estender o formato:
 
 ```ts
-export function toLocalDateStr(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+{
+  [day]: {
+    closed?: boolean;
+    shifts: { open: string; close: string }[]; // novo, 1..3 itens
+    // campos legados open/close/is_closed permanecem gravados para retrocompatibilidade
+  }
 }
 ```
 
-(`src/hooks/use-daily-tasks.ts` já tem esta função inline — passa a importar do novo módulo e remove a duplicata.)
+Helpers em **novo arquivo** `src/lib/business-hours.ts`:
+- `normalizeDayHours(raw)` — aceita formato legado (`{open, close, is_closed|closed}`) e converte para `{closed, shifts:[{open,close}]}`.
+- `serializeDayHours({closed, shifts})` — devolve objeto com `shifts` + `open`/`close`/`is_closed`/`closed` do 1º turno (compat).
+- `hasShiftOverlap(shifts)` — valida sobreposição considerando turnos que cruzam meia-noite.
+- `formatTodayShifts(hours, dayKey)` — retorna string `"12h–15h e 18h–22h"`.
 
-## 2. Arquivos a corrigir
+## UI compartilhada
+**Novo componente** `src/components/shared/BusinessHoursEditor.tsx`:
+- Lista os 7 dias da semana.
+- Cabeçalho do dia: nome + switch "Aberto/Fechado" (Fechado desabilita todos os inputs do dia).
+- Lista de turnos numerados ("Turno 1", "Turno 2"...) com `Abertura — Fechamento — [🗑]`.
+- Lixeira oculta quando há apenas 1 turno.
+- Botão "+ Adicionar turno" abaixo da lista (oculto quando há 3 turnos).
+- Validação inline: mensagem em `text-destructive` abaixo do dia quando `hasShiftOverlap` detecta conflito.
+- Props: `value: BusinessHours`, `onChange`, `errors` (computados internamente).
+- Expõe `hasErrors` via callback para o pai bloquear o salvamento.
 
-Substituir todas as ocorrências de `…toISOString().split("T")[0]` por `toLocalDateStr(date)` (ou `toLocalDateStr()` quando a base é `new Date()`):
+## Integração nos dois pontos
+1. **`src/components/pdv/settings/GeneralTab.tsx`** — substituir o bloco atual (linhas 161–219) pelo `BusinessHoursEditor` controlado via `form.watch("business_hours")` + `form.setValue`. Bloquear submit se houver overlap.
+2. **`src/components/delivery/settings/BusinessHoursSettings.tsx`** — substituir o conteúdo do `CardContent` pelo mesmo `BusinessHoursEditor`. Bloquear botão "Salvar Horários" se houver overlap.
 
-**Checklists / Tasks (escopo do bug)**
-- `src/hooks/use-daily-tasks.ts` — usar import.
-- `src/hooks/use-checklist-execution.ts` — linhas 64 e 158 (`todayStr`).
-- `src/hooks/use-checklist-dashboard.ts` — linha 18 (default `date`).
-- `src/hooks/use-public-tasks.ts` — linha 7.
-- `src/hooks/use-operational-tasks.ts` — linha 101.
-- `src/hooks/use-operator-scores.ts` — linhas 40, 52, 57, 62, 76, 83, 91 (todos os `periodStart/periodEnd`).
-- `src/components/pdv/tasks/TaskHistory.tsx` — linha 17 (`useState` da data).
-- `src/components/pdv/tasks/settings/DataSection.tsx` — linhas 52, 67, 68, 78 (backup + export CSV).
-- `src/components/pdv/checklists/DashboardPanel.tsx` — linha 31 (`useState` da data).
-- `src/components/pdv/checklists/TeamScorePanel.tsx` — linhas 22 e 23 (`customStart/customEnd`).
-- `src/pages/PublicChecklistAccess.tsx` — linha 150 (`todayStr`).
+## Lógica "aberto agora" — `src/lib/delivery-hours.ts`
+- `isStoreCurrentlyOpen`: normalizar via `normalizeDayHours`, iterar `shifts[]` do dia atual e do anterior (para turnos cruzando meia-noite).
+- `getNextOpenLabel`: escolher o próximo `open` mais cedo entre todos os turnos futuros.
 
-**Já corretos (sem alteração)**
-- `src/hooks/use-operational-report.ts` usa `format(d, "yyyy-MM-dd")` (date-fns, local). ✓
-- Timestamps `…toISOString()` para colunas `timestamptz` (`started_at`, `completed_at`, `acknowledged_at` em `use-checklist-execution.ts`, `use-public-tasks.ts`, `use-checklist-dashboard.ts`, `PublicChecklistAccess.tsx`) permanecem como estão. ✓
+## Cardápio público
+Em `src/components/public-menu/PublicMenuHeader.tsx` (e demais consumidores que exibirem horário do dia — `ShoppingCart.tsx`, `OrderConfirmation.tsx` se aplicável), substituir a exibição de turno único por `formatTodayShifts(...)`:
+> "Aberto hoje: 12h–15h e 18h–22h"
 
-**Fora do escopo (não tocar nesta entrega)**: `use-customer-evaluations.ts`, `use-convert-lead.ts`, `use-transactions.ts`, `use-calendar-events.ts`, `use-bills.ts`, `use-card-transactions.ts`, `use-pdv-comandas.ts`, `use-pdv-purchase-orders.ts`, `CouponDialog.tsx` — não pertencem ao módulo de Checklists.
+## Validação de sobreposição
+Cada turno vira intervalo em minutos. Turno que cruza meia-noite (`close <= open`) é tratado como dois intervalos `[open, 1440)` e `[0, close)`. Sobreposição = interseção não vazia entre qualquer par de turnos do mesmo dia.
 
-## 3. `dayOfWeek`
-
-Auditado e já está correto (usa `getDay()` local):
-- `use-daily-tasks.ts:111` → `new Date(\`${targetDate}T12:00:00\`).getDay()` (constrói data local com offset de meio-dia para evitar DST). ✓
-- `use-checklist-execution.ts:63` → `today.getDay()` em um `Date` local. ✓
-- `schedules/ScheduleWeekGrid.tsx`, `schedules/ScheduleIndicators.tsx` → `new Date().getDay()` local. ✓
-
-Nenhuma mudança necessária aqui.
-
-## 4. Validação
-
-Após a entrega, validar executando checklist às 21h, 22h e 23h (horário de Brasília) e conferir:
-- A linha em `checklist_executions` é gravada com `execution_date` = dia local.
-- O Painel, "Relatório Geral" e Score continuam mostrando a execução no dia correto até 23h59.
-- Após meia-noite local, a data avança apenas uma vez.
+## Arquivos tocados
+- **Novo**: `src/lib/business-hours.ts`
+- **Novo**: `src/components/shared/BusinessHoursEditor.tsx`
+- Editar: `src/components/pdv/settings/GeneralTab.tsx`
+- Editar: `src/components/delivery/settings/BusinessHoursSettings.tsx`
+- Editar: `src/lib/delivery-hours.ts`
+- Editar: `src/components/public-menu/PublicMenuHeader.tsx` (e outros consumidores onde fizer sentido)
 
 ## Fora de escopo
-Sem mudanças em RLS, schema, edge functions, ou lógica de cálculo. Apenas substituição direta de derivação de data.
+- Migração SQL (campo já é JSONB; normalização lê o formato legado).
+- Múltiplos fusos horários (segue usando America/Sao_Paulo).

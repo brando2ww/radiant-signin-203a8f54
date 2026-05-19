@@ -2,7 +2,7 @@ import { useBusinessSettings, usePublicSettings } from "@/hooks/use-public-menu"
 import { Clock, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatBRL } from "@/lib/format";
-import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
+import { isStoreCurrentlyOpen, formatTodayShifts } from "@/lib/delivery-hours";
 
 interface PublicMenuHeaderProps {
   userId: string;
@@ -71,12 +71,23 @@ export const PublicMenuHeader = ({ userId }: PublicMenuHeaderProps) => {
                 )}
               {(() => {
                 const status = isStoreCurrentlyOpen(deliverySettings);
+                const todayLabel = formatTodayShifts(deliverySettings?.business_hours);
                 if (status.open) {
-                  return <Badge className="bg-green-500">Aberto agora</Badge>;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-500">Aberto agora</Badge>
+                      {todayLabel && (
+                        <span className="text-xs text-muted-foreground">Hoje: {todayLabel}</span>
+                      )}
+                    </div>
+                  );
                 }
                 return (
                   <div className="flex items-center gap-2">
                     <Badge variant="destructive">Fechado</Badge>
+                    {todayLabel && (
+                      <span className="text-xs text-muted-foreground">Hoje: {todayLabel}</span>
+                    )}
                     {status.nextOpenLabel && (
                       <span className="text-xs text-muted-foreground">Abre {status.nextOpenLabel}</span>
                     )}
