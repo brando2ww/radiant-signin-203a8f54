@@ -1,69 +1,60 @@
-# Relatório Operacional — substituir "Tarefas do Dia"
+# Fix de fuso horário no módulo de Checklists
 
-A aba **Tarefas do Dia** (sidebar de Checklists Operacionais → `case "hoje"` em `src/pages/pdv/Tasks.tsx`) passa a renderizar um novo painel de relatório geral. O conteúdo atual (`DailyTasksView`) é totalmente substituído. `DailyTasksView.tsx` permanece como arquivo histórico (não importado).
+`new Date().toISOString().split("T")[0]` retorna a data em UTC. Para o horário de Brasília (UTC-3), qualquer ação executada entre 21h e 23h59 grava/filtra com a data do dia seguinte, e tudo feito antes acaba indo para o "bucket" errado. Os timestamps `timestamptz` (`started_at`, `completed_at`, `acknowledged_at`) devem continuar em UTC — só as colunas `date` (sem fuso) precisam virar local.
 
-## Filtros (topo, sticky)
+## 1. Helper compartilhado
 
-### Seletor de período — estilo da referência enviada
-Botão principal mostra `📅 <preset>: <data inicial> a <data final>`. Ao clicar abre `Popover` largo (≈900px) com:
+Adicionar em `src/lib/date.ts` (novo arquivo):
 
-- **Coluna esquerda — lista de presets em radio**:
-  - Grupo "Usados recentemente" (até 3 últimos, persistidos em `localStorage`).
-  - Separador.
-  - Presets fixos: Hoje, Ontem, Hoje e ontem, Últimos 7 dias, Últimos 14 dias, Últimos 28 dias, Últimos 30 dias, Esta semana, Semana passada, Este mês, Mês passado, Máximo, Personalizado.
-- **Direita — calendário duplo** (`react-day-picker` em modo `range`, `numberOfMonths={2}`) com header de mês/ano selecionável via dropdown (`Select` de meses e anos navegáveis), locale `ptBR`.
-- Abaixo do calendário: checkbox **Comparar** (default ligado) + 3 campos lado a lado — preset de comparação (Período anterior, Ano anterior, Personalizado) e duas datas read-only mostrando o range comparativo calculado.
-- Rodapé: texto leve "Fuso horário das datas: Horário de São Paulo" à esquerda; botões **Cancelar** e **Atualizar** à direita (atualizar só fecha e aplica filtros).
-- Componente isolado em `src/components/pdv/tasks/report/DateRangeFilter.tsx` reutilizável.
-
-### Outros filtros
-- **Setor**: multi-select (Cozinha, Salão, Caixa, Bar, Estoque, Gerência) — enum `sector` existente.
-- **Turno**: multi-select (Manhã/Tarde/Noite mapeados para Abertura/Tarde/Fechamento).
-- Todos os blocos abaixo reagem aos filtros via `useQuery` keyado no objeto `filters`.
-
-## Seções
-
-1. **Indicadores (4 cards)**: Total + Δ% vs período anterior; Taxa de conclusão com `Progress` verde≥80% / amarelo 60–80% / vermelho<60%; Atrasadas (qtd + %); Itens críticos em aberto (itens não conformes marcados como críticos + alertas críticos não reconhecidos).
-2. **Evolução**: `LineChart` (recharts) com 3 séries — conclusão diária, meta (linha contínua, valor de `operational_task_settings.target_completion_rate`, default 85% client-side), período anterior (linha tracejada).
-3. **Por setor**: cards/linhas ordenados do pior para o melhor — nome, total, atrasadas, críticos, barra colorida por taxa. Click filtra demais blocos.
-4. **Equipe**: tabela com avatar+nome, setor, total, no prazo, score, variação. Linha clicável → `onNavigate("equipe")` levando ID via state em `Tasks.tsx`.
-5. **Top 5 checklists com falhas**: nome, setor, execuções, % no prazo, item mais ignorado (maior contagem de `checklist_execution_items.is_compliant=false`).
-6. **Alertas**: contagens por tipo (temperatura, item crítico, atraso) + lista dos 5 não reconhecidos mais recentes com botão "Reconhecer" (update `is_acknowledged=true`).
-
-**Estado vazio**: ícone `ClipboardX`, "Sem dados no período selecionado", botão "Limpar filtros".
-
-## Detalhes técnicos
-
-**Novos arquivos**
-- `src/components/pdv/tasks/OperationalReport.tsx` — container + grid + estado vazio.
-- `src/components/pdv/tasks/report/DateRangeFilter.tsx` — popover replicando a referência.
-- `src/components/pdv/tasks/report/MetricsCards.tsx`
-- `src/components/pdv/tasks/report/EvolutionChart.tsx`
-- `src/components/pdv/tasks/report/SectorBreakdown.tsx`
-- `src/components/pdv/tasks/report/TeamRanking.tsx`
-- `src/components/pdv/tasks/report/TopFailingChecklists.tsx`
-- `src/components/pdv/tasks/report/AlertsPanel.tsx`
-- `src/hooks/use-operational-report.ts` — recebe `filters` e expõe `{ metrics, evolution, bySector, teamRanking, topFailing, alerts, isLoading }` via `useQueries` em `checklist_executions` (+ joins), `checklist_execution_items` agregado e `checklist_alerts`. Faz queries paralelas para o período atual e o de comparação.
-
-**Arquivos editados**
-- `src/pages/pdv/Tasks.tsx`: substituir `case "hoje"` para renderizar `<OperationalReport onNavigate={setActiveSection} />`; remover import de `DailyTasksView`; rótulo do NAV "Tarefas do Dia" → "Relatório Geral", ícone `ListChecks` → `BarChart3`.
-
-**Tokens visuais**: usar apenas `bg-card`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border`, `text-primary`, `bg-primary` (memória de cores do projeto). Sem gradientes.
-
-**Fora de escopo**: Painel, Checklists, Agendamento, Equipe, Configurações, Score, Evidências, Validade, Logs, RLS, edge functions, esquema atual.
-
-## Diagrama
-
-```text
-+---------------------------------------------------------------+
-| [📅 Últimos 30 dias: 19/abr a 18/mai] [Setores v] [Turnos v]  |
-+---------------------------------------------------------------+
-| Total |  Conclusão  | Atrasadas | Críticos abertos            |
-+---------------------------------------------------------------+
-| Evolução diária (atual + meta + período anterior tracejado)   |
-+----------------------------+----------------------------------+
-| Por setor (pior→melhor)    | Ranking da equipe (clicável)     |
-+----------------------------+----------------------------------+
-| Top 5 checklists com falhas| Alertas (por tipo + 5 recentes)  |
-+----------------------------+----------------------------------+
+```ts
+export function toLocalDateStr(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 ```
+
+(`src/hooks/use-daily-tasks.ts` já tem esta função inline — passa a importar do novo módulo e remove a duplicata.)
+
+## 2. Arquivos a corrigir
+
+Substituir todas as ocorrências de `…toISOString().split("T")[0]` por `toLocalDateStr(date)` (ou `toLocalDateStr()` quando a base é `new Date()`):
+
+**Checklists / Tasks (escopo do bug)**
+- `src/hooks/use-daily-tasks.ts` — usar import.
+- `src/hooks/use-checklist-execution.ts` — linhas 64 e 158 (`todayStr`).
+- `src/hooks/use-checklist-dashboard.ts` — linha 18 (default `date`).
+- `src/hooks/use-public-tasks.ts` — linha 7.
+- `src/hooks/use-operational-tasks.ts` — linha 101.
+- `src/hooks/use-operator-scores.ts` — linhas 40, 52, 57, 62, 76, 83, 91 (todos os `periodStart/periodEnd`).
+- `src/components/pdv/tasks/TaskHistory.tsx` — linha 17 (`useState` da data).
+- `src/components/pdv/tasks/settings/DataSection.tsx` — linhas 52, 67, 68, 78 (backup + export CSV).
+- `src/components/pdv/checklists/DashboardPanel.tsx` — linha 31 (`useState` da data).
+- `src/components/pdv/checklists/TeamScorePanel.tsx` — linhas 22 e 23 (`customStart/customEnd`).
+- `src/pages/PublicChecklistAccess.tsx` — linha 150 (`todayStr`).
+
+**Já corretos (sem alteração)**
+- `src/hooks/use-operational-report.ts` usa `format(d, "yyyy-MM-dd")` (date-fns, local). ✓
+- Timestamps `…toISOString()` para colunas `timestamptz` (`started_at`, `completed_at`, `acknowledged_at` em `use-checklist-execution.ts`, `use-public-tasks.ts`, `use-checklist-dashboard.ts`, `PublicChecklistAccess.tsx`) permanecem como estão. ✓
+
+**Fora do escopo (não tocar nesta entrega)**: `use-customer-evaluations.ts`, `use-convert-lead.ts`, `use-transactions.ts`, `use-calendar-events.ts`, `use-bills.ts`, `use-card-transactions.ts`, `use-pdv-comandas.ts`, `use-pdv-purchase-orders.ts`, `CouponDialog.tsx` — não pertencem ao módulo de Checklists.
+
+## 3. `dayOfWeek`
+
+Auditado e já está correto (usa `getDay()` local):
+- `use-daily-tasks.ts:111` → `new Date(\`${targetDate}T12:00:00\`).getDay()` (constrói data local com offset de meio-dia para evitar DST). ✓
+- `use-checklist-execution.ts:63` → `today.getDay()` em um `Date` local. ✓
+- `schedules/ScheduleWeekGrid.tsx`, `schedules/ScheduleIndicators.tsx` → `new Date().getDay()` local. ✓
+
+Nenhuma mudança necessária aqui.
+
+## 4. Validação
+
+Após a entrega, validar executando checklist às 21h, 22h e 23h (horário de Brasília) e conferir:
+- A linha em `checklist_executions` é gravada com `execution_date` = dia local.
+- O Painel, "Relatório Geral" e Score continuam mostrando a execução no dia correto até 23h59.
+- Após meia-noite local, a data avança apenas uma vez.
+
+## Fora de escopo
+Sem mudanças em RLS, schema, edge functions, ou lógica de cálculo. Apenas substituição direta de derivação de data.
