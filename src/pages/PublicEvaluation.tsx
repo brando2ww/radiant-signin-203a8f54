@@ -674,7 +674,7 @@ function GoogleRedirectScreen({ Logo, bgColor, url, onSkip }: GoogleRedirectScre
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mx-auto">
           <Star className="h-10 w-10 text-primary" />
         </div>
-        <h1 className="text-2xl font-semibold text-foreground">Que bom que você gostou! 🎉</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Obrigado pela avaliação! 🎉</h1>
         <p className="text-muted-foreground leading-relaxed text-sm">
           Sua opinião faz toda a diferença. Vamos te levar ao Google para deixar sua avaliação...
         </p>
