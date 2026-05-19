@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { useUpdateCampaign, type CampaignWithStats } from "@/hooks/use-evaluation-campaigns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ExternalLink, AlertCircle } from "lucide-react";
+import { useUpdateCampaign, type CampaignWithStats, type GoogleRedirectMode } from "@/hooks/use-evaluation-campaigns";
+import { useBusinessSettings } from "@/hooks/use-business-settings";
 
 interface EditCampaignDialogProps {
-  campaign: Pick<CampaignWithStats, "id" | "name" | "description">;
+  campaign: Pick<CampaignWithStats, "id" | "name" | "description"> & { google_redirect_mode?: GoogleRedirectMode };
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -15,14 +20,18 @@ interface EditCampaignDialogProps {
 export function EditCampaignDialog({ campaign, open, onOpenChange }: EditCampaignDialogProps) {
   const [name, setName] = useState(campaign.name);
   const [description, setDescription] = useState(campaign.description ?? "");
+  const [redirectMode, setRedirectMode] = useState<GoogleRedirectMode>(campaign.google_redirect_mode ?? "promoters");
   const updateCampaign = useUpdateCampaign();
+  const { settings } = useBusinessSettings();
+  const hasGoogleUrl = !!settings?.google_review_url;
 
   useEffect(() => {
     if (open) {
       setName(campaign.name);
       setDescription(campaign.description ?? "");
+      setRedirectMode(campaign.google_redirect_mode ?? "promoters");
     }
-  }, [open, campaign.name, campaign.description]);
+  }, [open, campaign.name, campaign.description, campaign.google_redirect_mode]);
 
   const handleSubmit = () => {
     if (!name.trim()) return;
@@ -31,6 +40,7 @@ export function EditCampaignDialog({ campaign, open, onOpenChange }: EditCampaig
         id: campaign.id,
         name: name.trim(),
         description: description.trim() || undefined,
+        google_redirect_mode: redirectMode,
       },
       {
         onSuccess: () => onOpenChange(false),
@@ -64,6 +74,37 @@ export function EditCampaignDialog({ campaign, open, onOpenChange }: EditCampaig
               placeholder="Descreva o objetivo da campanha..."
               maxLength={500}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-campaign-google">Encaminhar ao Google ao final</Label>
+            <Select value={redirectMode} onValueChange={(v) => setRedirectMode(v as GoogleRedirectMode)}>
+              <SelectTrigger id="edit-campaign-google">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">Desativado</SelectItem>
+                <SelectItem value="promoters">Apenas promotores (NPS 9–10)</SelectItem>
+                <SelectItem value="always">Sempre — todos os clientes</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Quando ativo, o cliente é direcionado ao Google após ver o cupom (se houver).
+            </p>
+            {redirectMode !== "off" && !hasGoogleUrl && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between gap-2">
+                  <span>Link do Google não configurado.</span>
+                  <Link
+                    to="/avaliacoes/configuracoes"
+                    className="inline-flex items-center gap-1 underline text-sm"
+                  >
+                    Configurar <ExternalLink className="h-3 w-3" />
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
         </div>
         <DialogFooter>
