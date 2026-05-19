@@ -113,6 +113,7 @@ export function ChargeSelectionDialog({
     if (!open) {
       setCancelTarget(null);
       setCancelReason("");
+      setExpandedTableId(null);
     }
   }, [open]);
 
