@@ -2,14 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   QrCode, RefreshCw, Send, LayoutDashboard, ClipboardCheck,
-  Calendar, Users, ListChecks, Settings, Trophy, Camera,
+  Calendar, Users, BarChart3, Settings, Trophy, Camera,
   ShieldAlert, FileText,
 } from "lucide-react";
 import { ResponsivePageHeader } from "@/components/ui/responsive-page-header";
 import { ChecklistsManager } from "@/components/pdv/checklists/ChecklistsManager";
 import { SchedulesManager } from "@/components/pdv/checklists/SchedulesManager";
 import { OperatorsManager } from "@/components/pdv/checklists/OperatorsManager";
-import { DailyTasksView } from "@/components/pdv/tasks/DailyTasksView";
+import { OperationalReport } from "@/components/pdv/tasks/OperationalReport";
 import { TaskSettings } from "@/components/pdv/tasks/TaskSettings";
 import { TaskQRCodeDialog } from "@/components/pdv/tasks/TaskQRCodeDialog";
 import { DashboardPanel } from "@/components/pdv/checklists/DashboardPanel";
@@ -28,7 +28,7 @@ const NAV_ITEMS = [
   { key: "checklists", label: "Checklists", icon: ClipboardCheck },
   { key: "agendamento", label: "Agendamento", icon: Calendar },
   { key: "equipe", label: "Equipe", icon: Users },
-  { key: "hoje", label: "Tarefas do Dia", icon: ListChecks },
+  { key: "hoje", label: "Relatório Geral", icon: BarChart3 },
   { key: "configuracoes", label: "Configurações", icon: Settings },
   { key: "score", label: "Score", icon: Trophy },
   { key: "evidencias", label: "Evidências", icon: Camera },
@@ -76,7 +76,7 @@ export default function Tasks() {
       case "checklists": return <ChecklistsManager />;
       case "agendamento": return <SchedulesManager />;
       case "equipe": return <OperatorsManager />;
-      case "hoje": return <DailyTasksView onNavigate={setActiveSection} />;
+      case "hoje": return <OperationalReport onNavigate={setActiveSection} />;
       case "configuracoes": return <TaskSettings onNavigate={setActiveSection} />;
       case "score": return <TeamScorePanel onNavigate={setActiveSection} />;
       case "evidencias": return <EvidenceGallery />;
