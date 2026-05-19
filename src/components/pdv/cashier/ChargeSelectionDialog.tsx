@@ -99,6 +99,7 @@ export function ChargeSelectionDialog({
   const [sortBy, setSortBy] = useState<SortOption>("time");
   const [cancelTarget, setCancelTarget] = useState<{ type: "comanda" | "table"; id: string; orderId?: string; label: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [expandedTableId, setExpandedTableId] = useState<string | null>(null);
   const dialogContentRef = useRef<HTMLDivElement | null>(null);
 
   const {
