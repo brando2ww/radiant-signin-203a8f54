@@ -17,6 +17,7 @@ import { AlertsPanel } from "./AlertsPanel";
 import { CompletedExecutionsDialog } from "./CompletedExecutionsDialog";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toLocalDateStr } from "@/lib/date";
 
 interface DashboardPanelProps {
   onNavigate?: (section: string) => void;
@@ -28,7 +29,7 @@ interface DashboardPanelProps {
 }
 
 export function DashboardPanel({ onNavigate, onQrOpen, onGenerateDaily, isGenerating }: DashboardPanelProps) {
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(toLocalDateStr());
   const [completedDialogOpen, setCompletedDialogOpen] = useState(false);
   const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
   const [notStartedDialogOpen, setNotStartedDialogOpen] = useState(false);

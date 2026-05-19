@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { toLocalDateStr } from "@/lib/date";
 
 export interface ShiftConfig {
   name: string;
@@ -98,7 +99,7 @@ const DEFAULT_SETTINGS = (userId: string): TaskSettings => ({
 export function useOperationalTasks(selectedDate?: string) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const today = selectedDate || new Date().toISOString().split("T")[0];
+  const today = selectedDate || toLocalDateStr();
 
   // Templates
   const { data: templates = [], isLoading: loadingTemplates } = useQuery({

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMemo } from "react";
+import { toLocalDateStr } from "@/lib/date";
 
 export type ScorePeriodType = "week" | "last_week" | "month" | "last_month" | "custom";
 
@@ -37,7 +38,7 @@ function computePeriodDates(periodType: ScorePeriodType, customStart?: string, c
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-    return { periodStart: start.toISOString().split("T")[0], periodEnd: end.toISOString().split("T")[0] };
+    return { periodStart: toLocalDateStr(start), periodEnd: toLocalDateStr(end) };
   }
   if (periodType === "last_week") {
     const day = now.getDay();
@@ -49,17 +50,17 @@ function computePeriodDates(periodType: ScorePeriodType, customStart?: string, c
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-    return { periodStart: start.toISOString().split("T")[0], periodEnd: end.toISOString().split("T")[0] };
+    return { periodStart: toLocalDateStr(start), periodEnd: toLocalDateStr(end) };
   }
   if (periodType === "last_month") {
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth(), 0);
-    return { periodStart: start.toISOString().split("T")[0], periodEnd: end.toISOString().split("T")[0] };
+    return { periodStart: toLocalDateStr(start), periodEnd: toLocalDateStr(end) };
   }
   // month
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { periodStart: start.toISOString().split("T")[0], periodEnd: end.toISOString().split("T")[0] };
+  return { periodStart: toLocalDateStr(start), periodEnd: toLocalDateStr(end) };
 }
 
 function getPreviousPeriodDates(periodType: ScorePeriodType, customStart?: string, customEnd?: string) {
@@ -73,14 +74,14 @@ function getPreviousPeriodDates(periodType: ScorePeriodType, customStart?: strin
     lastWeekStart.setDate(thisWeekStart.getDate() - 14);
     const lastWeekEnd = new Date(lastWeekStart);
     lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
-    return { periodStart: lastWeekStart.toISOString().split("T")[0], periodEnd: lastWeekEnd.toISOString().split("T")[0] };
+    return { periodStart: toLocalDateStr(lastWeekStart), periodEnd: toLocalDateStr(lastWeekEnd) };
   }
   if (periodType === "month") return computePeriodDates("last_month");
   if (periodType === "last_month") {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - 1, 0);
-    return { periodStart: start.toISOString().split("T")[0], periodEnd: end.toISOString().split("T")[0] };
+    return { periodStart: toLocalDateStr(start), periodEnd: toLocalDateStr(end) };
   }
   if (periodType === "custom" && customStart && customEnd) {
     const s = new Date(customStart);
@@ -88,7 +89,7 @@ function getPreviousPeriodDates(periodType: ScorePeriodType, customStart?: strin
     const diff = e.getTime() - s.getTime();
     const prevEnd = new Date(s.getTime() - 86400000);
     const prevStart = new Date(prevEnd.getTime() - diff);
-    return { periodStart: prevStart.toISOString().split("T")[0], periodEnd: prevEnd.toISOString().split("T")[0] };
+    return { periodStart: toLocalDateStr(prevStart), periodEnd: toLocalDateStr(prevEnd) };
   }
   return computePeriodDates("last_week");
 }

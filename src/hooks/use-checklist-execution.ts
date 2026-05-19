@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { toLocalDateStr } from "@/lib/date";
 
 type ExecutionStatus = Database["public"]["Enums"]["checklist_execution_status"];
 type AlertType = Database["public"]["Enums"]["checklist_alert_type"];
@@ -61,7 +62,7 @@ export function useChecklistExecution(userId: string) {
     async (operatorId: string, operatorSector: string, accessLevel?: string) => {
       const today = new Date();
       const dayOfWeek = today.getDay(); // 0=Sun
-      const todayStr = today.toISOString().split("T")[0];
+      const todayStr = toLocalDateStr(today);
 
       // Leaders/managers see everything (normalize defensively)
       const lvl = (accessLevel || "").trim().toLowerCase();
@@ -155,7 +156,7 @@ export function useChecklistExecution(userId: string) {
   // Start a new execution
   const startExecution = useCallback(
     async (checklistId: string, scheduleId: string, operatorId: string) => {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = toLocalDateStr();
       const isStandalone = !scheduleId || scheduleId.startsWith("standalone:");
       const realScheduleId = isStandalone ? null : scheduleId;
 

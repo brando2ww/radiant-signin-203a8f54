@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { toLocalDateStr } from "@/lib/date";
 
 export type DailyTaskStatus = "pending" | "in_progress" | "done" | "overdue" | "done_late" | "skipped";
 
@@ -40,12 +41,6 @@ export interface DailyMetrics {
   progress: number;
 }
 
-function toLocalDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
 function getCurrentShiftName(): string {
   const h = new Date().getHours();

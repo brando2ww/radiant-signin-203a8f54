@@ -12,6 +12,7 @@ import {
   UtensilsCrossed, Armchair, Calculator, Wine, Package, Briefcase,
 } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
+import { toLocalDateStr } from "@/lib/date";
 
 const SECTOR_ICONS: Record<ChecklistSector, React.ElementType> = {
   cozinha: UtensilsCrossed,
@@ -147,7 +148,7 @@ export default function PublicChecklistAccess() {
     setBlockedUntil(null);
 
     // Find or create execution for today (without schedule)
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = toLocalDateStr();
     const { data: existing } = await supabase
       .from("checklist_executions")
       .select("id")
