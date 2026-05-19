@@ -191,6 +191,18 @@ export function ChargeSelectionDialog({
 
   const handleSelectTableCard = (table: PDVTable) => {
     const tableComandas = getComandasForTable(table);
+    // Atalho: mesa com 1 comanda → cobra a comanda direto (habilita "Por produto")
+    if (tableComandas.length === 1) {
+      const c = tableComandas[0];
+      onSelectComanda(c, getItemsByComanda(c.id));
+      return;
+    }
+    // 2+ comandas → expande para o usuário escolher comanda específica ou cobrar mesa toda
+    setExpandedTableId((prev) => (prev === table.id ? null : table.id));
+  };
+
+  const handleSelectFullTable = (table: PDVTable) => {
+    const tableComandas = getComandasForTable(table);
     const allItems = tableComandas.flatMap((c) => getItemsByComanda(c.id));
     onSelectTable(table, tableComandas, allItems);
   };
