@@ -99,6 +99,7 @@ export function ChargeSelectionDialog({
   const [sortBy, setSortBy] = useState<SortOption>("time");
   const [cancelTarget, setCancelTarget] = useState<{ type: "comanda" | "table"; id: string; orderId?: string; label: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [expandedTableId, setExpandedTableId] = useState<string | null>(null);
   const dialogContentRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -112,6 +113,7 @@ export function ChargeSelectionDialog({
     if (!open) {
       setCancelTarget(null);
       setCancelReason("");
+      setExpandedTableId(null);
     }
   }, [open]);
 
@@ -188,6 +190,18 @@ export function ChargeSelectionDialog({
   };
 
   const handleSelectTableCard = (table: PDVTable) => {
+    const tableComandas = getComandasForTable(table);
+    // Atalho: mesa com 1 comanda → cobra a comanda direto (habilita "Por produto")
+    if (tableComandas.length === 1) {
+      const c = tableComandas[0];
+      onSelectComanda(c, getItemsByComanda(c.id));
+      return;
+    }
+    // 2+ comandas → expande para o usuário escolher comanda específica ou cobrar mesa toda
+    setExpandedTableId((prev) => (prev === table.id ? null : table.id));
+  };
+
+  const handleSelectFullTable = (table: PDVTable) => {
     const tableComandas = getComandasForTable(table);
     const allItems = tableComandas.flatMap((c) => getItemsByComanda(c.id));
     onSelectTable(table, tableComandas, allItems);
@@ -391,89 +405,115 @@ export function ChargeSelectionDialog({
                     const allItems = tableComandas.flatMap((c) =>
                       getItemsByComanda(c.id),
                     );
+                    const isExpanded = expandedTableId === table.id && tableComandas.length > 1;
                     return (
-                      <HoverCard key={table.id} openDelay={300}>
-                        <HoverCardTrigger asChild>
-                          <Card
-                            className="cursor-pointer hover:bg-accent/50 transition-colors group"
-                            onClick={() => handleSelectTableCard(table)}
-                          >
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between">
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className={cn(
-                                        "w-2 h-2 rounded-full",
-                                        getTimeStatus(table.updated_at),
-                                      )}
-                                    />
-                                    <span className="font-semibold">
-                                      {formatTableLabel(table.table_number)}
-                                    </span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {tableComandas.length}{" "}
-                                      {tableComandas.length === 1 ? "comanda" : "comandas"}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Clock className="h-3 w-3" />
-                                    {formatDistanceToNow(new Date(table.updated_at), {
-                                      addSuffix: true,
-                                      locale: ptBR,
-                                    })}
-                                  </div>
-                                </div>
-                                <div className="text-right space-y-1">
-                                  <span className="text-lg font-bold text-primary group-hover:scale-105 transition-transform inline-block">
-                                    {formatBRL(total)}
+                      <div key={table.id} className="space-y-2">
+                        <Card
+                          className="cursor-pointer hover:bg-accent/50 transition-colors group"
+                          onClick={() => handleSelectTableCard(table)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={cn(
+                                      "w-2 h-2 rounded-full",
+                                      getTimeStatus(table.updated_at),
+                                    )}
+                                  />
+                                  <span className="font-semibold">
+                                    {formatTableLabel(table.table_number)}
                                   </span>
-                                  {onCancelTable && table.current_order_id && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setCancelTarget({ type: "table", id: table.id, orderId: table.current_order_id!, label: formatTableLabel(table.table_number) });
-                                      }}
-                                    >
-                                      <XCircle className="h-3 w-3 mr-1" />
-                                      Cancelar
-                                    </Button>
+                                  <Badge variant="outline" className="text-xs">
+                                    {tableComandas.length}{" "}
+                                    {tableComandas.length === 1 ? "comanda" : "comandas"}
+                                  </Badge>
+                                  {tableComandas.length > 1 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {isExpanded ? "clique para recolher" : "clique para escolher comanda"}
+                                    </span>
                                   )}
                                 </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </HoverCardTrigger>
-                        <HoverCardContent side="right" className="w-64">
-                          <div className="space-y-2">
-                            <h4 className="font-semibold flex items-center gap-2">
-                              <ShoppingBag className="h-4 w-4" />
-                              Itens da Mesa
-                            </h4>
-                            <div className="space-y-1 text-sm">
-                              {allItems.slice(0, 5).map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="flex justify-between text-muted-foreground"
-                                >
-                                  <span>
-                                    {item.quantity}x {item.product_name}
-                                  </span>
-                                  <span>{formatBRL(item.subtotal)}</span>
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {formatDistanceToNow(new Date(table.updated_at), {
+                                    addSuffix: true,
+                                    locale: ptBR,
+                                  })}
                                 </div>
-                              ))}
-                              {allItems.length > 5 && (
-                                <p className="text-xs text-muted-foreground">
-                                  +{allItems.length - 5} mais itens...
-                                </p>
-                              )}
+                              </div>
+                              <div className="text-right space-y-1">
+                                <span className="text-lg font-bold text-primary group-hover:scale-105 transition-transform inline-block">
+                                  {formatBRL(total)}
+                                </span>
+                                {onCancelTable && table.current_order_id && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCancelTarget({ type: "table", id: table.id, orderId: table.current_order_id!, label: formatTableLabel(table.table_number) });
+                                    }}
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Cancelar
+                                  </Button>
+                                )}
+                              </div>
                             </div>
+                          </CardContent>
+                        </Card>
+
+                        {isExpanded && (
+                          <div className="ml-4 pl-3 border-l space-y-2">
+                            {tableComandas.map((c) => {
+                              const cItems = getItemsByComanda(c.id);
+                              return (
+                                <Card
+                                  key={c.id}
+                                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                                  onClick={() => onSelectComanda(c, cItems)}
+                                >
+                                  <CardContent className="p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-sm">#{c.comanda_number}</span>
+                                          <Badge variant="outline" className="text-xs">
+                                            {cItems.length} {cItems.length === 1 ? "item" : "itens"}
+                                          </Badge>
+                                        </div>
+                                        {c.customer_name && (
+                                          <div className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+                                            <User className="h-3 w-3" />
+                                            {c.customer_name}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className="font-semibold text-sm">{formatBRL(c.subtotal)}</span>
+                                        <Button size="sm" variant="secondary" className="h-7 text-xs">
+                                          Cobrar
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              );
+                            })}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => handleSelectFullTable(table)}
+                            >
+                              Cobrar mesa toda ({formatBRL(total)})
+                            </Button>
                           </div>
-                        </HoverCardContent>
-                      </HoverCard>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
