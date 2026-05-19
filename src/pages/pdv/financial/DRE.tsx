@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { downloadCsv } from "@/lib/csv-export";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -39,12 +40,7 @@ export default function DRE() {
       `= LUCRO OPERACIONAL;${fmt(data.operatingProfit)}`,
       `= LUCRO LÍQUIDO;${fmt(data.netProfit)}`,
     ];
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `DRE_${format(selectedMonth, "yyyy-MM")}.csv`;
-    a.click();
+    downloadCsv(`DRE_${format(selectedMonth, "yyyy-MM")}.csv`, lines);
   };
 
   const DRELine = ({ label, value, indent, bold, bg, color }: {

@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv-export";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -57,12 +58,7 @@ export default function CashierStatement() {
       `Total PIX;${fmt(data.kpis.totalPix)}`,
       `Total Sangrias;${fmt(data.kpis.totalWithdrawals)}`,
     ];
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `demonstrativo_caixa_${format(selectedDate, "yyyy-MM-dd")}.csv`;
-    a.click();
+    downloadCsv(`demonstrativo_caixa_${format(selectedDate, "yyyy-MM-dd")}.csv`, lines);
   };
 
   return (
