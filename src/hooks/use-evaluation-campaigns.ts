@@ -2,12 +2,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type GoogleRedirectMode = "off" | "promoters" | "always";
+
 export interface EvaluationCampaign {
   id: string;
   user_id: string;
   name: string;
   description: string | null;
   is_active: boolean;
+  google_redirect_mode: GoogleRedirectMode;
   created_at: string;
   updated_at: string;
 }
@@ -68,7 +71,7 @@ export const useEvaluationCampaigns = () => {
         const avg_nps = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
 
         campaigns.push({
-          ...campaign,
+          ...(campaign as any),
           total_responses: count || 0,
           avg_nps,
           last_response_at: evals && evals.length > 0 ? evals[0].created_at : null,
@@ -108,7 +111,7 @@ export const useCreateCampaign = () => {
 export const useUpdateCampaign = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name?: string; description?: string; is_active?: boolean; logo_url?: string | null; background_color?: string; welcome_message?: string | null; thank_you_message?: string | null; roulette_enabled?: boolean; wheel_primary_color?: string; wheel_secondary_color?: string; roulette_cooldown_hours?: number }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; description?: string; is_active?: boolean; logo_url?: string | null; background_color?: string; welcome_message?: string | null; thank_you_message?: string | null; roulette_enabled?: boolean; wheel_primary_color?: string; wheel_secondary_color?: string; roulette_cooldown_hours?: number; google_redirect_mode?: GoogleRedirectMode }) => {
       const { error } = await supabase
         .from("evaluation_campaigns")
         .update(data)

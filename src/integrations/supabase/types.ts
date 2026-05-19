@@ -2335,6 +2335,7 @@ export type Database = {
           background_color: string | null
           created_at: string
           description: string | null
+          google_redirect_mode: string
           id: string
           is_active: boolean
           logo_url: string | null
@@ -2352,6 +2353,7 @@ export type Database = {
           background_color?: string | null
           created_at?: string
           description?: string | null
+          google_redirect_mode?: string
           id?: string
           is_active?: boolean
           logo_url?: string | null
@@ -2369,6 +2371,7 @@ export type Database = {
           background_color?: string | null
           created_at?: string
           description?: string | null
+          google_redirect_mode?: string
           id?: string
           is_active?: boolean
           logo_url?: string | null

@@ -63,6 +63,7 @@ export default function PublicEvaluation() {
   const [phase, setPhase] = useState<Phase>("roulette");
   const [wonPrize, setWonPrize] = useState<CampaignPrize | null>(null);
   const [couponData, setCouponData] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [pendingRedirect, setPendingRedirect] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -221,12 +222,12 @@ export default function PublicEvaluation() {
       },
       {
         onSuccess: (result) => {
-          const isPromoter = npsScore !== null && npsScore >= 9 && !!googleReviewUrl;
-          // Promotores são redirecionados para o Google e não recebem cupom de sorteio
-          if (isPromoter) {
-            setPhase("google_redirect");
-            return;
-          }
+          const mode = (campaign as any)?.google_redirect_mode ?? "promoters";
+          const shouldRedirect = !!googleReviewUrl && (
+            mode === "always" ||
+            (mode === "promoters" && npsScore !== null && npsScore >= 9)
+          );
+
           if (wonPrize && result?.id) {
             registerWin.mutate(
               {
@@ -240,11 +241,17 @@ export default function PublicEvaluation() {
               {
                 onSuccess: (win) => {
                   setCouponData({ code: win.coupon_code, expiresAt: win.coupon_expires_at });
+                  setPendingRedirect(shouldRedirect);
                   setPhase("coupon");
                 },
-                onError: () => setPhase("done"),
+                onError: () => {
+                  if (shouldRedirect) setPhase("google_redirect");
+                  else setPhase("done");
+                },
               }
             );
+          } else if (shouldRedirect) {
+            setPhase("google_redirect");
           } else {
             setPhase("done");
           }
@@ -270,6 +277,20 @@ export default function PublicEvaluation() {
               expiresAt={couponData.expiresAt}
             />
           </div>
+          {pendingRedirect && googleReviewUrl && (
+            <div className="mt-6 space-y-3 text-center">
+              <p className="text-sm text-muted-foreground">
+                Que tal nos ajudar com uma avaliação no Google?
+              </p>
+              <Button
+                className="gap-2 w-full"
+                onClick={() => { window.location.href = googleReviewUrl; }}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Avaliar no Google
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -653,7 +674,7 @@ function GoogleRedirectScreen({ Logo, bgColor, url, onSkip }: GoogleRedirectScre
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mx-auto">
           <Star className="h-10 w-10 text-primary" />
         </div>
-        <h1 className="text-2xl font-semibold text-foreground">Que bom que você gostou! 🎉</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Obrigado pela avaliação! 🎉</h1>
         <p className="text-muted-foreground leading-relaxed text-sm">
           Sua opinião faz toda a diferença. Vamos te levar ao Google para deixar sua avaliação...
         </p>
