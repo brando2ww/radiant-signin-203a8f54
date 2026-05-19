@@ -10,6 +10,7 @@ import { ScoreEvolutionChart } from "./score/ScoreEvolutionChart";
 import { BadgesSection } from "./score/BadgesSection";
 import { ScoreFormulaInfo } from "./score/ScoreFormulaInfo";
 import { DateRange } from "react-day-picker";
+import { toLocalDateStr } from "@/lib/date";
 
 interface TeamScorePanelProps {
   onNavigate?: (section: string) => void;
@@ -19,8 +20,8 @@ export function TeamScorePanel({ onNavigate }: TeamScorePanelProps) {
   const [period, setPeriod] = useState<ScorePeriodType>("week");
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
-  const customStart = customRange?.from?.toISOString().split("T")[0];
-  const customEnd = customRange?.to?.toISOString().split("T")[0];
+  const customStart = customRange?.from ? toLocalDateStr(customRange.from) : undefined;
+  const customEnd = customRange?.to ? toLocalDateStr(customRange.to) : undefined;
 
   const { data: ranking, isLoading } = useOperatorRankingComparison(period, customStart, customEnd);
   const badges = useBadgesSummary(ranking || []);

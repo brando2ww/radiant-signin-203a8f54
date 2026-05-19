@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
+import { toLocalDateStr } from "@/lib/date";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -49,7 +50,7 @@ export function DataSection() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `velara-backup-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `velara-backup-${toLocalDateStr()}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "Dados exportados com sucesso!" });
@@ -64,8 +65,8 @@ export function DataSection() {
       const { data } = await supabase.from("checklist_executions")
         .select("*, checklists(name), checklist_operators(name)")
         .eq("user_id", user!.id)
-        .gte("execution_date", exportRange.from.toISOString().split("T")[0])
-        .lte("execution_date", exportRange.to.toISOString().split("T")[0]);
+        .gte("execution_date", toLocalDateStr(exportRange.from))
+        .lte("execution_date", toLocalDateStr(exportRange.to));
       if (!data?.length) { toast({ title: "Nenhum dado no período" }); return; }
       const headers = "Data,Checklist,Operador,Status,Score,Início,Conclusão\n";
       const rows = data.map((r: any) =>
@@ -75,7 +76,7 @@ export function DataSection() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `execucoes-${exportRange.from.toISOString().split("T")[0]}-${exportRange.to.toISOString().split("T")[0]}.csv`;
+      a.download = `execucoes-${toLocalDateStr(exportRange.from)}-${toLocalDateStr(exportRange.to)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: "CSV exportado!" });

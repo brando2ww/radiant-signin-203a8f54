@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, Search } from "lucide-react";
 import { useOperationalTasks, type TaskInstance, type ShiftConfig } from "@/hooks/use-operational-tasks";
 import { format, subDays } from "date-fns";
+import { toLocalDateStr } from "@/lib/date";
 
 interface Props {
   shifts: ShiftConfig[];
@@ -14,7 +15,7 @@ interface Props {
 
 export function TaskHistory({ shifts }: Props) {
   const { fetchHistory } = useOperationalTasks();
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(toLocalDateStr());
   const [results, setResults] = useState<TaskInstance[]>([]);
   const [loading, setLoading] = useState(false);
 

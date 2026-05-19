@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { subDays, format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toLocalDateStr } from "@/lib/date";
 
 interface DashboardFilters {
   date: string;
@@ -15,7 +16,7 @@ export function useChecklistDashboard(filters?: DashboardFilters) {
   const { visibleUserId } = useEstablishmentId();
   const qc = useQueryClient();
 
-  const date = filters?.date || new Date().toISOString().split("T")[0];
+  const date = filters?.date || toLocalDateStr();
 
   // Daily metrics
   const { data: metrics, isLoading: metricsLoading } = useQuery({

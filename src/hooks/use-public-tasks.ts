@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { TaskInstance, ShiftConfig } from "./use-operational-tasks";
+import { toLocalDateStr } from "@/lib/date";
 
 export function usePublicTasks(userId: string) {
   const qc = useQueryClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = toLocalDateStr();
 
   const { data: instances = [], isLoading } = useQuery({
     queryKey: ["public-task-instances", userId, today],
