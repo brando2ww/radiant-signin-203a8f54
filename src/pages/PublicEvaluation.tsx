@@ -63,6 +63,7 @@ export default function PublicEvaluation() {
   const [phase, setPhase] = useState<Phase>("roulette");
   const [wonPrize, setWonPrize] = useState<CampaignPrize | null>(null);
   const [couponData, setCouponData] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [pendingRedirect, setPendingRedirect] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
