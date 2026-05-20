@@ -73,6 +73,7 @@ export default function PDVCashier() {
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentSplitByComanda, setPaymentSplitByComanda] = useState(false);
   const [employeeDialog, setEmployeeDialog] = useState(false);
+  const [quickExpenseDialog, setQuickExpenseDialog] = useState(false);
 
   // Payment state
   const [selectedComanda, setSelectedComanda] = useState<Comanda | null>(null);
