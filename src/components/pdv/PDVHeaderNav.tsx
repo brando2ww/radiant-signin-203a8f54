@@ -13,7 +13,7 @@ import {
   LayoutDashboard,
   Armchair,
   ShoppingBag,
-  ChefHat,
+  
   Package,
   Warehouse,
   Truck,
