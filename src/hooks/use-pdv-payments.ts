@@ -58,44 +58,8 @@ function normalizeMethod(m: PaymentMethod): Exclude<PaymentMethod, "cartao"> {
   return m === "cartao" ? "credito" : m;
 }
 
-/**
- * Calcula como uma venda de `amount` (com troco opcional) afeta os
- * totais da sessão. Retorna um Partial<Record<column, delta>> que
- * deve ser aplicado por incremento. Mantém `total_card` (legado) =
- * crédito + débito.
- */
-function buildSessionDeltas(
-  method: Exclude<PaymentMethod, "cartao">,
-  amount: number,
-  changeAmount: number | undefined,
-): Record<string, number> {
-  const deltas: Record<string, number> = {
-    total_sales: amount,
-  };
-  if (method === "dinheiro") {
-    deltas.total_cash = amount;
-    if (changeAmount && changeAmount > 0) deltas.total_change = changeAmount;
-  } else if (method === "credito") {
-    deltas.total_credit = amount;
-    deltas.total_card = amount;
-  } else if (method === "debito") {
-    deltas.total_debit = amount;
-    deltas.total_card = amount;
-  } else if (method === "pix") {
-    deltas.total_pix = amount;
-  } else if (method === "vale_refeicao") {
-    deltas.total_voucher = amount;
-  }
-  return deltas;
-}
-
-function applyDeltas(session: any, deltas: Record<string, number>) {
-  const updates: Record<string, number> = {};
-  for (const [k, v] of Object.entries(deltas)) {
-    updates[k] = (Number(session?.[k]) || 0) + v;
-  }
-  return updates;
-}
+// Totais da sessão são recomputados via RPC `pdv_recompute_session_totals`
+// a partir de pdv_cashier_movements (fonte única de verdade — sem race condition).
 
 export function usePDVPayments() {
   const { user } = useAuth();
