@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
-import type { CloseCashierPayload } from "@/hooks/use-pdv-cashier";
+import { usePDVCashier, type CloseCashierPayload } from "@/hooks/use-pdv-cashier";
 
 export interface CashMovement {
   id: string;
