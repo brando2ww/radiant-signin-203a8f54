@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { formatTableLabel } from "@/utils/formatTableNumber";
