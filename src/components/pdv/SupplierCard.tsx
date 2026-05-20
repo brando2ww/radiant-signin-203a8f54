@@ -93,12 +93,20 @@ export function SupplierCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(supplier)}>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setTimeout(() => onEdit(supplier), 0);
+                }}
+              >
                 <Pencil className="h-4 w-4 mr-2" /> Editar
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => onDelete(supplier.id)}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setTimeout(() => onDelete(supplier.id), 0);
+                }}
                 className="text-destructive focus:text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" /> Excluir

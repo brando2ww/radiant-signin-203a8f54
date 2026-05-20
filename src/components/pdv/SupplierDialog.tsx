@@ -183,7 +183,17 @@ export function SupplierDialog({
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(o) => {
+        onOpenChange(o);
+        if (!o) {
+          setTimeout(() => {
+            document.body.style.pointerEvents = "";
+          }, 100);
+        }
+      }}
+    >
       <SheetContent
         side="right"
         className="w-full sm:max-w-2xl p-0 flex flex-col gap-0"
