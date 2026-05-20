@@ -26,7 +26,7 @@ export function CashierActionsSidebar({
   onShowHelp,
   onReprintLast,
   onEmployeeConsumption,
-}: CashierActionsSidebarProps) {
+  onQuickExpense,
   return (
     <div className="flex flex-col gap-2 h-full overflow-y-auto">
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">
