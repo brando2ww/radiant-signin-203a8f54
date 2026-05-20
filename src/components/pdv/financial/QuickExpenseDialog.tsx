@@ -118,6 +118,7 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
       update_stock: updateStock,
       update_cost: updateCost,
       items: updateStock ? validItems.map(({ _key, ...r }) => r) : [],
+      cashier_session_id: cashierSessionId ?? null,
     });
     onOpenChange(false);
   };
