@@ -835,5 +835,3 @@ export function CloseCashierDialog({
     </Dialog>
   );
 }
-// Unused — kept for legacy reference (cashDifference)
-const _legacyUnused = () => 0;
