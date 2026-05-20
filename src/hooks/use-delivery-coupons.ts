@@ -17,6 +17,9 @@ export interface DeliveryCoupon {
   valid_until: string;
   is_active: boolean;
   created_at: string;
+  per_customer_limit: number;
+  first_order_only: boolean;
+  internal_notes: string | null;
 }
 
 /**
