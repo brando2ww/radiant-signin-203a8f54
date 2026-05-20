@@ -245,18 +245,12 @@ export function useAssignDriver() {
 
   const unassign = useMutation({
     mutationFn: async (input: { orderId: string; driverId: string }) => {
-      const [a, b] = await Promise.all([
-        supabase
-          .from("delivery_orders")
-          .update({ driver_id: null, driver_assigned_at: null })
-          .eq("id", input.orderId),
-        supabase
-          .from("delivery_drivers")
-          .update({ status: "disponivel" as DriverStatus, current_order_id: null })
-          .eq("id", input.driverId),
-      ]);
-      if (a.error) throw a.error;
-      if (b.error) throw b.error;
+      const { error: orderErr } = await supabase
+        .from("delivery_orders")
+        .update({ driver_id: null, driver_assigned_at: null })
+        .eq("id", input.orderId);
+      if (orderErr) throw orderErr;
+      await syncDriverStatus(input.driverId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pdv-delivery-queue"] });
@@ -275,8 +269,36 @@ export function useAssignDriver() {
 }
 
 /**
- * Libera o entregador (volta para disponivel) quando o pedido é finalizado.
- * Chamada após registro de pagamento ou confirmação de recebimento online.
+ * Recalcula status do motoboy com base nos pedidos ainda em rota.
+ * - Se ainda houver pedido com status "delivering", mantém em_entrega
+ *   apontando current_order_id para o pedido mais recente.
+ * - Caso contrário, volta para disponivel.
+ */
+async function syncDriverStatus(driverId: string) {
+  const { data: active } = await supabase
+    .from("delivery_orders")
+    .select("id, created_at")
+    .eq("driver_id", driverId)
+    .eq("status", "delivering")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const next = (active || [])[0];
+  if (next) {
+    await supabase
+      .from("delivery_drivers")
+      .update({ status: "em_entrega" as DriverStatus, current_order_id: next.id })
+      .eq("id", driverId);
+  } else {
+    await supabase
+      .from("delivery_drivers")
+      .update({ status: "disponivel" as DriverStatus, current_order_id: null })
+      .eq("id", driverId);
+  }
+}
+
+/**
+ * Libera o entregador quando um pedido é finalizado.
+ * Só volta para "disponivel" se não houver mais pedidos em rota para esse motoboy.
  */
 export async function releaseDriverForOrder(orderId: string) {
   const { data: order } = await supabase
@@ -286,8 +308,5 @@ export async function releaseDriverForOrder(orderId: string) {
     .maybeSingle();
   const driverId = (order as any)?.driver_id;
   if (!driverId) return;
-  await supabase
-    .from("delivery_drivers")
-    .update({ status: "disponivel" as DriverStatus, current_order_id: null })
-    .eq("id", driverId);
+  await syncDriverStatus(driverId);
 }
