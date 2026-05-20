@@ -87,10 +87,8 @@ export function usePDVDeliveryCheckout() {
       } as any);
       if (mErr) throw mErr;
 
-      // Atualiza totais
-      const deltas = buildSessionDeltas(method, amount, changeAmount, source);
-      const updates = applyDeltas(session, deltas);
-      await supabase.from("pdv_cashier_sessions").update(updates).eq("id", session.id);
+      // Recalcula totais da sessão a partir dos movements (atômico, sem race)
+      await supabase.rpc("pdv_recompute_session_totals", { p_session_id: session.id });
 
       // Marca pedido
       const orderUpdate: any = {
