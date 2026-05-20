@@ -1,0 +1,1 @@
+ALTER TABLE public.pdv_suppliers ADD COLUMN IF NOT EXISTS category text;
