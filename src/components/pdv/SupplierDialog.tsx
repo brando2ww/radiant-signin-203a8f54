@@ -205,15 +205,27 @@ export function SupplierDialog({
     onSubmit(formData);
   };
 
+  const handleClose = useCallback(() => {
+    onOpenChange(false);
+    // Roda após a animação de fechamento do Sheet (~300ms)
+    setTimeout(cleanupRadixResiduals, 350);
+  }, [onOpenChange]);
+
+  // Cleanup defensivo no unmount
+  useEffect(() => {
+    return () => {
+      setTimeout(cleanupRadixResiduals, 0);
+    };
+  }, []);
+
   return (
     <Sheet
       open={open}
       onOpenChange={(o) => {
-        onOpenChange(o);
         if (!o) {
-          setTimeout(() => {
-            document.body.style.pointerEvents = "";
-          }, 100);
+          handleClose();
+        } else {
+          onOpenChange(o);
         }
       }}
     >
