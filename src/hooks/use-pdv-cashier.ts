@@ -154,7 +154,6 @@ export function usePDVCashier() {
       const {
         sessionId,
         declaredCash,
-        expectedCash,
         declaredCredit,
         declaredDebit,
         declaredPix,
@@ -170,27 +169,46 @@ export function usePDVCashier() {
         riskLevel,
       } = payload;
 
-      const cashDifference = declaredCash - expectedCash;
+      // 1. Garante totais consistentes com os movements antes de calcular.
+      await supabase.rpc("pdv_recompute_session_totals", { p_session_id: sessionId });
 
-      // Buscar totais atuais para calcular diferenças por forma
+      // 2. Lê os totais já reconciliados + opening_balance + reforços.
       const { data: session } = await supabase
         .from("pdv_cashier_sessions")
-        .select("total_credit, total_debit, total_pix, total_voucher, total_online_delivery")
+        .select("opening_balance, total_cash, total_credit, total_debit, total_pix, total_voucher, total_online_delivery, total_other, total_withdrawals")
         .eq("id", sessionId)
         .single();
 
+      const { data: reinforcementRows } = await supabase
+        .from("pdv_cashier_movements")
+        .select("amount")
+        .eq("cashier_session_id", sessionId)
+        .eq("type", "reforco");
+
+      const reinforcements = (reinforcementRows || []).reduce(
+        (acc: number, r: any) => acc + Number(r.amount || 0),
+        0,
+      );
+
+      const openingBalance = Number(session?.opening_balance) || 0;
+      const totalCash = Number(session?.total_cash) || 0;
       const totalCredit = Number(session?.total_credit) || 0;
       const totalDebit = Number(session?.total_debit) || 0;
       const totalPix = Number(session?.total_pix) || 0;
       const totalVoucher = Number(session?.total_voucher) || 0;
       const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
+      const totalOther = Number((session as any)?.total_other) || 0;
+      const totalWithdrawals = Number(session?.total_withdrawals) || 0;
+
+      const expectedCash = openingBalance + totalCash + reinforcements - totalWithdrawals;
+      const cashDifference = declaredCash - expectedCash;
 
       const creditDiff = declaredCredit != null ? declaredCredit - totalCredit : null;
       const debitDiff = declaredDebit != null ? declaredDebit - totalDebit : null;
       const pixDiff = declaredPix != null ? declaredPix - totalPix : null;
       const voucherDiff = declaredVoucher != null ? declaredVoucher - totalVoucher : null;
       const onlineDiff = declaredOnlineDelivery != null ? declaredOnlineDelivery - totalOnlineDelivery : null;
-      const otherDiff = declaredOther != null ? declaredOther - 0 : null;
+      const otherDiff = declaredOther != null ? declaredOther - totalOther : null;
 
       const differenceJustified = !!(
         justifications.cash ||
@@ -208,12 +226,10 @@ export function usePDVCashier() {
         closed_at: new Date().toISOString(),
         closing_balance: declaredCash,
         notes,
-        // Compat com colunas antigas (gaveta)
         expected_balance: expectedCash,
         balance_difference: cashDifference,
         difference_justified: differenceJustified,
         fraud_risk_level: riskLevel,
-        // Novos campos
         declared_cash: declaredCash,
         cash_difference: cashDifference,
         declared_credit: declaredCredit ?? null,
@@ -235,7 +251,6 @@ export function usePDVCashier() {
         justification_voucher: justifications.voucher ?? null,
         justification_online_delivery: justifications.onlineDelivery ?? null,
         justification_other: justifications.other ?? null,
-        // Conferência total
         declared_total_sales: declaredTotalSales ?? null,
         total_difference: totalDifference ?? null,
         closing_status: closingStatus ?? null,
