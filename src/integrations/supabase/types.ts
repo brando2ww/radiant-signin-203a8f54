@@ -7389,6 +7389,10 @@ export type Database = {
         Args: { _name: string; _owner: string }
         Returns: string
       }
+      pdv_finalize_paid_order: {
+        Args: { p_order_id: string; p_reason?: string }
+        Returns: Json
+      }
       pdv_lock_comanda_items: {
         Args: { p_item_ids: string[]; p_session_id: string }
         Returns: {
