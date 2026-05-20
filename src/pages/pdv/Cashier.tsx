@@ -393,10 +393,8 @@ export default function PDVCashier() {
               onCloseCashier={handleTryCloseCashier}
               onAddReinforcement={() => handleOpenMovementDialog("reforco")}
               onAddWithdrawal={() => handleOpenMovementDialog("sangria")}
-              onCharge={() => window.setTimeout(() => setChargeDialog(true), 0)}
               onShowHelp={() => setShortcutsDialog(true)}
               onReprintLast={lastClosedSession ? handleReprintLastCashier : undefined}
-              onEmployeeConsumption={() => setEmployeeDialog(true)}
               onQuickExpense={() => window.setTimeout(() => setQuickExpenseDialog(true), 0)}
             />
           </CardContent>
@@ -483,6 +481,7 @@ export default function PDVCashier() {
       <QuickExpenseDialog
         open={quickExpenseDialog}
         onOpenChange={setQuickExpenseDialog}
+        cashierSessionId={activeSession?.id ?? null}
       />
     </div>
   );

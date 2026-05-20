@@ -23,6 +23,7 @@ export interface QuickExpenseInput {
   update_stock: boolean;
   update_cost: boolean;
   items: QuickExpenseStockItem[];
+  cashier_session_id?: string | null;
 }
 
 export function useQuickExpense() {
@@ -111,15 +112,41 @@ export function useQuickExpense() {
         }
       }
 
-      return { tx, stockWarning };
+      // 3) Sangria automática no caixa quando paga em dinheiro a partir do caixa
+      let cashierWarning: string | null = null;
+      if (input.cashier_session_id && input.payment_method === "dinheiro") {
+        try {
+          const { error: sangriaErr } = await supabase
+            .from("pdv_cashier_movements")
+            .insert({
+              cashier_session_id: input.cashier_session_id,
+              type: "sangria",
+              amount: input.amount,
+              description: `Despesa: ${input.description}`,
+            });
+          if (sangriaErr) throw sangriaErr;
+          await supabase.rpc("pdv_recompute_session_totals", {
+            p_session_id: input.cashier_session_id,
+          });
+        } catch (e: any) {
+          console.error("Falha ao registrar sangria automática:", e);
+          cashierWarning = e?.message || "Falha ao registrar sangria no caixa";
+        }
+      }
+
+      return { tx, stockWarning, cashierWarning };
     },
-    onSuccess: ({ stockWarning }) => {
+    onSuccess: ({ stockWarning, cashierWarning }) => {
       queryClient.invalidateQueries({ queryKey: ["pdv-financial-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-financial-stats"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-ingredients"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-stock-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       if (stockWarning) {
         toast.warning(`Despesa salva, mas houve problema no estoque: ${stockWarning}`);
+      } else if (cashierWarning) {
+        toast.warning(`Despesa salva, mas falhou a sangria no caixa: ${cashierWarning}`);
       } else {
         toast.success("Despesa registrada com sucesso");
       }

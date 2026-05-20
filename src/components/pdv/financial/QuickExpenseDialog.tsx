@@ -35,6 +35,7 @@ import { useQuickExpense, type QuickExpenseStockItem } from "@/hooks/use-quick-e
 interface QuickExpenseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  cashierSessionId?: string | null;
 }
 
 const NONE = "none";
@@ -47,7 +48,7 @@ function newRow(): ItemRow {
   return { _key: crypto.randomUUID(), ingredient_id: "", quantity: 0, unit_cost: 0 };
 }
 
-export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogProps) {
+export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: QuickExpenseDialogProps) {
   const { accounts } = usePDVChartOfAccounts();
   const { costCenters } = usePDVCostCenters();
   const { suppliers } = usePDVSuppliers();
@@ -65,7 +66,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogPro
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [chartAccountId, setChartAccountId] = useState<string>(NONE);
   const [costCenterId, setCostCenterId] = useState<string>(NONE);
-  const [paymentMethod, setPaymentMethod] = useState<string>(NONE);
+  const [paymentMethod, setPaymentMethod] = useState<string>(cashierSessionId ? "dinheiro" : NONE);
   const [supplierId, setSupplierId] = useState<string>(NONE);
   const [documentNumber, setDocumentNumber] = useState("");
   const [notes, setNotes] = useState("");
@@ -80,7 +81,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogPro
       setPaymentDate(new Date());
       setChartAccountId(NONE);
       setCostCenterId(NONE);
-      setPaymentMethod(NONE);
+      setPaymentMethod(cashierSessionId ? "dinheiro" : NONE);
       setSupplierId(NONE);
       setDocumentNumber("");
       setNotes("");
@@ -117,6 +118,7 @@ export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogPro
       update_stock: updateStock,
       update_cost: updateCost,
       items: updateStock ? validItems.map(({ _key, ...r }) => r) : [],
+      cashier_session_id: cashierSessionId ?? null,
     });
     onOpenChange(false);
   };
@@ -232,6 +234,12 @@ export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogPro
                   <SelectItem value="transferencia">Transferência</SelectItem>
                 </SelectContent>
               </Select>
+              {cashierSessionId && paymentMethod === "dinheiro" && (
+                <p className="text-[11px] text-muted-foreground flex items-start gap-1">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  Será debitado do caixa atual como sangria automática.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
