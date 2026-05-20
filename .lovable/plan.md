@@ -1,89 +1,93 @@
-## Novo seletor de período (estilo do print)
+## Redesign — Página de Fornecedores
 
-Substituir o `DatePickerWithRange` atual por uma versão muito mais rica, mantendo a mesma API (`date` + `setDate`) para que todas as telas que já o usam continuem funcionando sem refactor.
+Mantém todo o backend e mutations existentes (`usePDVSuppliers`, `useCreateSupplier`, `useUpdateSupplier`, `useDeleteSupplier`). Só adiciona uma coluna `category` no banco e reescreve a camada de UI.
 
-### Layout do popover
+### 1. Migration — campo categoria
 
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  Usados recentemente │      maio 2026          │      junho 2026        │
-│  ○ Hoje              │  D S T Q Q S S          │  D S T Q Q S S         │
-│  ○ Ontem             │  ··········1 2          │  ··········1 2 3 4 5 6 │
-│ ─────────────────    │  3 4 5 6 7 8 9          │  7 8 9 ...             │
-│  ○ Hoje              │  10 ... 20●(hoje)       │                        │
-│  ○ Ontem             │                          │                       │
-│  ○ Hoje e ontem      │                                                  │
-│  ○ Últimos 7 dias    │                                                  │
-│  ○ Últimos 14 dias   │                                                  │
-│  ○ Últimos 28 dias   │                                                  │
-│  ● Últimos 30 dias   │                                                  │
-│  ○ Esta semana       │                                                  │
-│  ○ Semana passada    │                                                  │
-│  ○ Este mês          │                                                  │
-│  ○ Mês passado       │                                                  │
-│  ○ Este ano          │                                                  │
-│  ○ Personalizado     │                                                  │
-├──────────────────────┴──────────────────────────────────────────────────┤
-│  ☑ Comparar  [Período anterior ▾]  [22 de mar de 26] [20 de abr de 26]  │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Fuso horário das datas: Horário de São Paulo    [Cancelar] [Atualizar] │
-└─────────────────────────────────────────────────────────────────────────┘
+Adicionar em `pdv_suppliers`:
+- `category text NULL` (livre, mas o Select sugere: Hortifruti, Carnes, Bebidas, Secos, Limpeza, Embalagens, Outros)
+
+Sem mudança em RLS/policies.
+
+### 2. Novo hook auxiliar (sem mexer no existente)
+
+`src/hooks/use-supplier-purchase-stats.ts` — fetch leve em `pdv_purchase_orders` (mesmo padrão de owner-id já em uso):
+
+- Retorna `Map<supplier_id, { monthTotal: number; lastPurchaseAt: string | null }>`
+- `monthTotal`: soma de `total` no mês atual (`gte first day of month`)
+- `lastPurchaseAt`: `max(created_at)` por supplier
+- Apenas SELECT; nenhum write.
+
+### 3. Card redesenhado — `SupplierCard.tsx` (rewrite)
+
+Layout vertical com header + corpo + rodapé compacto. Tokens semânticos (`bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`) — sem cores customizadas.
+
+Header:
+- Avatar circular com iniciais (helper local `getInitials` + cor de fundo derivada do hash do nome via `bg-muted` com `text-foreground` — sem palette colorida, respeitando memória de design)
+- Nome (semibold), `company_name` em `text-xs text-muted-foreground`
+- CNPJ ou CPF em linha menor
+- Lado direito: `Badge` "Ativo/Inativo" como **toggle** (Switch shadcn) — onClick chama `updateSupplier({ id, updates: { is_active: !current } })`, com optimistic via `queryClient.setQueryData`. Loading state desabilita o switch.
+- Menu de três pontos (`DropdownMenu`) com itens: Editar, Excluir. Substitui o botão vermelho atual.
+
+Corpo (cinza sutil, ícones lucide):
+- Categoria (Badge `variant="outline"` se preenchida)
+- Telefone/WhatsApp como `<a href="tel:..." />` e `<a href="https://wa.me/..." target="_blank" />` se `whatsapp` definido
+- E-mail como `<a href="mailto:..." />`
+- Cidade/UF (mantido)
+
+Rodapé (border-t, fonte pequena, `text-muted-foreground`):
+- "Compras no mês: **R$ X**" via `formatBRL`
+- "Última compra: **dd/MM/yyyy**" via `date-fns` com `locale: ptBR`, ou "—" se nunca
+- Se stats ainda carregando: skeletons inline
+
+Estados:
+- Card `hover:shadow-md transition-shadow` (sutil)
+- Card inteiro com `cursor-default`; só elementos interativos (avatar/menu/switch/links) recebem hover destacado
+
+### 4. Filtros + ordenação — `SupplierFilters.tsx` (rewrite)
+
+Nova linha mais densa (toolbar plana, sem Card wrapper) com:
+- Busca (existente)
+- Select **Categoria** (Todas + lista fixa + categorias distintas extraídas dos fornecedores)
+- Select **Status** (existente)
+- Select **Ordenar por**: `A-Z` (default), `Z-A`, `Mais recente` (created_at desc), `Maior volume de compras` (monthTotal desc — usa stats do hook)
+
+Contador "Exibindo X de Y" permanece à direita.
+
+### 5. Drawer lateral — `SupplierDialog.tsx` (rewrite do wrapper)
+
+Trocar `Dialog`/`DialogContent` por `Sheet`/`SheetContent side="right"` com `className="w-full sm:max-w-2xl p-0 flex flex-col"`. Estrutura interna:
+
+```
+SheetHeader (border-b, px-6 py-4, fixo) — título + descrição
+<div className="flex-1 overflow-y-auto px-6 py-4"> ... form atual intacto ... </div>
+SheetFooter (border-t, px-6 py-4, fixo) — Cancelar + Salvar
 ```
 
-- Trigger mostra `📅 Últimos 30 dias: 21 de abr de 2026 a 20 de mai de 2026` (rótulo do preset + intervalo formatado em pt-BR). Quando custom, só o intervalo.
-- Sidebar esquerda: lista de presets clicáveis (radio visual). "Usados recentemente" mostra os 2 últimos presets escolhidos (persistidos em `localStorage`).
-- Calendário duplo (já temos `numberOfMonths={2}`), `locale={ptBR}`, com botões `<` / `>` nativos do `react-day-picker`.
-- Footer com timezone fixo "Horário de São Paulo" + botões `Cancelar` (descarta) e `Atualizar` (aplica). Seleção é tentativa até clicar em Atualizar.
+Todo o `<form>`, campos, validação Zod, abas internas e lógica de submit existentes são preservados — só o wrapper externo muda. Adicionar campo `category` (Select) na seção "Informações gerais" e Switch `is_active` na mesma seção, já que agora o drawer cobre tudo.
 
-### Presets (iguais ao print)
+### 6. Estado vazio — `Suppliers.tsx`
 
-`Hoje`, `Ontem`, `Hoje e ontem`, `Últimos 7 dias`, `Últimos 14 dias`, `Últimos 28 dias`, `Últimos 30 dias`, `Esta semana`, `Semana passada`, `Este mês`, `Mês passado`, `Este ano`, `Personalizado`.
+Substituir o Card centralizado por bloco mais limpo (sem Card wrapper, padding maior):
+- Ícone `Truck` em círculo `bg-muted` `h-20 w-20`
+- Heading "Nenhum fornecedor cadastrado"
+- Sub "Cadastre seus parceiros para vincular insumos, compras e cotações."
+- Botão primário grande "Cadastrar primeiro fornecedor"
 
-Cada preset é uma função `() => DateRange` baseada em `date-fns` (`startOfWeek`, `subDays`, `startOfMonth`, etc., com `locale: ptBR`, semana começando no domingo para bater com o print).
+Estado "nenhum resultado dos filtros" mantém versão atual menos prominente (texto + botão "Limpar filtros").
 
-### Comparação
+### 7. Página `Suppliers.tsx` — ajustes
 
-- Novo tipo exportado: `DateRangeWithCompare = { range: DateRange; compare?: { mode: 'previous' | 'previous_year' | 'custom'; range: DateRange } }`.
-- O checkbox `Comparar` ativa um `Select` com **Período anterior** / **Mesmo período do ano passado** / **Personalizado**, e dois campos read-only (ou date inputs no modo Personalizado) mostrando o intervalo calculado.
-- "Período anterior" = mesmo número de dias imediatamente antes de `range.from`. "Mesmo período do ano passado" = `range` deslocado em 1 ano.
-
-### API e migração
-
-Para não quebrar nenhum dos 10 callers atuais, manter o `DatePickerWithRange` com a mesma assinatura (`date`, `setDate`, `className`) — ele continua devolvendo só o `DateRange` simples. Adicionar **props opcionais**:
-
-```ts
-interface DatePickerWithRangeProps {
-  date: DateRange | undefined;
-  setDate: (date: DateRange | undefined) => void;
-  className?: string;
-  // novo, opcional:
-  compare?: { mode: 'previous' | 'previous_year' | 'custom'; range: DateRange } | null;
-  onCompareChange?: (compare: { mode: ...; range: DateRange } | null) => void;
-  enableCompare?: boolean; // default true; quem não quer compare passa false
-}
-```
-
-Telas que **não** passam `compare`/`onCompareChange` simplesmente não enxergam o checkbox marcado por padrão; o resto do popover (presets, calendário duplo, footer, Atualizar) aparece para todas.
-
-### Integração com KPIs do Relatórios do Delivery
-
-1. `ReportsTab.tsx` passa a manter `compare` em estado e envia ao `DatePickerWithRange`.
-2. `useDeliveryMetricsComparison` ganha parâmetros `previousFrom`/`previousTo`. Quando `compare` está ativo, usa esse intervalo; quando desativado, retorna sem variação e os cards (`DeliveryMetrics.tsx`) escondem os badges `+/-x% vs período anterior`.
-3. `ReportsToolbar.tsx` deixa de mostrar seu próprio botão de período (passa a usar só o novo seletor) — sem duplicação.
+- Passa `purchaseStats` aos cards e ao sort
+- Adiciona estados `categoryFilter` e `sortBy`
+- Filtro e ordenação no `useMemo` existente
+- Remove a confirmação `AlertDialog` separada? Não — mantém. O excluir do menu três-pontos abre o mesmo AlertDialog atual.
 
 ### Arquivos
 
-- **Editar** `src/components/ui/date-range-picker.tsx` — reescrita completa (preserva exportação `DatePickerWithRange`).
-- **Criar** `src/lib/date-range-presets.ts` — definição dos presets + cálculo de "período anterior" / "mesmo período ano passado".
-- **Editar** `src/components/delivery/ReportsTab.tsx` — adicionar estado `compare`, passar ao picker, repassar a hooks.
-- **Editar** `src/hooks/use-delivery-metrics-comparison.ts` — aceitar intervalo de comparação customizado.
-- **Editar** `src/components/delivery/reports/DeliveryMetrics.tsx` — esconder badge quando `compare` for null.
-- **Editar** `src/components/delivery/reports/ReportsToolbar.tsx` — remover bloco de seleção de período próprio (se houver).
+- **Migration:** adicionar `category` em `pdv_suppliers`
+- **Criado:** `src/hooks/use-supplier-purchase-stats.ts`
+- **Reescritos:** `src/components/pdv/SupplierCard.tsx`, `src/components/pdv/SupplierFilters.tsx`, `src/components/pdv/SupplierDialog.tsx` (só wrapper externo + campos category/is_active)
+- **Editado:** `src/pages/pdv/Suppliers.tsx` (filtros novos, sort, estado vazio, props extras)
 
-### Detalhes técnicos
-
-- `Calendar` usa `pointer-events-auto` (já é o padrão do shadcn aqui).
-- Persistir presets recentes em `localStorage` sob `delivery-date-picker:recent` (máx 2).
-- Formatação dos rótulos: `format(d, "dd 'de' MMM 'de' yy", { locale: ptBR })` no footer/compare; `format(d, "dd 'de' MMM 'de' yyyy", { locale: ptBR })` no trigger.
-- Estado interno do popover é separado do prop (commit só no Atualizar). Cancelar = fecha sem chamar `setDate`/`onCompareChange`.
-- Sem cores customizadas: usa `bg-card`, `bg-muted`, `text-foreground`, `border` etc. (regra do projeto).
+Nenhuma lógica de negócio, RLS, mutations ou tabelas relacionadas é alterada.
