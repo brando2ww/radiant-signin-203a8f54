@@ -219,7 +219,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Icon className="h-3 w-3" />
-          {isOnlinePaid ? "Pago online" : "Pagar na entrega"} ·{" "}
+          {isOnlinePaid ? "Pago online" : isPickup ? "Pagar na retirada" : "Pagar na entrega"} ·{" "}
           {methodLabel(order.payment_method)}
         </div>
         <div className="font-bold tabular-nums text-sm">
