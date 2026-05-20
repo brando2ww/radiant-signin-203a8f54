@@ -330,6 +330,27 @@ export function usePDVOrders() {
     },
   });
 
+  const finalizePaidOrder = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const { data, error } = await supabase.rpc("pdv_finalize_paid_order", {
+        p_order_id: id,
+        p_reason: reason ?? "Finalização manual - itens já pagos",
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pdv-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+      toast.success("Pedido finalizado");
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao finalizar pedido: " + error.message);
+    },
+  });
+
   const cancelOrder = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { data, error } = await supabase.rpc("pdv_cancel_order", {
@@ -346,7 +367,18 @@ export function usePDVOrders() {
       queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
       toast.success("Mesa cancelada");
     },
-    onError: (error: any) => {
+    onError: (error: any, variables) => {
+      const msg = String(error?.message || "");
+      if (msg.includes("itens pagos ou em cobrança")) {
+        if (
+          window.confirm(
+            "Esta mesa já tem itens pagos e não pode ser cancelada.\n\nSe TODOS os itens já foram pagos e o pedido travou aberto, posso finalizá-lo agora (marcar como pago e liberar a mesa). Deseja prosseguir?"
+          )
+        ) {
+          finalizePaidOrder.mutate({ id: variables.id, reason: variables.reason });
+          return;
+        }
+      }
       toast.error("Erro ao cancelar pedido: " + error.message);
     },
   });
@@ -369,5 +401,7 @@ export function usePDVOrders() {
     isClosing: closeOrder.isPending,
     cancelOrder: cancelOrder.mutate,
     isCancelling: cancelOrder.isPending,
+    finalizePaidOrder: finalizePaidOrder.mutate,
+    isFinalizingPaid: finalizePaidOrder.isPending,
   };
 }
