@@ -23,6 +23,7 @@ export interface QuickExpenseInput {
   update_stock: boolean;
   update_cost: boolean;
   items: QuickExpenseStockItem[];
+  cashier_session_id?: string | null;
 }
 
 export function useQuickExpense() {
