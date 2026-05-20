@@ -11,7 +11,7 @@ import PDVDashboard from "./pdv/Dashboard";
 import PDVSalon from "./pdv/Salon";
 import PDVBalcao from "./pdv/Balcao";
 import PDVCashier from "./pdv/Cashier";
-import PDVKitchen from "./pdv/Kitchen";
+
 import PDVProducts from "./pdv/Products";
 import PDVStock from "./pdv/Stock";
 import PDVSuppliers from "./pdv/Suppliers";
@@ -113,7 +113,7 @@ export default function PDV() {
               <Route path="salao" element={<RoleRoute path="/pdv/salao" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSalon /></RoleRoute>} />
               <Route path="balcao" element={<RoleRoute path="/pdv/balcao" canAccess={canAccess} defaultRoute={defaultRoute}><PDVBalcao /></RoleRoute>} />
               <Route path="caixa" element={<RoleRoute path="/pdv/caixa" canAccess={canAccess} defaultRoute={defaultRoute}><PDVCashier /></RoleRoute>} />
-              <Route path="cozinha" element={<RoleRoute path="/pdv/cozinha" canAccess={canAccess} defaultRoute={defaultRoute}><PDVKitchen /></RoleRoute>} />
+              
               <Route path="comandas" element={<RoleRoute path="/pdv/comandas" canAccess={canAccess} defaultRoute={defaultRoute}><ComandasPage /></RoleRoute>} />
               
               {/* Delivery */}

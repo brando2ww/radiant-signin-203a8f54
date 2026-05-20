@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutGrid, ClipboardList, ChefHat, Plus, UtensilsCrossed } from "lucide-react";
+import { LayoutGrid, ClipboardList, Plus, UtensilsCrossed } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Tab = {
@@ -18,7 +18,6 @@ const leftTabs: Tab[] = [
 
 const rightTabs: Tab[] = [
   { to: "/garcom/itens", icon: UtensilsCrossed, label: "Itens" },
-  { to: "/garcom/cozinha", icon: ChefHat, label: "Cozinha" },
 ];
 
 const navTabs: Tab[] = [...leftTabs, ...rightTabs];

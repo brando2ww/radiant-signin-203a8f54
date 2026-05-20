@@ -1,35 +1,37 @@
-## Problema
+## Objetivo
 
-No caixa, a cobrança por produto funciona pela coluna **Salão** (cada card de comanda chama `handleSelectComanda` direto), mas **não** funciona quando o usuário clica em **Cobrar** nas Ações Rápidas / atalho F5 do sidebar.
-
-Ao analisar `src/pages/pdv/Cashier.tsx` e `src/components/pdv/cashier/ChargeSelectionDialog.tsx`:
-
-- O botão **Cobrar** abre o `ChargeSelectionDialog` com duas abas: *Comandas* (avulsas) e *Mesas* (ocupadas).
-- Na prática, as comandas vindas do garçom têm `order_id` (estão atreladas a mesa), então elas **não aparecem** na aba *Comandas* — só na aba *Mesas* (agregadas).
-- Ao escolher uma mesa, o fluxo chama `handleSelectTable` → `PaymentDialog` com `isTablePayment = true`.
-- Em `PaymentDialog.tsx` a regra é `supportsByProduct = liveItemsForPayment.length > 0 && !isTablePayment`, então o botão **Por produto** fica desabilitado (tooltip: "Disponível apenas para comandas individuais com itens persistidos").
-
-Por isso o atalho do sidebar nunca permite cobrar por produto, enquanto na coluna Salão (que sempre seleciona a comanda específica) permite.
-
-## Solução
-
-Tornar a aba **Mesas** do `ChargeSelectionDialog` expansível para listar as comandas individuais da mesa, igualando o comportamento ao painel Salão. O usuário continua podendo "Cobrar mesa toda" (rota atual), e ganha a opção de "Cobrar comanda X" (rota individual, que habilita Por produto).
+Remover a página de Cozinha (PDV e Garçom) já que ninguém da cozinha está usando. O campo `kitchen_status` continua existindo no banco e é usado por outros fluxos (comandas, mesas, pagamento, transferência), então só removemos a UI dedicada e os atalhos de navegação — **sem mexer no schema nem em outros consumidores de `kitchen_status nem outros serviços como as impressões da comanda, o fluxo de enviar para a cozinha deve ser mantido!**`
 
 ## Mudanças
 
-### `src/components/pdv/cashier/ChargeSelectionDialog.tsx`
-- Manter o card da mesa, mas adicionar área expansível listando cada comanda do `getComandasForTable(table)` com nome do cliente, nº, qtd. de itens e subtotal.
-- Cada comanda renderiza um botão **Cobrar** que chama `onSelectComanda(comanda, getItemsByComanda(comanda.id))` (mesmo handler do salão).
-- Manter o botão **Cobrar mesa toda** (rota atual) quando a mesa tiver 2+ comandas; quando tiver 1 comanda só, o clique no card já encaminha direto para `onSelectComanda` (atalho).
-- Sem alterações em cores/estilos custom — usar tokens existentes.
+### Remover páginas e componentes
 
-### Nada muda em
-- `PaymentDialog.tsx` (regra de `supportsByProduct` continua válida).
-- `Cashier.tsx` (handlers já existentes).
-- Atalho de teclado F5 (já usa `handleSelectComanda` da fila — funciona).
+- `src/pages/pdv/Kitchen.tsx` (rota `/pdv/cozinha`)
+- `src/pages/garcom/GarcomCozinha.tsx` (rota `/garcom/cozinha`)
+- `src/hooks/use-pdv-kitchen.ts`
+- `src/components/pdv/KitchenItemCard.tsx`
+- `src/components/pdv/KitchenFilters.tsx`
+
+### Remover rotas e itens de navegação
+
+- `src/pages/PDV.tsx` — remover import `PDVKitchen` e a `<Route path="cozinha" .../>`.
+- `src/pages/Garcom.tsx` — remover import `GarcomCozinha` e a `<Route path="cozinha" .../>`.
+- `src/components/pdv/PDVHeaderNav.tsx` — remover o item de menu "Cozinha".
+- `src/components/garcom/BottomTabBar.tsx` — remover a aba "Cozinha".
+
+### Ajustar role `cozinheiro`
+
+- `src/hooks/use-user-role.ts` — `cozinheiro` perde acesso a `/pdv/cozinha`. Como esse era seu único caminho, redirecionar `cozinheiro` para `/pdv/comandas` (ou outra rota padrão) para evitar loop de login. Também remover `/pdv/cozinha` da lista de paths e da rota default do `garcom`.
+
+A enum `cozinheiro` em `TenantDetail`, `RolePermissionsView`, `use-tenants` e nos tipos do Supabase **permanece** (não é remoção de role, apenas da página).
+
+## Não alterar
+
+- `kitchen_status` no banco, em `use-pdv-comandas.ts`, `use-pdv-orders.ts`, `Balcao.tsx`, `ComandaDetailsDialog.tsx`, `TransferItemsDialog.tsx`, `PaymentDialog.tsx`, `Garcom*Detalhe.tsx` — continuam funcionando normalmente.
 
 ## Validação
 
-- Abrir caixa, ter uma mesa com 1 comanda do garçom → clicar **Cobrar** no sidebar → escolher a mesa → `PaymentDialog` abre com **Por produto** habilitado.
-- Mesa com 2+ comandas → dialog mostra lista expandida; clicar **Cobrar** numa comanda específica habilita Por produto; **Cobrar mesa toda** mantém comportamento atual.
-- Comanda avulsa (sem mesa) na aba *Comandas* continua funcionando como hoje.
+- App compila sem referências quebradas a `PDVKitchen`/`GarcomCozinha`/`usePDVKitchen`.
+- Menu "Frente de Caixa" não mostra mais "Cozinha"; bottom bar do garçom também não.
+- Acessar `/pdv/cozinha` ou `/garcom/cozinha` cai no NotFound (ou redireciona pelo guard).
+- Login como `cozinheiro` redireciona para rota válida em vez de página inexistente.
