@@ -50,6 +50,43 @@ function EncouragementMessage({ progress }: { progress: number }) {
   );
 }
 
+function GoogleCountdownRedirect({ url }: { url: string }) {
+  const [seconds, setSeconds] = useState(10);
+  const [cancelled, setCancelled] = useState(false);
+
+  useEffect(() => {
+    if (cancelled) return;
+    if (seconds <= 0) {
+      window.location.href = url;
+      return;
+    }
+    const t = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [seconds, cancelled, url]);
+
+  return (
+    <div className="mt-6 space-y-3 text-center">
+      <p className="text-sm text-muted-foreground">
+        {cancelled
+          ? "Que tal nos ajudar com uma avaliação no Google?"
+          : <>Redirecionando para o Google em <span className="font-semibold text-foreground">{seconds}s</span>...</>}
+      </p>
+      <Button
+        className="gap-2 w-full"
+        onClick={() => { window.location.href = url; }}
+      >
+        <ExternalLink className="h-4 w-4" />
+        Avaliar no Google agora
+      </Button>
+      {!cancelled && (
+        <Button variant="ghost" size="sm" className="w-full" onClick={() => setCancelled(true)}>
+          Pular
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export default function PublicEvaluation() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const { data: campaign, isLoading: loadingCampaign } = usePublicCampaign(campaignId || "");
