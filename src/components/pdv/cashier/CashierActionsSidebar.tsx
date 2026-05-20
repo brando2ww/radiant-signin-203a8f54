@@ -1,4 +1,4 @@
-import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Receipt, Printer, Users } from "lucide-react";
+import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Receipt, Printer, Users, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CashierActionsSidebarProps {
@@ -12,6 +12,7 @@ interface CashierActionsSidebarProps {
   onShowHelp: () => void;
   onReprintLast?: () => void;
   onEmployeeConsumption?: () => void;
+  onQuickExpense?: () => void;
 }
 
 export function CashierActionsSidebar({
@@ -25,6 +26,7 @@ export function CashierActionsSidebar({
   onShowHelp,
   onReprintLast,
   onEmployeeConsumption,
+  onQuickExpense,
 }: CashierActionsSidebarProps) {
   return (
     <div className="flex flex-col gap-2 h-full overflow-y-auto">
@@ -102,6 +104,19 @@ export function CashierActionsSidebar({
                 <Users className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs font-medium leading-none">Consumo</span>
                 <span className="text-[9px] opacity-50">Func.</span>
+              </Button>
+            )}
+
+            {onQuickExpense && (
+              <Button
+                onClick={onQuickExpense}
+                disabled={isLoading}
+                variant="outline"
+                className="h-14 flex-col gap-0.5 border-muted-foreground/30 hover:bg-muted"
+              >
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium leading-none">Despesa</span>
+                <span className="text-[9px] opacity-50">Mercado/Motoboy</span>
               </Button>
             )}
           </div>

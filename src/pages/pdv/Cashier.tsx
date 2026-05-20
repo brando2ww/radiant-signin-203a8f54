@@ -17,6 +17,7 @@ import { KeyboardShortcutsDialog } from "@/components/pdv/cashier/KeyboardShortc
 import { ChargeSelectionDialog } from "@/components/pdv/cashier/ChargeSelectionDialog";
 import { PaymentDialog } from "@/components/pdv/cashier/PaymentDialog";
 import { EmployeeConsumptionDialog } from "@/components/pdv/cashier/EmployeeConsumptionDialog";
+import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
@@ -72,6 +73,7 @@ export default function PDVCashier() {
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentSplitByComanda, setPaymentSplitByComanda] = useState(false);
   const [employeeDialog, setEmployeeDialog] = useState(false);
+  const [quickExpenseDialog, setQuickExpenseDialog] = useState(false);
 
   // Payment state
   const [selectedComanda, setSelectedComanda] = useState<Comanda | null>(null);
@@ -395,6 +397,7 @@ export default function PDVCashier() {
               onShowHelp={() => setShortcutsDialog(true)}
               onReprintLast={lastClosedSession ? handleReprintLastCashier : undefined}
               onEmployeeConsumption={() => setEmployeeDialog(true)}
+              onQuickExpense={() => window.setTimeout(() => setQuickExpenseDialog(true), 0)}
             />
           </CardContent>
         </Card>
@@ -475,6 +478,11 @@ export default function PDVCashier() {
       <EmployeeConsumptionDialog
         open={employeeDialog}
         onOpenChange={setEmployeeDialog}
+      />
+
+      <QuickExpenseDialog
+        open={quickExpenseDialog}
+        onOpenChange={setQuickExpenseDialog}
       />
     </div>
   );
