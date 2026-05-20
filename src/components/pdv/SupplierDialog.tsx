@@ -182,20 +182,27 @@ export function SupplierDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-2xl p-0 flex flex-col gap-0"
+      >
+        <SheetHeader className="px-6 py-4 border-b shrink-0 space-y-1 text-left">
+          <SheetTitle>
             {supplier ? "Editar Fornecedor" : "Novo Fornecedor"}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {supplier
               ? "Atualize as informações do fornecedor"
               : "Cadastre um novo fornecedor"}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <form
+          onSubmit={handleSubmit(handleFormSubmit)}
+          className="flex-1 flex flex-col min-h-0"
+        >
+          <div className="flex-1 overflow-y-auto px-6 py-4">
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="general">Dados Gerais</TabsTrigger>
