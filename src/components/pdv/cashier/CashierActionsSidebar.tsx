@@ -106,6 +106,19 @@ export function CashierActionsSidebar({
                 <span className="text-[9px] opacity-50">Func.</span>
               </Button>
             )}
+
+            {onQuickExpense && (
+              <Button
+                onClick={onQuickExpense}
+                disabled={isLoading}
+                variant="outline"
+                className="h-14 flex-col gap-0.5 border-muted-foreground/30 hover:bg-muted"
+              >
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium leading-none">Despesa</span>
+                <span className="text-[9px] opacity-50">Mercado/Motoboy</span>
+              </Button>
+            )}
           </div>
 
           <div className="flex-1 min-h-2" />
