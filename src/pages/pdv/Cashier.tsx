@@ -481,6 +481,7 @@ export default function PDVCashier() {
       <QuickExpenseDialog
         open={quickExpenseDialog}
         onOpenChange={setQuickExpenseDialog}
+        cashierSessionId={activeSession?.id ?? null}
       />
     </div>
   );
