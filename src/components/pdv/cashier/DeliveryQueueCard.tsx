@@ -36,6 +36,14 @@ const NEXT_STATUS_LABEL: Partial<Record<DeliveryOrder["status"], string>> = {
   delivering: "Marcar entregue",
 };
 
+const NEXT_STATUS_LABEL_PICKUP: Partial<Record<DeliveryOrder["status"], string>> = {
+  pending: "Iniciar preparo",
+  confirmed: "Iniciar preparo",
+  preparing: "Marcar pronto",
+  ready: "Liberar p/ retirada",
+  delivering: "Marcar retirado",
+};
+
 const STATUS_LABEL: Record<DeliveryOrder["status"], string> = {
   pending: "Aguardando",
   confirmed: "Confirmado",
