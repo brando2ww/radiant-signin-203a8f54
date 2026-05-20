@@ -397,6 +397,7 @@ export default function PDVCashier() {
               onShowHelp={() => setShortcutsDialog(true)}
               onReprintLast={lastClosedSession ? handleReprintLastCashier : undefined}
               onEmployeeConsumption={() => setEmployeeDialog(true)}
+              onQuickExpense={() => window.setTimeout(() => setQuickExpenseDialog(true), 0)}
             />
           </CardContent>
         </Card>
