@@ -11,7 +11,7 @@ import {
   Clock,
   ArrowUp,
   ArrowDown,
-  Minus,
+  
 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
