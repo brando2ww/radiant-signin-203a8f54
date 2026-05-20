@@ -1,4 +1,4 @@
-import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Receipt, Printer, Users } from "lucide-react";
+import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Receipt, Printer, Users, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CashierActionsSidebarProps {
