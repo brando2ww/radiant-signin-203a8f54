@@ -349,7 +349,7 @@ function MethodConference({
   );
 }
 
-import { usePDVCashier } from "@/hooks/use-pdv-cashier";
+
 
 type Step = "blind" | "review" | "done";
 
