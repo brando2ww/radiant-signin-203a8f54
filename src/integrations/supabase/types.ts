@@ -3030,6 +3030,62 @@ export type Database = {
           },
         ]
       }
+      pdv_cashier_close_blind_snapshots: {
+        Row: {
+          cashier_session_id: string
+          declared_cash: number
+          declared_credit: number | null
+          declared_debit: number | null
+          declared_online_delivery: number | null
+          declared_other: number | null
+          declared_pix: number | null
+          declared_total: number
+          declared_voucher: number | null
+          id: string
+          operator_id: string
+          submitted_at: string
+          user_id: string
+        }
+        Insert: {
+          cashier_session_id: string
+          declared_cash?: number
+          declared_credit?: number | null
+          declared_debit?: number | null
+          declared_online_delivery?: number | null
+          declared_other?: number | null
+          declared_pix?: number | null
+          declared_total?: number
+          declared_voucher?: number | null
+          id?: string
+          operator_id: string
+          submitted_at?: string
+          user_id: string
+        }
+        Update: {
+          cashier_session_id?: string
+          declared_cash?: number
+          declared_credit?: number | null
+          declared_debit?: number | null
+          declared_online_delivery?: number | null
+          declared_other?: number | null
+          declared_pix?: number | null
+          declared_total?: number
+          declared_voucher?: number | null
+          id?: string
+          operator_id?: string
+          submitted_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_cashier_close_blind_snapshots_cashier_session_id_fkey"
+            columns: ["cashier_session_id"]
+            isOneToOne: true
+            referencedRelation: "pdv_cashier_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdv_cashier_movements: {
         Row: {
           amount: number
