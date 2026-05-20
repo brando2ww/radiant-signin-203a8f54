@@ -234,7 +234,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       )}
 
       <div className="space-y-2">
-        {(nextLabel || onPrintMotoboy) && (
+        {(nextLabel || (onPrintMotoboy && !isPickup)) && (
           <div className="flex gap-2">
             {nextLabel && onAdvanceStatus && (
               <Button
