@@ -340,6 +340,32 @@ export function SalonQueuePanel({
             </Button>
           </div>
 
+          {isOpen && (
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={
+                  tab === "salon"
+                    ? "Buscar por mesa, cliente ou nº comanda…"
+                    : "Buscar por nº pedido ou cliente…"
+                }
+                className="h-8 text-xs pl-7 pr-7"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+
           {tab === "salon" && (
             <>
               {isOpen && totalCount > 0 ? (
