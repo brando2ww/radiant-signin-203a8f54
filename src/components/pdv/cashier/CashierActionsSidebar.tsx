@@ -12,6 +12,7 @@ interface CashierActionsSidebarProps {
   onShowHelp: () => void;
   onReprintLast?: () => void;
   onEmployeeConsumption?: () => void;
+  onQuickExpense?: () => void;
 }
 
 export function CashierActionsSidebar({
