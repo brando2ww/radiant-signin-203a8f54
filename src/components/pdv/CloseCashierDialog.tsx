@@ -587,7 +587,7 @@ export function CloseCashierDialog({
   const expectedTotal = reviewRows.reduce((a, r) => a + r.expected, 0);
   const declaredTotal = reviewRows.reduce((a, r) => a + r.declared, 0);
   const totalDiff = declaredTotal - expectedTotal;
-  const cashDifference = parseN(declaredCash) - expectedCash;
+  const _cashDifference = parseN(declaredCash) - expectedCash;
   const cashRiskLevel = getRiskLevel(totalDiff);
   const cashRiskConfig = getRiskConfig(cashRiskLevel);
   const RiskIcon = cashRiskConfig.icon;
