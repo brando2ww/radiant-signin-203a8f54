@@ -48,7 +48,7 @@ function newRow(): ItemRow {
   return { _key: crypto.randomUUID(), ingredient_id: "", quantity: 0, unit_cost: 0 };
 }
 
-export function QuickExpenseDialog({ open, onOpenChange }: QuickExpenseDialogProps) {
+export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: QuickExpenseDialogProps) {
   const { accounts } = usePDVChartOfAccounts();
   const { costCenters } = usePDVCostCenters();
   const { suppliers } = usePDVSuppliers();
