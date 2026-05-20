@@ -330,27 +330,6 @@ export function usePDVOrders() {
     },
   });
 
-  const finalizePaidOrder = useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
-      const { data, error } = await supabase.rpc("pdv_finalize_paid_order", {
-        p_order_id: id,
-        p_reason: reason ?? "Finalização manual - itens já pagos",
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pdv-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
-      queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
-      queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
-      toast.success("Pedido finalizado");
-    },
-    onError: (error: any) => {
-      toast.error("Erro ao finalizar pedido: " + error.message);
-    },
-  });
-
   const cancelOrder = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { data, error } = await supabase.rpc("pdv_cancel_order", {
@@ -380,6 +359,27 @@ export function usePDVOrders() {
         }
       }
       toast.error("Erro ao cancelar pedido: " + error.message);
+    },
+  });
+
+  const finalizePaidOrder = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const { data, error } = await supabase.rpc("pdv_finalize_paid_order", {
+        p_order_id: id,
+        p_reason: reason ?? "Finalização manual - itens já pagos",
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pdv-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+      toast.success("Pedido finalizado");
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao finalizar pedido: " + error.message);
     },
   });
 
