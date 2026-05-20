@@ -58,11 +58,8 @@ export const PeakHoursHeatmap = ({ userId, startDate, endDate }: Props) => {
                     </div>
                   ))}
                   {DAYS.map((day, d) => (
-                    <>
-                      <div
-                        key={`label-${d}`}
-                        className="text-xs text-muted-foreground pr-2 flex items-center justify-end"
-                      >
+                    <Fragment key={`row-${d}`}>
+                      <div className="text-xs text-muted-foreground pr-2 flex items-center justify-end">
                         {day}
                       </div>
                       {Array.from({ length: 24 }).map((_, h) => {
@@ -84,8 +81,9 @@ export const PeakHoursHeatmap = ({ userId, startDate, endDate }: Props) => {
                           />
                         );
                       })}
-                    </>
+                    </Fragment>
                   ))}
+
                 </div>
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
                   Menos
