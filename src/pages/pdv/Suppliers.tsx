@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Truck } from "lucide-react";
 import {
@@ -9,9 +8,10 @@ import {
   useDeleteSupplier,
   PDVSupplier,
 } from "@/hooks/use-pdv-suppliers";
+import { useSupplierPurchaseStats } from "@/hooks/use-supplier-purchase-stats";
 import { SupplierCard } from "@/components/pdv/SupplierCard";
 import { SupplierDialog } from "@/components/pdv/SupplierDialog";
-import { SupplierFilters } from "@/components/pdv/SupplierFilters";
+import { SupplierFilters, SupplierSortBy } from "@/components/pdv/SupplierFilters";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -26,6 +26,7 @@ import {
 
 export default function PDVSuppliers() {
   const { suppliers, isLoading } = usePDVSuppliers();
+  const { stats, isLoading: statsLoading } = useSupplierPurchaseStats();
   const { mutate: createSupplier, isPending: isCreating } = useCreateSupplier();
   const { mutate: updateSupplier, isPending: isUpdating } = useUpdateSupplier();
   const { mutate: deleteSupplier, isPending: isDeleting } = useDeleteSupplier();
@@ -36,22 +37,50 @@ export default function PDVSuppliers() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sortBy, setSortBy] = useState<SupplierSortBy>("name_asc");
+
+  const extraCategories = useMemo(
+    () => Array.from(new Set(suppliers.map((s) => s.category).filter(Boolean) as string[])),
+    [suppliers]
+  );
 
   const filteredSuppliers = useMemo(() => {
-    return suppliers.filter((supplier) => {
+    const q = search.toLowerCase();
+    const filtered = suppliers.filter((supplier) => {
       const matchesSearch =
-        supplier.name.toLowerCase().includes(search.toLowerCase()) ||
-        supplier.cnpj?.toLowerCase().includes(search.toLowerCase()) ||
-        supplier.contact_name?.toLowerCase().includes(search.toLowerCase());
+        !q ||
+        supplier.name.toLowerCase().includes(q) ||
+        supplier.cnpj?.toLowerCase().includes(q) ||
+        supplier.contact_name?.toLowerCase().includes(q);
 
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "active" && supplier.is_active) ||
         (statusFilter === "inactive" && !supplier.is_active);
 
-      return matchesSearch && matchesStatus;
+      const matchesCategory =
+        categoryFilter === "all" || supplier.category === categoryFilter;
+
+      return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [suppliers, search, statusFilter]);
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      switch (sortBy) {
+        case "name_desc":
+          return b.name.localeCompare(a.name, "pt-BR");
+        case "recent":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case "volume":
+          return (stats.get(b.id)?.monthTotal || 0) - (stats.get(a.id)?.monthTotal || 0);
+        case "name_asc":
+        default:
+          return a.name.localeCompare(b.name, "pt-BR");
+      }
+    });
+    return sorted;
+  }, [suppliers, search, statusFilter, categoryFilter, sortBy, stats]);
 
   const handleCreate = () => {
     setSelectedSupplier(null);
@@ -67,23 +96,30 @@ export default function PDVSuppliers() {
     if (selectedSupplier) {
       updateSupplier(
         { id: selectedSupplier.id, updates: data },
-        {
-          onSuccess: () => setDialogOpen(false),
-        }
+        { onSuccess: () => setDialogOpen(false) }
       );
     } else {
-      createSupplier(data, {
-        onSuccess: () => setDialogOpen(false),
-      });
+      createSupplier(data, { onSuccess: () => setDialogOpen(false) });
     }
+  };
+
+  const handleToggleActive = (supplier: PDVSupplier) => {
+    updateSupplier({
+      id: supplier.id,
+      updates: { is_active: !supplier.is_active },
+    });
   };
 
   const handleDelete = () => {
     if (deleteDialog) {
-      deleteSupplier(deleteDialog, {
-        onSuccess: () => setDeleteDialog(null),
-      });
+      deleteSupplier(deleteDialog, { onSuccess: () => setDeleteDialog(null) });
     }
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setCategoryFilter("all");
   };
 
   if (isLoading) {
@@ -96,7 +132,7 @@ export default function PDVSuppliers() {
           </div>
           <Skeleton className="h-10 w-40" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="h-64" />
           ))}
@@ -104,6 +140,8 @@ export default function PDVSuppliers() {
       </div>
     );
   }
+
+  const hasNoSuppliers = suppliers.length === 0;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -114,55 +152,71 @@ export default function PDVSuppliers() {
             Gerencie seus fornecedores de insumos
           </p>
         </div>
-        <Button onClick={handleCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Fornecedor
-        </Button>
+        {!hasNoSuppliers && (
+          <Button onClick={handleCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Fornecedor
+          </Button>
+        )}
       </div>
 
-      <SupplierFilters
-        search={search}
-        onSearchChange={setSearch}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        totalSuppliers={suppliers.length}
-        filteredCount={filteredSuppliers.length}
-      />
+      {!hasNoSuppliers && (
+        <SupplierFilters
+          search={search}
+          onSearchChange={setSearch}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={setCategoryFilter}
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
+          extraCategories={extraCategories}
+          totalSuppliers={suppliers.length}
+          filteredCount={filteredSuppliers.length}
+        />
+      )}
 
-      {filteredSuppliers.length === 0 ? (
-        <Card>
-          <CardContent className="min-h-[400px] flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <Truck className="h-16 w-16 mx-auto text-muted-foreground" />
-              <div>
-                <h3 className="text-lg font-medium">
-                  {suppliers.length === 0
-                    ? "Nenhum fornecedor cadastrado"
-                    : "Nenhum fornecedor encontrado"}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {suppliers.length === 0
-                    ? "Comece cadastrando seus primeiros fornecedores"
-                    : "Tente ajustar os filtros de busca"}
-                </p>
-              </div>
-              {suppliers.length === 0 && (
-                <Button onClick={handleCreate}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Cadastrar Fornecedor
-                </Button>
-              )}
+      {hasNoSuppliers ? (
+        <div className="min-h-[400px] flex items-center justify-center">
+          <div className="text-center space-y-4 max-w-sm">
+            <div className="mx-auto h-20 w-20 rounded-full bg-muted flex items-center justify-center">
+              <Truck className="h-10 w-10 text-muted-foreground" />
             </div>
-          </CardContent>
-        </Card>
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold">Nenhum fornecedor cadastrado</h3>
+              <p className="text-sm text-muted-foreground">
+                Cadastre seus parceiros para vincular insumos, compras e cotações.
+              </p>
+            </div>
+            <Button onClick={handleCreate} size="lg">
+              <Plus className="h-4 w-4 mr-2" />
+              Cadastrar primeiro fornecedor
+            </Button>
+          </div>
+        </div>
+      ) : filteredSuppliers.length === 0 ? (
+        <div className="min-h-[200px] flex items-center justify-center">
+          <div className="text-center space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Nenhum fornecedor encontrado com os filtros atuais.
+            </p>
+            <Button variant="outline" size="sm" onClick={clearFilters}>
+              Limpar filtros
+            </Button>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredSuppliers.map((supplier) => (
             <SupplierCard
               key={supplier.id}
               supplier={supplier}
+              stat={stats.get(supplier.id)}
+              statsLoading={statsLoading}
               onEdit={handleEdit}
               onDelete={(id) => setDeleteDialog(id)}
+              onToggleActive={handleToggleActive}
+              isToggling={isUpdating}
             />
           ))}
         </div>

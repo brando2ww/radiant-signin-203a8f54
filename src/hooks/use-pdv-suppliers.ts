@@ -32,6 +32,7 @@ export interface PDVSupplier {
   delivery_time_unit?: string | null;
   credit_limit?: number | null;
   preferred_payment_method?: string | null;
+  category?: string | null;
   contacts?: any;
   is_active: boolean;
   created_at: string;

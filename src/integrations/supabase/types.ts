@@ -6050,6 +6050,7 @@ export type Database = {
         Row: {
           address: string | null
           address_complement: string | null
+          category: string | null
           city: string | null
           cnpj: string | null
           commercial_notes: string | null
@@ -6084,6 +6085,7 @@ export type Database = {
         Insert: {
           address?: string | null
           address_complement?: string | null
+          category?: string | null
           city?: string | null
           cnpj?: string | null
           commercial_notes?: string | null
@@ -6118,6 +6120,7 @@ export type Database = {
         Update: {
           address?: string | null
           address_complement?: string | null
+          category?: string | null
           city?: string | null
           cnpj?: string | null
           commercial_notes?: string | null

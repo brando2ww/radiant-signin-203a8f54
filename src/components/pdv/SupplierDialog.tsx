@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -24,6 +23,7 @@ import { PDVSupplier } from "@/hooks/use-pdv-suppliers";
 import { useCEPLookup } from "@/hooks/use-cep-lookup";
 import { Loader2, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SUPPLIER_CATEGORIES } from "@/components/pdv/SupplierFilters";
 
 interface SupplierDialogProps {
   open: boolean;
@@ -69,6 +69,7 @@ export function SupplierDialog({
       delivery_time_unit: "days",
       credit_limit: "",
       preferred_payment_method: "",
+      category: "",
       is_active: true,
     },
   });
@@ -116,6 +117,7 @@ export function SupplierDialog({
         delivery_time_unit: supplier.delivery_time_unit || "days",
         credit_limit: supplier.credit_limit?.toString() || "",
         preferred_payment_method: supplier.preferred_payment_method || "",
+        category: supplier.category || "",
         is_active: supplier.is_active,
       });
     } else {
@@ -147,6 +149,7 @@ export function SupplierDialog({
         delivery_time_unit: "days",
         credit_limit: "",
         preferred_payment_method: "",
+        category: "",
         is_active: true,
       });
       setDocumentType("cnpj");
@@ -171,6 +174,7 @@ export function SupplierDialog({
       ...data,
       cnpj: documentType === "cnpj" ? data.cnpj : null,
       cpf: documentType === "cpf" ? data.cpf : null,
+      category: data.category || null,
       delivery_time: data.delivery_time ? parseInt(data.delivery_time) : null,
       credit_limit: data.credit_limit ? parseFloat(data.credit_limit) : null,
     };
@@ -179,20 +183,27 @@ export function SupplierDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-2xl p-0 flex flex-col gap-0"
+      >
+        <SheetHeader className="px-6 py-4 border-b shrink-0 space-y-1 text-left">
+          <SheetTitle>
             {supplier ? "Editar Fornecedor" : "Novo Fornecedor"}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             {supplier
               ? "Atualize as informações do fornecedor"
               : "Cadastre um novo fornecedor"}
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <form
+          onSubmit={handleSubmit(handleFormSubmit)}
+          className="flex-1 flex flex-col min-h-0"
+        >
+          <div className="flex-1 overflow-y-auto px-6 py-4">
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="general">Dados Gerais</TabsTrigger>
@@ -312,6 +323,28 @@ export function SupplierDialog({
                     {...register("email")}
                     placeholder="contato@fornecedor.com"
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select
+                    value={watch("category") || "none"}
+                    onValueChange={(value) =>
+                      setValue("category", value === "none" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger id="category">
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem categoria</SelectItem>
+                      {SUPPLIER_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="col-span-2 flex items-center space-x-2">
@@ -534,8 +567,9 @@ export function SupplierDialog({
               </div>
             </TabsContent>
           </Tabs>
+          </div>
 
-          <DialogFooter>
+          <div className="px-6 py-4 border-t shrink-0 flex justify-end gap-2 bg-background">
             <Button
               type="button"
               variant="outline"
@@ -550,9 +584,9 @@ export function SupplierDialog({
                 ? "Salvar"
                 : "Criar"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

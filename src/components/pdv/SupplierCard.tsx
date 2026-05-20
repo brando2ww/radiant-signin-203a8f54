@@ -1,134 +1,190 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Mail, Phone, MapPin, User } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Mail, Phone, MessageCircle, MapPin, MoreVertical, Pencil, Trash2, Tag } from "lucide-react";
 import { PDVSupplier } from "@/hooks/use-pdv-suppliers";
+import { SupplierPurchaseStat } from "@/hooks/use-supplier-purchase-stats";
+import { formatBRL } from "@/lib/format";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface SupplierCardProps {
   supplier: PDVSupplier;
+  stat?: SupplierPurchaseStat;
+  statsLoading?: boolean;
   onEdit: (supplier: PDVSupplier) => void;
   onDelete: (id: string) => void;
+  onToggleActive: (supplier: PDVSupplier) => void;
+  isToggling?: boolean;
 }
 
-export function SupplierCard({ supplier, onEdit, onDelete }: SupplierCardProps) {
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function onlyDigits(s?: string | null) {
+  return (s || "").replace(/\D/g, "");
+}
+
+export function SupplierCard({
+  supplier,
+  stat,
+  statsLoading,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  isToggling,
+}: SupplierCardProps) {
+  const initials = getInitials(supplier.name);
+  const whatsappDigits = onlyDigits(supplier.whatsapp || supplier.phone);
+  const phoneDigits = onlyDigits(supplier.phone);
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between space-y-0">
-        <div className="space-y-1">
-          <CardTitle className="text-lg">{supplier.name}</CardTitle>
+    <Card className="p-4 flex flex-col gap-3 hover:shadow-md transition-shadow">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <div className="h-11 w-11 shrink-0 rounded-full bg-muted text-foreground flex items-center justify-center text-sm font-semibold">
+          {initials}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-foreground truncate">{supplier.name}</h3>
           {supplier.company_name && (
-            <p className="text-xs text-muted-foreground">
-              {supplier.company_name}
-            </p>
+            <p className="text-xs text-muted-foreground truncate">{supplier.company_name}</p>
           )}
-          {supplier.cnpj && (
-            <p className="text-sm text-muted-foreground">
-              CNPJ: {supplier.cnpj}
-            </p>
-          )}
-          {!supplier.cnpj && supplier.cpf && (
-            <p className="text-sm text-muted-foreground">
-              CPF: {supplier.cpf}
-            </p>
-          )}
-          {(supplier.state_registration || supplier.municipal_registration) && (
-            <div className="flex gap-2 text-xs text-muted-foreground">
-              {supplier.state_registration && <span>IE: {supplier.state_registration}</span>}
-              {supplier.municipal_registration && <span>IM: {supplier.municipal_registration}</span>}
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {supplier.cnpj
+              ? `CNPJ: ${supplier.cnpj}`
+              : supplier.cpf
+              ? `CPF: ${supplier.cpf}`
+              : "Sem documento"}
+          </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <Badge variant={supplier.is_active ? "default" : "secondary"}>
-            {supplier.is_active ? "Ativo" : "Inativo"}
+
+        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 mr-1">
+            <Switch
+              checked={!!supplier.is_active}
+              onCheckedChange={() => onToggleActive(supplier)}
+              disabled={isToggling}
+              aria-label="Ativar/inativar fornecedor"
+            />
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {supplier.is_active ? "Ativo" : "Inativo"}
+            </span>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(supplier)}>
+                <Pencil className="h-4 w-4 mr-2" /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete(supplier.id)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Categoria */}
+      {supplier.category && (
+        <div>
+          <Badge variant="outline" className="gap-1">
+            <Tag className="h-3 w-3" />
+            {supplier.category}
           </Badge>
-          {supplier.is_billing_address && (
-            <Badge variant="outline" className="text-xs">
-              Endereço de cobrança
-            </Badge>
-          )}
         </div>
-      </CardHeader>
+      )}
 
-      <CardContent className="space-y-4">
-        <div className="space-y-2 text-sm">
-          {supplier.contact_name && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span>{supplier.contact_name}</span>
-            </div>
-          )}
+      {/* Contatos */}
+      <div className="space-y-1.5 text-sm">
+        {phoneDigits && (
+          <a
+            href={`tel:${phoneDigits}`}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Phone className="h-4 w-4 shrink-0" />
+            <span className="truncate">{supplier.phone}</span>
+          </a>
+        )}
 
-          {supplier.phone && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="h-4 w-4" />
-              <span>{supplier.phone}</span>
-            </div>
-          )}
+        {whatsappDigits && supplier.whatsapp && (
+          <a
+            href={`https://wa.me/${whatsappDigits.length <= 11 ? "55" + whatsappDigits : whatsappDigits}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <MessageCircle className="h-4 w-4 shrink-0" />
+            <span className="truncate">{supplier.whatsapp}</span>
+          </a>
+        )}
 
-          {supplier.email && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="h-4 w-4" />
-              <span className="truncate">{supplier.email}</span>
-            </div>
-          )}
+        {supplier.email && (
+          <a
+            href={`mailto:${supplier.email}`}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Mail className="h-4 w-4 shrink-0" />
+            <span className="truncate">{supplier.email}</span>
+          </a>
+        )}
 
-          {(supplier.city || supplier.state) && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span className="font-medium">
-                {[supplier.city, supplier.state].filter(Boolean).join(" - ")}
-              </span>
-            </div>
-          )}
-
-          {supplier.neighborhood && (
-            <div className="text-xs text-muted-foreground ml-6">
-              {supplier.neighborhood}
-            </div>
-          )}
-        </div>
-
-        {(supplier.payment_terms || supplier.delivery_time) && (
-          <div className="border-t pt-3 space-y-1 text-xs text-muted-foreground">
-            {supplier.payment_terms && (
-              <div>
-                <span className="font-medium">Pagamento:</span> {supplier.payment_terms.replace(/_/g, ' ')}
-              </div>
-            )}
-            {supplier.delivery_time && (
-              <div>
-                <span className="font-medium">Entrega:</span> {supplier.delivery_time} {supplier.delivery_time_unit === 'hours' ? 'horas' : 'dias'}
-              </div>
-            )}
+        {(supplier.city || supplier.state) && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <MapPin className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {[supplier.city, supplier.state].filter(Boolean).join(" - ")}
+            </span>
           </div>
         )}
+      </div>
 
-        {supplier.notes && (
-          <p className="text-sm text-muted-foreground border-t pt-3 line-clamp-2">
-            {supplier.notes}
-          </p>
-        )}
-
-        <div className="flex gap-2 pt-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => onEdit(supplier)}
-          >
-            <Edit className="h-4 w-4 mr-1" />
-            Editar
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => onDelete(supplier.id)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+      {/* Stats footer */}
+      <div className="mt-auto pt-3 border-t grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-muted-foreground">Compras no mês</p>
+          {statsLoading ? (
+            <Skeleton className="h-4 w-20 mt-1" />
+          ) : (
+            <p className="font-medium text-foreground">{formatBRL(stat?.monthTotal || 0)}</p>
+          )}
         </div>
-      </CardContent>
+        <div className="text-right">
+          <p className="text-muted-foreground">Última compra</p>
+          {statsLoading ? (
+            <Skeleton className="h-4 w-20 mt-1 ml-auto" />
+          ) : (
+            <p className="font-medium text-foreground">
+              {stat?.lastPurchaseAt
+                ? format(new Date(stat.lastPurchaseAt), "dd/MM/yyyy", { locale: ptBR })
+                : "—"}
+            </p>
+          )}
+        </div>
+      </div>
     </Card>
   );
 }
