@@ -536,18 +536,20 @@ export function SalonQueuePanel({
                     Abra o caixa para registrar pedidos de delivery.
                   </p>
                 </div>
-              ) : delivery.all.length === 0 ? (
+              ) : filteredDelivery.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
                   <Bike className="h-10 w-10 mb-2 opacity-40" />
                   <p className="text-sm font-medium text-foreground">
-                    Nenhum pedido pendente
+                    {searchNorm ? "Nenhum resultado" : "Nenhum pedido pendente"}
                   </p>
                   <p className="text-xs mt-1">
-                    Novos pedidos aparecem aqui automaticamente.
+                    {searchNorm
+                      ? `Nada encontrado para "${search}".`
+                      : "Novos pedidos aparecem aqui automaticamente."}
                   </p>
                 </div>
               ) : (
-                delivery.all.map((o) => (
+                filteredDelivery.map((o) => (
                   <DeliveryQueueCard
                     key={o.id}
                     order={o}
