@@ -280,7 +280,7 @@ export function PaymentDialog({
   useEffect(() => {
     if (!open || showSuccess) return;
     const hasPaymentContext = !!comanda || !!table;
-    if (!hasPaymentContext || displayItems.length === 0 || fullSubtotal <= 0) {
+    if (!hasPaymentContext || displayItems.length === 0 || (fullSubtotal <= 0 && pendingSubtotal <= 0)) {
       toast.warning("Não há itens pendentes para cobrar.");
       onOpenChange(false);
     }
