@@ -439,9 +439,13 @@ export function SalonQueuePanel({
               ) : groups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
                   <UtensilsCrossed className="h-10 w-10 mb-2 opacity-40" />
-                  <p className="text-sm font-medium text-foreground">Tudo em dia!</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {searchNorm ? "Nenhum resultado" : "Tudo em dia!"}
+                  </p>
                   <p className="text-xs mt-1">
-                    Nenhuma comanda aguardando cobrança.
+                    {searchNorm
+                      ? `Nada encontrado para "${search}".`
+                      : "Nenhuma comanda aguardando cobrança."}
                   </p>
                 </div>
               ) : (
