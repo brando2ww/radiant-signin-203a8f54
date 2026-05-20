@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { formatTableLabel } from "@/utils/formatTableNumber";
@@ -22,6 +23,8 @@ import {
   UtensilsCrossed,
   Soup,
   Bike,
+  Search,
+  X,
 } from "lucide-react";
 import { usePDVComandas, Comanda, ComandaItem } from "@/hooks/use-pdv-comandas";
 import { usePDVTables, PDVTable } from "@/hooks/use-pdv-tables";
@@ -74,7 +77,17 @@ export function SalonQueuePanel({
   const { tables } = usePDVTables();
   const [tab, setTab] = useState<"salon" | "delivery">("salon");
   const [sortBy, setSortBy] = useState<SortOption>("time");
+  const [search, setSearch] = useState("");
   const [paymentOrder, setPaymentOrder] = useState<DeliveryOrder | null>(null);
+
+  const normalize = (s: string | null | undefined) =>
+    (s ?? "")
+      .toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  const searchNorm = normalize(search);
 
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
@@ -125,8 +138,30 @@ export function SalonQueuePanel({
     // Defesa: comanda com order_id mas sem mesa viva apontando para ele
     // significa que o pedido foi cancelado/liberado — não exibir.
     if (c.order_id && !tablesByOrderId.has(c.order_id)) return false;
+    if (searchNorm) {
+      const table = c.order_id ? tablesByOrderId.get(c.order_id) : null;
+      const tableLabel = table ? formatTableLabel(table.table_number) : "";
+      const haystack = [
+        c.customer_name,
+        String(c.comanda_number ?? ""),
+        tableLabel,
+      ]
+        .map(normalize)
+        .join(" ");
+      if (!haystack.includes(searchNorm)) return false;
+    }
     return true;
   });
+
+  const filteredDelivery = useMemo(() => {
+    if (!searchNorm) return delivery.all;
+    return delivery.all.filter((o) => {
+      const haystack = [String(o.order_number ?? ""), o.customer_name]
+        .map(normalize)
+        .join(" ");
+      return haystack.includes(searchNorm);
+    });
+  }, [delivery.all, searchNorm]);
 
   const openCountByOrderId = useMemo(() => {
     const m = new Map<string, number>();
@@ -305,6 +340,32 @@ export function SalonQueuePanel({
             </Button>
           </div>
 
+          {isOpen && (
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={
+                  tab === "salon"
+                    ? "Buscar por mesa, cliente ou nº comanda…"
+                    : "Buscar por nº pedido ou cliente…"
+                }
+                className="h-8 text-xs pl-7 pr-7"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted text-muted-foreground"
+                  aria-label="Limpar busca"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+
           {tab === "salon" && (
             <>
               {isOpen && totalCount > 0 ? (
@@ -378,9 +439,13 @@ export function SalonQueuePanel({
               ) : groups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
                   <UtensilsCrossed className="h-10 w-10 mb-2 opacity-40" />
-                  <p className="text-sm font-medium text-foreground">Tudo em dia!</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {searchNorm ? "Nenhum resultado" : "Tudo em dia!"}
+                  </p>
                   <p className="text-xs mt-1">
-                    Nenhuma comanda aguardando cobrança.
+                    {searchNorm
+                      ? `Nada encontrado para "${search}".`
+                      : "Nenhuma comanda aguardando cobrança."}
                   </p>
                 </div>
               ) : (
@@ -471,18 +536,20 @@ export function SalonQueuePanel({
                     Abra o caixa para registrar pedidos de delivery.
                   </p>
                 </div>
-              ) : delivery.all.length === 0 ? (
+              ) : filteredDelivery.length === 0 ? (
                 <div className="flex flex-col items-center justify-center text-muted-foreground py-12 text-center">
                   <Bike className="h-10 w-10 mb-2 opacity-40" />
                   <p className="text-sm font-medium text-foreground">
-                    Nenhum pedido pendente
+                    {searchNorm ? "Nenhum resultado" : "Nenhum pedido pendente"}
                   </p>
                   <p className="text-xs mt-1">
-                    Novos pedidos aparecem aqui automaticamente.
+                    {searchNorm
+                      ? `Nada encontrado para "${search}".`
+                      : "Novos pedidos aparecem aqui automaticamente."}
                   </p>
                 </div>
               ) : (
-                delivery.all.map((o) => (
+                filteredDelivery.map((o) => (
                   <DeliveryQueueCard
                     key={o.id}
                     order={o}

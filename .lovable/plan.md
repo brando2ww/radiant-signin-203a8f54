@@ -1,20 +1,23 @@
 ## Objetivo
-No card de pedido do caixa (`DeliveryQueueCard`), quando o pedido for de retirada (`order_type === "pickup"`):
-- Não mostrar o seletor/atribuição de entregador.
-- Exibir uma mensagem clara indicando que o cliente irá retirar no local.
+Adicionar um campo de busca no painel lateral `SalonQueuePanel` (coluna Salão/Delivery do `/pdv/caixa`) para filtrar a fila visível por texto.
 
 ## Alterações
-**`src/components/pdv/cashier/DeliveryQueueCard.tsx`**
-1. Detectar `const isPickup = order.order_type === "pickup"`.
-2. Trocar o ícone `Bike` do cabeçalho por `Package`/`Store` quando for retirada e ajustar o subtítulo (ex: "Retirada no local" no lugar do tempo, ou ao lado).
-3. No bloco `order.status === "delivering" && drivers.length > 0` (atribuição de motoboy): só renderizar quando `!isPickup`.
-4. Quando `isPickup` e `order.status === "delivering"`, mostrar um badge/aviso no lugar:  
-   `"📦 Cliente retira no local — aguardando retirada"`.
-5. Ajustar o label do botão "Saiu p/ entrega" para "Liberar p/ retirada" quando `isPickup` (apenas label visual, mantém `onAdvanceStatus`).
-6. Esconder o botão "Motoboy" (impressão da comanda do motoboy) quando `isPickup`.
+**`src/components/pdv/cashier/SalonQueuePanel.tsx`**
+1. Adicionar estado `const [search, setSearch] = useState("")`.
+2. Renderizar `<Input>` (lucide `Search` à esquerda) logo abaixo da `TabsList`, dentro do header (`div.px-3 pt-3 pb-2 border-b`). Placeholder dinâmico:
+   - aba Salão: "Buscar por mesa, cliente ou nº comanda…"
+   - aba Delivery: "Buscar por nº pedido ou cliente…"
+   Botão `X` para limpar quando houver texto.
+3. **Salão** — aplicar filtro em `pendingComandas` antes do `useMemo` de `groups`:
+   - Match (case-insensitive, sem acento via `String.normalize`) em: `customer_name`, `comanda_number` (como string), e `formatTableLabel(table.table_number)` da mesa correspondente (`tablesByOrderId`).
+4. **Delivery** — derivar `filteredDelivery` a partir de `delivery.all` aplicando o mesmo normalizador em `order_number` e `customer_name`. Usar essa lista no `.map` da `TabsContent value="delivery"` (substituindo `delivery.all`).
+5. Empty state quando há filtro mas sem resultados: "Nenhum resultado para '<termo>'." em ambas as abas, em vez do empty atual.
+6. `search` é compartilhado entre abas (mantém ao trocar de tab, melhor UX).
 
-Nenhuma mudança em hooks ou banco — apenas UI condicional no card.
+Sem mudanças em hooks, dados ou rota.
 
 ## Validação
-- Criar pedido de retirada → no caixa o card mostra "Cliente retira no local", sem seletor de entregador e sem botão Motoboy.
-- Criar pedido de entrega normal → comportamento atual permanece (seletor de motoboy, botão Motoboy, label "Saiu p/ entrega").
+- Digitar "02" → filtra mesa 02 no salão.
+- Digitar nome do cliente → filtra na aba ativa.
+- Trocar para Delivery → mesmo termo filtra pedidos por número/cliente.
+- Limpar via `X` → lista volta ao normal.
