@@ -544,8 +544,9 @@ export function SupplierDialog({
               </div>
             </TabsContent>
           </Tabs>
+          </div>
 
-          <DialogFooter>
+          <div className="px-6 py-4 border-t shrink-0 flex justify-end gap-2 bg-background">
             <Button
               type="button"
               variant="outline"
@@ -560,9 +561,9 @@ export function SupplierDialog({
                 ? "Salvar"
                 : "Criar"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
