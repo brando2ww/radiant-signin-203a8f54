@@ -1,20 +1,21 @@
-Plano para corrigir o travamento no Sheet de fornecedores:
+## Problema
 
-1. Centralizar o fechamento do SupplierDialog
-   - Criar um handler interno único no `SupplierDialog` para fechar o Sheet.
-   - Usar esse mesmo handler tanto no `Sheet onOpenChange` quanto no botão `Cancelar`.
-   - Isso corrige o ponto principal: hoje o botão `Cancelar` chama a prop diretamente e pula a limpeza defensiva que estava dentro do `onOpenChange` do Sheet.
+Na tela do cupom (após ganhar prêmio), o botão "Avaliar no Google" aparece mas não redireciona automaticamente — depende do clique do usuário. Falta um contador regressivo que leve o cliente para o Google Reviews.
 
-2. Limpar resíduos do Radix com segurança
-   - Adicionar uma função de cleanup que rode após o fechamento e também no unmount do componente.
-   - Remover resíduos comuns quando não houver outro dialog aberto: `body.style.pointerEvents`, `body.style.overflow`, `data-scroll-locked` / atributos equivalentes deixados pelo lock de scroll.
-   - Remover overlays órfãos fechados, caso algum `[data-radix-dialog-overlay]` / overlay com `data-state="closed"` permaneça bloqueando cliques.
+## Solução
 
-3. Ajustar o estado da página de fornecedores
-   - No `Suppliers.tsx`, trocar `onOpenChange={setDialogOpen}` por um handler próprio.
-   - Quando fechar, garantir `dialogOpen=false` e limpar `selectedSupplier` depois de um pequeno delay, evitando o formulário de edição ficar preso enquanto o Sheet anima o fechamento.
+Em `src/pages/PublicEvaluation.tsx`, dentro do bloco `currentPhase === "coupon"` (quando `pendingRedirect && googleReviewUrl`):
 
-4. Validar o comportamento
-   - Testar o fluxo: abrir menu do fornecedor → Editar → Cancelar.
-   - Confirmar que a página volta a aceitar cliques sem recarregar.
-   - Conferir no DOM/body que não fica `pointer-events: none`, lock de scroll residual ou overlay bloqueando a tela.
+1. Adicionar `useEffect` com contador de 5 segundos (`useState` para `secondsLeft`).
+2. Quando o contador chegar a 0, executar `window.location.href = googleReviewUrl`.
+3. Atualizar o texto/botão para refletir o countdown:
+  - Texto: "Redirecionando para o Google em **Xs**..."
+  - Botão principal: "Avaliar no Google agora" (clique imediato, cancela o timer).
+  - Botão secundário (link/ghost): "Pular" — cancela o timer e mantém a tela do cupom.
+4. Limpar o timer no unmount e ao clicar em qualquer botão (evita redirect duplicado).
+
+Sem mudanças em lógica de negócio, hooks de dados ou outros fluxos. Apenas adição de UI/efeito no bloco `coupon`.
+
+## Arquivos
+
+- `src/pages/PublicEvaluation.tsx` — adicionar estado de contador, `useEffect` de redirect automático e ajustar bloco visual entre linhas 280-293.
