@@ -82,7 +82,7 @@ const sectionItems: Section[] = [
     icon: Store,
     items: [
       { title: "Salão", url: "/pdv/salao", icon: Armchair },
-      { title: "Balcão", url: "/pdv/balcao", icon: ShoppingBag },
+      
       { title: "Caixa", url: "/pdv/caixa", icon: DollarSign },
       
     ],
