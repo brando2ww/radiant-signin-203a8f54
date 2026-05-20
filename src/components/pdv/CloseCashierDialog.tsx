@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -385,6 +387,19 @@ export function CloseCashierDialog({
   // Confirmação extra
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const queryClient = useQueryClient();
+
+  // Ao abrir o dialog, recalcula totais da sessão a partir dos movements
+  // para garantir que a coluna "Esperado" reflita o estado real do caixa.
+  useEffect(() => {
+    if (!open || !session?.id) return;
+    (async () => {
+      await supabase.rpc("pdv_recompute_session_totals", { p_session_id: session.id });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
+    })();
+  }, [open, session?.id, queryClient]);
+
   const openingBalance = Number(session?.opening_balance) || 0;
   const totalCash = Number(session?.total_cash) || 0;
   const totalCredit = Number(session?.total_credit) || 0;
@@ -403,13 +418,16 @@ export function CloseCashierDialog({
     [movements],
   );
 
-  // Detectar "Outros meios" (vendas com payment_method fora do conjunto conhecido)
+  // "Outros meios": prioriza valor da sessão (recomputado pela RPC),
+  // com fallback para soma local dos movements.
   const totalOther = useMemo(() => {
+    const sessionOther = Number((session as any)?.total_other);
+    if (Number.isFinite(sessionOther) && sessionOther > 0) return sessionOther;
     const known = new Set(["dinheiro", "credito", "debito", "pix", "vale_refeicao", "cartao"]);
     return movements
       .filter((m) => m.type === "venda" && m.payment_method && !known.has(m.payment_method))
       .reduce((acc, m) => acc + Number(m.amount || 0), 0);
-  }, [movements]);
+  }, [movements, session]);
 
   const expectedCash = openingBalance + totalCash + totalReinforcements - totalWithdrawals;
 

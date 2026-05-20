@@ -3130,6 +3130,7 @@ export type Database = {
           total_debit: number
           total_difference: number | null
           total_online_delivery: number
+          total_other: number
           total_pix: number
           total_sales: number
           total_voucher: number
@@ -3180,6 +3181,7 @@ export type Database = {
           total_debit?: number
           total_difference?: number | null
           total_online_delivery?: number
+          total_other?: number
           total_pix?: number
           total_sales?: number
           total_voucher?: number
@@ -3230,6 +3232,7 @@ export type Database = {
           total_debit?: number
           total_difference?: number | null
           total_online_delivery?: number
+          total_other?: number
           total_pix?: number
           total_sales?: number
           total_voucher?: number
@@ -7410,6 +7413,10 @@ export type Database = {
         Returns: {
           locked_id: string
         }[]
+      }
+      pdv_recompute_session_totals: {
+        Args: { p_session_id: string }
+        Returns: undefined
       }
       pdv_resolve_owner: { Args: { _user_id: string }; Returns: string }
       pdv_split_comanda_item: {
