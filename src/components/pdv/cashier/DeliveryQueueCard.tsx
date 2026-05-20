@@ -146,7 +146,14 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
         </div>
       )}
 
-      {order.status === "delivering" && drivers.length > 0 && (
+      {isPickup && order.status === "delivering" && (
+        <div className="mb-2 px-2 py-1.5 rounded text-[11px] bg-muted text-foreground border flex items-center gap-1.5">
+          <Store className="h-3.5 w-3.5 shrink-0" />
+          Cliente retira no local — aguardando retirada
+        </div>
+      )}
+
+      {!isPickup && order.status === "delivering" && drivers.length > 0 && (
         <div className="mb-2">
           {assignedDriver ? (
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1.5">
