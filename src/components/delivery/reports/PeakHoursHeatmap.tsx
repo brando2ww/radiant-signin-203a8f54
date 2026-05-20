@@ -1,4 +1,6 @@
+import { Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { usePeakHours } from "@/hooks/use-peak-hours";
 import {
   BarChart,
