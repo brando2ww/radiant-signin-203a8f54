@@ -12,7 +12,7 @@ import {
 import { formatBRL } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X } from "lucide-react";
+import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X, Store } from "lucide-react";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
 import {
   initialsFromName,
