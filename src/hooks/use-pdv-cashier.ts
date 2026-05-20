@@ -378,6 +378,60 @@ export function usePDVCashier() {
     enabled: !!lastClosedSession?.id,
   });
 
+  // Submeter Etapa 1 (apuração às cegas) — gera snapshot imutável p/ auditoria
+  const submitBlindClosing = useMutation({
+    mutationFn: async (payload: {
+      sessionId: string;
+      declaredCash: number;
+      declaredCredit?: number | null;
+      declaredDebit?: number | null;
+      declaredPix?: number | null;
+      declaredVoucher?: number | null;
+      declaredOnlineDelivery?: number | null;
+      declaredOther?: number | null;
+      declaredTotal: number;
+    }) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      if (!visibleUserId) throw new Error("Estabelecimento não resolvido");
+
+      const { data, error } = await supabase
+        .from("pdv_cashier_close_blind_snapshots")
+        .insert({
+          cashier_session_id: payload.sessionId,
+          user_id: visibleUserId,
+          operator_id: user.id,
+          declared_cash: payload.declaredCash,
+          declared_credit: payload.declaredCredit ?? null,
+          declared_debit: payload.declaredDebit ?? null,
+          declared_pix: payload.declaredPix ?? null,
+          declared_voucher: payload.declaredVoucher ?? null,
+          declared_online_delivery: payload.declaredOnlineDelivery ?? null,
+          declared_other: payload.declaredOther ?? null,
+          declared_total: payload.declaredTotal,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await supabase.rpc("pdv_recompute_session_totals", { p_session_id: payload.sessionId });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-blind-snapshots"] });
+    },
+    onError: (error: any) => {
+      const msg = String(error?.message || "");
+      if (msg.includes("duplicate") || msg.includes("unique")) {
+        toast.error("Já existe uma apuração registrada para esta sessão.");
+      } else {
+        toast.error("Erro ao registrar apuração: " + msg);
+      }
+    },
+  });
+
   const isLoading = isLoadingSession || isLoadingMovements;
 
   return {
@@ -389,6 +443,8 @@ export function usePDVCashier() {
     isOpeningCashier: openCashier.isPending,
     closeCashier: closeCashier.mutate,
     isClosingCashier: closeCashier.isPending,
+    submitBlindClosing: submitBlindClosing.mutateAsync,
+    isSubmittingBlind: submitBlindClosing.isPending,
     addMovement: addMovement.mutate,
     isAddingMovement: addMovement.isPending,
     lastClosedSession,
