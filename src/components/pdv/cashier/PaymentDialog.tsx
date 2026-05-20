@@ -280,7 +280,7 @@ export function PaymentDialog({
   useEffect(() => {
     if (!open || showSuccess) return;
     const hasPaymentContext = !!comanda || !!table;
-    if (!hasPaymentContext || displayItems.length === 0 || fullSubtotal <= 0) {
+    if (!hasPaymentContext || displayItems.length === 0 || (fullSubtotal <= 0 && pendingSubtotal <= 0)) {
       toast.warning("Não há itens pendentes para cobrar.");
       onOpenChange(false);
     }
@@ -310,8 +310,12 @@ export function PaymentDialog({
 
   const isByProduct = chargeMode === "by-product" && supportsByProduct;
 
+  // Subtotal "Tudo" / "Várias formas": usa o pendente quando temos itens reais
+  // (descontando quantidades já pagas parcialmente).
+  const allSubtotal = liveItemsForPayment.length > 0 ? pendingSubtotal : fullSubtotal;
+
   // Subtotal efetivo usado para descontos/taxas/total
-  const subtotal = isByProduct ? selectedSubtotal : fullSubtotal;
+  const subtotal = isByProduct ? selectedSubtotal : allSubtotal;
 
   const title = isTablePayment
     ? formatTableLabel(table?.table_number)
