@@ -174,6 +174,7 @@ export function SupplierDialog({
       ...data,
       cnpj: documentType === "cnpj" ? data.cnpj : null,
       cpf: documentType === "cpf" ? data.cpf : null,
+      category: data.category || null,
       delivery_time: data.delivery_time ? parseInt(data.delivery_time) : null,
       credit_limit: data.credit_limit ? parseFloat(data.credit_limit) : null,
     };
