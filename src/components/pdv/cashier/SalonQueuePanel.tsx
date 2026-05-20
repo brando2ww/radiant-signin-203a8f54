@@ -77,7 +77,17 @@ export function SalonQueuePanel({
   const { tables } = usePDVTables();
   const [tab, setTab] = useState<"salon" | "delivery">("salon");
   const [sortBy, setSortBy] = useState<SortOption>("time");
+  const [search, setSearch] = useState("");
   const [paymentOrder, setPaymentOrder] = useState<DeliveryOrder | null>(null);
+
+  const normalize = (s: string | null | undefined) =>
+    (s ?? "")
+      .toString()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  const searchNorm = normalize(search);
 
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
