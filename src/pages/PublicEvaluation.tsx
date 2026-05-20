@@ -51,7 +51,7 @@ function EncouragementMessage({ progress }: { progress: number }) {
 }
 
 function GoogleCountdownRedirect({ url }: { url: string }) {
-  const [seconds, setSeconds] = useState(10);
+  const [seconds, setSeconds] = useState(5);
   const [cancelled, setCancelled] = useState(false);
 
   useEffect(() => {
