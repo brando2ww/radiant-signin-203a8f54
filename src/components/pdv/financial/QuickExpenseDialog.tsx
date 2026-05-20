@@ -234,6 +234,12 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
                   <SelectItem value="transferencia">Transferência</SelectItem>
                 </SelectContent>
               </Select>
+              {cashierSessionId && paymentMethod === "dinheiro" && (
+                <p className="text-[11px] text-muted-foreground flex items-start gap-1">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                  Será debitado do caixa atual como sangria automática.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
