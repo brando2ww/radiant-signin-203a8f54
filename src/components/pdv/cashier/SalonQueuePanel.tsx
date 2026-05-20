@@ -138,8 +138,30 @@ export function SalonQueuePanel({
     // Defesa: comanda com order_id mas sem mesa viva apontando para ele
     // significa que o pedido foi cancelado/liberado — não exibir.
     if (c.order_id && !tablesByOrderId.has(c.order_id)) return false;
+    if (searchNorm) {
+      const table = c.order_id ? tablesByOrderId.get(c.order_id) : null;
+      const tableLabel = table ? formatTableLabel(table.table_number) : "";
+      const haystack = [
+        c.customer_name,
+        String(c.comanda_number ?? ""),
+        tableLabel,
+      ]
+        .map(normalize)
+        .join(" ");
+      if (!haystack.includes(searchNorm)) return false;
+    }
     return true;
   });
+
+  const filteredDelivery = useMemo(() => {
+    if (!searchNorm) return delivery.all;
+    return delivery.all.filter((o) => {
+      const haystack = [String(o.order_number ?? ""), o.customer_name]
+        .map(normalize)
+        .join(" ");
+      return haystack.includes(searchNorm);
+    });
+  }, [delivery.all, searchNorm]);
 
   const openCountByOrderId = useMemo(() => {
     const m = new Map<string, number>();
