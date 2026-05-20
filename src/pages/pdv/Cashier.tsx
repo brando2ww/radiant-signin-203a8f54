@@ -479,6 +479,11 @@ export default function PDVCashier() {
         open={employeeDialog}
         onOpenChange={setEmployeeDialog}
       />
+
+      <QuickExpenseDialog
+        open={quickExpenseDialog}
+        onOpenChange={setQuickExpenseDialog}
+      />
     </div>
   );
 }
