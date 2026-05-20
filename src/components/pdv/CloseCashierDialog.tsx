@@ -26,8 +26,6 @@ import {
   CreditCard,
   Smartphone,
   Ticket,
-  Wallet,
-  Receipt,
   Globe,
   MoreHorizontal,
 } from "lucide-react";
