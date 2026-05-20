@@ -176,6 +176,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
                 {availableDrivers.map((d) => (
                   <SelectItem key={d.id} value={d.id} className="text-xs">
                     🛵 {d.name}
+                    {d.active_count > 0 ? ` · ${d.active_count} em rota` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
