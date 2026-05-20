@@ -35,6 +35,7 @@ import { useQuickExpense, type QuickExpenseStockItem } from "@/hooks/use-quick-e
 interface QuickExpenseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  cashierSessionId?: string | null;
 }
 
 const NONE = "none";
