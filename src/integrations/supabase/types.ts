@@ -1263,10 +1263,13 @@ export type Database = {
         Row: {
           code: string
           created_at: string
+          first_order_only: boolean
           id: string
+          internal_notes: string | null
           is_active: boolean | null
           max_discount: number | null
           min_order_value: number | null
+          per_customer_limit: number
           type: string
           usage_count: number | null
           usage_limit: number | null
@@ -1278,10 +1281,13 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          first_order_only?: boolean
           id?: string
+          internal_notes?: string | null
           is_active?: boolean | null
           max_discount?: number | null
           min_order_value?: number | null
+          per_customer_limit?: number
           type?: string
           usage_count?: number | null
           usage_limit?: number | null
@@ -1293,10 +1299,13 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          first_order_only?: boolean
           id?: string
+          internal_notes?: string | null
           is_active?: boolean | null
           max_discount?: number | null
           min_order_value?: number | null
+          per_customer_limit?: number
           type?: string
           usage_count?: number | null
           usage_limit?: number | null

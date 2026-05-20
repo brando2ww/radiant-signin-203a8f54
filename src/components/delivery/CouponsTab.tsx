@@ -1,13 +1,13 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Copy, Percent, DollarSign, Link2 } from "lucide-react";
-import { useState } from "react";
-import { useDeliveryCoupons, useDeleteCoupon, useUpdateCoupon } from "@/hooks/use-delivery-coupons";
+import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  useDeliveryCoupons,
+  useDeleteCoupon,
+  useUpdateCoupon,
+  DeliveryCoupon,
+} from "@/hooks/use-delivery-coupons";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
-import { CouponDialog } from "./CouponDialog";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,21 +19,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { DeliveryCoupon } from "@/hooks/use-delivery-coupons";
-import { formatBRL } from "@/lib/format";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPublicMenuUrl } from "@/lib/public-menu-link";
+import { CouponsKPIs } from "./coupons/CouponsKPIs";
+import {
+  CouponsFilters,
+  StatusFilter,
+  TypeFilter,
+  SortBy,
+} from "./coupons/CouponsFilters";
+import { CouponsTable } from "./coupons/CouponsTable";
+import { CouponSheet } from "./coupons/CouponSheet";
+import { CouponShareDialog } from "./coupons/CouponShareDialog";
+import { EmptyCouponsState } from "./coupons/EmptyCouponsState";
+import { useCouponsStats } from "@/hooks/use-coupons-stats";
 
 export const CouponsTab = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCoupon, setEditingCoupon] = useState<DeliveryCoupon | null>(null);
-  const [deletingCoupon, setDeletingCoupon] = useState<DeliveryCoupon | null>(null);
-
   const { data: coupons = [] } = useDeliveryCoupons();
   const deleteCoupon = useDeleteCoupon();
   const updateCoupon = useUpdateCoupon();
   const { visibleUserId } = useEstablishmentId();
+  const stats = useCouponsStats(coupons);
 
   const { data: bizSlug } = useQuery({
     queryKey: ["business-slug", visibleUserId],
@@ -49,233 +56,158 @@ export const CouponsTab = () => {
     enabled: !!visibleUserId,
   });
 
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editing, setEditing] = useState<DeliveryCoupon | null>(null);
+  const [deleting, setDeleting] = useState<DeliveryCoupon | null>(null);
+  const [sharing, setSharing] = useState<DeliveryCoupon | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [type, setType] = useState<TypeFilter>("all");
+  const [sort, setSort] = useState<SortBy>("created");
+
+  const filtered = useMemo(() => {
+    const now = new Date();
+    let arr = coupons.filter((c) => {
+      if (search && !c.code.toLowerCase().includes(search.toLowerCase()))
+        return false;
+      if (type !== "all" && c.type !== type) return false;
+      const expired = new Date(c.valid_until) < now;
+      if (status === "active" && (!c.is_active || expired)) return false;
+      if (status === "inactive" && c.is_active) return false;
+      if (status === "expired" && !expired) return false;
+      return true;
+    });
+    arr = [...arr].sort((a, b) => {
+      if (sort === "most_used") return b.usage_count - a.usage_count;
+      if (sort === "valid_until")
+        return (
+          new Date(a.valid_until).getTime() - new Date(b.valid_until).getTime()
+        );
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
+    return arr;
+  }, [coupons, search, status, type, sort]);
+
+  const buildShareUrl = (code: string) => {
+    if (!visibleUserId) return "";
+    const base = buildPublicMenuUrl({ userId: visibleUserId, slug: bizSlug });
+    return `${base}?cupom=${code}`;
+  };
+
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     toast.success("Código copiado!");
   };
-
   const handleCopyLink = (code: string) => {
-    if (!visibleUserId) return;
-    const base = buildPublicMenuUrl({ userId: visibleUserId, slug: bizSlug });
-    const url = `${base}?cupom=${code}`;
+    const url = buildShareUrl(code);
+    if (!url) return;
     navigator.clipboard.writeText(url);
-    toast.success("Link com cupom copiado!");
+    toast.success("Link copiado!");
   };
 
-  const handleToggleActive = (coupon: DeliveryCoupon) => {
-    updateCoupon.mutate({
-      id: coupon.id,
-      updates: { is_active: !coupon.is_active },
-    });
+  const handleToggleActive = (c: DeliveryCoupon) => {
+    updateCoupon.mutate({ id: c.id, updates: { is_active: !c.is_active } });
+  };
+
+  const handleEdit = (c: DeliveryCoupon) => {
+    setEditing(c);
+    setSheetOpen(true);
+  };
+  const handleCreate = () => {
+    setEditing(null);
+    setSheetOpen(true);
+  };
+  const handleSheetClose = (open: boolean) => {
+    setSheetOpen(open);
+    if (!open) setEditing(null);
   };
 
   const handleDelete = () => {
-    if (deletingCoupon) {
-      deleteCoupon.mutate(deletingCoupon.id, {
-        onSuccess: () => setDeletingCoupon(null),
-      });
-    }
+    if (!deleting) return;
+    deleteCoupon.mutate(deleting.id, {
+      onSuccess: () => setDeleting(null),
+    });
   };
 
-  const handleEdit = (coupon: DeliveryCoupon) => {
-    setEditingCoupon(coupon);
-    setIsDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingCoupon(null);
-  };
-
-  const activeCoupons = coupons.filter(c => c.is_active);
-  const inactiveCoupons = coupons.filter(c => !c.is_active);
+  const showEmptyState = coupons.length === 0;
 
   return (
     <>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-3 justify-between sm:items-center">
           <div>
             <h2 className="text-2xl font-bold">Cupons de Desconto</h2>
             <p className="text-sm text-muted-foreground">
-              Crie e gerencie cupons promocionais
+              Crie e gerencie cupons promocionais do seu delivery
             </p>
           </div>
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Criar Cupom
+          <Button onClick={handleCreate}>
+            <Plus className="w-4 h-4 mr-2" /> Criar cupom
           </Button>
         </div>
 
-        {/* Active Coupons */}
-        <div>
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            Cupons Ativos
-            <Badge variant="secondary">{activeCoupons.length}</Badge>
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {activeCoupons.map((coupon) => (
-              <Card key={coupon.id}>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-base">
-                    <div className="flex items-center gap-2">
-                      {coupon.type === "percentage" ? (
-                        <Percent className="h-4 w-4 text-primary" />
-                      ) : (
-                        <DollarSign className="h-4 w-4 text-primary" />
-                      )}
-                      <span className="font-mono font-bold">{coupon.code}</span>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => handleCopyCode(coupon.code)}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div>
-                    <p className="text-2xl font-bold text-primary">
-                      {coupon.type === "percentage"
-                        ? `${coupon.value}% OFF`
-                        : `${formatBRL(Number(coupon.value))} OFF`}
-                    </p>
-                    {coupon.min_order_value > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Pedido mínimo: {formatBRL(Number(coupon.min_order_value))}
-                      </p>
-                    )}
-                    {coupon.max_discount && (
-                      <p className="text-xs text-muted-foreground">
-                        Desconto máximo: {formatBRL(Number(coupon.max_discount))}
-                      </p>
-                    )}
-                  </div>
+        <CouponsKPIs stats={stats} />
 
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>
-                      Válido até:{" "}
-                      {format(new Date(coupon.valid_until), "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                    <p>
-                      Usado: {coupon.usage_count}/{coupon.usage_limit} vezes
-                    </p>
-                  </div>
+        {showEmptyState ? (
+          <EmptyCouponsState onCreate={handleCreate} />
+        ) : (
+          <>
+            <CouponsFilters
+              search={search}
+              onSearchChange={setSearch}
+              status={status}
+              onStatusChange={setStatus}
+              type={type}
+              onTypeChange={setType}
+              sort={sort}
+              onSortChange={setSort}
+            />
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="w-full mb-2"
-                    onClick={() => handleCopyLink(coupon.code)}
-                  >
-                    <Link2 className="h-3.5 w-3.5 mr-1" />
-                    Copiar Link
-                  </Button>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => handleEdit(coupon)}
-                    >
-                      <Edit className="h-3.5 w-3.5 mr-1" />
-                      Editar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleToggleActive(coupon)}
-                    >
-                      Desativar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => setDeletingCoupon(coupon)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {activeCoupons.length === 0 && (
-              <Card className="col-span-full">
-                <CardContent className="text-center text-muted-foreground py-8">
-                  Nenhum cupom ativo
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </div>
-
-        {/* Inactive Coupons */}
-        {inactiveCoupons.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              Cupons Inativos
-              <Badge variant="outline">{inactiveCoupons.length}</Badge>
-            </h3>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {inactiveCoupons.map((coupon) => (
-                <Card key={coupon.id} className="opacity-60">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between text-base">
-                      <span className="font-mono font-bold">{coupon.code}</span>
-                      <Badge variant="outline">Inativo</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="text-lg font-bold">
-                      {coupon.type === "percentage"
-                        ? `${coupon.value}% OFF`
-                        : `${formatBRL(Number(coupon.value))} OFF`}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => handleToggleActive(coupon)}
-                      >
-                        Reativar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => setDeletingCoupon(coupon)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
+            <CouponsTable
+              coupons={filtered}
+              expandedId={expandedId}
+              onToggleExpand={(id) =>
+                setExpandedId((curr) => (curr === id ? null : id))
+              }
+              onToggleActive={handleToggleActive}
+              onEdit={handleEdit}
+              onCopyCode={handleCopyCode}
+              onCopyLink={handleCopyLink}
+              onShareQR={(c) => setSharing(c)}
+              onDelete={(c) => setDeleting(c)}
+            />
+          </>
         )}
       </div>
 
-      <CouponDialog
-        open={isDialogOpen}
-        onOpenChange={handleCloseDialog}
-        coupon={editingCoupon || undefined}
+      <CouponSheet
+        open={sheetOpen}
+        onOpenChange={handleSheetClose}
+        coupon={editing}
       />
 
+      {sharing && (
+        <CouponShareDialog
+          open={!!sharing}
+          onOpenChange={(o) => !o && setSharing(null)}
+          code={sharing.code}
+          url={buildShareUrl(sharing.code)}
+        />
+      )}
+
       <AlertDialog
-        open={!!deletingCoupon}
-        onOpenChange={(open) => !open && setDeletingCoupon(null)}
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Cupom</AlertDialogTitle>
+            <AlertDialogTitle>Excluir cupom</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o cupom "{deletingCoupon?.code}"? Esta
+              Tem certeza que deseja excluir o cupom "{deleting?.code}"? Esta
               ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
