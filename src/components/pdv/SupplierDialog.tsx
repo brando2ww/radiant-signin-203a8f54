@@ -117,6 +117,7 @@ export function SupplierDialog({
         delivery_time_unit: supplier.delivery_time_unit || "days",
         credit_limit: supplier.credit_limit?.toString() || "",
         preferred_payment_method: supplier.preferred_payment_method || "",
+        category: supplier.category || "",
         is_active: supplier.is_active,
       });
     } else {
