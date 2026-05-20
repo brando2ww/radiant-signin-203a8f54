@@ -208,13 +208,7 @@ export function usePDVPayments() {
 
         await supabase.from("pdv_cashier_movements").insert(movementData);
 
-        const deltas = buildSessionDeltas(method, amount, changeAmount);
-        const updates = applyDeltas(activeSession, deltas);
-
-        await supabase
-          .from("pdv_cashier_sessions")
-          .update(updates)
-          .eq("id", activeSession.id);
+        await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
       }
 
       return { success: true };
