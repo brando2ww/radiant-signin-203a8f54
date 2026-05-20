@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -24,6 +23,7 @@ import { PDVSupplier } from "@/hooks/use-pdv-suppliers";
 import { useCEPLookup } from "@/hooks/use-cep-lookup";
 import { Loader2, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SUPPLIER_CATEGORIES } from "@/components/pdv/SupplierFilters";
 
 interface SupplierDialogProps {
   open: boolean;
