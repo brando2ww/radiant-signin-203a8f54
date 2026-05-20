@@ -81,7 +81,7 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
       setPaymentDate(new Date());
       setChartAccountId(NONE);
       setCostCenterId(NONE);
-      setPaymentMethod(NONE);
+      setPaymentMethod(cashierSessionId ? "dinheiro" : NONE);
       setSupplierId(NONE);
       setDocumentNumber("");
       setNotes("");
