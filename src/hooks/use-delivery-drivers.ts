@@ -28,7 +28,8 @@ export interface DeliveryDriver {
 export interface DriverWithStats extends DeliveryDriver {
   deliveries_today: number;
   deliveries_month: number;
-  current_order_number?: string | null;
+  active_orders: { id: string; order_number: string }[];
+  active_count: number;
 }
 
 export interface DriverInput {
