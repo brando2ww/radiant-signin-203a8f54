@@ -1,41 +1,132 @@
-## Diagnóstico
 
-A função `pdv_cancel_order` (migração `20260512183336`) bloqueia o cancelamento quando algum item tem `paid_quantity > 0` ou `charging_session_id IS NOT NULL`. No pedido `PDV925797` (Mesa 12) **todos** os itens têm `paid_quantity = quantity` — ou seja, **já estão pagos**, e ainda assim:
+## Visão geral
 
-- `pdv_orders` continua `aberta` (deveria estar `fechado`).
-- comanda `20260519-005` está `fechada` (correto para "entregue ao caixa") mas o fluxo nunca finalizou ela como paga.
-- comanda `20260519-006` foi criada vazia (`em_cobranca`, subtotal 0) — clique acidental de "Cobrar".
-- `pdv_payments` tem 5 lançamentos (R$ 1.361,90) registrados para o pedido.
+Substituir a `CouponsTab` baseada em cards por uma central de gestão completa, mantendo a identidade visual do Velara PDV (tokens semânticos do sistema, sem cores customizadas). A página passa a ter: KPIs no topo, filtros, tabela densa com ações inline, drawer lateral para criação/edição, link compartilhável com QR Code e painel expansível com histórico de uso por cupom.
 
-Resumo: **o pagamento foi feito, mas o pedido não foi finalizado** (provavelmente o `PaymentDialog` travou após registrar os pagamentos individuais por produto).
+## Mudanças no banco (migração)
 
-Cancelar não resolve, porque a regra existe justamente para não apagar itens já pagos. O que precisa é **finalizar** este pedido.
+A tabela `delivery_coupons` hoje não tem os campos pedidos. Migração para adicionar:
 
-## Solução
+- `per_customer_limit integer` (default 0 = ilimitado) — limite de uso por cliente.
+- `first_order_only boolean` (default false) — válido apenas na primeira compra.
+- `internal_notes text` — descrição interna do gestor.
 
-### 1. Migração para destravar este pedido específico
-- Atualizar o `pdv_orders` `7f23829d-598a-4ce3-81df-6314ba2a5166` para `status = 'fechado'`, `closed_at = now()`.
-- Atualizar a comanda `22bc9e51-…` (005) para `status = 'paga'` (todos os itens já têm `paid_quantity = quantity`).
-- Atualizar a comanda `10f0cde1-…` (006, vazia) para `status = 'cancelada'`, `close_reason = 'Comanda vazia criada por erro - encerramento manual'`.
-- Liberar a Mesa 12 (`pdv_tables.current_order_id = NULL`, `status = 'livre'`) caso ainda aponte para esse pedido.
-- Também encerrar o pedido órfão `d26de848-…` (PDV246017, sem comandas ativas, aberto desde 09/05) marcando-o como `cancelada` com motivo "Pedido órfão sem comandas".
+Nenhuma alteração nas RLS existentes (já restringem por `user_id`).
 
-### 2. Função utilitária reutilizável `pdv_finalize_paid_order(p_order_id uuid, p_reason text)`
-SECURITY DEFINER, mesmo padrão de `pdv_cancel_order`. Permite o caixa fechar um pedido em que **todos os itens já estejam totalmente pagos** (`SUM(paid_quantity) >= SUM(quantity)` em todas as comandas ativas e sem `charging_session_id` em aberto). Faz:
-- Verifica permissão `cancel_item` (mesma do cancel).
-- Valida que todos os itens estão pagos; se não, levanta exceção com mensagem clara.
-- Marca comandas `aberta`/`em_cobranca`/`aguardando_pagamento` como `paga` (se tinham itens pagos) ou `cancelada` (se vazias, sem itens).
-- Marca o pedido como `fechado` com `closed_at = now()`.
-- Libera a mesa.
-- Loga via `log_pdv_action`.
+Cálculo de "usos por cliente" e "histórico" usa `delivery_orders` filtrando por `coupon_code = code` e `user_id` do estabelecimento (já existe `discount` e `customer_name`).
 
-### 3. Botão "Finalizar pedido (itens já pagos)" no `PaymentDialog` / `ChargeSelectionDialog`
-Quando o erro de cancelamento aparecer, ou quando a mesa estiver com 100% dos itens pagos mas pedido ainda aberto, mostrar um botão alternativo que chame `pdv_finalize_paid_order`. Isso evita que este caso volte a travar a operação no futuro.
+## Layout da página
 
-## Não alterar
-- A regra de bloqueio em `pdv_cancel_order` continua válida — não queremos permitir cancelamento que destrua pagamentos já lançados.
-- Lógica de pagamento existente, comandas ativas normais, mesas com fluxo OK.
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Cupons de Desconto                       [+ Criar cupom]     │
+├──────────────────────────────────────────────────────────────┤
+│ [Ativos: 12] [Usos hoje: 34] [Economia: R$ 2.140] [Vence 7d:3│
+├──────────────────────────────────────────────────────────────┤
+│ [busca código] [status v] [tipo v] [ordenar v]               │
+├──────────────────────────────────────────────────────────────┤
+│ Código │ Desconto │ Mín │ Uso (barra) │ Validade │ ✓ │ ⋮     │
+│ KOTEN12│ 12% OFF  │ R$30│ ▓▓▓░ 12/100 │ ●Válido  │ on│ ...   │
+│   └─ histórico expansível ao clicar na linha                 │
+└──────────────────────────────────────────────────────────────┘
+```
 
-## Validação
-- Após a migração, Mesa 12 fica livre, comanda 005 marcada como `paga`, pedido `fechado`. Histórico financeiro segue intacto.
-- Nova função pode ser chamada manualmente via dashboard SQL no futuro, e via botão no caixa.
+Largura total (`container-fluid`-style: `px-4 py-6`, sem `max-w`). Mesma h-14 de header preservada.
+
+## KPIs (topo)
+
+4 cards usando `bg-card`/`text-foreground`:
+
+1. **Cupons ativos** — `count(is_active && valid_until > now)`.
+2. **Usos hoje** — `count(delivery_orders where coupon_code in active_codes and created_at::date = today)`.
+3. **Economia gerada no período** — `sum(discount)` dos pedidos com `coupon_code` preenchido (período padrão: últimos 30 dias, com seletor simples mais tarde — v1 fixo 30d).
+4. **Vencendo em 7 dias** — `count(valid_until between now and now+7d)` + badge laranja (`bg-orange-500/15 text-orange-600`) usando tokens semânticos.
+
+## Tabela de cupons
+
+Substitui os grids de cards. Componente `CouponsTable`. Colunas:
+
+- **Código** — `font-mono` em destaque + botão `Copy` inline.
+- **Desconto** — Badge: percentual → variant `secondary` verde (`bg-emerald-500/15`), fixo → azul (`bg-blue-500/15`). Texto: "12% OFF" ou "R$ 10,00 OFF".
+- **Pedido mínimo** — `formatBRL` ou `—`.
+- **Uso** — `Progress` (shadcn) + label `12/100 usados`.
+- **Validade** — data + dot colorido: verde (>7d), amarelo (≤7d), vermelho (vencido).
+- **Ativo** — `Switch` shadcn, dispara `useUpdateCoupon` (otimista).
+- **Ações** — `DropdownMenu` (⋮) com: Editar, Copiar link, Ver QR Code, Excluir. Padrão da memória de Resource Action Menu.
+
+Linha clicável expande painel inline (`<tr>` extra) com **Histórico de uso** — tabela secundária: data, nº pedido, cliente, total, desconto. Rodapé: "Economia total gerada por este cupom: R$ X". Hook novo: `useCouponUsageHistory(code)` consultando `delivery_orders`.
+
+## Filtros (topo da tabela)
+
+- `Input` busca por código (substring case-insensitive).
+- `Select` status: Todos / Ativos / Inativos / Vencidos (lembrar regra: usar `'none'` internamente, mapear para string vazia).
+- `Select` tipo: Todos / Percentual / Valor fixo.
+- `Select` ordenar: Mais usados (`usage_count desc`) / Validade (`valid_until asc`) / Criação (`created_at desc`, padrão).
+
+Todos client-side sobre o array do `useDeliveryCoupons`.
+
+## Drawer lateral (Sheet) substituindo o Dialog
+
+Novo `CouponSheet` usando `Sheet side="right"` largura `sm:max-w-xl`. Substitui o uso atual de `CouponDialog` (mantém o arquivo só se ainda referenciado externamente; a tab passa a usar o sheet).
+
+Conteúdo:
+
+- **Código** — Input + botão "Gerar automaticamente" (8 chars alfanuméricos maiúsculos). Validação em tempo real: duplicado consultando `delivery_coupons` por `code` (debounced) → mensagem inline vermelha.
+- **Tipo de desconto** — dois botões grandes (`ToggleGroup` ou dois `Button` com `variant` ativo), cada um com ícone (Percent / DollarSign) e label.
+- **Valor** — `CurrencyInput` ou número (% com max 100).
+- **Pedido mínimo** — `CurrencyInput`.
+- **Desconto máximo** (se %) — `CurrencyInput`.
+- **Limite total de uso** — Input numérico.
+- **Limite por cliente** — Input numérico (0 = ilimitado), nova coluna `per_customer_limit`.
+- **Válido apenas na primeira compra** — `Switch`, nova coluna `first_order_only`.
+- **Validade (de/até)** — Inputs `type=date`. Validação: `valid_from <= valid_until` e não pode estar no passado para novos.
+- **Descrição interna** — `Textarea`, nova coluna `internal_notes`. Hint: "Visível só para sua equipe".
+- **Resumo lateral** — pequeno preview do cupom como será exibido ao cliente.
+
+Validação com `zod` no submit + erros inline. Botões: Cancelar (esquerda) e Salvar (direita).
+
+## Link compartilhável + QR Code
+
+Já existe `buildPublicMenuUrl`. Novo dialog `CouponShareDialog` aberto via ação "Ver QR Code":
+
+- Mostra URL `…?cupom=CODE`.
+- Renderiza QR Code usando `qrcode.react` (já em uso para WhatsApp? checar; se não, adicionar dep `qrcode.react`).
+- Botões: Copiar link, Baixar PNG (via canvas → blob), Compartilhar no WhatsApp (`https://wa.me/?text=...`).
+
+## Estado vazio
+
+Quando `coupons.length === 0` e sem filtros: card grande centralizado com ilustração simples (ícone `Ticket`), título "Crie seu primeiro cupom" e botão primário grande.
+
+Quando há cupons mas filtros zeram resultado: mensagem leve "Nenhum cupom corresponde aos filtros".
+
+## Arquivos a criar/editar
+
+Criar:
+- `supabase/migrations/<ts>_coupons_extra_fields.sql` — adiciona 3 colunas.
+- `src/components/delivery/coupons/CouponsKPIs.tsx`
+- `src/components/delivery/coupons/CouponsFilters.tsx`
+- `src/components/delivery/coupons/CouponsTable.tsx`
+- `src/components/delivery/coupons/CouponRow.tsx` (com expansão de histórico)
+- `src/components/delivery/coupons/CouponSheet.tsx` (drawer de criação/edição)
+- `src/components/delivery/coupons/CouponShareDialog.tsx` (link + QR)
+- `src/components/delivery/coupons/CouponUsageHistory.tsx`
+- `src/components/delivery/coupons/EmptyCouponsState.tsx`
+- `src/hooks/use-coupon-usage-history.ts`
+- `src/hooks/use-coupons-stats.ts` (KPIs derivados)
+
+Editar:
+- `src/components/delivery/CouponsTab.tsx` — vira o shell que compõe KPIs + Filters + Table + Sheet + Dialogs.
+- `src/hooks/use-delivery-coupons.ts` — estender tipo `DeliveryCoupon` com `per_customer_limit`, `first_order_only`, `internal_notes`.
+- `src/pages/pdv/delivery/Coupons.tsx` — remover `container max-w` para layout full width.
+
+Manter (sem mudar): `CouponDialog.tsx` (deprecado neste fluxo; será removido após confirmação de que não é usado em outro lugar — `rg` mostrou só `CouponsTab`).
+
+## Dependência nova
+
+`qrcode.react` (≈3 KB) para o QR Code. Adicionar via `bun add qrcode.react`.
+
+## Não inclui (fora de escopo)
+
+- Editor de período dos KPIs (fica fixo em 30 dias na v1).
+- Histórico exportável CSV (pode vir depois).
+- Aplicação de regras `first_order_only`/`per_customer_limit` no checkout — esta etapa só persiste os campos; aplicação no validador do carrinho fica como follow-up explícito.
