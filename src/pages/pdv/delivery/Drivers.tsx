@@ -205,10 +205,14 @@ export default function DeliveryDrivers() {
                         </a>
                       )}
 
-                      {d.status === "em_entrega" && d.current_order_number && (
+                      {d.active_count > 0 && (
                         <div className="mt-2">
-                          <Badge variant="outline" className="text-[10px]">
-                            Pedido #{d.current_order_number} — Em rota
+                          <Badge
+                            variant="outline"
+                            className="text-[10px]"
+                            title={d.active_orders.map((o) => `#${o.order_number}`).join(", ")}
+                          >
+                            {d.active_count} {d.active_count === 1 ? "pedido em rota" : "pedidos em rota"}
                           </Badge>
                         </div>
                       )}
