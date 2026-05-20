@@ -11,43 +11,8 @@ function normalize(m: PaymentMethod): Method {
   return m === "cartao" ? "credito" : m;
 }
 
-function buildSessionDeltas(
-  method: Method,
-  amount: number,
-  change: number | undefined,
-  source: "delivery" | "delivery_online",
-) {
-  const d: Record<string, number> = { total_sales: amount };
-  // Pagamentos online (já pagos no app) não afetam a gaveta nem a conferência
-  // de maquininhas — entram apenas como informativo.
-  if (source === "delivery_online") {
-    d.total_online_delivery = amount;
-    return d;
-  }
-  if (method === "dinheiro") {
-    d.total_cash = amount;
-    if (change && change > 0) d.total_change = change;
-  } else if (method === "credito") {
-    d.total_credit = amount;
-    d.total_card = amount;
-  } else if (method === "debito") {
-    d.total_debit = amount;
-    d.total_card = amount;
-  } else if (method === "pix") {
-    d.total_pix = amount;
-  } else if (method === "vale_refeicao") {
-    d.total_voucher = amount;
-  }
-  return d;
-}
-
-function applyDeltas(session: any, deltas: Record<string, number>) {
-  const out: Record<string, number> = {};
-  for (const [k, v] of Object.entries(deltas)) {
-    out[k] = (Number(session?.[k]) || 0) + v;
-  }
-  return out;
-}
+// Totais da sessão são recomputados via RPC `pdv_recompute_session_totals`
+// a partir de pdv_cashier_movements (fonte única de verdade).
 
 interface RegisterDeliveryParams {
   orderId: string;
