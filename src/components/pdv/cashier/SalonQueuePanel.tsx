@@ -23,6 +23,8 @@ import {
   UtensilsCrossed,
   Soup,
   Bike,
+  Search,
+  X,
 } from "lucide-react";
 import { usePDVComandas, Comanda, ComandaItem } from "@/hooks/use-pdv-comandas";
 import { usePDVTables, PDVTable } from "@/hooks/use-pdv-tables";
