@@ -1,4 +1,27 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+/**
+ * Remove resíduos do Radix Dialog/Sheet que podem travar a página
+ * caso algum overlay/scroll-lock não seja limpo no fechamento.
+ * Só atua se não houver outro dialog/sheet aberto na tela.
+ */
+function cleanupRadixResiduals() {
+  if (typeof document === "undefined") return;
+  const hasOpenDialog = document.querySelector(
+    '[role="dialog"][data-state="open"], [data-radix-portal] [data-state="open"]'
+  );
+  if (hasOpenDialog) return;
+
+  const body = document.body;
+  if (body.style.pointerEvents === "none") body.style.pointerEvents = "";
+  if (body.style.overflow === "hidden") body.style.overflow = "";
+  body.removeAttribute("data-scroll-locked");
+
+  // Remove overlays órfãos já fechados que possam estar interceptando cliques
+  document
+    .querySelectorAll('[data-state="closed"][data-radix-dialog-overlay]')
+    .forEach((el) => el.remove());
+}
 import { useForm } from "react-hook-form";
 import {
   Sheet,
@@ -182,15 +205,27 @@ export function SupplierDialog({
     onSubmit(formData);
   };
 
+  const handleClose = useCallback(() => {
+    onOpenChange(false);
+    // Roda após a animação de fechamento do Sheet (~300ms)
+    setTimeout(cleanupRadixResiduals, 350);
+  }, [onOpenChange]);
+
+  // Cleanup defensivo no unmount
+  useEffect(() => {
+    return () => {
+      setTimeout(cleanupRadixResiduals, 0);
+    };
+  }, []);
+
   return (
     <Sheet
       open={open}
       onOpenChange={(o) => {
-        onOpenChange(o);
         if (!o) {
-          setTimeout(() => {
-            document.body.style.pointerEvents = "";
-          }, 100);
+          handleClose();
+        } else {
+          onOpenChange(o);
         }
       }}
     >
@@ -583,7 +618,7 @@ export function SupplierDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
             >
               Cancelar
             </Button>

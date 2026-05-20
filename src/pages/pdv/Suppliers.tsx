@@ -224,7 +224,12 @@ export default function PDVSuppliers() {
 
       <SupplierDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) {
+            setTimeout(() => setSelectedSupplier(null), 350);
+          }
+        }}
         supplier={selectedSupplier}
         onSubmit={handleSubmit}
         isSubmitting={isCreating || isUpdating}

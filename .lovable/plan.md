@@ -1,39 +1,20 @@
-## Corrigir congelamento ao cancelar Sheet de edição de fornecedor
+Plano para corrigir o travamento no Sheet de fornecedores:
 
-### Causa
+1. Centralizar o fechamento do SupplierDialog
+   - Criar um handler interno único no `SupplierDialog` para fechar o Sheet.
+   - Usar esse mesmo handler tanto no `Sheet onOpenChange` quanto no botão `Cancelar`.
+   - Isso corrige o ponto principal: hoje o botão `Cancelar` chama a prop diretamente e pula a limpeza defensiva que estava dentro do `onOpenChange` do Sheet.
 
-No `SupplierCard.tsx`, os itens **Editar** e **Excluir** são acionados de dentro de um `DropdownMenu` (Radix). Ao clicar, o Sheet/AlertDialog abre **enquanto** o dropdown ainda está fazendo seu unmount/cleanup de foco.
+2. Limpar resíduos do Radix com segurança
+   - Adicionar uma função de cleanup que rode após o fechamento e também no unmount do componente.
+   - Remover resíduos comuns quando não houver outro dialog aberto: `body.style.pointerEvents`, `body.style.overflow`, `data-scroll-locked` / atributos equivalentes deixados pelo lock de scroll.
+   - Remover overlays órfãos fechados, caso algum `[data-radix-dialog-overlay]` / overlay com `data-state="closed"` permaneça bloqueando cliques.
 
-Resultado: quando o usuário fecha o Sheet (Cancelar / X / ESC / clique no overlay), o Radix deixa `pointer-events: none` aplicado ao `<body>` — a página fica visualmente normal, mas não responde a cliques (congelada).
+3. Ajustar o estado da página de fornecedores
+   - No `Suppliers.tsx`, trocar `onOpenChange={setDialogOpen}` por um handler próprio.
+   - Quando fechar, garantir `dialogOpen=false` e limpar `selectedSupplier` depois de um pequeno delay, evitando o formulário de edição ficar preso enquanto o Sheet anima o fechamento.
 
-Esse é exatamente o problema coberto pela memória **Dialog Standards** do projeto (defer dialog opening com `setTimeout 0`).
-
-### Alteração (somente UI/eventos, sem mudança de lógica)
-
-`src/components/pdv/SupplierCard.tsx`:
-
-- Trocar os handlers dos `DropdownMenuItem`:
-  - `onClick={() => onEdit(supplier)}` → `onSelect={(e) => { e.preventDefault(); setTimeout(() => onEdit(supplier), 0); }}`
-  - `onClick={() => onDelete(supplier.id)}` → `onSelect={(e) => { e.preventDefault(); setTimeout(() => onDelete(supplier.id), 0); }}`
-
-Usar `onSelect` (e não `onClick`) é o padrão Radix para itens de menu, e o `setTimeout 0` garante que o dropdown finalize o cleanup de foco/`pointer-events` antes do Sheet/AlertDialog montar.
-
-### Reforço opcional no SupplierDialog
-
-`src/components/pdv/SupplierDialog.tsx` — adicionar limpeza defensiva ao `onOpenChange` do `Sheet` para garantir que, em qualquer fechamento, `document.body.style.pointerEvents` seja restaurado:
-
-```tsx
-<Sheet
-  open={open}
-  onOpenChange={(o) => {
-    onOpenChange(o);
-    if (!o) {
-      setTimeout(() => {
-        document.body.style.pointerEvents = "";
-      }, 100);
-    }
-  }}
->
-```
-
-Nenhuma alteração no formulário, validação, submit, hooks de dados ou banco.
+4. Validar o comportamento
+   - Testar o fluxo: abrir menu do fornecedor → Editar → Cancelar.
+   - Confirmar que a página volta a aceitar cliques sem recarregar.
+   - Conferir no DOM/body que não fica `pointer-events: none`, lock de scroll residual ou overlay bloqueando a tela.
