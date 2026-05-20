@@ -12,7 +12,7 @@ import {
 import { formatBRL } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X } from "lucide-react";
+import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X, Store } from "lucide-react";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
 import {
   initialsFromName,
@@ -34,6 +34,14 @@ const NEXT_STATUS_LABEL: Partial<Record<DeliveryOrder["status"], string>> = {
   preparing: "Marcar pronto",
   ready: "Saiu p/ entrega",
   delivering: "Marcar entregue",
+};
+
+const NEXT_STATUS_LABEL_PICKUP: Partial<Record<DeliveryOrder["status"], string>> = {
+  pending: "Iniciar preparo",
+  confirmed: "Iniciar preparo",
+  preparing: "Marcar pronto",
+  ready: "Liberar p/ retirada",
+  delivering: "Marcar retirado",
 };
 
 const STATUS_LABEL: Record<DeliveryOrder["status"], string> = {
@@ -67,6 +75,7 @@ function methodIcon(m: string) {
 
 export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, onAdvanceStatus, onPrintMotoboy }: Props) {
   const isOnlinePaid = order.payment_status === "paid";
+  const isPickup = (order as any).order_type === "pickup";
   const items = order.delivery_order_items ?? [];
   const visible = items.slice(0, 3);
   const more = items.length - visible.length;
@@ -89,7 +98,9 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
     ["delivering", "completed", "ready"].includes(order.status);
   const Icon = methodIcon(order.payment_method);
   // Em "delivering" sem pagamento, esconde "Marcar entregue" — o pagamento abre o fluxo de conclusão
-  const nextLabel = awaitingOfflinePayment ? undefined : NEXT_STATUS_LABEL[order.status];
+  const statusLabelMap = isPickup ? NEXT_STATUS_LABEL_PICKUP : NEXT_STATUS_LABEL;
+  const nextLabel = awaitingOfflinePayment ? undefined : statusLabelMap[order.status];
+  const HeaderIcon = isPickup ? Store : Bike;
 
   // Aviso para auto-confirmação manual + pagar na entrega
   const pendingOfflineConfirmation =
@@ -100,7 +111,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Bike className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <HeaderIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span className="font-semibold text-sm truncate">
               #{order.order_number}
             </span>
@@ -135,7 +146,14 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
         </div>
       )}
 
-      {order.status === "delivering" && drivers.length > 0 && (
+      {isPickup && order.status === "delivering" && (
+        <div className="mb-2 px-2 py-1.5 rounded text-[11px] bg-muted text-foreground border flex items-center gap-1.5">
+          <Store className="h-3.5 w-3.5 shrink-0" />
+          Cliente retira no local — aguardando retirada
+        </div>
+      )}
+
+      {!isPickup && order.status === "delivering" && drivers.length > 0 && (
         <div className="mb-2">
           {assignedDriver ? (
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-2 py-1.5">
@@ -201,7 +219,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Icon className="h-3 w-3" />
-          {isOnlinePaid ? "Pago online" : "Pagar na entrega"} ·{" "}
+          {isOnlinePaid ? "Pago online" : isPickup ? "Pagar na retirada" : "Pagar na entrega"} ·{" "}
           {methodLabel(order.payment_method)}
         </div>
         <div className="font-bold tabular-nums text-sm">
@@ -216,7 +234,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       )}
 
       <div className="space-y-2">
-        {(nextLabel || onPrintMotoboy) && (
+        {(nextLabel || (onPrintMotoboy && !isPickup)) && (
           <div className="flex gap-2">
             {nextLabel && onAdvanceStatus && (
               <Button
@@ -229,7 +247,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
                 {nextLabel}
               </Button>
             )}
-            {onPrintMotoboy && (
+            {onPrintMotoboy && !isPickup && (
               <Button
                 size="sm"
                 variant="outline"
