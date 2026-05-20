@@ -85,7 +85,7 @@ export function useDeliveryDrivers() {
   const statsQuery = useQuery({
     queryKey: ["delivery-driver-stats", visibleUserId],
     queryFn: async () => {
-      if (!visibleUserId) return { byDriverDay: {}, byDriverMonth: {}, currentOrders: {} } as any;
+      if (!visibleUserId) return { byDriverDay: {}, byDriverMonth: {}, activeOrders: {} } as any;
       const dayStart = startOfDay(new Date()).toISOString();
       const monthStart = startOfMonth(new Date()).toISOString();
       const { data, error } = await supabase
@@ -97,7 +97,7 @@ export function useDeliveryDrivers() {
       if (error) throw error;
       const byDriverDay: Record<string, number> = {};
       const byDriverMonth: Record<string, number> = {};
-      const currentOrders: Record<string, { id: string; order_number: string }> = {};
+      const activeOrders: Record<string, { id: string; order_number: string }[]> = {};
       for (const r of data || []) {
         const d = r.driver_id as string;
         if (r.status === "completed") {
@@ -106,10 +106,11 @@ export function useDeliveryDrivers() {
           if (ts && ts >= dayStart) byDriverDay[d] = (byDriverDay[d] || 0) + 1;
         }
         if (r.status === "delivering") {
-          currentOrders[d] = { id: r.id as string, order_number: r.order_number as string };
+          if (!activeOrders[d]) activeOrders[d] = [];
+          activeOrders[d].push({ id: r.id as string, order_number: r.order_number as string });
         }
       }
-      return { byDriverDay, byDriverMonth, currentOrders };
+      return { byDriverDay, byDriverMonth, activeOrders };
     },
     enabled: !!visibleUserId,
     refetchInterval: 30_000,
@@ -135,13 +136,17 @@ export function useDeliveryDrivers() {
   }, [visibleUserId, qc]);
 
   const drivers: DriverWithStats[] = useMemo(() => {
-    const stats = statsQuery.data || { byDriverDay: {}, byDriverMonth: {}, currentOrders: {} };
-    return (driversQuery.data || []).map((d) => ({
-      ...d,
-      deliveries_today: stats.byDriverDay[d.id] || 0,
-      deliveries_month: stats.byDriverMonth[d.id] || 0,
-      current_order_number: stats.currentOrders[d.id]?.order_number ?? null,
-    }));
+    const stats = statsQuery.data || { byDriverDay: {}, byDriverMonth: {}, activeOrders: {} };
+    return (driversQuery.data || []).map((d) => {
+      const active = stats.activeOrders[d.id] || [];
+      return {
+        ...d,
+        deliveries_today: stats.byDriverDay[d.id] || 0,
+        deliveries_month: stats.byDriverMonth[d.id] || 0,
+        active_orders: active,
+        active_count: active.length,
+      };
+    });
   }, [driversQuery.data, statsQuery.data]);
 
   const create = useMutation({
