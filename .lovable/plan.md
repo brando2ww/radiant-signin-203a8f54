@@ -1,115 +1,45 @@
+## Problema
 
-## Diagnóstico — por que o fechamento não bate
+Hoje cada motoboy só consegue receber **um pedido por vez**. A lógica atual:
 
-Comparei o fluxo da Saipos com o nosso. A lógica de fórmula é a mesma:
+1. `DeliveryQueueCard` só lista motoboys com `status = "disponivel"`, então quem está em rota some do select.
+2. `useAssignDriver` marca o motoboy como `em_entrega` e grava `current_order_id` com o pedido único.
+3. `releaseDriverForOrder` libera o motoboy assim que **qualquer** pedido é finalizado, mesmo que ele ainda tenha outros em rota.
+4. A tela de Entregadores e as stats mostram só "1 pedido em rota" porque o modelo assume 1:1.
 
-```
-Esperado Dinheiro = Abertura + Vendas em dinheiro + Reforços − Sangrias
-Esperado por cartão/PIX/VR = Σ vendas da forma no turno
-```
+O cliente quer que cada motoboy possa receber **pedidos ilimitados em paralelo**.
 
-No nosso código (`use-pdv-cashier.ts`, `use-pdv-payments.ts`, `use-pdv-delivery-checkout.ts`) a fórmula está correta — o problema é **como os totais são armazenados**, não como são calculados.
+## Solução
 
-### Causa-raiz #1 — Race condition nos totais da sessão
+Tornar o vínculo motoboy↔pedido um relacionamento N (sem trocar schema — o `driver_id` no pedido já é a fonte da verdade; `current_order_id` e `status` no `delivery_drivers` viram derivados/cosméticos).
 
-Hoje cada pagamento faz read‑modify‑write **no client**:
+### Mudanças
 
-```ts
-// pseudo
-const { data: session } = await supabase.select("*").eq("id", id).single();
-const updates = { total_cash: session.total_cash + amount, ... };
-await supabase.update(updates).eq("id", id);
-```
+**1. `src/components/pdv/cashier/DeliveryQueueCard.tsx`**
+- Remover o filtro por `status === "disponivel"` no `availableDrivers`. Listar todos os motoboys ativos, mostrando ao lado do nome a contagem de entregas em andamento (ex.: "🛵 Marcelo · 2 em rota") para o operador ter contexto.
 
-Acontece em **4 pontos** independentes:
-- `registerPayment` (comanda)
-- `registerTablePayment` (mesa)
-- `registerPartialPayment` (parcial)
-- `registerDeliveryPayment` (delivery / delivery online)
-- e `addMovement` (sangria → `total_withdrawals`)
+**2. `src/hooks/use-delivery-drivers.ts`**
+- `useAssignDriver.assign`: **não** sobrescrever `current_order_id`/`status` do motoboy de forma destrutiva. Apenas garantir `status = "em_entrega"` (mantendo `current_order_id` apenas como referência ao último atribuído, opcional). Permitir atribuir mesmo quando já está em rota.
+- `useAssignDriver.unassign`: ao desatribuir um pedido, verificar se restam outros pedidos com `status = "delivering"` e `driver_id` desse motoboy. Se sim, manter `em_entrega`; se não, voltar para `disponivel` e limpar `current_order_id`.
+- `releaseDriverForOrder(orderId)`: mesma lógica — só liberar o motoboy (status `disponivel`, `current_order_id = null`) quando não houver mais nenhum pedido em rota para ele. Caso contrário, apenas atualizar `current_order_id` para o próximo pedido pendente (ou deixar como está).
+- `statsQuery`: passar a expor `activeOrders[driverId]` como **lista** (`{id, order_number}[]`) em vez de objeto único, e calcular contagem.
 
-Se duas vendas são confirmadas em sequência rápida (PDV + delivery, dois operadores, ou clique duplo), a segunda lê um valor já desatualizado e **sobrescreve** a primeira. Resultado: `pdv_cashier_movements` tem 10 vendas, mas `pdv_cashier_sessions.total_cash` reflete só 8. A coluna "Esperado" do fechamento usa esses totais e o operador vê uma "falta" inexistente.
+**3. `src/hooks/use-delivery-drivers.ts` → `DriverWithStats`**
+- Trocar `current_order_number?: string | null` por `active_orders: { id: string; order_number: string }[]` e adicionar `active_count: number`.
 
-### Causa-raiz #2 — "Outros meios" nunca é persistido
+**4. `src/pages/pdv/delivery/Drivers.tsx`**
+- No card do motoboy, no lugar do badge "Pedido #X — Em rota", mostrar "N pedidos em rota" quando `active_count > 0`, com tooltip listando os números. Card continua usando `status` para a cor (em_entrega/disponivel).
 
-`CloseCashierDialog` calcula `totalOther` a partir de movements em tempo de tela, mas no `closeCashier` (linha 193) salva `otherDiff = declaredOther − 0`. O esperado vira zero, qualquer valor declarado parece "sobra".
+### Pontos que **não** mudam
 
-### Causa-raiz #3 — `expectedCash` viaja desatualizado no payload
+- Schema do banco (sem migração).
+- Fluxo de pagamento, fechamento de caixa, RLS.
+- Tela do entregador no app/garçom (se existir, segue lendo `driver_id` por pedido).
 
-O dialog calcula `expectedCash` a partir da sessão carregada quando ele abre. Se chega uma venda enquanto o operador conta o dinheiro, fecha com base num valor velho.
+### Teste manual
 
-### Outros pontos menores
-- `total_change` é gravado mas nunca subtraído em lugar algum (correto, pois `total_cash` já é líquido, mas confunde no relatório se alguém comparar).
-- Não temos o conceito de "Transferência entre caixas" da Saipos (não bloqueia, só registramos como observação se quiser depois).
-
----
-
-## Solução proposta
-
-Tornar **`pdv_cashier_movements` a única fonte de verdade** e recomputar os totais da sessão de forma atômica.
-
-### 1. Nova RPC `pdv_recompute_session_totals(session_id)`
-
-Função `SECURITY DEFINER` que agrega `pdv_cashier_movements` da sessão e gera um `UPDATE pdv_cashier_sessions SET total_cash=…, total_credit=…, total_debit=…, total_pix=…, total_voucher=…, total_online_delivery=…, total_other=…, total_sales=…, total_withdrawals=…` num único statement. Adiciona também a coluna `total_other numeric` na tabela (migração).
-
-Regras de agregação a partir de `pdv_cashier_movements`:
-- `total_sales` = Σ amount onde `type='venda'`
-- `total_cash` = Σ amount onde `type='venda' AND payment_method='dinheiro'`
-- `total_credit`, `total_debit`, `total_pix`, `total_voucher` análogo
-- `total_online_delivery` = Σ amount onde `type='venda' AND source='delivery_online'`
-- `total_other` = Σ amount onde `type='venda' AND payment_method NOT IN (conhecidos)`
-- `total_withdrawals` = Σ amount onde `type='sangria'`
-
-### 2. Substituir os 5 pontos de read‑modify‑write
-
-Em `use-pdv-payments.ts` (3 mutations), `use-pdv-delivery-checkout.ts` e `use-pdv-cashier.ts › addMovement`:
-
-- Insere o `pdv_cashier_movements` (já idempotente por linha).
-- No final, chama `supabase.rpc("pdv_recompute_session_totals", { p_session_id })`.
-- Remove o bloco `applyDeltas / update` antigo.
-
-Benefício: mesmo se 10 pagamentos chegarem ao mesmo tempo, o último recompute fixa o valor correto a partir dos movements gravados.
-
-### 3. Recalcular no momento de fechar
-
-No `closeCashier` (hook): chamar `pdv_recompute_session_totals` antes de ler `total_*` e calcular `expectedCash` no servidor. Ignorar o `expectedCash` enviado pelo client e recomputar:
-
-```
-expectedCash = opening_balance + total_cash + Σ reforços − total_withdrawals
-```
-
-Salvar esse `expectedCash` recalculado em `expected_balance` e a diferença real.
-
-### 4. Corrigir persistência de "Outros meios"
-
-- Adicionar coluna `total_other` (migração) e usar na agregação.
-- No `closeCashier`, `otherDiff = declaredOther − total_other` (não mais `−0`).
-
-### 5. UI do dialog de fechamento
-
-- Ler `total_*` direto da sessão **após** invalidate; mostrar um toast/spinner de "Atualizando totais…" durante o recompute inicial ao abrir o dialog (chama RPC uma vez).
-- Manter o resto do dialog igual (já está aderente ao padrão Saipos: coluna Esperado × Valor apurado × Diferença, justificativa quando o total não bate).
-
----
-
-## Detalhes técnicos
-
-**Arquivos alterados**
-- `supabase/migrations/<nova>` — adiciona `total_other`, cria função `pdv_recompute_session_totals(uuid)`.
-- `src/hooks/use-pdv-payments.ts` — remove `applyDeltas`, chama RPC nas 3 mutations.
-- `src/hooks/use-pdv-delivery-checkout.ts` — idem.
-- `src/hooks/use-pdv-cashier.ts` — `addMovement` chama RPC; `closeCashier` chama RPC antes de calcular `expectedCash` e usa `total_other` real; recalcula `cashDifference` no servidor.
-- `src/components/pdv/CloseCashierDialog.tsx` — ao abrir, dispara `recompute` e invalida `pdv-cashier-active`/`movements`; usa `session.total_other` em vez do cálculo local (mantém fallback).
-
-**Compatibilidade**
-- Sessões já fechadas não são tocadas.
-- `total_card` continua = `total_credit + total_debit` (legado).
-- `total_change` permanece informativo, sem efeito no esperado.
-
-**Validação manual sugerida pós‑deploy**
-1. Abrir caixa com R$ 100.
-2. Lançar 3 vendas em dinheiro de R$ 50 quase simultaneamente.
-3. Conferir que `total_cash = 150` e `expectedCash = 250` no dialog.
-4. Registrar pagamento de delivery em PIX enquanto o dialog está aberto → reabrir dialog → valor PIX atualizado.
-5. Fechar declarando exatamente o esperado → diferença = 0, sem justificativa.
-
+1. Cadastre 1 motoboy.
+2. Crie 3 pedidos de delivery, atribua todos ao mesmo motoboy → o select deve continuar mostrando o motoboy nos 3 cards, e cada card mostra "🛵 Nome".
+3. Marque o pedido 1 como entregue → motoboy continua `em_entrega` (ainda tem 2 ativos).
+4. Marque os outros dois → motoboy volta para `disponivel`.
+5. Tela de Entregadores deve mostrar "3 pedidos em rota" enquanto durar e zerar ao fim.

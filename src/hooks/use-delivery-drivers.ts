@@ -28,7 +28,8 @@ export interface DeliveryDriver {
 export interface DriverWithStats extends DeliveryDriver {
   deliveries_today: number;
   deliveries_month: number;
-  current_order_number?: string | null;
+  active_orders: { id: string; order_number: string }[];
+  active_count: number;
 }
 
 export interface DriverInput {
@@ -84,7 +85,7 @@ export function useDeliveryDrivers() {
   const statsQuery = useQuery({
     queryKey: ["delivery-driver-stats", visibleUserId],
     queryFn: async () => {
-      if (!visibleUserId) return { byDriverDay: {}, byDriverMonth: {}, currentOrders: {} } as any;
+      if (!visibleUserId) return { byDriverDay: {}, byDriverMonth: {}, activeOrders: {} } as any;
       const dayStart = startOfDay(new Date()).toISOString();
       const monthStart = startOfMonth(new Date()).toISOString();
       const { data, error } = await supabase
@@ -96,7 +97,7 @@ export function useDeliveryDrivers() {
       if (error) throw error;
       const byDriverDay: Record<string, number> = {};
       const byDriverMonth: Record<string, number> = {};
-      const currentOrders: Record<string, { id: string; order_number: string }> = {};
+      const activeOrders: Record<string, { id: string; order_number: string }[]> = {};
       for (const r of data || []) {
         const d = r.driver_id as string;
         if (r.status === "completed") {
@@ -105,10 +106,11 @@ export function useDeliveryDrivers() {
           if (ts && ts >= dayStart) byDriverDay[d] = (byDriverDay[d] || 0) + 1;
         }
         if (r.status === "delivering") {
-          currentOrders[d] = { id: r.id as string, order_number: r.order_number as string };
+          if (!activeOrders[d]) activeOrders[d] = [];
+          activeOrders[d].push({ id: r.id as string, order_number: r.order_number as string });
         }
       }
-      return { byDriverDay, byDriverMonth, currentOrders };
+      return { byDriverDay, byDriverMonth, activeOrders };
     },
     enabled: !!visibleUserId,
     refetchInterval: 30_000,
@@ -134,13 +136,17 @@ export function useDeliveryDrivers() {
   }, [visibleUserId, qc]);
 
   const drivers: DriverWithStats[] = useMemo(() => {
-    const stats = statsQuery.data || { byDriverDay: {}, byDriverMonth: {}, currentOrders: {} };
-    return (driversQuery.data || []).map((d) => ({
-      ...d,
-      deliveries_today: stats.byDriverDay[d.id] || 0,
-      deliveries_month: stats.byDriverMonth[d.id] || 0,
-      current_order_number: stats.currentOrders[d.id]?.order_number ?? null,
-    }));
+    const stats = statsQuery.data || { byDriverDay: {}, byDriverMonth: {}, activeOrders: {} };
+    return (driversQuery.data || []).map((d) => {
+      const active = stats.activeOrders[d.id] || [];
+      return {
+        ...d,
+        deliveries_today: stats.byDriverDay[d.id] || 0,
+        deliveries_month: stats.byDriverMonth[d.id] || 0,
+        active_orders: active,
+        active_count: active.length,
+      };
+    });
   }, [driversQuery.data, statsQuery.data]);
 
   const create = useMutation({
@@ -239,18 +245,12 @@ export function useAssignDriver() {
 
   const unassign = useMutation({
     mutationFn: async (input: { orderId: string; driverId: string }) => {
-      const [a, b] = await Promise.all([
-        supabase
-          .from("delivery_orders")
-          .update({ driver_id: null, driver_assigned_at: null })
-          .eq("id", input.orderId),
-        supabase
-          .from("delivery_drivers")
-          .update({ status: "disponivel" as DriverStatus, current_order_id: null })
-          .eq("id", input.driverId),
-      ]);
-      if (a.error) throw a.error;
-      if (b.error) throw b.error;
+      const { error: orderErr } = await supabase
+        .from("delivery_orders")
+        .update({ driver_id: null, driver_assigned_at: null })
+        .eq("id", input.orderId);
+      if (orderErr) throw orderErr;
+      await syncDriverStatus(input.driverId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pdv-delivery-queue"] });
@@ -269,8 +269,36 @@ export function useAssignDriver() {
 }
 
 /**
- * Libera o entregador (volta para disponivel) quando o pedido é finalizado.
- * Chamada após registro de pagamento ou confirmação de recebimento online.
+ * Recalcula status do motoboy com base nos pedidos ainda em rota.
+ * - Se ainda houver pedido com status "delivering", mantém em_entrega
+ *   apontando current_order_id para o pedido mais recente.
+ * - Caso contrário, volta para disponivel.
+ */
+async function syncDriverStatus(driverId: string) {
+  const { data: active } = await supabase
+    .from("delivery_orders")
+    .select("id, created_at")
+    .eq("driver_id", driverId)
+    .eq("status", "delivering")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const next = (active || [])[0];
+  if (next) {
+    await supabase
+      .from("delivery_drivers")
+      .update({ status: "em_entrega" as DriverStatus, current_order_id: next.id })
+      .eq("id", driverId);
+  } else {
+    await supabase
+      .from("delivery_drivers")
+      .update({ status: "disponivel" as DriverStatus, current_order_id: null })
+      .eq("id", driverId);
+  }
+}
+
+/**
+ * Libera o entregador quando um pedido é finalizado.
+ * Só volta para "disponivel" se não houver mais pedidos em rota para esse motoboy.
  */
 export async function releaseDriverForOrder(orderId: string) {
   const { data: order } = await supabase
@@ -280,8 +308,5 @@ export async function releaseDriverForOrder(orderId: string) {
     .maybeSingle();
   const driverId = (order as any)?.driver_id;
   if (!driverId) return;
-  await supabase
-    .from("delivery_drivers")
-    .update({ status: "disponivel" as DriverStatus, current_order_id: null })
-    .eq("id", driverId);
+  await syncDriverStatus(driverId);
 }

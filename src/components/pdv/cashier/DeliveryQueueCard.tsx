@@ -76,9 +76,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
   const assignedDriver = order.driver_id
     ? drivers.find((d) => d.id === order.driver_id) || null
     : null;
-  const availableDrivers = drivers.filter(
-    (d) => d.is_active && (d.status === "disponivel" || d.id === order.driver_id),
-  );
+  const availableDrivers = drivers.filter((d) => d.is_active);
 
   const isOfflinePayment = ["cash", "dinheiro", "credit", "credito", "debit", "debito"].includes(
     order.payment_method,
@@ -178,6 +176,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
                 {availableDrivers.map((d) => (
                   <SelectItem key={d.id} value={d.id} className="text-xs">
                     🛵 {d.name}
+                    {d.active_count > 0 ? ` · ${d.active_count} em rota` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
