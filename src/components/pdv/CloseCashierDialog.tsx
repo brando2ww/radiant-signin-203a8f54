@@ -418,13 +418,16 @@ export function CloseCashierDialog({
     [movements],
   );
 
-  // Detectar "Outros meios" (vendas com payment_method fora do conjunto conhecido)
+  // "Outros meios": prioriza valor da sessão (recomputado pela RPC),
+  // com fallback para soma local dos movements.
   const totalOther = useMemo(() => {
+    const sessionOther = Number((session as any)?.total_other);
+    if (Number.isFinite(sessionOther) && sessionOther > 0) return sessionOther;
     const known = new Set(["dinheiro", "credito", "debito", "pix", "vale_refeicao", "cartao"]);
     return movements
       .filter((m) => m.type === "venda" && m.payment_method && !known.has(m.payment_method))
       .reduce((acc, m) => acc + Number(m.amount || 0), 0);
-  }, [movements]);
+  }, [movements, session]);
 
   const expectedCash = openingBalance + totalCash + totalReinforcements - totalWithdrawals;
 
