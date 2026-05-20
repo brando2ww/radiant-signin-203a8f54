@@ -478,13 +478,31 @@ export function CloseCashierDialog({
     }
   }, [open]);
 
-  // Ao abrir, recalcula totais (mas valores esperados só aparecem na Etapa 2)
+  // Ao abrir, recalcula totais e verifica se já existe snapshot da Etapa 1
   useEffect(() => {
     if (!open || !session?.id) return;
     (async () => {
       await supabase.rpc("pdv_recompute_session_totals", { p_session_id: session.id });
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
+
+      const { data: snap } = await supabase
+        .from("pdv_cashier_close_blind_snapshots")
+        .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other")
+        .eq("cashier_session_id", session.id)
+        .maybeSingle();
+
+      if (snap) {
+        const toStr = (v: any) => (v == null ? "" : String(Number(v)));
+        setDeclaredCash(toStr(snap.declared_cash));
+        setDeclaredCredit(toStr(snap.declared_credit));
+        setDeclaredDebit(toStr(snap.declared_debit));
+        setDeclaredPix(toStr(snap.declared_pix));
+        setDeclaredVoucher(toStr(snap.declared_voucher));
+        setDeclaredOnline(toStr(snap.declared_online_delivery));
+        setDeclaredOther(toStr(snap.declared_other));
+        setStep("review");
+      }
     })();
   }, [open, session?.id, queryClient]);
 
