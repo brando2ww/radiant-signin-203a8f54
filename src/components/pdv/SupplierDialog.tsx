@@ -1,4 +1,27 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+/**
+ * Remove resíduos do Radix Dialog/Sheet que podem travar a página
+ * caso algum overlay/scroll-lock não seja limpo no fechamento.
+ * Só atua se não houver outro dialog/sheet aberto na tela.
+ */
+function cleanupRadixResiduals() {
+  if (typeof document === "undefined") return;
+  const hasOpenDialog = document.querySelector(
+    '[role="dialog"][data-state="open"], [data-radix-portal] [data-state="open"]'
+  );
+  if (hasOpenDialog) return;
+
+  const body = document.body;
+  if (body.style.pointerEvents === "none") body.style.pointerEvents = "";
+  if (body.style.overflow === "hidden") body.style.overflow = "";
+  body.removeAttribute("data-scroll-locked");
+
+  // Remove overlays órfãos já fechados que possam estar interceptando cliques
+  document
+    .querySelectorAll('[data-state="closed"][data-radix-dialog-overlay]')
+    .forEach((el) => el.remove());
+}
 import { useForm } from "react-hook-form";
 import {
   Sheet,
