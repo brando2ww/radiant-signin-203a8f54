@@ -324,6 +324,28 @@ export function SupplierDialog({
                   />
                 </div>
 
+                <div className="col-span-2">
+                  <Label htmlFor="category">Categoria</Label>
+                  <Select
+                    value={watch("category") || "none"}
+                    onValueChange={(value) =>
+                      setValue("category", value === "none" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger id="category">
+                      <SelectValue placeholder="Selecione a categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem categoria</SelectItem>
+                      {SUPPLIER_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="col-span-2 flex items-center space-x-2">
                   <Switch
                     id="is_active"
