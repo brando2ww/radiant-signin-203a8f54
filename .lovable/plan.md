@@ -1,37 +1,28 @@
 ## Objetivo
 
-Remover a página de Cozinha (PDV e Garçom) já que ninguém da cozinha está usando. O campo `kitchen_status` continua existindo no banco e é usado por outros fluxos (comandas, mesas, pagamento, transferência), então só removemos a UI dedicada e os atalhos de navegação — **sem mexer no schema nem em outros consumidores de `kitchen_status nem outros serviços como as impressões da comanda, o fluxo de enviar para a cozinha deve ser mantido!**`
+Remover a página **Balcão** do PDV (rota `/pdv/balcao`). O conceito de "balcão" como **origem de pedido** (`source = "balcao"`) e como canal de disponibilidade de produto (`available_in`) é usado em vários lugares (Dashboard, CMV, receita mensal, produtos, comandas) e **permanece intacto** — só removemos a tela dedicada e o item de navegação.
 
 ## Mudanças
 
-### Remover páginas e componentes
+### Remover arquivo
+- `src/pages/pdv/Balcao.tsx`
 
-- `src/pages/pdv/Kitchen.tsx` (rota `/pdv/cozinha`)
-- `src/pages/garcom/GarcomCozinha.tsx` (rota `/garcom/cozinha`)
-- `src/hooks/use-pdv-kitchen.ts`
-- `src/components/pdv/KitchenItemCard.tsx`
-- `src/components/pdv/KitchenFilters.tsx`
+### Remover rota e nav
+- `src/pages/PDV.tsx` — remover `import PDVBalcao` e a `<Route path="balcao" ...>`.
+- `src/components/pdv/PDVHeaderNav.tsx` — remover o item "Balcão" do menu Frente de Caixa.
 
-### Remover rotas e itens de navegação
-
-- `src/pages/PDV.tsx` — remover import `PDVKitchen` e a `<Route path="cozinha" .../>`.
-- `src/pages/Garcom.tsx` — remover import `GarcomCozinha` e a `<Route path="cozinha" .../>`.
-- `src/components/pdv/PDVHeaderNav.tsx` — remover o item de menu "Cozinha".
-- `src/components/garcom/BottomTabBar.tsx` — remover a aba "Cozinha".
-
-### Ajustar role `cozinheiro`
-
-- `src/hooks/use-user-role.ts` — `cozinheiro` perde acesso a `/pdv/cozinha`. Como esse era seu único caminho, redirecionar `cozinheiro` para `/pdv/comandas` (ou outra rota padrão) para evitar loop de login. Também remover `/pdv/cozinha` da lista de paths e da rota default do `garcom`.
-
-A enum `cozinheiro` em `TenantDetail`, `RolePermissionsView`, `use-tenants` e nos tipos do Supabase **permanece** (não é remoção de role, apenas da página).
+### Ajustar role `caixa`
+- `src/hooks/use-user-role.ts`:
+  - Remover `/pdv/balcao` da lista do `gerente` e do `caixa`.
+  - `caixa` fica só com `/pdv/caixa` (rota default já é `/pdv/caixa`, sem necessidade de troca).
 
 ## Não alterar
-
-- `kitchen_status` no banco, em `use-pdv-comandas.ts`, `use-pdv-orders.ts`, `Balcao.tsx`, `ComandaDetailsDialog.tsx`, `TransferItemsDialog.tsx`, `PaymentDialog.tsx`, `Garcom*Detalhe.tsx` — continuam funcionando normalmente.
+- `Balcao.tsx` em `FranchiseImport`, `use-franchise-import`, `ProductCard`, `ProductDialog`, `NewOrderDialog`, `AddItemDialog`, `ComandaAddItemDialog`, `OrderCard`, `MonthlyRevenueSection`, `use-pdv-monthly-revenue`, `use-pdv-cmv`, `use-pdv-products`, `GarcomItemDetalhe` — todas as referências a "balcao" como origem/canal continuam funcionando.
 
 ## Validação
 
-- App compila sem referências quebradas a `PDVKitchen`/`GarcomCozinha`/`usePDVKitchen`.
-- Menu "Frente de Caixa" não mostra mais "Cozinha"; bottom bar do garçom também não.
-- Acessar `/pdv/cozinha` ou `/garcom/cozinha` cai no NotFound (ou redireciona pelo guard).
-- Login como `cozinheiro` redireciona para rota válida em vez de página inexistente.
+- App compila sem referências a `PDVBalcao`.
+- Menu "Frente de Caixa" mostra apenas Salão e Caixa.
+- Acessar `/pdv/balcao` cai no NotFound (ou redireciona pelo guard).
+- Login como `caixa` continua indo para `/pdv/caixa`.
+- Pedidos com origem "balcão" (vindos do garçom ou histórico) seguem aparecendo normalmente em comandas/dashboard/CMV.

@@ -9,7 +9,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 import { useDeliveryOrdersWatcher } from "@/hooks/use-delivery-orders-watcher";
 import PDVDashboard from "./pdv/Dashboard";
 import PDVSalon from "./pdv/Salon";
-import PDVBalcao from "./pdv/Balcao";
+
 import PDVCashier from "./pdv/Cashier";
 
 import PDVProducts from "./pdv/Products";
@@ -111,7 +111,7 @@ export default function PDV() {
               
               {/* Frente de Caixa */}
               <Route path="salao" element={<RoleRoute path="/pdv/salao" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSalon /></RoleRoute>} />
-              <Route path="balcao" element={<RoleRoute path="/pdv/balcao" canAccess={canAccess} defaultRoute={defaultRoute}><PDVBalcao /></RoleRoute>} />
+              
               <Route path="caixa" element={<RoleRoute path="/pdv/caixa" canAccess={canAccess} defaultRoute={defaultRoute}><PDVCashier /></RoleRoute>} />
               
               <Route path="comandas" element={<RoleRoute path="/pdv/comandas" canAccess={canAccess} defaultRoute={defaultRoute}><ComandasPage /></RoleRoute>} />
