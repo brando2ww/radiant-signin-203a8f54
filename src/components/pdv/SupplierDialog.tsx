@@ -618,7 +618,7 @@ export function SupplierDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={handleClose}
             >
               Cancelar
             </Button>
