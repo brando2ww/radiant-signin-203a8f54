@@ -75,6 +75,7 @@ function methodIcon(m: string) {
 
 export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, onAdvanceStatus, onPrintMotoboy }: Props) {
   const isOnlinePaid = order.payment_status === "paid";
+  const isPickup = (order as any).order_type === "pickup";
   const items = order.delivery_order_items ?? [];
   const visible = items.slice(0, 3);
   const more = items.length - visible.length;
@@ -97,7 +98,9 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
     ["delivering", "completed", "ready"].includes(order.status);
   const Icon = methodIcon(order.payment_method);
   // Em "delivering" sem pagamento, esconde "Marcar entregue" — o pagamento abre o fluxo de conclusão
-  const nextLabel = awaitingOfflinePayment ? undefined : NEXT_STATUS_LABEL[order.status];
+  const statusLabelMap = isPickup ? NEXT_STATUS_LABEL_PICKUP : NEXT_STATUS_LABEL;
+  const nextLabel = awaitingOfflinePayment ? undefined : statusLabelMap[order.status];
+  const HeaderIcon = isPickup ? Store : Bike;
 
   // Aviso para auto-confirmação manual + pagar na entrega
   const pendingOfflineConfirmation =
