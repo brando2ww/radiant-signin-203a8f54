@@ -149,6 +149,7 @@ export function SupplierDialog({
         delivery_time_unit: "days",
         credit_limit: "",
         preferred_payment_method: "",
+        category: "",
         is_active: true,
       });
       setDocumentType("cnpj");
