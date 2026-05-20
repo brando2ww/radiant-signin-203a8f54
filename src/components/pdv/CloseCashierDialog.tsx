@@ -387,6 +387,19 @@ export function CloseCashierDialog({
   // Confirmação extra
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const queryClient = useQueryClient();
+
+  // Ao abrir o dialog, recalcula totais da sessão a partir dos movements
+  // para garantir que a coluna "Esperado" reflita o estado real do caixa.
+  useEffect(() => {
+    if (!open || !session?.id) return;
+    (async () => {
+      await supabase.rpc("pdv_recompute_session_totals", { p_session_id: session.id });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
+    })();
+  }, [open, session?.id, queryClient]);
+
   const openingBalance = Number(session?.opening_balance) || 0;
   const totalCash = Number(session?.total_cash) || 0;
   const totalCredit = Number(session?.total_credit) || 0;
