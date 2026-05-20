@@ -13,7 +13,7 @@ import GarcomComandas from "./garcom/GarcomComandas";
 import GarcomComandaDetalhe from "./garcom/GarcomComandaDetalhe";
 import GarcomAdicionarItem from "./garcom/GarcomAdicionarItem";
 import GarcomMesaDetalhe from "./garcom/GarcomMesaDetalhe";
-import GarcomCozinha from "./garcom/GarcomCozinha";
+
 import GarcomItens from "./garcom/GarcomItens";
 import GarcomItemDetalhe from "./garcom/GarcomItemDetalhe";
 
@@ -67,7 +67,7 @@ export default function Garcom() {
         <Route path="mesa/:id" element={<GarcomMesaDetalhe />} />
         <Route path="itens" element={<GarcomItens />} />
         <Route path="itens/:id" element={<GarcomItemDetalhe />} />
-        <Route path="cozinha" element={<GarcomCozinha />} />
+        
       </Routes>
       <BottomTabBar onNewComanda={() => setSheetOpen(true)} />
       <GarcomActionFab />

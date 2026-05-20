@@ -84,7 +84,7 @@ const sectionItems: Section[] = [
       { title: "Salão", url: "/pdv/salao", icon: Armchair },
       { title: "Balcão", url: "/pdv/balcao", icon: ShoppingBag },
       { title: "Caixa", url: "/pdv/caixa", icon: DollarSign },
-      { title: "Cozinha", url: "/pdv/cozinha", icon: ChefHat },
+      
     ],
   },
   {
