@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfDay, endOfDay, subDays, format } from "date-fns";
+import { startOfDay, endOfDay, format, differenceInMinutes } from "date-fns";
 
 export interface DeliveryMetrics {
   totalOrders: number;
@@ -10,19 +10,24 @@ export interface DeliveryMetrics {
   cancelledOrders: number;
   deliveryOrders: number;
   pickupOrders: number;
+  cancellationRate: number;
+  avgDeliveryTimeMin: number;
 }
 
 export interface DailySales {
   date: string;
   orders: number;
   revenue: number;
+  averageTicket: number;
 }
 
 export interface TopProduct {
   productId: string;
   productName: string;
+  category: string | null;
   quantity: number;
   revenue: number;
+  revenueShare: number;
 }
 
 export const useDeliveryMetrics = (userId: string, startDate: Date, endDate: Date) => {
@@ -31,23 +36,36 @@ export const useDeliveryMetrics = (userId: string, startDate: Date, endDate: Dat
     queryFn: async () => {
       const { data, error } = await supabase
         .from("delivery_orders")
-        .select("*")
+        .select("total,status,order_type,created_at,delivered_at")
         .eq("user_id", userId)
         .gte("created_at", startOfDay(startDate).toISOString())
         .lte("created_at", endOfDay(endDate).toISOString());
 
       if (error) throw error;
 
+      const totalOrders = data.length;
+      const totalRevenue = data.reduce((s, o) => s + Number(o.total), 0);
+      const cancelled = data.filter((o) => o.status === "cancelled").length;
+      const delivered = data.filter((o) => o.status === "delivered" && o.delivered_at);
+      const avgDeliveryTimeMin =
+        delivered.length > 0
+          ? delivered.reduce(
+              (s, o) =>
+                s + Math.max(0, differenceInMinutes(new Date(o.delivered_at!), new Date(o.created_at))),
+              0
+            ) / delivered.length
+          : 0;
+
       const metrics: DeliveryMetrics = {
-        totalOrders: data.length,
-        totalRevenue: data.reduce((sum, order) => sum + Number(order.total), 0),
-        averageTicket: data.length > 0 
-          ? data.reduce((sum, order) => sum + Number(order.total), 0) / data.length 
-          : 0,
-        completedOrders: data.filter(o => o.status === "delivered").length,
-        cancelledOrders: data.filter(o => o.status === "cancelled").length,
-        deliveryOrders: data.filter(o => o.order_type === "delivery").length,
-        pickupOrders: data.filter(o => o.order_type === "pickup").length,
+        totalOrders,
+        totalRevenue,
+        averageTicket: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+        completedOrders: data.filter((o) => o.status === "delivered").length,
+        cancelledOrders: cancelled,
+        deliveryOrders: data.filter((o) => o.order_type === "delivery").length,
+        pickupOrders: data.filter((o) => o.order_type === "pickup").length,
+        cancellationRate: totalOrders > 0 ? (cancelled / totalOrders) * 100 : 0,
+        avgDeliveryTimeMin,
       };
 
       return metrics;
@@ -83,13 +101,15 @@ export const useDailySales = (userId: string, startDate: Date, endDate: Date) =>
 
       const dailySales: DailySales[] = [];
       let currentDate = new Date(startDate);
-      
+
       while (currentDate <= endDate) {
         const dateStr = format(currentDate, "yyyy-MM-dd");
-        const data = salesByDate.get(dateStr) || { orders: 0, revenue: 0 };
+        const d = salesByDate.get(dateStr) || { orders: 0, revenue: 0 };
         dailySales.push({
           date: dateStr,
-          ...data,
+          orders: d.orders,
+          revenue: d.revenue,
+          averageTicket: d.orders > 0 ? d.revenue / d.orders : 0,
         });
         currentDate = new Date(currentDate.setDate(currentDate.getDate() + 1));
       }
@@ -114,7 +134,7 @@ export const useTopProducts = (userId: string, startDate: Date, endDate: Date) =
       if (ordersError) throw ordersError;
       if (!orders.length) return [];
 
-      const orderIds = orders.map(o => o.id);
+      const orderIds = orders.map((o) => o.id);
 
       const { data: items, error: itemsError } = await supabase
         .from("delivery_order_items")
@@ -123,30 +143,53 @@ export const useTopProducts = (userId: string, startDate: Date, endDate: Date) =
 
       if (itemsError) throw itemsError;
 
-      const productStats = new Map<string, { name: string; quantity: number; revenue: number }>();
+      const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean)));
+
+      // Fetch product categories
+      const categoryById = new Map<string, string | null>();
+      if (productIds.length) {
+        const { data: prods } = await supabase
+          .from("delivery_products")
+          .select("id, category_id, delivery_categories:category_id(name)")
+          .in("id", productIds);
+        prods?.forEach((p: any) => {
+          categoryById.set(p.id, p.delivery_categories?.name ?? null);
+        });
+      }
+
+      const productStats = new Map<
+        string,
+        { name: string; quantity: number; revenue: number; category: string | null }
+      >();
 
       items.forEach((item) => {
         const current = productStats.get(item.product_id) || {
           name: item.product_name,
           quantity: 0,
           revenue: 0,
+          category: categoryById.get(item.product_id) ?? null,
         };
         productStats.set(item.product_id, {
           name: item.product_name,
           quantity: current.quantity + item.quantity,
           revenue: current.revenue + Number(item.subtotal),
+          category: categoryById.get(item.product_id) ?? null,
         });
       });
+
+      const totalRevenue = Array.from(productStats.values()).reduce((s, p) => s + p.revenue, 0);
 
       const topProducts: TopProduct[] = Array.from(productStats.entries())
         .map(([productId, stats]) => ({
           productId,
           productName: stats.name,
+          category: stats.category,
           quantity: stats.quantity,
           revenue: stats.revenue,
+          revenueShare: totalRevenue > 0 ? (stats.revenue / totalRevenue) * 100 : 0,
         }))
         .sort((a, b) => b.quantity - a.quantity)
-        .slice(0, 10);
+        .slice(0, 20);
 
       return topProducts;
     },

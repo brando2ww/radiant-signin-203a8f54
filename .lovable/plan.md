@@ -1,55 +1,76 @@
+## Reformulação da página de Relatórios do Delivery
 
-## Problema
+Mantém 100% das seções e visual atuais; apenas evolui, enriquece e adiciona conteúdo.
 
-`delivery_coupons.usage_count` não é atualizado por ninguém. Os pedidos do delivery são inseridos com `coupon_code` preenchido, mas nada incrementa o contador. Resultado: a barra "1/10000 usados" no painel está errada — pedidos reais (consultados em `delivery_orders`):
+### 1. Barra de ações no topo
+- Toolbar acima do card "Período de Análise" com:
+  - Título "Relatórios" + subtítulo do período selecionado.
+  - Botão **Exportar relatório** com dropdown: PDF (jsPDF + autotable, captura dos cards + tabelas) e CSV (Blob/Papaparse) cobrindo: indicadores, evolução de vendas, top produtos, funil, horários de pico e bairros.
 
-| Código    | usage_count atual | Pedidos reais (não cancelados) |
-|-----------|------------------:|-------------------------------:|
-| KOTEN12   | 1                 | 49                             |
-| KOTEN20   | 5                 | 111                            |
-| KOTEN10   | 1                 | 1                              |
+### 2. Indicadores do topo (DeliveryMetrics)
+- Hook `useDeliveryMetrics` passa a calcular também:
+  - `cancellationRate` = cancelados / total
+  - `avgDeliveryTimeMin` = média de `delivered_at - created_at` (apenas status `delivered`)
+- Novo hook `useDeliveryMetricsComparison` busca o período anterior do mesmo tamanho e devolve `% delta` para cada KPI.
+- Cada card vira clicável (`<a href="#section-id">` com scroll suave) e mostra badge `+X% vs período anterior` com ícone `ArrowUp/ArrowDown` (verde/vermelho). Para taxas onde "menor é melhor" (cancelamento, tempo de entrega) a cor inverte.
+- Novos cards: **Taxa de Cancelamento** e **Tempo médio de entrega** (Ticket Médio já existe).
 
-## Solução
+### 3. Evolução de Vendas (SalesChart)
+- `useDailySales` passa a retornar também `averageTicket` por dia.
+- Toggle (ToggleGroup) com 3 opções: Pedidos · Receita · Ticket Médio — troca a métrica plotada.
+- `ReferenceLine` (recharts) com a média do período da métrica selecionada.
+- Tooltip customizado mostrando: data formatada pt-BR, pedidos, receita (formatBRL) e ticket médio.
 
-Manter `usage_count` como fonte da verdade (já é usado em UI e na validação do cupom no checkout) e garantir que ele acompanhe os pedidos. Tudo via migração SQL, sem mexer no código de criação de pedido.
+### 4. Análise de Pedidos (status / tipo)
+- Substituir Pie por **Donut** (`innerRadius`) com `Legend` à direita; labels com `nº absoluto + (xx%)` em cada fatia usando `LabelList` ou label custom.
+- Manter paleta de tokens semânticos do design system.
 
-### 1. Trigger em `delivery_orders`
+### 5. Top Produtos
+- `useTopProducts` adiciona `category` e `revenueShare` (% sobre revenue total dos itens).
+- Adicionar `Select` de **filtro por categoria** no header da tabela.
+- Coluna **Quantidade** ganha barra de progresso (`Progress`) relativa ao maior vendido.
+- Nova coluna **% Receita** (revenueShare formatado).
+- Linha clicável abre `Collapsible`/`Sheet` lateral mostrando mini gráfico de evolução diária daquele produto (novo hook `useProductDailySales(productId, range)`).
 
-Função `public.sync_coupon_usage_count()` com `SECURITY DEFINER` + `search_path = public`:
+### 6. Funil de Compra
+- Mantido. Abaixo de cada taxa, texto `text-xs text-muted-foreground` com benchmark de referência:
+  - Visitas→Carrinho: 25–35%
+  - Carrinho→Checkout: 60–75%
+  - Checkout→Pedido: 70–85%
+- Badge sutil verde/amarelo/vermelho comparando taxa real ao intervalo saudável.
 
-- **AFTER INSERT**: se `NEW.coupon_code IS NOT NULL` e `NEW.status <> 'cancelled'` → `UPDATE delivery_coupons SET usage_count = usage_count + 1 WHERE user_id = NEW.user_id AND code = NEW.coupon_code`.
-- **AFTER UPDATE**: se `coupon_code` mudou, decrementar o antigo (se não estava cancelado) e incrementar o novo. Se só o `status` mudou:
-  - de não-cancelado → `cancelled`: decrementar.
-  - de `cancelled` → não-cancelado: incrementar.
-- **AFTER DELETE**: se tinha `coupon_code` e não estava cancelado → decrementar.
+### 7. Nova seção: Horários de Pico
+- Novo hook `usePeakHours` agrupa pedidos por `dia da semana × hora`.
+- Componente **PeakHoursHeatmap** com grade 7×24 (dias na vertical, horas na horizontal). Cor da célula varia por intensidade (`bg-primary/N`). Tooltip mostra dia, faixa horária e total de pedidos.
+- Abaixo, gráfico de barras compacto com total por hora do dia (visão consolidada).
 
-Decremento usa `GREATEST(usage_count - 1, 0)` para nunca ir negativo.
+### 8. Nova seção: Desempenho por Bairro/Região
+- Novo hook `useNeighborhoodPerformance` lê endereços de `delivery_orders` (campo de bairro do address já gravado; usar fallback de extração se necessário).
+- Tabela com colunas: Bairro · Pedidos · Receita · Ticket Médio · Taxa de Cancelamento · % do total.
+- Top 10 bairros com `Progress` na coluna de pedidos. Estado vazio amigável quando não houver bairro nos endereços.
 
-Trigger: `trg_sync_coupon_usage_count` em `delivery_orders` para INSERT/UPDATE/DELETE.
+### 9. Wiring e refator
+- `ReportsTab.tsx` recebe `id`s nas seções (`#kpis`, `#sales`, `#orders-analysis`, `#top-products`, `#funnel`, `#peak-hours`, `#neighborhoods`) e novo `<ReportsToolbar>` com botão de exportação.
+- Sem novas tabelas no banco — todas as métricas derivam de `delivery_orders` / `delivery_order_items` já existentes.
+- Identidade visual preservada: tokens semânticos (`bg-card`, `text-foreground`, etc.), formatBRL, locale pt-BR.
 
-### 2. Backfill
+### Arquivos
+**Novos**
+- `src/components/delivery/reports/ReportsToolbar.tsx`
+- `src/components/delivery/reports/PeakHoursHeatmap.tsx`
+- `src/components/delivery/reports/NeighborhoodPerformance.tsx`
+- `src/components/delivery/reports/ProductSalesDrawer.tsx`
+- `src/hooks/use-delivery-metrics-comparison.ts`
+- `src/hooks/use-peak-hours.ts`
+- `src/hooks/use-neighborhood-performance.ts`
+- `src/hooks/use-product-daily-sales.ts`
+- `src/lib/reports-export.ts` (PDF + CSV)
 
-Único `UPDATE` recomputando `usage_count` a partir de `delivery_orders`:
-
-```sql
-UPDATE delivery_coupons c
-SET usage_count = COALESCE(sub.cnt, 0)
-FROM (
-  SELECT user_id, coupon_code, COUNT(*) AS cnt
-  FROM delivery_orders
-  WHERE coupon_code IS NOT NULL AND status <> 'cancelled'
-  GROUP BY user_id, coupon_code
-) sub
-WHERE c.user_id = sub.user_id AND c.code = sub.coupon_code;
-```
-
-Cupons sem nenhum pedido continuam com seu valor atual (provavelmente 0 — não há risco de corromper).
-
-## Não inclui
-
-- Não muda código de aplicação. A UI já lê `usage_count` da tabela e refletirá automaticamente.
-- Não altera o validador de carrinho (que já compara `usage_count >= usage_limit`).
-
-## Arquivos
-
-- 1 migração nova: função + trigger + backfill em um único bloco.
+**Editados**
+- `src/components/delivery/ReportsTab.tsx`
+- `src/components/delivery/reports/DeliveryMetrics.tsx`
+- `src/components/delivery/reports/SalesChart.tsx`
+- `src/components/delivery/reports/OrdersAnalysis.tsx`
+- `src/components/delivery/reports/TopProducts.tsx`
+- `src/components/delivery/reports/PurchaseFunnel.tsx`
+- `src/hooks/use-delivery-reports.ts` (acrescentar campos a métricas, daily sales e top products)

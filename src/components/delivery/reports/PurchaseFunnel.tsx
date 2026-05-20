@@ -57,8 +57,14 @@ export const PurchaseFunnel = ({ userId, startDate, endDate }: PurchaseFunnelPro
     },
   ];
 
+  const benchmark = (rate: number, min: number, max: number) => {
+    if (rate >= min && rate <= max) return { label: "saudável", color: "text-emerald-600 dark:text-emerald-500" };
+    if (rate < min) return { label: "abaixo do ideal", color: "text-destructive" };
+    return { label: "acima do esperado", color: "text-emerald-600 dark:text-emerald-500" };
+  };
+
   return (
-    <div className="space-y-4">
+    <div id="funnel" className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -80,7 +86,6 @@ export const PurchaseFunnel = ({ userId, startDate, endDate }: PurchaseFunnelPro
 
               return (
                 <div key={step.label} className="w-full flex flex-col items-center">
-                  {/* Transition arrow between steps */}
                   {index > 0 && (
                     <div className="flex items-center gap-2 py-1.5 text-muted-foreground">
                       <ChevronDown className="h-4 w-4" />
@@ -93,7 +98,6 @@ export const PurchaseFunnel = ({ userId, startDate, endDate }: PurchaseFunnelPro
                     </div>
                   )}
 
-                  {/* Label row */}
                   <div className="w-full flex items-center justify-between px-2 mb-1">
                     <div className="flex items-center gap-2 text-sm">
                       <Icon className="h-4 w-4 text-muted-foreground" />
@@ -102,14 +106,11 @@ export const PurchaseFunnel = ({ userId, startDate, endDate }: PurchaseFunnelPro
                     <span className="font-bold text-lg text-foreground">{step.value}</span>
                   </div>
 
-                  {/* Funnel bar - centered, decreasing width */}
                   <div
                     className="relative h-10 rounded-md bg-primary/15 border border-primary/20 flex items-center justify-center transition-all duration-500"
                     style={{ width: `${step.widthPercent}%`, minWidth: "120px" }}
                   >
-                    <div
-                      className="absolute inset-0 rounded-md bg-primary/20"
-                    />
+                    <div className="absolute inset-0 rounded-md bg-primary/20" />
                     <span className="relative text-sm font-semibold text-foreground">
                       {percentage}%
                     </span>
@@ -121,42 +122,60 @@ export const PurchaseFunnel = ({ userId, startDate, endDate }: PurchaseFunnelPro
         </CardContent>
       </Card>
 
-      {/* Conversion Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Eye className="h-3.5 w-3.5" />
-              <ArrowRight className="h-3 w-3" />
-              <ShoppingCart className="h-3.5 w-3.5" />
-            </div>
-            <p className="text-xs text-muted-foreground">Visualização → Carrinho</p>
-            <p className="text-2xl font-bold">{data.viewToCartRate.toFixed(1)}%</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <ShoppingCart className="h-3.5 w-3.5" />
-              <ArrowRight className="h-3 w-3" />
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            </div>
-            <p className="text-xs text-muted-foreground">Carrinho → Compra</p>
-            <p className="text-2xl font-bold">{data.cartToPurchaseRate.toFixed(1)}%</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-              <Eye className="h-3.5 w-3.5" />
-              <ArrowRight className="h-3 w-3" />
-              <CheckCircle2 className="h-3.5 w-3.5" />
-            </div>
-            <p className="text-xs text-muted-foreground">Conversão Geral</p>
-            <p className="text-2xl font-bold text-primary">{data.overallConversionRate.toFixed(1)}%</p>
-          </CardContent>
-        </Card>
+        {[
+          {
+            icon1: Eye,
+            icon2: ShoppingCart,
+            label: "Visualização → Carrinho",
+            rate: data.viewToCartRate,
+            min: 25,
+            max: 35,
+            hint: "Taxa saudável: 25-35%",
+          },
+          {
+            icon1: ShoppingCart,
+            icon2: CheckCircle2,
+            label: "Carrinho → Compra",
+            rate: data.cartToPurchaseRate,
+            min: 60,
+            max: 75,
+            hint: "Taxa saudável: 60-75%",
+          },
+          {
+            icon1: Eye,
+            icon2: CheckCircle2,
+            label: "Conversão Geral",
+            rate: data.overallConversionRate,
+            min: 2,
+            max: 5,
+            hint: "Taxa saudável: 2-5%",
+          },
+        ].map((c, i) => {
+          const b = benchmark(c.rate, c.min, c.max);
+          const Icon1 = c.icon1;
+          const Icon2 = c.icon2;
+          return (
+            <Card key={i}>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                  <Icon1 className="h-3.5 w-3.5" />
+                  <ArrowRight className="h-3 w-3" />
+                  <Icon2 className="h-3.5 w-3.5" />
+                </div>
+                <p className="text-xs text-muted-foreground">{c.label}</p>
+                <p className={`text-2xl font-bold ${i === 2 ? "text-primary" : ""}`}>
+                  {c.rate.toFixed(1)}%
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {c.hint} · <span className={b.color}>{b.label}</span>
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
 };
+
