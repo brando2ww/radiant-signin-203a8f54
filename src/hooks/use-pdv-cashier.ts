@@ -308,16 +308,9 @@ export function usePDVCashier() {
 
       if (movError) throw movError;
 
-      // Atualizar totais da sessão APENAS para sangria.
+      // Recalcula totais da sessão atomicamente (sangria afeta total_withdrawals)
       if (type === "sangria") {
-        const { error: updateError } = await supabase
-          .from("pdv_cashier_sessions")
-          .update({
-            total_withdrawals: activeSession.total_withdrawals + amount,
-          })
-          .eq("id", activeSession.id);
-
-        if (updateError) throw updateError;
+        await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
       }
     },
     onSuccess: () => {
