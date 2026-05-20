@@ -66,7 +66,7 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [chartAccountId, setChartAccountId] = useState<string>(NONE);
   const [costCenterId, setCostCenterId] = useState<string>(NONE);
-  const [paymentMethod, setPaymentMethod] = useState<string>(NONE);
+  const [paymentMethod, setPaymentMethod] = useState<string>(cashierSessionId ? "dinheiro" : NONE);
   const [supplierId, setSupplierId] = useState<string>(NONE);
   const [documentNumber, setDocumentNumber] = useState("");
   const [notes, setNotes] = useState("");
