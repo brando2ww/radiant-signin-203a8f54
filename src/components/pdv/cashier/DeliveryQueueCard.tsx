@@ -247,7 +247,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
                 {nextLabel}
               </Button>
             )}
-            {onPrintMotoboy && (
+            {onPrintMotoboy && !isPickup && (
               <Button
                 size="sm"
                 variant="outline"
