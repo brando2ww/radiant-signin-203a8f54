@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { DatePickerWithRange, type CompareSelection } from "@/components/ui/date-range-picker";
 import { useDeliveryMetrics, useDailySales, useTopProducts } from "@/hooks/use-delivery-reports";
 import { useDeliveryMetricsComparison } from "@/hooks/use-delivery-metrics-comparison";
 import { usePeakHours } from "@/hooks/use-peak-hours";
@@ -15,15 +13,22 @@ import { PurchaseFunnel } from "./reports/PurchaseFunnel";
 import { PeakHoursHeatmap } from "./reports/PeakHoursHeatmap";
 import { NeighborhoodPerformance } from "./reports/NeighborhoodPerformance";
 import { ReportsToolbar } from "./reports/ReportsToolbar";
-import { subDays, startOfMonth, endOfMonth } from "date-fns";
+import { subDays, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Loader2 } from "lucide-react";
 
 export const ReportsTab = () => {
   const { user } = useAuth();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: endOfMonth(new Date()),
+    from: startOfDay(subDays(new Date(), 29)),
+    to: endOfDay(new Date()),
+  });
+  const [compare, setCompare] = useState<CompareSelection | null>({
+    mode: "previous",
+    range: {
+      from: startOfDay(subDays(new Date(), 59)),
+      to: endOfDay(subDays(new Date(), 30)),
+    },
   });
 
   const startDate = dateRange?.from || subDays(new Date(), 30);
@@ -33,57 +38,44 @@ export const ReportsTab = () => {
   const { data: metrics, isLoading: metricsLoading } = useDeliveryMetrics(userId, startDate, endDate);
   const { data: dailySales, isLoading: salesLoading } = useDailySales(userId, startDate, endDate);
   const { data: topProducts, isLoading: productsLoading } = useTopProducts(userId, startDate, endDate);
-  const { data: comparison } = useDeliveryMetricsComparison(userId, startDate, endDate, metrics);
+  const { data: comparison } = useDeliveryMetricsComparison(
+    userId,
+    startDate,
+    endDate,
+    metrics,
+    compare && compare.range.from && compare.range.to
+      ? { from: compare.range.from, to: compare.range.to }
+      : compare === null
+        ? null
+        : undefined
+  );
   const { data: peakHours } = usePeakHours(userId, startDate, endDate);
   const { data: neighborhoods } = useNeighborhoodPerformance(userId, startDate, endDate);
 
   const isLoading = metricsLoading || salesLoading || productsLoading;
 
-  const handleQuickPeriod = (days: number) => {
-    setDateRange({ from: subDays(new Date(), days), to: new Date() });
-  };
-  const handleCurrentMonth = () => {
-    setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) });
-  };
-
   return (
     <div className="space-y-6">
-      <ReportsToolbar
-        disabled={isLoading}
-        payload={{
-          startDate,
-          endDate,
-          metrics,
-          dailySales,
-          topProducts,
-          peakHours,
-          neighborhoods,
-        }}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Período de Análise</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <DatePickerWithRange date={dateRange} setDate={setDateRange} />
-
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleQuickPeriod(7)}>
-              Últimos 7 dias
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleQuickPeriod(15)}>
-              Últimos 15 dias
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleQuickPeriod(30)}>
-              Últimos 30 dias
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleCurrentMonth}>
-              Mês Atual
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <DatePickerWithRange
+          date={dateRange}
+          setDate={setDateRange}
+          compare={compare}
+          onCompareChange={setCompare}
+        />
+        <ReportsToolbar
+          disabled={isLoading}
+          payload={{
+            startDate,
+            endDate,
+            metrics,
+            dailySales,
+            topProducts,
+            peakHours,
+            neighborhoods,
+          }}
+        />
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
@@ -116,3 +108,4 @@ export const ReportsTab = () => {
     </div>
   );
 };
+

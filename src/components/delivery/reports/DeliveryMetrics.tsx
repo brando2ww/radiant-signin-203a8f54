@@ -11,7 +11,7 @@ import {
   Clock,
   ArrowUp,
   ArrowDown,
-  Minus,
+  
 } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -33,11 +33,7 @@ interface KPICardProps {
 
 function Delta({ delta, invert }: { delta: number | null | undefined; invert?: boolean }) {
   if (delta === null || delta === undefined || !Number.isFinite(delta)) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-        <Minus className="h-3 w-3" /> sem comparação
-      </span>
-    );
+    return null;
   }
   const positive = delta >= 0;
   const isGood = invert ? !positive : positive;

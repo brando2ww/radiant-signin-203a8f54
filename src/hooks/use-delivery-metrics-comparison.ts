@@ -25,15 +25,30 @@ export const useDeliveryMetricsComparison = (
   userId: string,
   startDate: Date,
   endDate: Date,
-  current: DeliveryMetrics | undefined
+  current: DeliveryMetrics | undefined,
+  customCompare?: { from: Date; to: Date } | null
 ) => {
   return useQuery({
-    enabled: !!userId && !!current,
-    queryKey: ["delivery-metrics-comparison", userId, startDate, endDate],
+    enabled: !!userId && !!current && customCompare !== null,
+    queryKey: [
+      "delivery-metrics-comparison",
+      userId,
+      startDate,
+      endDate,
+      customCompare?.from,
+      customCompare?.to,
+    ],
     queryFn: async (): Promise<MetricsComparison> => {
-      const days = Math.max(1, differenceInDays(endDate, startDate) + 1);
-      const prevEnd = subDays(startDate, 1);
-      const prevStart = subDays(prevEnd, days - 1);
+      let prevStart: Date;
+      let prevEnd: Date;
+      if (customCompare) {
+        prevStart = customCompare.from;
+        prevEnd = customCompare.to;
+      } else {
+        const days = Math.max(1, differenceInDays(endDate, startDate) + 1);
+        prevEnd = subDays(startDate, 1);
+        prevStart = subDays(prevEnd, days - 1);
+      }
 
       const { data, error } = await supabase
         .from("delivery_orders")
