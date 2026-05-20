@@ -41,7 +41,7 @@ export function useQuickExpense() {
         .from("pdv_financial_transactions")
         .insert([{
           user_id: user.id,
-          transaction_type: "payable",
+          transaction_type: "expense",
           status: "paid",
           description: input.description,
           amount: input.amount,
