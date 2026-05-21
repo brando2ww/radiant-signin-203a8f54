@@ -120,7 +120,7 @@ const sectionItems: Section[] = [
       { title: "Configurações", url: "/pdv/configuracoes", icon: Settings },
       { title: "Clientes", url: "/pdv/clientes", icon: UserCheck },
       { title: "Usuários", url: "/pdv/usuarios", icon: Users },
-      { title: "Venda a Prazo", url: "/pdv/funcionarios-consumo", icon: UserCheck },
+      { title: "Venda a Prazo", url: "/pdv/venda-a-prazo", icon: UserCheck },
       { title: "Avaliações", url: "/pdv/avaliacoes", icon: Star },
       { title: "Franquia", url: "/pdv/franquia", icon: GitBranch },
       { title: "Tarefas", url: "/pdv/tarefas", icon: ClipboardCheck },
