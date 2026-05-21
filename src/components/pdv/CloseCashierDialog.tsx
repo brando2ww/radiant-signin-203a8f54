@@ -558,7 +558,7 @@ export function CloseCashierDialog({
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
-    parseN(declaredOnline) + parseN(declaredOther) + parseN(declaredFiado);
+    parseN(declaredOther) + parseN(declaredFiado);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
