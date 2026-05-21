@@ -26,7 +26,7 @@ import { EmployeeStatementSheet } from "@/components/pdv/employee-consumption/Em
 import { formatBRL } from "@/lib/format";
 import { format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { exportToCSV } from "@/lib/csv-export";
+import { downloadCsv } from "@/lib/csv-export";
 import {
   AlertDialog,
   AlertDialogAction,
