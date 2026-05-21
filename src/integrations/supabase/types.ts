@@ -1726,6 +1726,7 @@ export type Database = {
           driver_id: string | null
           estimated_time: number | null
           id: string
+          idempotency_key: string | null
           notes: string | null
           order_number: string
           order_type: string
@@ -1764,6 +1765,7 @@ export type Database = {
           driver_id?: string | null
           estimated_time?: number | null
           id?: string
+          idempotency_key?: string | null
           notes?: string | null
           order_number: string
           order_type?: string
@@ -1802,6 +1804,7 @@ export type Database = {
           driver_id?: string | null
           estimated_time?: number | null
           id?: string
+          idempotency_key?: string | null
           notes?: string | null
           order_number?: string
           order_type?: string
