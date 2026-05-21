@@ -60,6 +60,7 @@ export default function Garcom() {
 
   return (
     <div data-garcom-root className="min-h-screen bg-background pb-28 font-montserrat">
+      <PDVCatalogRealtime />
       <Routes>
         <Route index element={<GarcomMesas />} />
         <Route path="comandas" element={<GarcomComandas />} />
