@@ -457,7 +457,7 @@ export function CloseCashierDialog({
   const [declaredPix, setDeclaredPix] = useState("");
   const [declaredVoucher, setDeclaredVoucher] = useState("");
   
-  const [declaredOther, setDeclaredOther] = useState("");
+  
   const [declaredFiado, setDeclaredFiado] = useState("");
 
   // Etapa 2 — justificativas por meio
@@ -479,7 +479,7 @@ export function CloseCashierDialog({
     if (!open) {
       setStep("blind");
       setDeclaredCash(""); setDeclaredCredit(""); setDeclaredDebit("");
-      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredOther(""); setDeclaredFiado("");
+      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredFiado("");
       setJustCash(""); setJustCredit(""); setJustDebit(""); setJustPix("");
       setJustVoucher(""); setJustOnline(""); setJustOther(""); setJustFiado(""); setNotes("");
     }
@@ -507,7 +507,6 @@ export function CloseCashierDialog({
         setDeclaredPix(toStr(snap.declared_pix));
         setDeclaredVoucher(toStr(snap.declared_voucher));
         
-        setDeclaredOther(toStr(snap.declared_other));
         setDeclaredFiado(toStr((snap as any).declared_fiado));
         setStep("review");
       }
@@ -552,13 +551,12 @@ export function CloseCashierDialog({
     declaredDebit !== "" &&
     declaredPix !== "" &&
     declaredVoucher !== "" &&
-    declaredOther !== "" &&
     declaredFiado !== "";
 
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
-    parseN(declaredOther) + parseN(declaredFiado);
+    parseN(declaredFiado);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
@@ -571,7 +569,7 @@ export function CloseCashierDialog({
         declaredPix: parseN(declaredPix),
         declaredVoucher: parseN(declaredVoucher),
         declaredOnlineDelivery: totalOnlineDelivery,
-        declaredOther: parseN(declaredOther),
+        declaredOther: null,
         declaredFiado: parseN(declaredFiado),
         declaredTotal: blindTotal,
       });
@@ -598,7 +596,7 @@ export function CloseCashierDialog({
     { key: "debit", label: "Cartão de Débito", icon: CreditCard, expected: totalDebit, declared: parseN(declaredDebit), justification: justDebit, setJust: setJustDebit },
     { key: "pix", label: "PIX", icon: Smartphone, expected: totalPix, declared: parseN(declaredPix), justification: justPix, setJust: setJustPix },
     { key: "voucher", label: "Vale-refeição", icon: Ticket, expected: totalVoucher, declared: parseN(declaredVoucher), justification: justVoucher, setJust: setJustVoucher },
-    { key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther },
+    
     { key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado },
   ];
 
@@ -631,7 +629,7 @@ export function CloseCashierDialog({
       declaredPix: parseOpt(declaredPix),
       declaredVoucher: parseOpt(declaredVoucher),
       declaredOnlineDelivery: totalOnlineDelivery,
-      declaredOther: parseOpt(declaredOther),
+      declaredOther: null,
       declaredFiado: parseOpt(declaredFiado),
       declaredTotalSales: declaredTotal,
       totalDifference: totalDiff,
@@ -712,7 +710,7 @@ export function CloseCashierDialog({
                 <BlindInput icon={CreditCard} label="Cartão de Débito" value={declaredDebit} onChange={setDeclaredDebit} />
                 <BlindInput icon={Smartphone} label="PIX" value={declaredPix} onChange={setDeclaredPix} />
                 <BlindInput icon={Ticket} label="Vale-refeição" value={declaredVoucher} onChange={setDeclaredVoucher} />
-                <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
+                
                 <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
               </div>
 
