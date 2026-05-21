@@ -78,6 +78,7 @@ import { printNonFiscalReceipt, printDanfeFromUrl } from "@/lib/print-fiscal-rec
 import { formatTableLabel } from "@/utils/formatTableNumber";
 import { useAuthorizedEmployees } from "@/hooks/use-authorized-employees";
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
+import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
 import { formatBRL } from "@/lib/format";
 
 interface PaymentDialogProps {
