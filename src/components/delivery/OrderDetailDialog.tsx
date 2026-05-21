@@ -29,7 +29,6 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { useState } from "react";
-import { Textarea } from "@/components/ui/textarea";
 import { formatBRL } from "@/lib/format";
 import { CancelOrderDialog } from "@/components/pdv/cashier/CancelOrderDialog";
 import { getCancelCategoryLabel } from "@/lib/cancel-reasons";
