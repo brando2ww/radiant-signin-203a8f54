@@ -4,6 +4,7 @@ import { CategoryNav } from "@/components/public-menu/CategoryNav";
 import { ProductList } from "@/components/public-menu/ProductList";
 import { ShoppingCart } from "@/components/public-menu/ShoppingCart";
 import { ActiveOrderChip } from "@/components/public-menu/ActiveOrderChip";
+import { PublicMenuRealtime } from "@/components/public-menu/PublicMenuRealtime";
 import { useState, useEffect } from "react";
 import { usePublicCategories, usePublicProducts, useBusinessSettings } from "@/hooks/use-public-menu";
 import { useRef } from "react";
@@ -248,6 +249,7 @@ const PublicMenu = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      <PublicMenuRealtime userId={userId} />
       <PublicMenuHeader userId={userId} />
       
       <div className="sticky top-0 z-30 bg-background border-b">
