@@ -630,7 +630,7 @@ export function CloseCashierDialog({
       declaredDebit: parseOpt(declaredDebit),
       declaredPix: parseOpt(declaredPix),
       declaredVoucher: parseOpt(declaredVoucher),
-      declaredOnlineDelivery: parseOpt(declaredOnline),
+      declaredOnlineDelivery: totalOnlineDelivery,
       declaredOther: parseOpt(declaredOther),
       declaredFiado: parseOpt(declaredFiado),
       declaredTotalSales: declaredTotal,
