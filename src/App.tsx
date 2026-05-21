@@ -30,6 +30,7 @@ const App = () => (
         <DraftCartProvider>
           <PreferencesProvider>
             <TooltipProvider>
+              <RadixBodyUnlock />
               <Toaster />
               <Sonner />
               <BrowserRouter>
