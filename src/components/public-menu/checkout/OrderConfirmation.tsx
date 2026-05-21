@@ -70,6 +70,10 @@ export const OrderConfirmation = ({
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
   const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
   const [redeemedPointsAmount, setRedeemedPointsAmount] = useState(0);
+  // Chave de idempotência por tentativa de checkout — preserva entre retries
+  const [idempotencyKey] = useState(() =>
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+  );
 
   const loyaltyActive = loyaltySettings?.is_active ?? false;
   const activePrizes = prizes.filter((p: any) => p.is_active && (!p.max_quantity || p.redeemed_count < p.max_quantity));
@@ -98,6 +102,9 @@ export const OrderConfirmation = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Trava contra duplo submit / clique repetido
+    if (createOrder.isPending) return;
+
     const status = isStoreCurrentlyOpen(deliverySettings);
     if (!status.open) {
       toast.error(
@@ -124,6 +131,7 @@ export const OrderConfirmation = ({
       paymentMethod,
       changeFor,
       notes,
+      idempotencyKey,
       items: cart.map((item) => ({
         productId: item.productId,
         productName: item.name,
