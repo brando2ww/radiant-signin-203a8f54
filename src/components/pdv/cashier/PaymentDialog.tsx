@@ -412,9 +412,7 @@ export function PaymentDialog({
       setCardType("credito");
       setCashReceived("");
       setInstallments("1");
-      setCreditEmployeeId("");
-      setCreditEmployeeSearch("");
-      setCreditJustification("");
+      setCreditAuthOpen(false);
       setDiscountStage("idle");
       setDiscountTypeChosen(null);
       setDiscountValue("");
