@@ -52,6 +52,7 @@ export interface CloseCashierPayload {
   declaredVoucher?: number | null;
   declaredOnlineDelivery?: number | null;
   declaredOther?: number | null;
+  declaredFiado?: number | null;
   // Totais
   declaredTotalSales?: number | null;
   totalDifference?: number | null;
@@ -66,6 +67,7 @@ export interface CloseCashierPayload {
     voucher?: string;
     onlineDelivery?: string;
     other?: string;
+    fiado?: string;
   };
   notes?: string;
   riskLevel: "ok" | "low" | "medium" | "high" | "critical";
@@ -160,6 +162,7 @@ export function usePDVCashier() {
         declaredVoucher,
         declaredOnlineDelivery,
         declaredOther,
+        declaredFiado,
         declaredTotalSales,
         totalDifference,
         closingStatus,
@@ -175,7 +178,7 @@ export function usePDVCashier() {
       // 2. Lê os totais já reconciliados + opening_balance + reforços.
       const { data: session } = await supabase
         .from("pdv_cashier_sessions")
-        .select("opening_balance, total_cash, total_credit, total_debit, total_pix, total_voucher, total_online_delivery, total_other, total_withdrawals")
+        .select("opening_balance, total_cash, total_credit, total_debit, total_pix, total_voucher, total_online_delivery, total_other, total_fiado, total_withdrawals")
         .eq("id", sessionId)
         .single();
 
@@ -198,6 +201,7 @@ export function usePDVCashier() {
       const totalVoucher = Number(session?.total_voucher) || 0;
       const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
       const totalOther = Number((session as any)?.total_other) || 0;
+      const totalFiado = Number((session as any)?.total_fiado) || 0;
       const totalWithdrawals = Number(session?.total_withdrawals) || 0;
 
       const expectedCash = openingBalance + totalCash + reinforcements - totalWithdrawals;
@@ -209,6 +213,7 @@ export function usePDVCashier() {
       const voucherDiff = declaredVoucher != null ? declaredVoucher - totalVoucher : null;
       const onlineDiff = declaredOnlineDelivery != null ? declaredOnlineDelivery - totalOnlineDelivery : null;
       const otherDiff = declaredOther != null ? declaredOther - totalOther : null;
+      const fiadoDiff = declaredFiado != null ? declaredFiado - totalFiado : null;
 
       const differenceJustified = !!(
         justifications.cash ||
@@ -218,6 +223,7 @@ export function usePDVCashier() {
         justifications.voucher ||
         justifications.onlineDelivery ||
         justifications.other ||
+        justifications.fiado ||
         closingJustification ||
         notes
       );
@@ -238,12 +244,14 @@ export function usePDVCashier() {
         declared_voucher: declaredVoucher ?? null,
         declared_online_delivery: declaredOnlineDelivery ?? null,
         declared_other: declaredOther ?? null,
+        declared_fiado: declaredFiado ?? null,
         credit_difference: creditDiff,
         debit_difference: debitDiff,
         pix_difference: pixDiff,
         voucher_difference: voucherDiff,
         online_delivery_difference: onlineDiff,
         other_difference: otherDiff,
+        fiado_difference: fiadoDiff,
         justification_cash: justifications.cash ?? null,
         justification_credit: justifications.credit ?? null,
         justification_debit: justifications.debit ?? null,
@@ -251,6 +259,7 @@ export function usePDVCashier() {
         justification_voucher: justifications.voucher ?? null,
         justification_online_delivery: justifications.onlineDelivery ?? null,
         justification_other: justifications.other ?? null,
+        justification_fiado: justifications.fiado ?? null,
         declared_total_sales: declaredTotalSales ?? null,
         total_difference: totalDifference ?? null,
         closing_status: closingStatus ?? null,
@@ -389,6 +398,7 @@ export function usePDVCashier() {
       declaredVoucher?: number | null;
       declaredOnlineDelivery?: number | null;
       declaredOther?: number | null;
+      declaredFiado?: number | null;
       declaredTotal: number;
     }) => {
       if (!user?.id) throw new Error("Usuário não autenticado");
@@ -407,8 +417,9 @@ export function usePDVCashier() {
           declared_voucher: payload.declaredVoucher ?? null,
           declared_online_delivery: payload.declaredOnlineDelivery ?? null,
           declared_other: payload.declaredOther ?? null,
+          declared_fiado: payload.declaredFiado ?? null,
           declared_total: payload.declaredTotal,
-        })
+        } as any)
         .select()
         .single();
 

@@ -180,6 +180,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
   const declaredPix = session?.declared_pix;
   const declaredVoucher = session?.declared_voucher;
   const declaredOnline = session?.declared_online_delivery;
+  const declaredFiado = (session as any)?.declared_fiado;
 
   const conferenceRows: Array<[string, number, number | null]> = [
     ["Crédito", totalCredit, declaredCredit],
@@ -187,6 +188,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
     ["PIX", totalPix, declaredPix],
     ["Vale-refeição", totalVoucher, declaredVoucher],
     ["Online (Delivery)", totalOnlineDelivery, declaredOnline],
+    ["Vendas a Prazo", totalFiado, declaredFiado],
   ];
 
   const conferenceHtml = conferenceRows
@@ -264,7 +266,6 @@ ${conferenceHtml ? `<div class="divider"></div>
 </div>` : ""}
 <div class="divider"></div>
 <div class="section">
-  ${totalFiado > 0 ? `<div class="row"><span>Vendas a Prazo (fiado):</span><span>${formatBRL(totalFiado)}</span></div>` : ""}
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
 ${movements.length > 0 ? `
@@ -457,6 +458,7 @@ export function CloseCashierDialog({
   const [declaredVoucher, setDeclaredVoucher] = useState("");
   const [declaredOnline, setDeclaredOnline] = useState("");
   const [declaredOther, setDeclaredOther] = useState("");
+  const [declaredFiado, setDeclaredFiado] = useState("");
 
   // Etapa 2 — justificativas por meio
   const [justCash, setJustCash] = useState("");
@@ -466,6 +468,7 @@ export function CloseCashierDialog({
   const [justVoucher, setJustVoucher] = useState("");
   const [justOnline, setJustOnline] = useState("");
   const [justOther, setJustOther] = useState("");
+  const [justFiado, setJustFiado] = useState("");
   const [notes, setNotes] = useState("");
 
   const queryClient = useQueryClient();
@@ -476,9 +479,9 @@ export function CloseCashierDialog({
     if (!open) {
       setStep("blind");
       setDeclaredCash(""); setDeclaredCredit(""); setDeclaredDebit("");
-      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredOnline(""); setDeclaredOther("");
+      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredOnline(""); setDeclaredOther(""); setDeclaredFiado("");
       setJustCash(""); setJustCredit(""); setJustDebit(""); setJustPix("");
-      setJustVoucher(""); setJustOnline(""); setJustOther(""); setNotes("");
+      setJustVoucher(""); setJustOnline(""); setJustOther(""); setJustFiado(""); setNotes("");
     }
   }, [open]);
 
@@ -492,7 +495,7 @@ export function CloseCashierDialog({
 
       const { data: snap } = await supabase
         .from("pdv_cashier_close_blind_snapshots")
-        .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other")
+        .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other, declared_fiado")
         .eq("cashier_session_id", session.id)
         .maybeSingle();
 
@@ -505,6 +508,7 @@ export function CloseCashierDialog({
         setDeclaredVoucher(toStr(snap.declared_voucher));
         setDeclaredOnline(toStr(snap.declared_online_delivery));
         setDeclaredOther(toStr(snap.declared_other));
+        setDeclaredFiado(toStr((snap as any).declared_fiado));
         setStep("review");
       }
     })();
@@ -549,13 +553,15 @@ export function CloseCashierDialog({
     declaredPix !== "" &&
     declaredVoucher !== "" &&
     (totalOnlineDelivery <= 0 || declaredOnline !== "") &&
-    (totalOther <= 0 || declaredOther !== "");
+    (totalOther <= 0 || declaredOther !== "") &&
+    (totalFiado <= 0 || declaredFiado !== "");
 
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
     (declaredOnline !== "" ? parseN(declaredOnline) : 0) +
-    (declaredOther !== "" ? parseN(declaredOther) : 0);
+    (declaredOther !== "" ? parseN(declaredOther) : 0) +
+    (declaredFiado !== "" ? parseN(declaredFiado) : 0);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
@@ -569,6 +575,7 @@ export function CloseCashierDialog({
         declaredVoucher: parseN(declaredVoucher),
         declaredOnlineDelivery: declaredOnline !== "" ? parseN(declaredOnline) : null,
         declaredOther: declaredOther !== "" ? parseN(declaredOther) : null,
+        declaredFiado: declaredFiado !== "" ? parseN(declaredFiado) : null,
         declaredTotal: blindTotal,
       });
       setStep("review");
@@ -579,7 +586,7 @@ export function CloseCashierDialog({
 
   // Etapa 2 — rows com diff
   type Row = {
-    key: "cash" | "credit" | "debit" | "pix" | "voucher" | "online" | "other";
+    key: "cash" | "credit" | "debit" | "pix" | "voucher" | "online" | "other" | "fiado";
     label: string;
     icon: typeof CreditCard;
     expected: number;
@@ -600,6 +607,9 @@ export function CloseCashierDialog({
   }
   if (totalOther > 0 || declaredOther !== "") {
     reviewRows.push({ key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther });
+  }
+  if (totalFiado > 0 || declaredFiado !== "") {
+    reviewRows.push({ key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado });
   }
 
   const rowsWithDiff = reviewRows.filter((r) => Math.abs(r.declared - r.expected) > TOL);
@@ -632,6 +642,7 @@ export function CloseCashierDialog({
       declaredVoucher: parseOpt(declaredVoucher),
       declaredOnlineDelivery: parseOpt(declaredOnline),
       declaredOther: parseOpt(declaredOther),
+      declaredFiado: parseOpt(declaredFiado),
       declaredTotalSales: declaredTotal,
       totalDifference: totalDiff,
       closingStatus,
@@ -644,6 +655,7 @@ export function CloseCashierDialog({
         voucher: justVoucher.trim() || undefined,
         onlineDelivery: justOnline.trim() || undefined,
         other: justOther.trim() || undefined,
+        fiado: justFiado.trim() || undefined,
       },
       notes: notes.trim() || undefined,
       riskLevel: cashRiskLevel,
@@ -661,6 +673,7 @@ export function CloseCashierDialog({
         declared_pix: payload.declaredPix,
         declared_voucher: payload.declaredVoucher,
         declared_online_delivery: payload.declaredOnlineDelivery,
+        declared_fiado: payload.declaredFiado,
       },
       movements,
       closingBalance: parseN(declaredCash),
@@ -715,23 +728,10 @@ export function CloseCashierDialog({
                 {totalOther > 0 && (
                   <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
                 )}
+                {totalFiado > 0 && (
+                  <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
+                )}
               </div>
-
-
-              {totalFiado > 0 && (
-                <Card className="bg-muted/40 border-dashed">
-                  <CardContent className="pt-3 pb-3 flex items-center gap-2">
-                    <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 flex items-center justify-between gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">Vendas a Prazo (fiado)</p>
-                        <p>Informativo — não entra na conferência da gaveta.</p>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFiado)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               <Card>
                 <CardContent className="pt-3 pb-3 flex justify-between items-center">
@@ -786,20 +786,6 @@ export function CloseCashierDialog({
                 </div>
               </section>
 
-              {totalFiado > 0 && (
-                <Card className="bg-muted/40 border-dashed">
-                  <CardContent className="pt-3 pb-3 flex items-center gap-2">
-                    <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 flex items-center justify-between gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">Vendas a Prazo (fiado)</p>
-                        <p>Informativo — não entra na conferência da gaveta.</p>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFiado)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               <Card className={cn("border-2", cashRiskConfig.bgColor)}>
                 <CardContent className="pt-3 pb-3">
