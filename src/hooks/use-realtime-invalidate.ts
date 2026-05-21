@@ -48,8 +48,7 @@ export function useRealtimeInvalidate({ channel, tables, enabled = true }: Optio
     const ch = supabase.channel(`realtime:${channel}`);
 
     tables.forEach(({ table, keys, filter }) => {
-      ch.on(
-        // @ts-expect-error postgres_changes is a runtime event of Supabase Realtime
+      (ch as any).on(
         "postgres_changes",
         { event: "*", schema: "public", table, ...(filter ? { filter } : {}) },
         () => schedule(keys),
