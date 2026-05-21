@@ -28,13 +28,17 @@ export interface EvidenceItem {
 }
 
 export interface EvidenceFilters {
-  date?: string;
+  date?: string; // compat: equivalent to dateFrom=dateTo
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
   sector?: string;
   operatorId?: string;
   checklistId?: string;
   status?: ReviewStatus | "all";
   itemType?: ItemType | "all";
 }
+
 
 export function useEvidenceGallery(filters: EvidenceFilters) {
   const { user } = useAuth();
