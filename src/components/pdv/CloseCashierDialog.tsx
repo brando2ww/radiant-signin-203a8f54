@@ -507,7 +507,6 @@ export function CloseCashierDialog({
         setDeclaredPix(toStr(snap.declared_pix));
         setDeclaredVoucher(toStr(snap.declared_voucher));
         
-        setDeclaredOther(toStr(snap.declared_other));
         setDeclaredFiado(toStr((snap as any).declared_fiado));
         setStep("review");
       }
