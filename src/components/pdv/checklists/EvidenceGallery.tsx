@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Image as ImageIcon } from "lucide-react";
 import { useEvidenceGallery, useReviewEvidence, type EvidenceItem, type EvidenceFilters } from "@/hooks/use-checklist-evidence";
 import { toast } from "@/hooks/use-toast";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { format, isToday, isYesterday, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 import { EvidenceOverview } from "./evidence/EvidenceOverview";
 import { EvidenceFiltersBar } from "./evidence/EvidenceFilters";
@@ -12,6 +14,19 @@ import { EvidenceGridCard } from "./evidence/EvidenceGridCard";
 import { EvidenceLightbox } from "./evidence/EvidenceLightbox";
 import { EvidenceListView } from "./evidence/EvidenceListView";
 import { EvidenceAttentionSection } from "./evidence/EvidenceAttentionSection";
+
+function formatDateHeader(dateStr: string): string {
+  if (!dateStr) return "Sem data";
+  try {
+    const d = parseISO(dateStr);
+    if (isToday(d)) return "Hoje";
+    if (isYesterday(d)) return "Ontem";
+    return format(d, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  } catch {
+    return dateStr;
+  }
+}
+
 
 export function EvidenceGallery() {
   const [filters, setFilters] = useState<EvidenceFilters>({});
