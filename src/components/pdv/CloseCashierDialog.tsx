@@ -518,6 +518,7 @@ export function CloseCashierDialog({
   const totalVoucher = Number(session?.total_voucher) || 0;
   const totalWithdrawals = Number(session?.total_withdrawals) || 0;
   const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
+  const totalFiado = Number((session as any)?.total_fiado) || 0;
 
   const totalReinforcements = useMemo(
     () => movements.filter((m) => m.type === "reforco").reduce((a, m) => a + m.amount, 0),
