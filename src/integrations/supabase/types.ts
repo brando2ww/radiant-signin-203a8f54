@@ -3075,6 +3075,7 @@ export type Database = {
           declared_cash: number
           declared_credit: number | null
           declared_debit: number | null
+          declared_fiado: number | null
           declared_online_delivery: number | null
           declared_other: number | null
           declared_pix: number | null
@@ -3090,6 +3091,7 @@ export type Database = {
           declared_cash?: number
           declared_credit?: number | null
           declared_debit?: number | null
+          declared_fiado?: number | null
           declared_online_delivery?: number | null
           declared_other?: number | null
           declared_pix?: number | null
@@ -3105,6 +3107,7 @@ export type Database = {
           declared_cash?: number
           declared_credit?: number | null
           declared_debit?: number | null
+          declared_fiado?: number | null
           declared_online_delivery?: number | null
           declared_other?: number | null
           declared_pix?: number | null
