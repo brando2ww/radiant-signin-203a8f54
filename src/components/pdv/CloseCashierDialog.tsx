@@ -727,23 +727,10 @@ export function CloseCashierDialog({
                 {totalOther > 0 && (
                   <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
                 )}
+                {totalFiado > 0 && (
+                  <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
+                )}
               </div>
-
-
-              {totalFiado > 0 && (
-                <Card className="bg-muted/40 border-dashed">
-                  <CardContent className="pt-3 pb-3 flex items-center gap-2">
-                    <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 flex items-center justify-between gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        <p className="font-medium text-foreground">Vendas a Prazo (fiado)</p>
-                        <p>Informativo — não entra na conferência da gaveta.</p>
-                      </div>
-                      <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFiado)}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
 
               <Card>
                 <CardContent className="pt-3 pb-3 flex justify-between items-center">
