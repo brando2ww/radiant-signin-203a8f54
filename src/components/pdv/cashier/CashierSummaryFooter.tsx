@@ -63,6 +63,7 @@ export function CashierSummaryFooter({
   totalPix,
   totalVoucher,
   totalOnlineDelivery,
+  totalFiado,
   totalSales,
   isOpen,
 }: CashierSummaryFooterProps) {
