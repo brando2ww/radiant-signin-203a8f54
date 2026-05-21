@@ -399,25 +399,11 @@ export function PaymentDialog({
   const hasByProductSelection = isByProduct && selectedItemQtys.size > 0 && selectedSubtotal > 0;
   const byProductBlocks = chargeMode === "by-product" && (!supportsByProduct || !hasByProductSelection);
 
-  // Venda a Prazo — validação
-  const selectedCreditEmployee = authorizedEmployees.find((e) => e.id === creditEmployeeId) || null;
-  const creditCurrentDebt = selectedCreditEmployee?.balance || 0;
-  const creditNewDebt = creditCurrentDebt + total;
-  const creditOverLimit =
-    !!selectedCreditEmployee &&
-    selectedCreditEmployee.credit_limit > 0 &&
-    creditNewDebt > selectedCreditEmployee.credit_limit;
-  const creditNeedsJustification = creditOverLimit && creditJustification.trim().length < 10;
-  const creditBlocks = selectedMethod === "fiado"
-    && (splitEnabled || !selectedCreditEmployee || creditNeedsJustification || total <= 0);
-
-  const canSubmit = !discountInProgress && !byProductBlocks && !creditBlocks
+  const canSubmit = !discountInProgress && !byProductBlocks
     && !simpleChangeExceedsDrawer && !splitCashChangeExceeds
     && (splitEnabled
       ? Math.abs(splitRemaining) < 0.01 && splitPayments.length > 0
-      : selectedMethod === "fiado"
-        ? true
-        : (selectedMethod !== "dinheiro" || cashReceivedNum >= total));
+      : (selectedMethod !== "dinheiro" || cashReceivedNum >= total));
 
   // Reset state + adquirir lock em_cobranca quando o dialog abre.
   useEffect(() => {
