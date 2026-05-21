@@ -117,6 +117,7 @@ export function CashierSummaryFooter({
             <SummaryRow icon={Smartphone} label="PIX" value={totalPix} />
             <SummaryRow icon={Ticket} label="Vale-refeição" value={totalVoucher} />
             <SummaryRow icon={Globe} label="Online (Delivery)" value={totalOnlineDelivery} />
+            <SummaryRow icon={UserCheck} label="Vendas a Prazo" value={totalFiado} />
           </div>
           <div className="mt-2 pt-2 border-t">
             <SummaryRow
