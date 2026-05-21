@@ -456,7 +456,7 @@ export function CloseCashierDialog({
   const [declaredDebit, setDeclaredDebit] = useState("");
   const [declaredPix, setDeclaredPix] = useState("");
   const [declaredVoucher, setDeclaredVoucher] = useState("");
-  const [declaredOnline, setDeclaredOnline] = useState("");
+  
   const [declaredOther, setDeclaredOther] = useState("");
   const [declaredFiado, setDeclaredFiado] = useState("");
 
@@ -479,7 +479,7 @@ export function CloseCashierDialog({
     if (!open) {
       setStep("blind");
       setDeclaredCash(""); setDeclaredCredit(""); setDeclaredDebit("");
-      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredOnline(""); setDeclaredOther(""); setDeclaredFiado("");
+      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredOther(""); setDeclaredFiado("");
       setJustCash(""); setJustCredit(""); setJustDebit(""); setJustPix("");
       setJustVoucher(""); setJustOnline(""); setJustOther(""); setJustFiado(""); setNotes("");
     }
@@ -506,7 +506,7 @@ export function CloseCashierDialog({
         setDeclaredDebit(toStr(snap.declared_debit));
         setDeclaredPix(toStr(snap.declared_pix));
         setDeclaredVoucher(toStr(snap.declared_voucher));
-        setDeclaredOnline(toStr(snap.declared_online_delivery));
+        
         setDeclaredOther(toStr(snap.declared_other));
         setDeclaredFiado(toStr((snap as any).declared_fiado));
         setStep("review");
@@ -552,14 +552,13 @@ export function CloseCashierDialog({
     declaredDebit !== "" &&
     declaredPix !== "" &&
     declaredVoucher !== "" &&
-    declaredOnline !== "" &&
     declaredOther !== "" &&
     declaredFiado !== "";
 
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
-    parseN(declaredOnline) + parseN(declaredOther) + parseN(declaredFiado);
+    parseN(declaredOther) + parseN(declaredFiado);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
@@ -571,7 +570,7 @@ export function CloseCashierDialog({
         declaredDebit: parseN(declaredDebit),
         declaredPix: parseN(declaredPix),
         declaredVoucher: parseN(declaredVoucher),
-        declaredOnlineDelivery: parseN(declaredOnline),
+        declaredOnlineDelivery: totalOnlineDelivery,
         declaredOther: parseN(declaredOther),
         declaredFiado: parseN(declaredFiado),
         declaredTotal: blindTotal,
@@ -599,7 +598,6 @@ export function CloseCashierDialog({
     { key: "debit", label: "Cartão de Débito", icon: CreditCard, expected: totalDebit, declared: parseN(declaredDebit), justification: justDebit, setJust: setJustDebit },
     { key: "pix", label: "PIX", icon: Smartphone, expected: totalPix, declared: parseN(declaredPix), justification: justPix, setJust: setJustPix },
     { key: "voucher", label: "Vale-refeição", icon: Ticket, expected: totalVoucher, declared: parseN(declaredVoucher), justification: justVoucher, setJust: setJustVoucher },
-    { key: "online", label: "Online (Delivery)", icon: Globe, expected: totalOnlineDelivery, declared: parseN(declaredOnline), justification: justOnline, setJust: setJustOnline },
     { key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther },
     { key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado },
   ];
@@ -632,7 +630,7 @@ export function CloseCashierDialog({
       declaredDebit: parseOpt(declaredDebit),
       declaredPix: parseOpt(declaredPix),
       declaredVoucher: parseOpt(declaredVoucher),
-      declaredOnlineDelivery: parseOpt(declaredOnline),
+      declaredOnlineDelivery: totalOnlineDelivery,
       declaredOther: parseOpt(declaredOther),
       declaredFiado: parseOpt(declaredFiado),
       declaredTotalSales: declaredTotal,
@@ -714,7 +712,6 @@ export function CloseCashierDialog({
                 <BlindInput icon={CreditCard} label="Cartão de Débito" value={declaredDebit} onChange={setDeclaredDebit} />
                 <BlindInput icon={Smartphone} label="PIX" value={declaredPix} onChange={setDeclaredPix} />
                 <BlindInput icon={Ticket} label="Vale-refeição" value={declaredVoucher} onChange={setDeclaredVoucher} />
-                <BlindInput icon={Globe} label="Online (Delivery)" value={declaredOnline} onChange={setDeclaredOnline} />
                 <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
                 <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
               </div>
