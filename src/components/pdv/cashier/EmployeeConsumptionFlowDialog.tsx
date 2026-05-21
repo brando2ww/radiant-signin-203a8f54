@@ -207,7 +207,7 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar funcionário..."
+                placeholder="Buscar cliente..."
                 value={empSearch}
                 onChange={(e) => setEmpSearch(e.target.value)}
                 className="pl-9"
@@ -218,8 +218,8 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
                 {filteredEmployees.length === 0 && (
                   <p className="text-center text-sm text-muted-foreground py-8">
                     {mode === "settle"
-                      ? "Nenhum funcionário com saldo devedor."
-                      : "Nenhum funcionário ativo."}
+                      ? "Nenhum cliente com saldo devedor."
+                      : "Nenhum cliente ativo."}
                   </p>
                 )}
                 {filteredEmployees.map((emp) => (
