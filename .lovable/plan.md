@@ -1,86 +1,98 @@
-## Cancelamento de pedidos no Delivery (paridade com Salão)
+# Sincronização em tempo real do cardápio na frente de caixa
 
-Hoje o cancelamento de delivery (no `OrderDetailDialog`) pede só um motivo livre em texto, sem categoria, sem confirmar que o cliente foi avisado, e o cancelamento não aparece no relatório operacional. Além disso, abrir o diálogo de cancelar / mudar status enquanto o `OrderDetailDialog` está aberto está travando a tela (efeito de "freeze" do overlay/pointer-events).
+## Problema
 
-Vamos alinhar o fluxo do delivery ao que já foi feito no salão, sem freeze.
+Hoje, ao editar produtos / categorias / opções no Cardápio (Produtos do PDV e Delivery), a frente de caixa (`/pdv/caixa`, `AddItemDialog`, `ComandaAddItemDialog`, `PaymentDialog`, `GarcomNewOrderSheet` etc.) só vê as mudanças após dar F5. Os hooks `usePDVProducts`, `useDeliveryProducts`, `useProductOptions`, `useDeliveryCategories` etc. já invalidam o cache quando a mutação acontece **na mesma aba**, mas não quando a edição vem de outra aba/usuário.
 
-### 1. Reaproveitar o componente de cancelamento
+## Solução
 
-Generalizar o `CancelComandaDialog` (que hoje é específico de comanda) em `src/components/pdv/cashier/CancelOrderDialog.tsx` recebendo um `resourceLabel` ("Comanda" | "Pedido") + summary livre (mesa/nº ou nº do pedido + cliente + valor). Mesmas regras já decididas:
+Assinar Postgres Changes via Supabase Realtime nas tabelas do cardápio e, a cada evento (`INSERT/UPDATE/DELETE`), invalidar as query keys do React Query correspondentes. Sem mexer em lógica de negócio nem em UI.
 
-- `Select` de categoria (mesmas chaves: `cliente_desistiu`, `pedido_errado`, `problema_cozinha`, `demora_excessiva`, `item_indisponivel`, `outro`).
-- `Textarea` obrigatória, mínimo 20 caracteres, com contador.
-- `Checkbox` "Cliente foi informado" obrigatório para liberar o confirmar.
-- Loading apenas nos botões (`Confirmar cancelamento` mostra spinner + "Cancelando…", `Voltar` desabilita). Nada de overlay/freeze de tela.
-- `onEscapeKeyDown`/`onPointerDownOutside`/`onInteractOutside` bloqueados durante loading.
+## Escopo (tabelas a observar)
 
-O `CancelComandaDialog` atual passa a ser apenas um wrapper que chama o componente genérico com `resourceLabel="Comanda"`.
+Catálogo PDV (usado na frente de caixa e no Garçom):
+- `pdv_products`
+- `pdv_product_options`
+- `pdv_product_option_items`
+- `pdv_compositions` / `pdv_composition_groups`
 
-### 2. Diálogo de detalhe do pedido (`OrderDetailDialog.tsx`)
+Catálogo Delivery (usado no balcão de delivery e cardápio público):
+- `delivery_products`
+- `delivery_categories`
+- `delivery_product_options`
+- `delivery_product_option_items`
 
-- Substituir o `AlertDialog` interno (motivo livre) pelo novo `CancelOrderDialog`.
-- `handleCancel` passa a receber `{ reason, category, customerNotified }` e chamar a mutation atualizada `useCancelOrder`.
-- Em sucesso: fechar o diálogo de cancelamento e o `OrderDetailDialog` (já feito via `setTimeout(0)` — mantém).
-- Em erro: mantém ambos abertos, libera botões.
+## Implementação
 
-### 3. Cancelar/Modificar sem congelar a tela
+### 1. Novo hook genérico `src/hooks/use-realtime-invalidate.ts`
 
-Aplicar no `OrderDetailDialog` o mesmo padrão que já adotamos no salão para impedir o "freeze":
-- `Dialog` principal continua modal, mas o `CancelOrderDialog` é aberto como filho usando `setTimeout(0)` antes do `setOpen(true)` para evitar empilhar overlays do Radix.
-- O cancelamento NÃO bloqueia toda a tela: apenas o botão "Confirmar cancelamento" e "Voltar" mostram estado de loading; o restante do `OrderDetailDialog` permanece responsivo (sem `pointer-events-none` ou backdrop extra).
-- Para a ação "Avançar status" (`updateStatus`), reaproveitar `useUpdateOrderStatus.isPending` SOMENTE no próprio botão de avanço (já é assim, mas conferir que nada usa o pending para desabilitar o dialog inteiro).
-- Já existe o `RadixBodyUnlock` global que limpa `pointer-events`/`overflow` presos; garantir que o fluxo novo dispare o unlock após qualquer fechamento (não precisa de código extra — o guard global cuida disso quando nenhum overlay Radix está mais aberto).
-
-Resultado: usuário pode cancelar/avançar status sem a tela travar; só o botão clicado mostra spinner.
-
-### 4. Persistir categoria e flag de cliente informado
-
-A coluna `cancellation_reason` (texto) já existe em `delivery_orders`. Adicionar duas colunas opcionais:
-- `cancellation_category text NULL`
-- `customer_notified boolean NOT NULL DEFAULT false`
-
-Atualizar `useCancelOrder` em `src/hooks/use-delivery-orders.ts` para receber `{ id, reason, category, customerNotified }` e gravar nas três colunas, expondo também `cancelOrderAsync` e `isCancellingOrder` para uso no diálogo (padrão idêntico ao `cancelComandaAsync`).
-
-### 5. Relatório operacional do delivery
-
-No `ReportsTab` do delivery (relatório do caixa/operacional), adicionar nova seção **"Pedidos cancelados"** filtrável pelo mesmo range de datas já existente, com colunas:
-
-- Data/hora do cancelamento (`cancelled_at`)
-- Nº do pedido
-- Cliente
-- Valor
-- Operador que cancelou (campo novo: `cancelled_by_user_id`, gravado pela mutation a partir de `auth.uid()`)
-- Motivo (texto)
-- Categoria (label legível em pt-BR)
-- "Cliente informado?" (Sim/Não)
-
-Migration adiciona também `cancelled_by_user_id uuid NULL` em `delivery_orders` para esse propósito.
-
-### 6. Tipos e i18n
-
-- Atualizar `DeliveryOrder` interface no hook com os 3 novos campos.
-- Labels em pt-BR das categorias compartilhadas em um util único (`src/lib/cancel-reasons.ts`) para Salão e Delivery usarem.
-
-### Fora do escopo
-
-- Notificar o cliente automaticamente via WhatsApp (apenas registramos o flag de que ele foi avisado pelo operador).
-- Cancelamento parcial de itens do pedido.
-- Mudanças no fluxo público do cliente (sem alteração na rota pública do pedido).
-
-### Detalhes técnicos
-
-```text
-delivery_orders (novos campos):
-  cancellation_category   text NULL
-  customer_notified       boolean NOT NULL DEFAULT false
-  cancelled_by_user_id    uuid  NULL
+```ts
+useRealtimeInvalidate({
+  channel: "pdv-catalog",
+  tables: [
+    { table: "pdv_products",              keys: [["pdv-products"]] },
+    { table: "pdv_product_options",       keys: [["pdv-product-options"], ["product-options"]] },
+    { table: "pdv_product_option_items",  keys: [["pdv-product-options"], ["product-options"]] },
+    { table: "pdv_compositions",          keys: [["pdv-compositions"]] },
+    { table: "pdv_composition_groups",    keys: [["pdv-composition-groups"]] },
+  ],
+  filter: (row) => row.user_id === visibleUserId, // quando aplicável
+});
 ```
 
-```text
-src/components/pdv/cashier/CancelOrderDialog.tsx        (novo, genérico)
-src/components/pdv/cashier/CancelComandaDialog.tsx      (vira wrapper)
-src/components/delivery/OrderDetailDialog.tsx           (usa novo dialog)
-src/hooks/use-delivery-orders.ts                        (mutation expandida)
-src/components/delivery/ReportsTab.tsx (ou reports/*)   (seção nova)
-src/lib/cancel-reasons.ts                               (labels compartilhados)
+Internamente: cria um `supabase.channel(...)`, adiciona um listener `postgres_changes` por tabela (`event: '*', schema: 'public'`), filtra por `user_id` quando a tabela tiver essa coluna, e chama `queryClient.invalidateQueries({ queryKey })` para cada key. Cleanup remove o canal no unmount. Debounce de ~150 ms para agrupar bursts.
+
+### 2. Migration: habilitar Realtime
+
+```sql
+ALTER TABLE public.pdv_products              REPLICA IDENTITY FULL;
+ALTER TABLE public.pdv_product_options       REPLICA IDENTITY FULL;
+ALTER TABLE public.pdv_product_option_items  REPLICA IDENTITY FULL;
+ALTER TABLE public.pdv_compositions          REPLICA IDENTITY FULL;
+ALTER TABLE public.pdv_composition_groups    REPLICA IDENTITY FULL;
+ALTER TABLE public.delivery_products              REPLICA IDENTITY FULL;
+ALTER TABLE public.delivery_categories            REPLICA IDENTITY FULL;
+ALTER TABLE public.delivery_product_options       REPLICA IDENTITY FULL;
+ALTER TABLE public.delivery_product_option_items  REPLICA IDENTITY FULL;
+
+ALTER PUBLICATION supabase_realtime ADD TABLE
+  public.pdv_products,
+  public.pdv_product_options,
+  public.pdv_product_option_items,
+  public.pdv_compositions,
+  public.pdv_composition_groups,
+  public.delivery_products,
+  public.delivery_categories,
+  public.delivery_product_options,
+  public.delivery_product_option_items;
 ```
+(usando `IF NOT EXISTS` / try-catch por tabela para não falhar se já estiverem na publicação).
+
+### 3. Pontos de montagem do listener
+
+Para evitar dezenas de canais, montar **uma vez** por área:
+
+- **Frente de caixa**: novo componente `<PDVCatalogRealtime />` montado em `src/pages/PDV.tsx` (layout do PDV) — assina catálogo PDV.
+- **Garçom**: montar o mesmo `<PDVCatalogRealtime />` em `src/pages/Garcom.tsx`.
+- **Delivery (admin)**: novo `<DeliveryCatalogRealtime />` em `src/pages/pdv/delivery/Menu.tsx` e onde houver tela operacional de delivery (fila/checkout).
+- **Cardápio público** (`src/pages/PublicMenu.tsx`): assinar `delivery_products`, `delivery_categories`, `delivery_product_options`, `delivery_product_option_items` filtrando pelo `user_id` do estabelecimento que já é resolvido na página, invalidando `["public-menu"]`.
+
+Cada componente apenas chama o hook; não renderiza nada.
+
+### 4. Multi-tenant / visibilidade
+
+Filtrar por `user_id` via `useEstablishmentId().visibleUserId` (mesma chave usada pelos hooks de leitura), garantindo que funcionários do estabelecimento recebam updates do dono, e que tenants diferentes não recebam ruído.
+
+## Fora do escopo
+
+- Realtime de pedidos/comandas (já existe via `use-pdv-comandas-realtime` / `use-delivery-orders-watcher`).
+- Mudanças visuais.
+- Reescrita de hooks de leitura ou estratégia de cache.
+- Otimistic UI.
+
+## Verificação
+
+1. Abrir `/pdv/caixa` em uma aba e `/pdv/produtos` em outra; alterar nome/preço/disponibilidade → caixa atualiza em <1s.
+2. Adicionar/remover opção de produto → `AddItemDialog` mostra a opção sem F5.
+3. Editar `delivery_products` → cardápio público (`/cardapio/<slug>`) atualiza.
+4. Verificar no Network que apenas 1 WebSocket por área é aberto.
