@@ -2314,6 +2314,14 @@ export function PaymentDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <CreditSaleAuthDialog
+      open={creditAuthOpen}
+      onOpenChange={setCreditAuthOpen}
+      total={total}
+      isProcessing={isRegisteringCreditSale}
+      onConfirm={handleCreditSaleConfirm}
+    />
     </>
   );
 }
