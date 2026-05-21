@@ -108,6 +108,20 @@ export function EvidenceGallery() {
     if (idx >= 0) setLightboxIndex(idx);
   };
 
+  const groupedByDate = useMemo(() => {
+    if (!evidence?.length) return [] as { date: string; items: { item: EvidenceItem; index: number }[] }[];
+    const map = new Map<string, { item: EvidenceItem; index: number }[]>();
+    evidence.forEach((item, index) => {
+      const key = item.executionDate || "";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push({ item, index });
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([date, items]) => ({ date, items }));
+  }, [evidence]);
+
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Galeria de Evidências</h2>
