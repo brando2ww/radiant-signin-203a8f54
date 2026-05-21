@@ -166,7 +166,8 @@ export default function PDV() {
               <Route path="clientes/:id" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><CustomerDetail /></RoleRoute>} />
 
               {/* Consumo de Funcionários (fiado interno) */}
-              <Route path="funcionarios-consumo" element={<RoleRoute path="/pdv/funcionarios-consumo" canAccess={canAccess} defaultRoute={defaultRoute}><EmployeeConsumptionAdmin /></RoleRoute>} />
+              <Route path="venda-a-prazo" element={<RoleRoute path="/pdv/venda-a-prazo" canAccess={canAccess} defaultRoute={defaultRoute}><EmployeeConsumptionAdmin /></RoleRoute>} />
+              <Route path="funcionarios-consumo" element={<Navigate to="/pdv/venda-a-prazo" replace />} />
             </Routes>
           </main>
       </div>
