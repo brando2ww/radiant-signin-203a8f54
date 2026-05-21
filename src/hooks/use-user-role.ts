@@ -50,7 +50,7 @@ const roleRouteAccess: Record<AppRole, string[]> = {
     "/pdv/integracoes",
     "/pdv/franquia",
     "/pdv/clientes",
-    "/pdv/funcionarios-consumo",
+    "/pdv/venda-a-prazo",
   ],
   caixa: ["/pdv/caixa"],
   garcom: ["/garcom", "/pdv/salao", "/pdv/comandas"],
