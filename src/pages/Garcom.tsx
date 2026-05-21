@@ -7,6 +7,7 @@ import { ComandaDialog } from "@/components/pdv/ComandaDialog";
 import { usePDVComandas } from "@/hooks/use-pdv-comandas";
 import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
+import { PDVCatalogRealtime } from "@/components/pdv/PDVCatalogRealtime";
 import { toast } from "sonner";
 import GarcomMesas from "./garcom/GarcomMesas";
 import GarcomComandas from "./garcom/GarcomComandas";
