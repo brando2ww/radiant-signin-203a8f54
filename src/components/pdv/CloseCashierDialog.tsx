@@ -28,6 +28,7 @@ import {
   Ticket,
   Globe,
   MoreHorizontal,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
