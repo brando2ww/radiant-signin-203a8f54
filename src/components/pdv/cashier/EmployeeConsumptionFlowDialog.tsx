@@ -170,12 +170,12 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             )}
-            <DialogTitle>Consumo de Funcionários</DialogTitle>
+            <DialogTitle>Venda a Prazo</DialogTitle>
           </div>
           <DialogDescription>
             {step === "mode" && "Escolha uma operação."}
-            {step === "select-employee" && "Selecione o funcionário."}
-            {step === "products" && "Adicione produtos ao consumo."}
+            {step === "select-employee" && "Selecione o cliente."}
+            {step === "products" && "Adicione produtos à venda."}
             {step === "settle" && "Informe o valor da quitação."}
             {step === "summary" && "Confirme os dados."}
           </DialogDescription>
