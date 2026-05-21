@@ -180,7 +180,7 @@ export default function EmployeeConsumptionAdmin() {
           ) : filtered.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                Nenhum funcionário encontrado.
+                Nenhum cliente encontrado.
               </CardContent>
             </Card>
           ) : (
