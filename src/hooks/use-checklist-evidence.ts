@@ -58,8 +58,13 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
         .not("photo_url", "is", null)
         .eq("checklist_executions.user_id", user.id);
 
-      if (filters.date) {
-        query = query.eq("checklist_executions.execution_date", filters.date);
+      const from = filters.dateFrom || filters.date;
+      const to = filters.dateTo || filters.date;
+      if (from) {
+        query = query.gte("checklist_executions.execution_date", from);
+      }
+      if (to) {
+        query = query.lte("checklist_executions.execution_date", to);
       }
       if (filters.operatorId) {
         query = query.eq("checklist_executions.operator_id", filters.operatorId);
@@ -68,8 +73,9 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
         query = query.eq("checklist_executions.checklist_id", filters.checklistId);
       }
 
-      const { data, error } = await query.order("id", { ascending: false }).limit(200);
+      const { data, error } = await query.order("id", { ascending: false }).limit(500);
       if (error) throw error;
+
 
       const itemIds = (data || []).map((d: any) => d.id);
       let reviews: Record<string, { status: ReviewStatus; comment: string | null; created_at: string; reviewer_id: string | null }> = {};
