@@ -2105,17 +2105,30 @@ export function PaymentDialog({
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between pt-4 border-t mt-4">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isProcessing}
-          >
-            Cancelar
-          </Button>
+        <div className="flex items-center justify-between gap-2 pt-4 border-t mt-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isProcessing || isCancellingComanda}
+            >
+              Fechar
+            </Button>
+            {involvedComandas.length === 1 && involvedComandas[0]?.id && (
+              <Button
+                variant="ghost"
+                onClick={() => setCancelComandaOpen(true)}
+                disabled={isProcessing || isCancellingComanda}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2"
+              >
+                <Ban className="h-4 w-4" />
+                Cancelar comanda
+              </Button>
+            )}
+          </div>
           <Button
             onClick={handleSubmit}
-            disabled={!canSubmit || isProcessing}
+            disabled={!canSubmit || isProcessing || isCancellingComanda}
             size="lg"
             className="gap-2 min-w-[200px]"
           >
