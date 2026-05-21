@@ -52,6 +52,7 @@ export interface CloseCashierPayload {
   declaredVoucher?: number | null;
   declaredOnlineDelivery?: number | null;
   declaredOther?: number | null;
+  declaredFiado?: number | null;
   // Totais
   declaredTotalSales?: number | null;
   totalDifference?: number | null;
@@ -66,6 +67,7 @@ export interface CloseCashierPayload {
     voucher?: string;
     onlineDelivery?: string;
     other?: string;
+    fiado?: string;
   };
   notes?: string;
   riskLevel: "ok" | "low" | "medium" | "high" | "critical";
