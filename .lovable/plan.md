@@ -1,16 +1,11 @@
-## Remover campo "Online (Delivery)" da Etapa 1
+Remover o campo "Outros meios" da Etapa 1 do dialog de fechamento de caixa, deixando apenas: Dinheiro, Crédito, Débito, PIX, Vale-refeição e Vendas a Prazo.
 
-Pagamentos online de delivery são contabilizados automaticamente pelo sistema, então não devem aparecer na apuração às cegas nem na conferência.
+**`src/components/pdv/CloseCashierDialog.tsx`:**
+1. Remover state `declaredOther`/`setDeclaredOther` e seu reset/hydration.
+2. Remover `declaredOther !== ""` de `allBlindFilled`.
+3. Remover `parseN(declaredOther)` de `blindTotal`.
+4. Remover do payload de `submitBlindClosing` e do payload final (passar `null`/omitir).
+5. Remover a linha "Outros meios" de `reviewRows` (Etapa 2).
+6. Remover o `BlindInput` de "Outros meios" do grid da Etapa 1.
 
-### Alterações em `src/components/pdv/CloseCashierDialog.tsx`
-
-1. **Etapa 1 (grid de apuração):** remover o `BlindInput` de "Online (Delivery)".
-2. **Estado:** remover `declaredOnline` / `setDeclaredOnline` e seu reset.
-3. **`allBlindFilled`:** remover a checagem `declaredOnline !== ""`.
-4. **`blindTotal`:** remover `parseN(declaredOnline)` da soma.
-5. **`submitBlindClosing`:** não enviar mais o valor declarado de online (passar `null`/omitir, mantendo o comportamento automático no backend).
-6. **`reviewRows` (Etapa 2):** remover a linha de conferência de "Online (Delivery)".
-
-Os demais 7 meios (Dinheiro, Crédito, Débito, PIX, Vale-refeição, Outros, Vendas a Prazo) continuam sempre visíveis e obrigatórios.
-
-Nenhuma mudança em hooks, migrations, backend ou impressão.
+Sem mudanças no backend/hook/migration.
