@@ -138,7 +138,7 @@ export default function EmployeeConsumptionAdmin() {
 
       <Tabs defaultValue="employees">
         <TabsList>
-          <TabsTrigger value="employees">Funcionários</TabsTrigger>
+          <TabsTrigger value="employees">Clientes</TabsTrigger>
           <TabsTrigger value="entries">Lançamentos</TabsTrigger>
         </TabsList>
 
