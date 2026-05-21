@@ -351,33 +351,31 @@ export const OrderDetailDialog = ({
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Dialog */}
-      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Pedido</AlertDialogTitle>
-            <AlertDialogDescription>
-              Informe o motivo do cancelamento do pedido {order.order_number}:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="Ex: Cliente desistiu, produto indisponível..."
-            rows={3}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancel}
-              disabled={!cancelReason.trim() || cancelOrder.isPending}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Confirmar Cancelamento
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CancelOrderDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+        resourceLabel="Pedido"
+        isLoading={cancelOrder.isPending}
+        summary={{
+          reference: `Pedido #${order.order_number}`,
+          title: order.customer_name,
+          itemsCount: order.delivery_order_items?.reduce(
+            (s, i) => s + (i.quantity || 0),
+            0,
+          ),
+          total: Number(order.total),
+        }}
+        onConfirm={async ({ reason, category, customerNotified }) => {
+          await cancelOrder.mutateAsync({
+            id: order.id,
+            reason,
+            category,
+            customerNotified,
+          });
+          setIsCancelDialogOpen(false);
+          setTimeout(() => onOpenChange(false), 0);
+        }}
+      />
     </>
   );
 };
