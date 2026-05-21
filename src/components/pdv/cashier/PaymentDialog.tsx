@@ -628,6 +628,49 @@ export function PaymentDialog({
     setSelectedItemQtys(new Map());
   };
 
+  const handleSubmitCreditSale = async (finalAmount: number) => {
+    if (!selectedCreditEmployee) {
+      toast.error("Selecione o cliente para a venda a prazo");
+      return;
+    }
+    if (creditNeedsJustification) {
+      toast.error("Informe uma justificativa (mín. 10 caracteres) para exceder o limite");
+      return;
+    }
+
+    const itemsSnapshot = displayItems.map((i) => ({
+      product_id: i.product_id,
+      product_name: i.product_name,
+      quantity: Number(i.quantity || 0),
+      unit_price: Number(i.unit_price || 0),
+    }));
+
+    const comandaIds = isTablePayment
+      ? tableComandas.map((c) => c.id)
+      : (comanda ? [comanda.id] : []);
+    const orderId = isTablePayment
+      ? (tableComandas[0]?.order_id ?? null)
+      : (comanda?.order_id ?? null);
+
+    if (comandaIds.length === 0) {
+      toast.error("Nenhuma comanda para lançar");
+      return;
+    }
+
+    await registerCreditSale({
+      employee_id: selectedCreditEmployee.id,
+      comanda_ids: comandaIds,
+      order_id: orderId,
+      amount: finalAmount,
+      items: itemsSnapshot,
+      justification: creditOverLimit ? creditJustification.trim() : null,
+    });
+
+    paymentDoneRef.current = true;
+    setSuccessData({ change: 0 });
+    setShowSuccess(true);
+  };
+
   const handleSubmit = async () => {
     if (isProcessing) return;
     try {
