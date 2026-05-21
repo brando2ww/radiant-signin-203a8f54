@@ -203,6 +203,8 @@ export function PaymentDialog({
   const { products: productsList } = usePDVProducts();
   const { emitNFCe, isEmitting } = useNFCeEmission();
   const { settings } = usePDVSettings();
+  const { employees: authorizedEmployees } = useAuthorizedEmployees();
+  const { registerCreditSale, isRegisteringCreditSale } = useEmployeeConsumption();
 
   // Configuração global da taxa de serviço (vem das pdv_settings)
   const serviceFeeAllowed = settings?.enable_service_fee ?? true;
