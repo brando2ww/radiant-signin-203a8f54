@@ -802,6 +802,8 @@ export function usePDVComandas() {
     updateComanda: updateComandaMutation.mutate,
     closeComanda: closeComandaMutation.mutate,
     cancelComanda: cancelComandaMutation.mutate,
+    cancelComandaAsync: cancelComandaMutation.mutateAsync,
+    isCancellingComanda: cancelComandaMutation.isPending,
     addItem: addItemMutation.mutateAsync,
     updateItem: updateItemMutation.mutate,
     removeItem: removeItemMutation.mutate,
