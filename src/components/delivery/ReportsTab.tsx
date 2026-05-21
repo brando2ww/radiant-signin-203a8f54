@@ -104,6 +104,9 @@ export const ReportsTab = () => {
           <PeakHoursHeatmap userId={userId} startDate={startDate} endDate={endDate} />
 
           <NeighborhoodPerformance userId={userId} startDate={startDate} endDate={endDate} />
+
+          <CancelledOrders userId={userId} startDate={startDate} endDate={endDate} />
+
         </>
       )}
     </div>
