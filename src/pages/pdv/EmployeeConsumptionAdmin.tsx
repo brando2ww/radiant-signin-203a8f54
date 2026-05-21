@@ -75,18 +75,20 @@ export default function EmployeeConsumptionAdmin() {
   const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setFormOpen(true); };
 
   const exportEntries = () => {
+    const header = ["Funcionário", "Data", "Total", "Pago", "Saldo", "Status"];
     const rows = entries.map((e) => {
       const emp = employees.find((x) => x.id === e.employee_id);
-      return {
-        Funcionário: emp?.full_name || "",
-        Data: format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
-        Total: e.total,
-        Pago: e.paid_amount,
-        Saldo: Number(e.total) - Number(e.paid_amount),
-        Status: e.status,
-      };
+      return [
+        emp?.full_name || "",
+        format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+        Number(e.total).toFixed(2),
+        Number(e.paid_amount).toFixed(2),
+        (Number(e.total) - Number(e.paid_amount)).toFixed(2),
+        e.status,
+      ];
     });
-    exportToCSV(rows, "consumo-funcionarios");
+    const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
+    downloadCsv("consumo-funcionarios.csv", csv);
   };
 
   return (
