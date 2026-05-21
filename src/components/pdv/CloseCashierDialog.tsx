@@ -494,7 +494,7 @@ export function CloseCashierDialog({
 
       const { data: snap } = await supabase
         .from("pdv_cashier_close_blind_snapshots")
-        .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other")
+        .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other, declared_fiado")
         .eq("cashier_session_id", session.id)
         .maybeSingle();
 
@@ -507,6 +507,7 @@ export function CloseCashierDialog({
         setDeclaredVoucher(toStr(snap.declared_voucher));
         setDeclaredOnline(toStr(snap.declared_online_delivery));
         setDeclaredOther(toStr(snap.declared_other));
+        setDeclaredFiado(toStr((snap as any).declared_fiado));
         setStep("review");
       }
     })();
