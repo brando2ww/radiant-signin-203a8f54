@@ -552,16 +552,14 @@ export function CloseCashierDialog({
     declaredDebit !== "" &&
     declaredPix !== "" &&
     declaredVoucher !== "" &&
-    (totalOnlineDelivery <= 0 || declaredOnline !== "") &&
-    (totalOther <= 0 || declaredOther !== "") &&
-    (totalFiado <= 0 || declaredFiado !== "");
+    declaredOnline !== "" &&
+    declaredOther !== "" &&
+    declaredFiado !== "";
 
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
-    (declaredOnline !== "" ? parseN(declaredOnline) : 0) +
-    (declaredOther !== "" ? parseN(declaredOther) : 0) +
-    (declaredFiado !== "" ? parseN(declaredFiado) : 0);
+    parseN(declaredOnline) + parseN(declaredOther) + parseN(declaredFiado);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
