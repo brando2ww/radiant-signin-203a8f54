@@ -612,11 +612,18 @@ export function PaymentDialog({
     if (isProcessing) return;
     try {
       const finalAmount = total;
+
+      // Branch dedicado: Venda a Prazo (fiado)
+      if (selectedMethod === "fiado") {
+        await handleSubmitCreditSale(finalAmount);
+        return;
+      }
+
       // Mapeia "cartao" + cardType para credito/debito (granularidade exigida pela conferência do fechamento)
       const resolvedMethod: PaymentMethod =
         selectedMethod === "cartao"
           ? (cardType === "debito" ? "debito" : "credito")
-          : selectedMethod;
+          : (selectedMethod as PaymentMethod);
 
       const paymentData = {
         amount: finalAmount,
