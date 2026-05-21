@@ -75,7 +75,7 @@ export default function EmployeeConsumptionAdmin() {
   const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setTimeout(() => setFormOpen(true), 0); };
 
   const exportEntries = () => {
-    const header = ["Funcionário", "Data", "Total", "Pago", "Saldo", "Status"];
+    const header = ["Cliente", "Data", "Total", "Pago", "Saldo", "Status"];
     const rows = entries.map((e) => {
       const emp = employees.find((x) => x.id === e.employee_id);
       return [
@@ -88,20 +88,20 @@ export default function EmployeeConsumptionAdmin() {
       ];
     });
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
-    downloadCsv("consumo-funcionarios.csv", csv);
+    downloadCsv("venda-a-prazo.csv", csv);
   };
 
   return (
     <div className="container mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Consumo de Funcionários</h1>
+          <h1 className="text-2xl font-bold">Venda a Prazo</h1>
           <p className="text-sm text-muted-foreground">
-            Gerencie funcionários autorizados e acompanhe o fiado interno.
+            Gerencie clientes autorizados e acompanhe o fiado.
           </p>
         </div>
         <Button onClick={handleNew} className="gap-2">
-          <Plus className="h-4 w-4" /> Novo funcionário
+          <Plus className="h-4 w-4" /> Novo cliente
         </Button>
       </div>
 
@@ -138,7 +138,7 @@ export default function EmployeeConsumptionAdmin() {
 
       <Tabs defaultValue="employees">
         <TabsList>
-          <TabsTrigger value="employees">Funcionários</TabsTrigger>
+          <TabsTrigger value="employees">Clientes</TabsTrigger>
           <TabsTrigger value="entries">Lançamentos</TabsTrigger>
         </TabsList>
 
@@ -180,7 +180,7 @@ export default function EmployeeConsumptionAdmin() {
           ) : filtered.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                Nenhum funcionário encontrado.
+                Nenhum cliente encontrado.
               </CardContent>
             </Card>
           ) : (
@@ -320,7 +320,7 @@ export default function EmployeeConsumptionAdmin() {
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir funcionário?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. Lançamentos existentes serão preservados.
             </AlertDialogDescription>

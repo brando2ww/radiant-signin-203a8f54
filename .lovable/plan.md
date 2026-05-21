@@ -1,26 +1,20 @@
-## Problema
+## Renomear "Consumo de Funcionários" → "Venda a Prazo"
 
-Após editar um funcionário (e enviar foto), a tela trava — não aceita cliques até recarregar. Causa: o Sheet de edição é aberto diretamente a partir de um `DropdownMenu` (menu ⋮), sem o deferral exigido pelo padrão de dialogs do projeto. O Radix deixa `pointer-events: none` no body porque o menu ainda está em processo de desmontagem quando o Sheet abre.
+Alteração apenas de UI/labels (sem mexer em rota, tabelas, RPCs ou lógica).
 
-A memória `dialog-interaction-standards` já documenta esse exato caso: abrir Dialog/Sheet a partir de DropdownMenu exige `setTimeout(..., 0)`.
+### Arquivos a editar
 
-## Correção
+- `src/pages/pdv/EmployeeConsumptionAdmin.tsx` — título da página, descrição, botão "Novo funcionário" → "Novo cliente", textos de KPIs e abas onde aparecer "funcionário".
+- `src/components/pdv/PDVHeaderNav.tsx` — item de menu "Consumo Funcionários" → "Venda a Prazo".
+- `src/components/pdv/cashier/EmployeeConsumptionFlowDialog.tsx` — título do dialog e textos visíveis (modo lançamento/quitação) trocando "funcionário" por "cliente".
+- `src/components/pdv/employee-consumption/AuthorizedEmployeeFormSheet.tsx` — título "Novo/Editar Funcionário" → "Novo/Editar Cliente" e descrição.
+- `src/components/pdv/employee-consumption/EmployeeStatementSheet.tsx` — título do extrato.
+- `src/pages/pdv/Cashier.tsx` — label do botão F5 "Consumo" mantém-se, mas tooltip/descrição passa a "Venda a Prazo".
 
-Em `src/pages/pdv/EmployeeConsumptionAdmin.tsx`:
+### Não alterar
 
-1. Deferir a abertura do form sheet ao clicar em "Editar" no menu ⋮:
-   ```ts
-   const handleEdit = (e) => {
-     setEditing(e);
-     setTimeout(() => setFormOpen(true), 0);
-   };
-   ```
+- Rota `/pdv/funcionarios-consumo` (mantém URL para não quebrar links salvos).
+- Nomes de tabelas (`pdv_authorized_employees`, `pdv_employee_consumption_*`), RPCs e `source='quitacao_consumo'`.
+- Nomes de arquivos/componentes/hooks no código.
 
-2. Deferir também a abertura do `EmployeeStatementSheet` ("Ver extrato") pelo mesmo motivo:
-   ```ts
-   onClick={() => setTimeout(() => setStatementEmp(emp), 0)}
-   ```
-
-3. Em `AuthorizedEmployeeFormSheet.tsx`, trocar o `useMemo` usado como efeito colateral por `useEffect` (correção de uso, evita warnings e comportamento inesperado de reset de estado).
-
-Nenhuma alteração de lógica de negócio ou de banco — só o fluxo de UI.
+Quer que a URL também mude para `/pdv/venda-a-prazo` (com redirect da antiga)?

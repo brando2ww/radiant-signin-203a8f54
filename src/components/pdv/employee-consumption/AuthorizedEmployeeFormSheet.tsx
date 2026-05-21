@@ -83,9 +83,9 @@ export function AuthorizedEmployeeFormSheet({ open, onOpenChange, employee }: Pr
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-md overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{isEdit ? "Editar Funcionário" : "Novo Funcionário"}</SheetTitle>
+          <SheetTitle>{isEdit ? "Editar Cliente" : "Novo Cliente"}</SheetTitle>
           <SheetDescription>
-            Funcionários autorizados a consumir produtos no fiado interno.
+            Clientes autorizados para venda a prazo (fiado).
           </SheetDescription>
         </SheetHeader>
 
