@@ -131,6 +131,7 @@ export function useEmployeeConsumption(employeeId?: string) {
   const registerCreditSale = useMutation({
     mutationFn: async (params: {
       employee_id: string;
+      employee_name?: string;
       comanda_id?: string | null;
       comanda_ids?: string[];
       order_id?: string | null;
@@ -195,6 +196,34 @@ export function useEmployeeConsumption(employeeId?: string) {
         });
       }
 
+      // Registra a venda a prazo como movimento no caixa ativo (informativo,
+      // não impacta a gaveta de dinheiro físico).
+      const { data: activeSession } = await supabase
+        .from("pdv_cashier_sessions")
+        .select("id")
+        .eq("user_id", ownerId)
+        .is("closed_at", null)
+        .order("opened_at", { ascending: false })
+        .maybeSingle();
+
+      if (activeSession?.id) {
+        const description = params.employee_name
+          ? `Venda a prazo — ${params.employee_name}`
+          : "Venda a prazo";
+        await supabase.from("pdv_cashier_movements").insert({
+          user_id: ownerId,
+          cashier_session_id: activeSession.id,
+          operator_id: user.id,
+          type: "venda",
+          payment_method: "fiado",
+          amount: params.amount,
+          description,
+          source: "credit_sale",
+          order_id: params.order_id ?? null,
+        } as any);
+        await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
+      }
+
       return entry as ConsumptionEntry;
     },
     onSuccess: () => {
@@ -203,6 +232,8 @@ export function useEmployeeConsumption(employeeId?: string) {
       qc.invalidateQueries({ queryKey: ["pdv-comandas"] });
       qc.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
       qc.invalidateQueries({ queryKey: ["pdv-tables"] });
+      qc.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
+      qc.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
       toast.success("Venda lançada a prazo");
     },
     onError: (e: any) => toast.error(e.message || "Erro ao lançar a prazo"),
