@@ -585,7 +585,7 @@ export function CloseCashierDialog({
 
   // Etapa 2 — rows com diff
   type Row = {
-    key: "cash" | "credit" | "debit" | "pix" | "voucher" | "online" | "other";
+    key: "cash" | "credit" | "debit" | "pix" | "voucher" | "online" | "other" | "fiado";
     label: string;
     icon: typeof CreditCard;
     expected: number;
