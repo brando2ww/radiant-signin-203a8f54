@@ -3224,6 +3224,7 @@ export type Database = {
           total_credit: number
           total_debit: number
           total_difference: number | null
+          total_fiado: number
           total_online_delivery: number
           total_other: number
           total_pix: number
@@ -3275,6 +3276,7 @@ export type Database = {
           total_credit?: number
           total_debit?: number
           total_difference?: number | null
+          total_fiado?: number
           total_online_delivery?: number
           total_other?: number
           total_pix?: number
@@ -3326,6 +3328,7 @@ export type Database = {
           total_credit?: number
           total_debit?: number
           total_difference?: number | null
+          total_fiado?: number
           total_online_delivery?: number
           total_other?: number
           total_pix?: number
