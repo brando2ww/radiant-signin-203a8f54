@@ -607,6 +607,9 @@ export function CloseCashierDialog({
   if (totalOther > 0 || declaredOther !== "") {
     reviewRows.push({ key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther });
   }
+  if (totalFiado > 0 || declaredFiado !== "") {
+    reviewRows.push({ key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado });
+  }
 
   const rowsWithDiff = reviewRows.filter((r) => Math.abs(r.declared - r.expected) > TOL);
   const allJustified = rowsWithDiff.every((r) => r.justification.trim().length >= MIN_REVIEW_JUSTIFICATION);
