@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/contexts/AuthContext";
 import { useAuthorizedEmployees } from "@/hooks/use-authorized-employees";
 
 export type CreditSaleAuthPayload = {
