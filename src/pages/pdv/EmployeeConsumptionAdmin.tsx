@@ -75,7 +75,7 @@ export default function EmployeeConsumptionAdmin() {
   const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setTimeout(() => setFormOpen(true), 0); };
 
   const exportEntries = () => {
-    const header = ["Funcionário", "Data", "Total", "Pago", "Saldo", "Status"];
+    const header = ["Cliente", "Data", "Total", "Pago", "Saldo", "Status"];
     const rows = entries.map((e) => {
       const emp = employees.find((x) => x.id === e.employee_id);
       return [
@@ -88,7 +88,7 @@ export default function EmployeeConsumptionAdmin() {
       ];
     });
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
-    downloadCsv("consumo-funcionarios.csv", csv);
+    downloadCsv("venda-a-prazo.csv", csv);
   };
 
   return (
