@@ -201,6 +201,7 @@ export function usePDVCashier() {
       const totalVoucher = Number(session?.total_voucher) || 0;
       const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
       const totalOther = Number((session as any)?.total_other) || 0;
+      const totalFiado = Number((session as any)?.total_fiado) || 0;
       const totalWithdrawals = Number(session?.total_withdrawals) || 0;
 
       const expectedCash = openingBalance + totalCash + reinforcements - totalWithdrawals;
@@ -212,6 +213,7 @@ export function usePDVCashier() {
       const voucherDiff = declaredVoucher != null ? declaredVoucher - totalVoucher : null;
       const onlineDiff = declaredOnlineDelivery != null ? declaredOnlineDelivery - totalOnlineDelivery : null;
       const otherDiff = declaredOther != null ? declaredOther - totalOther : null;
+      const fiadoDiff = declaredFiado != null ? declaredFiado - totalFiado : null;
 
       const differenceJustified = !!(
         justifications.cash ||
