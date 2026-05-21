@@ -379,6 +379,7 @@ export default function PDVCashier() {
             totalPix={totalPix}
             totalVoucher={totalVoucher}
             totalOnlineDelivery={totalOnlineDelivery}
+            totalFiado={totalFiado}
             totalSales={totalSales}
             isOpen={!!activeSession}
           />
