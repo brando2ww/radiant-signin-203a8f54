@@ -1,4 +1,4 @@
-import { Banknote, CreditCard, Smartphone, TrendingDown, TrendingUp, Wallet, Ticket, Receipt, Globe } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, TrendingDown, TrendingUp, Wallet, Ticket, Receipt, Globe, UserCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatBRL } from "@/lib/format";
 
