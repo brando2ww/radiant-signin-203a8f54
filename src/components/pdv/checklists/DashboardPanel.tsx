@@ -76,7 +76,7 @@ export function DashboardPanel({ onNavigate, onQrOpen, onGenerateDaily, isGenera
     <div className="space-y-4">
       {/* Top bar: date + shortcuts */}
       <div className="flex flex-wrap items-center gap-3">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+        <Input type="date" value={date} onChange={(e) => handleDateChange(e.target.value)} className="w-44" />
         {unacknowledgedAlerts.length > 0 && (
           <Badge variant="destructive">{unacknowledgedAlerts.length} alerta(s)</Badge>
         )}
