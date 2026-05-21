@@ -457,7 +457,7 @@ export function CloseCashierDialog({
   const [declaredPix, setDeclaredPix] = useState("");
   const [declaredVoucher, setDeclaredVoucher] = useState("");
   
-  const [declaredOther, setDeclaredOther] = useState("");
+  
   const [declaredFiado, setDeclaredFiado] = useState("");
 
   // Etapa 2 — justificativas por meio
