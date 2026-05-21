@@ -571,9 +571,9 @@ export function CloseCashierDialog({
         declaredDebit: parseN(declaredDebit),
         declaredPix: parseN(declaredPix),
         declaredVoucher: parseN(declaredVoucher),
-        declaredOnlineDelivery: declaredOnline !== "" ? parseN(declaredOnline) : null,
-        declaredOther: declaredOther !== "" ? parseN(declaredOther) : null,
-        declaredFiado: declaredFiado !== "" ? parseN(declaredFiado) : null,
+        declaredOnlineDelivery: parseN(declaredOnline),
+        declaredOther: parseN(declaredOther),
+        declaredFiado: parseN(declaredFiado),
         declaredTotal: blindTotal,
       });
       setStep("review");
