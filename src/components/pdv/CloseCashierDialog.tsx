@@ -552,13 +552,15 @@ export function CloseCashierDialog({
     declaredPix !== "" &&
     declaredVoucher !== "" &&
     (totalOnlineDelivery <= 0 || declaredOnline !== "") &&
-    (totalOther <= 0 || declaredOther !== "");
+    (totalOther <= 0 || declaredOther !== "") &&
+    (totalFiado <= 0 || declaredFiado !== "");
 
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
     (declaredOnline !== "" ? parseN(declaredOnline) : 0) +
-    (declaredOther !== "" ? parseN(declaredOther) : 0);
+    (declaredOther !== "" ? parseN(declaredOther) : 0) +
+    (declaredFiado !== "" ? parseN(declaredFiado) : 0);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
@@ -572,6 +574,7 @@ export function CloseCashierDialog({
         declaredVoucher: parseN(declaredVoucher),
         declaredOnlineDelivery: declaredOnline !== "" ? parseN(declaredOnline) : null,
         declaredOther: declaredOther !== "" ? parseN(declaredOther) : null,
+        declaredFiado: declaredFiado !== "" ? parseN(declaredFiado) : null,
         declaredTotal: blindTotal,
       });
       setStep("review");
