@@ -95,13 +95,13 @@ export default function EmployeeConsumptionAdmin() {
     <div className="container mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Consumo de Funcionários</h1>
+          <h1 className="text-2xl font-bold">Venda a Prazo</h1>
           <p className="text-sm text-muted-foreground">
-            Gerencie funcionários autorizados e acompanhe o fiado interno.
+            Gerencie clientes autorizados e acompanhe o fiado.
           </p>
         </div>
         <Button onClick={handleNew} className="gap-2">
-          <Plus className="h-4 w-4" /> Novo funcionário
+          <Plus className="h-4 w-4" /> Novo cliente
         </Button>
       </div>
 
