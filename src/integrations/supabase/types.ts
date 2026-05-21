@@ -1702,8 +1702,10 @@ export type Database = {
       }
       delivery_orders: {
         Row: {
+          cancellation_category: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
+          cancelled_by_user_id: string | null
           cashier_confirmed_at: string | null
           cashier_session_id: string | null
           change_for: number | null
@@ -1713,6 +1715,7 @@ export type Database = {
           customer_delivery_confirmed_at: string | null
           customer_id: string
           customer_name: string
+          customer_notified: boolean
           customer_phone: string
           delivered_at: string | null
           delivery_address_id: string | null
@@ -1737,8 +1740,10 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancellation_category?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
           cashier_confirmed_at?: string | null
           cashier_session_id?: string | null
           change_for?: number | null
@@ -1748,6 +1753,7 @@ export type Database = {
           customer_delivery_confirmed_at?: string | null
           customer_id: string
           customer_name: string
+          customer_notified?: boolean
           customer_phone: string
           delivered_at?: string | null
           delivery_address_id?: string | null
@@ -1772,8 +1778,10 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cancellation_category?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
           cashier_confirmed_at?: string | null
           cashier_session_id?: string | null
           change_for?: number | null
@@ -1783,6 +1791,7 @@ export type Database = {
           customer_delivery_confirmed_at?: string | null
           customer_id?: string
           customer_name?: string
+          customer_notified?: boolean
           customer_phone?: string
           delivered_at?: string | null
           delivery_address_id?: string | null

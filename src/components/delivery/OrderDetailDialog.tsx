@@ -29,18 +29,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { OrderStatusBadge } from "./OrderStatusBadge";
 import { useState } from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { formatBRL } from "@/lib/format";
+import { CancelOrderDialog } from "@/components/pdv/cashier/CancelOrderDialog";
+import { getCancelCategoryLabel } from "@/lib/cancel-reasons";
 
 interface OrderDetailDialogProps {
   open: boolean;
@@ -70,7 +61,6 @@ export const OrderDetailDialog = ({
   order,
 }: OrderDetailDialogProps) => {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
   const reprintOrder = useReprintOrder();
@@ -82,22 +72,6 @@ export const OrderDetailDialog = ({
     if (nextStatus) {
       updateStatus.mutate({ id: order.id, status: nextStatus as any });
     }
-  };
-
-  const handleCancel = () => {
-    cancelOrder.mutate(
-      { id: order.id, reason: cancelReason },
-      {
-        onSuccess: () => {
-          setIsCancelDialogOpen(false);
-          setCancelReason("");
-          // Defer fechamento do dialog principal para evitar travamento de pointer-events
-          setTimeout(() => {
-            onOpenChange(false);
-          }, 0);
-        },
-      }
-    );
   };
 
   const handleWhatsApp = () => {
@@ -312,9 +286,17 @@ export const OrderDetailDialog = ({
                         locale: ptBR,
                       })}
                     </p>
+                    {order.cancellation_category && (
+                      <p className="text-xs">
+                        Categoria: {getCancelCategoryLabel(order.cancellation_category)}
+                      </p>
+                    )}
                     {order.cancellation_reason && (
                       <p className="text-xs">Motivo: {order.cancellation_reason}</p>
                     )}
+                    <p className="text-xs">
+                      Cliente informado: {order.customer_notified ? "Sim" : "Não"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -359,33 +341,31 @@ export const OrderDetailDialog = ({
         </DialogContent>
       </Dialog>
 
-      {/* Cancel Dialog */}
-      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Pedido</AlertDialogTitle>
-            <AlertDialogDescription>
-              Informe o motivo do cancelamento do pedido {order.order_number}:
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="Ex: Cliente desistiu, produto indisponível..."
-            rows={3}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel>Voltar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancel}
-              disabled={!cancelReason.trim() || cancelOrder.isPending}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              Confirmar Cancelamento
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <CancelOrderDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+        resourceLabel="Pedido"
+        isLoading={cancelOrder.isPending}
+        summary={{
+          reference: `Pedido #${order.order_number}`,
+          title: order.customer_name,
+          itemsCount: order.delivery_order_items?.reduce(
+            (s, i) => s + (i.quantity || 0),
+            0,
+          ),
+          total: Number(order.total),
+        }}
+        onConfirm={async ({ reason, category, customerNotified }) => {
+          await cancelOrder.mutateAsync({
+            id: order.id,
+            reason,
+            category,
+            customerNotified,
+          });
+          setIsCancelDialogOpen(false);
+          setTimeout(() => onOpenChange(false), 0);
+        }}
+      />
     </>
   );
 };
