@@ -62,7 +62,6 @@ export const OrderDetailDialog = ({
   order,
 }: OrderDetailDialogProps) => {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
   const reprintOrder = useReprintOrder();
@@ -74,22 +73,6 @@ export const OrderDetailDialog = ({
     if (nextStatus) {
       updateStatus.mutate({ id: order.id, status: nextStatus as any });
     }
-  };
-
-  const handleCancel = () => {
-    cancelOrder.mutate(
-      { id: order.id, reason: cancelReason },
-      {
-        onSuccess: () => {
-          setIsCancelDialogOpen(false);
-          setCancelReason("");
-          // Defer fechamento do dialog principal para evitar travamento de pointer-events
-          setTimeout(() => {
-            onOpenChange(false);
-          }, 0);
-        },
-      }
-    );
   };
 
   const handleWhatsApp = () => {
