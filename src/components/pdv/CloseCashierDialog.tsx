@@ -467,6 +467,7 @@ export function CloseCashierDialog({
   const [justVoucher, setJustVoucher] = useState("");
   const [justOnline, setJustOnline] = useState("");
   const [justOther, setJustOther] = useState("");
+  const [justFiado, setJustFiado] = useState("");
   const [notes, setNotes] = useState("");
 
   const queryClient = useQueryClient();
