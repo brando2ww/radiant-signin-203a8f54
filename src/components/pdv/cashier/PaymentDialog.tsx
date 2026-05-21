@@ -639,6 +639,7 @@ export function PaymentDialog({
 
     await registerCreditSale({
       employee_id: payload.employee_id,
+      employee_name: payload.employee_name,
       comanda_ids: comandaIds,
       order_id: orderId,
       amount: finalAmount,
