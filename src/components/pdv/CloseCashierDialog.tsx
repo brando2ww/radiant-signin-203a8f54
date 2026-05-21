@@ -214,6 +214,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
       debito: "Débito",
       pix: "PIX",
       vale_refeicao: "VR",
+      fiado: "À Prazo",
     };
     const method = m.payment_method ? methodMap[m.payment_method] || m.payment_method : "";
     return `<tr>
