@@ -46,12 +46,18 @@ export default function NPSDetailDialog({ category, evaluations, onClose }: Prop
       if (category === "neutrals") return e.nps_score >= 7 && e.nps_score <= 8;
       return e.nps_score <= 6;
     });
-    if (!search.trim()) return list;
-    const term = search.toLowerCase();
-    return list.filter(e =>
-      e.customer_name.toLowerCase().includes(term) ||
-      e.customer_whatsapp.includes(term)
-    );
+    const term = search.trim().toLowerCase();
+    const searched = term
+      ? list.filter(e =>
+          e.customer_name.toLowerCase().includes(term) ||
+          e.customer_whatsapp.includes(term)
+        )
+      : list;
+    return [...searched].sort((a, b) => {
+      const da = a.evaluation_date || a.created_at;
+      const db = b.evaluation_date || b.created_at;
+      return db.localeCompare(da);
+    });
   }, [category, evaluations, search]);
 
   const handleViewClient = (evaluation: EvaluationWithAnswers) => {

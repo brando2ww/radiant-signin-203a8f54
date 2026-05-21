@@ -18,6 +18,7 @@ interface Props {
   totalCoupons: number;
   redeemedCoupons: number;
   onNpsClick?: (category: "promoters" | "neutrals" | "detractors" | "all") => void;
+  onTotalResponsesClick?: () => void;
 }
 
 function ClickableCard({
@@ -55,7 +56,7 @@ function ClickableCard({
 export default function DashboardKPICards({
   totalResponses, nps, avgSatisfaction, activeCampaigns, totalCampaigns,
   promoters, neutrals, detractors, totalNpsVotes,
-  birthdayCount, uniqueCustomers, totalCoupons, redeemedCoupons, onNpsClick,
+  birthdayCount, uniqueCustomers, totalCoupons, redeemedCoupons, onNpsClick, onTotalResponsesClick,
 }: Props) {
   const npsColor = nps >= 50 ? "text-emerald-600" : nps >= 0 ? "text-amber-600" : "text-destructive";
   const pct = (v: number) => totalNpsVotes > 0 ? ((v / totalNpsVotes) * 100).toFixed(1) : "0";
@@ -138,7 +139,18 @@ export default function DashboardKPICards({
 
       {/* Row 3: Funnel metrics */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-        <ClickableCard to="/pdv/avaliacoes/relatorios/por-pergunta">
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => onTotalResponsesClick?.()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onTotalResponsesClick?.();
+            }
+          }}
+          className="cursor-pointer transition-all hover:shadow-md hover:border-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 mb-1">
               <Users className="h-4 w-4 text-muted-foreground" />
@@ -146,7 +158,7 @@ export default function DashboardKPICards({
             </div>
             <p className="text-2xl font-bold">{totalResponses}</p>
           </CardContent>
-        </ClickableCard>
+        </Card>
         <ClickableCard to="/pdv/avaliacoes/clientes/gestao">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2 mb-1">

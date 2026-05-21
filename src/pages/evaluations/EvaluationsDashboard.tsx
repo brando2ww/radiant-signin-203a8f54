@@ -153,6 +153,7 @@ export default function EvaluationsDashboard() {
         totalCoupons={couponData?.totalCoupons || 0}
         redeemedCoupons={couponData?.redeemedCoupons || 0}
         onNpsClick={setNpsFilter}
+        onTotalResponsesClick={() => setNpsFilter("all")}
       />
 
       <NPSDetailDialog
