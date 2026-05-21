@@ -76,8 +76,9 @@ import { useNFCeEmission } from "@/hooks/use-nfce-emission";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { printNonFiscalReceipt, printDanfeFromUrl } from "@/lib/print-fiscal-receipt";
 import { formatTableLabel } from "@/utils/formatTableNumber";
-import { useAuthorizedEmployees } from "@/hooks/use-authorized-employees";
+
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
+import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
 import { formatBRL } from "@/lib/format";
 
 interface PaymentDialogProps {
@@ -133,15 +134,13 @@ export function PaymentDialog({
   const { user } = useAuth();
   
   // Payment state
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | "fiado">("dinheiro");
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("dinheiro");
   const [cardType, setCardType] = useState<CardType>("credito");
   const [cashReceived, setCashReceived] = useState("");
   const [installments, setInstallments] = useState("1");
 
-  // Venda a Prazo (fiado)
-  const [creditEmployeeId, setCreditEmployeeId] = useState<string>("");
-  const [creditEmployeeSearch, setCreditEmployeeSearch] = useState("");
-  const [creditJustification, setCreditJustification] = useState("");
+  // Venda a Prazo (fiado) — fluxo isolado em modal de autorização
+  const [creditAuthOpen, setCreditAuthOpen] = useState(false);
   
   // Discount & fees — fluxo guiado em 4 etapas
   type DiscountStage = "idle" | "typing" | "confirming" | "applied";
@@ -203,7 +202,7 @@ export function PaymentDialog({
   const { products: productsList } = usePDVProducts();
   const { emitNFCe, isEmitting } = useNFCeEmission();
   const { settings } = usePDVSettings();
-  const { employees: authorizedEmployees } = useAuthorizedEmployees();
+  
   const { registerCreditSale, isRegisteringCreditSale } = useEmployeeConsumption();
 
   // Configuração global da taxa de serviço (vem das pdv_settings)
@@ -400,25 +399,11 @@ export function PaymentDialog({
   const hasByProductSelection = isByProduct && selectedItemQtys.size > 0 && selectedSubtotal > 0;
   const byProductBlocks = chargeMode === "by-product" && (!supportsByProduct || !hasByProductSelection);
 
-  // Venda a Prazo — validação
-  const selectedCreditEmployee = authorizedEmployees.find((e) => e.id === creditEmployeeId) || null;
-  const creditCurrentDebt = selectedCreditEmployee?.balance || 0;
-  const creditNewDebt = creditCurrentDebt + total;
-  const creditOverLimit =
-    !!selectedCreditEmployee &&
-    selectedCreditEmployee.credit_limit > 0 &&
-    creditNewDebt > selectedCreditEmployee.credit_limit;
-  const creditNeedsJustification = creditOverLimit && creditJustification.trim().length < 10;
-  const creditBlocks = selectedMethod === "fiado"
-    && (splitEnabled || !selectedCreditEmployee || creditNeedsJustification || total <= 0);
-
-  const canSubmit = !discountInProgress && !byProductBlocks && !creditBlocks
+  const canSubmit = !discountInProgress && !byProductBlocks
     && !simpleChangeExceedsDrawer && !splitCashChangeExceeds
     && (splitEnabled
       ? Math.abs(splitRemaining) < 0.01 && splitPayments.length > 0
-      : selectedMethod === "fiado"
-        ? true
-        : (selectedMethod !== "dinheiro" || cashReceivedNum >= total));
+      : (selectedMethod !== "dinheiro" || cashReceivedNum >= total));
 
   // Reset state + adquirir lock em_cobranca quando o dialog abre.
   useEffect(() => {
@@ -427,9 +412,7 @@ export function PaymentDialog({
       setCardType("credito");
       setCashReceived("");
       setInstallments("1");
-      setCreditEmployeeId("");
-      setCreditEmployeeSearch("");
-      setCreditJustification("");
+      setCreditAuthOpen(false);
       setDiscountStage("idle");
       setDiscountTypeChosen(null);
       setDiscountValue("");
@@ -628,13 +611,10 @@ export function PaymentDialog({
     setSelectedItemQtys(new Map());
   };
 
-  const handleSubmitCreditSale = async (finalAmount: number) => {
-    if (!selectedCreditEmployee) {
-      toast.error("Selecione o cliente para a venda a prazo");
-      return;
-    }
-    if (creditNeedsJustification) {
-      toast.error("Informe uma justificativa (mín. 10 caracteres) para exceder o limite");
+  const handleCreditSaleConfirm = async (payload: CreditSaleAuthPayload) => {
+    const finalAmount = total;
+    if (finalAmount <= 0) {
+      toast.error("Valor inválido para venda a prazo");
       return;
     }
 
@@ -658,15 +638,16 @@ export function PaymentDialog({
     }
 
     await registerCreditSale({
-      employee_id: selectedCreditEmployee.id,
+      employee_id: payload.employee_id,
       comanda_ids: comandaIds,
       order_id: orderId,
       amount: finalAmount,
       items: itemsSnapshot,
-      justification: creditOverLimit ? creditJustification.trim() : null,
+      justification: payload.justification,
     });
 
     paymentDoneRef.current = true;
+    setCreditAuthOpen(false);
     setSuccessData({ change: 0 });
     setShowSuccess(true);
   };
@@ -675,12 +656,6 @@ export function PaymentDialog({
     if (isProcessing) return;
     try {
       const finalAmount = total;
-
-      // Branch dedicado: Venda a Prazo (fiado)
-      if (selectedMethod === "fiado") {
-        await handleSubmitCreditSale(finalAmount);
-        return;
-      }
 
       // Mapeia "cartao" + cardType para credito/debito (granularidade exigida pela conferência do fechamento)
       const resolvedMethod: PaymentMethod =
@@ -1914,146 +1889,26 @@ export function PaymentDialog({
                         )}
                       </Button>
                     ))}
-                    {/* À Prazo (fiado) */}
+                    {/* À Prazo (fiado) — abre modal de autorização */}
                     <Button
                       type="button"
                       variant="outline"
-                      className={cn(
-                        "h-20 flex-col gap-2 relative overflow-hidden",
-                        selectedMethod === "fiado" &&
-                          "border-primary bg-primary/10 ring-2 ring-primary/20"
-                      )}
-                      onClick={() => setSelectedMethod("fiado")}
-                      disabled={splitEnabled}
-                      title={splitEnabled ? "Indisponível em pagamento dividido" : undefined}
+                      className="h-20 flex-col gap-2 relative overflow-hidden"
+                      onClick={() => setCreditAuthOpen(true)}
+                      disabled={splitEnabled || total <= 0}
+                      title={
+                        splitEnabled
+                          ? "Indisponível em pagamento dividido"
+                          : total <= 0
+                            ? "Valor inválido"
+                            : "Lançar como saldo devedor de um cliente"
+                      }
                     >
-                      <UserCheck
-                        className={cn(
-                          "h-6 w-6 transition-colors",
-                          selectedMethod === "fiado"
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        )}
-                      />
+                      <UserCheck className="h-6 w-6 text-muted-foreground" />
                       <span className="text-xs font-medium">À Prazo</span>
-                      {selectedMethod === "fiado" && (
-                        <motion.div
-                          layoutId="payment-indicator"
-                          className="absolute bottom-0 left-0 right-0 h-1 bg-primary"
-                        />
-                      )}
                     </Button>
                   </div>
 
-                  {/* Venda a Prazo */}
-                  {selectedMethod === "fiado" && (
-                    <div className="space-y-3">
-                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                        O valor de <span className="font-semibold text-foreground">{formatCurrency(total)}</span> será
-                        lançado como saldo devedor do cliente. Nenhum dinheiro entra no caixa agora —
-                        a quitação acontece em <span className="font-medium text-foreground">Venda a Prazo</span>.
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Cliente</Label>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Buscar cliente cadastrado..."
-                            value={creditEmployeeSearch}
-                            onChange={(e) => setCreditEmployeeSearch(e.target.value)}
-                            className="pl-9"
-                          />
-                        </div>
-                        <ScrollArea className="h-[180px] border rounded-md">
-                          <div className="p-1">
-                            {authorizedEmployees
-                              .filter((e) => e.is_active)
-                              .filter((e) =>
-                                !creditEmployeeSearch ||
-                                e.full_name.toLowerCase().includes(creditEmployeeSearch.toLowerCase()),
-                              )
-                              .slice(0, 50)
-                              .map((emp) => {
-                                const isSel = emp.id === creditEmployeeId;
-                                const debt = emp.balance || 0;
-                                return (
-                                  <button
-                                    key={emp.id}
-                                    type="button"
-                                    onClick={() => setCreditEmployeeId(emp.id)}
-                                    className={cn(
-                                      "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
-                                      isSel
-                                        ? "bg-primary/10 text-foreground"
-                                        : "hover:bg-muted",
-                                    )}
-                                  >
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-medium truncate">{emp.full_name}</p>
-                                      <p className="text-xs text-muted-foreground truncate">
-                                        Saldo devedor: {formatBRL(debt)}
-                                        {emp.credit_limit > 0 && ` · Limite ${formatBRL(emp.credit_limit)}`}
-                                      </p>
-                                    </div>
-                                    {isSel && <Check className="h-4 w-4 text-primary" />}
-                                  </button>
-                                );
-                              })}
-                            {authorizedEmployees.filter((e) => e.is_active).length === 0 && (
-                              <p className="text-sm text-muted-foreground text-center py-6">
-                                Nenhum cliente cadastrado em Venda a Prazo.
-                              </p>
-                            )}
-                          </div>
-                        </ScrollArea>
-                      </div>
-
-                      {selectedCreditEmployee && (
-                        <div className="rounded-md border p-3 text-sm space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Saldo atual</span>
-                            <span className="tabular-nums">{formatBRL(creditCurrentDebt)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Esta venda</span>
-                            <span className="tabular-nums">{formatBRL(total)}</span>
-                          </div>
-                          <Separator className="my-1" />
-                          <div className="flex justify-between font-semibold">
-                            <span>Novo saldo</span>
-                            <span className={cn("tabular-nums", creditOverLimit && "text-destructive")}>
-                              {formatBRL(creditNewDebt)}
-                            </span>
-                          </div>
-                          {selectedCreditEmployee.credit_limit > 0 && (
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Limite</span>
-                              <span className="tabular-nums">{formatBRL(selectedCreditEmployee.credit_limit)}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {creditOverLimit && (
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                            <div>
-                              <strong>Limite excedido</strong> — informe uma justificativa para
-                              autorizar a venda a prazo acima do limite.
-                            </div>
-                          </div>
-                          <Textarea
-                            placeholder="Justificativa (mín. 10 caracteres)"
-                            value={creditJustification}
-                            onChange={(e) => setCreditJustification(e.target.value)}
-                            rows={3}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
 
 
                   {/* Cash Fields */}
@@ -2459,6 +2314,14 @@ export function PaymentDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <CreditSaleAuthDialog
+      open={creditAuthOpen}
+      onOpenChange={setCreditAuthOpen}
+      total={total}
+      isProcessing={isRegisteringCreditSale}
+      onConfirm={handleCreditSaleConfirm}
+    />
     </>
   );
 }
