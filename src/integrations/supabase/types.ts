@@ -2843,6 +2843,45 @@ export type Database = {
         }
         Relationships: []
       }
+      pdv_authorized_employees: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          credit_limit: number
+          full_name: string
+          id: string
+          internal_notes: string | null
+          is_active: boolean
+          role_title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          credit_limit?: number
+          full_name: string
+          id?: string
+          internal_notes?: string | null
+          is_active?: boolean
+          role_title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          credit_limit?: number
+          full_name?: string
+          id?: string
+          internal_notes?: string | null
+          is_active?: boolean
+          role_title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pdv_bank_accounts: {
         Row: {
           account_number: string | null
@@ -3682,6 +3721,103 @@ export type Database = {
             columns: ["comanda_id"]
             isOneToOne: false
             referencedRelation: "pdv_comandas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_employee_consumption_entries: {
+        Row: {
+          comanda_id: string | null
+          created_at: string
+          employee_id: string
+          id: string
+          items: Json
+          operator_id: string | null
+          over_limit_justification: string | null
+          paid_amount: number
+          status: string
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          comanda_id?: string | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          items?: Json
+          operator_id?: string | null
+          over_limit_justification?: string | null
+          paid_amount?: number
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          comanda_id?: string | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          items?: Json
+          operator_id?: string | null
+          over_limit_justification?: string | null
+          paid_amount?: number
+          status?: string
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_employee_consumption_entries_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_authorized_employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_employee_consumption_payments: {
+        Row: {
+          amount: number
+          cashier_session_id: string | null
+          created_at: string
+          employee_id: string
+          id: string
+          notes: string | null
+          operator_id: string | null
+          payment_method: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          cashier_session_id?: string | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          notes?: string | null
+          operator_id?: string | null
+          payment_method?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          cashier_session_id?: string | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          notes?: string | null
+          operator_id?: string | null
+          payment_method?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_employee_consumption_payments_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_authorized_employees"
             referencedColumns: ["id"]
           },
         ]
@@ -7474,7 +7610,15 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: undefined
       }
+      pdv_register_employee_consumption: {
+        Args: { p_employee_id: string; p_items: Json; p_justification?: string }
+        Returns: Json
+      }
       pdv_resolve_owner: { Args: { _user_id: string }; Returns: string }
+      pdv_settle_employee_consumption: {
+        Args: { p_amount: number; p_employee_id: string; p_session_id?: string }
+        Returns: Json
+      }
       pdv_split_comanda_item: {
         Args: { p_item_id: string; p_qty: number }
         Returns: string
