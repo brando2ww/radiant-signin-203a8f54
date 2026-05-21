@@ -221,7 +221,7 @@ export default function EmployeeConsumptionAdmin() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setStatementEmp(emp)}>
+                            <DropdownMenuItem onClick={() => setTimeout(() => setStatementEmp(emp), 0)}>
                               <FileText className="h-4 w-4 mr-2" /> Extrato
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(emp)}>
