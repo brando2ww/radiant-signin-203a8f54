@@ -151,18 +151,31 @@ export function EvidenceGallery() {
           <EvidenceAttentionSection evidence={evidence} onView={openLightboxForItem} />
 
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {evidence.map((item, idx) => (
-                <EvidenceGridCard
-                  key={item.executionItemId}
-                  item={item}
-                  onView={() => setLightboxIndex(idx)}
-                  onApprove={() => handleReview(item.executionItemId, "aprovado")}
-                  onReject={() => handleReview(item.executionItemId, "reprovado")}
-                />
+            <div className="space-y-6">
+              {groupedByDate.map(group => (
+                <section key={group.date || "sem-data"} className="space-y-2">
+                  <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-1.5 border-b">
+                    <h3 className="text-sm font-semibold text-foreground">{formatDateHeader(group.date)}</h3>
+                    <span className="text-xs text-muted-foreground">
+                      {group.items.length} {group.items.length === 1 ? "foto" : "fotos"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {group.items.map(({ item, index }) => (
+                      <EvidenceGridCard
+                        key={item.executionItemId}
+                        item={item}
+                        onView={() => setLightboxIndex(index)}
+                        onApprove={() => handleReview(item.executionItemId, "aprovado")}
+                        onReject={() => handleReview(item.executionItemId, "reprovado")}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : (
+
             <EvidenceListView
               evidence={evidence}
               onView={idx => setLightboxIndex(idx)}
