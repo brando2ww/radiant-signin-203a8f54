@@ -1889,146 +1889,26 @@ export function PaymentDialog({
                         )}
                       </Button>
                     ))}
-                    {/* À Prazo (fiado) */}
+                    {/* À Prazo (fiado) — abre modal de autorização */}
                     <Button
                       type="button"
                       variant="outline"
-                      className={cn(
-                        "h-20 flex-col gap-2 relative overflow-hidden",
-                        selectedMethod === "fiado" &&
-                          "border-primary bg-primary/10 ring-2 ring-primary/20"
-                      )}
-                      onClick={() => setSelectedMethod("fiado")}
-                      disabled={splitEnabled}
-                      title={splitEnabled ? "Indisponível em pagamento dividido" : undefined}
+                      className="h-20 flex-col gap-2 relative overflow-hidden"
+                      onClick={() => setCreditAuthOpen(true)}
+                      disabled={splitEnabled || total <= 0}
+                      title={
+                        splitEnabled
+                          ? "Indisponível em pagamento dividido"
+                          : total <= 0
+                            ? "Valor inválido"
+                            : "Lançar como saldo devedor de um cliente"
+                      }
                     >
-                      <UserCheck
-                        className={cn(
-                          "h-6 w-6 transition-colors",
-                          selectedMethod === "fiado"
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        )}
-                      />
+                      <UserCheck className="h-6 w-6 text-muted-foreground" />
                       <span className="text-xs font-medium">À Prazo</span>
-                      {selectedMethod === "fiado" && (
-                        <motion.div
-                          layoutId="payment-indicator"
-                          className="absolute bottom-0 left-0 right-0 h-1 bg-primary"
-                        />
-                      )}
                     </Button>
                   </div>
 
-                  {/* Venda a Prazo */}
-                  {selectedMethod === "fiado" && (
-                    <div className="space-y-3">
-                      <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                        O valor de <span className="font-semibold text-foreground">{formatCurrency(total)}</span> será
-                        lançado como saldo devedor do cliente. Nenhum dinheiro entra no caixa agora —
-                        a quitação acontece em <span className="font-medium text-foreground">Venda a Prazo</span>.
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Cliente</Label>
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Buscar cliente cadastrado..."
-                            value={creditEmployeeSearch}
-                            onChange={(e) => setCreditEmployeeSearch(e.target.value)}
-                            className="pl-9"
-                          />
-                        </div>
-                        <ScrollArea className="h-[180px] border rounded-md">
-                          <div className="p-1">
-                            {authorizedEmployees
-                              .filter((e) => e.is_active)
-                              .filter((e) =>
-                                !creditEmployeeSearch ||
-                                e.full_name.toLowerCase().includes(creditEmployeeSearch.toLowerCase()),
-                              )
-                              .slice(0, 50)
-                              .map((emp) => {
-                                const isSel = emp.id === creditEmployeeId;
-                                const debt = emp.balance || 0;
-                                return (
-                                  <button
-                                    key={emp.id}
-                                    type="button"
-                                    onClick={() => setCreditEmployeeId(emp.id)}
-                                    className={cn(
-                                      "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors",
-                                      isSel
-                                        ? "bg-primary/10 text-foreground"
-                                        : "hover:bg-muted",
-                                    )}
-                                  >
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-medium truncate">{emp.full_name}</p>
-                                      <p className="text-xs text-muted-foreground truncate">
-                                        Saldo devedor: {formatBRL(debt)}
-                                        {emp.credit_limit > 0 && ` · Limite ${formatBRL(emp.credit_limit)}`}
-                                      </p>
-                                    </div>
-                                    {isSel && <Check className="h-4 w-4 text-primary" />}
-                                  </button>
-                                );
-                              })}
-                            {authorizedEmployees.filter((e) => e.is_active).length === 0 && (
-                              <p className="text-sm text-muted-foreground text-center py-6">
-                                Nenhum cliente cadastrado em Venda a Prazo.
-                              </p>
-                            )}
-                          </div>
-                        </ScrollArea>
-                      </div>
-
-                      {selectedCreditEmployee && (
-                        <div className="rounded-md border p-3 text-sm space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Saldo atual</span>
-                            <span className="tabular-nums">{formatBRL(creditCurrentDebt)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Esta venda</span>
-                            <span className="tabular-nums">{formatBRL(total)}</span>
-                          </div>
-                          <Separator className="my-1" />
-                          <div className="flex justify-between font-semibold">
-                            <span>Novo saldo</span>
-                            <span className={cn("tabular-nums", creditOverLimit && "text-destructive")}>
-                              {formatBRL(creditNewDebt)}
-                            </span>
-                          </div>
-                          {selectedCreditEmployee.credit_limit > 0 && (
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Limite</span>
-                              <span className="tabular-nums">{formatBRL(selectedCreditEmployee.credit_limit)}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {creditOverLimit && (
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
-                            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
-                            <div>
-                              <strong>Limite excedido</strong> — informe uma justificativa para
-                              autorizar a venda a prazo acima do limite.
-                            </div>
-                          </div>
-                          <Textarea
-                            placeholder="Justificativa (mín. 10 caracteres)"
-                            value={creditJustification}
-                            onChange={(e) => setCreditJustification(e.target.value)}
-                            rows={3}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
 
 
                   {/* Cash Fields */}
