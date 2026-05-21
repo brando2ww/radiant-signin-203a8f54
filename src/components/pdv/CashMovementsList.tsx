@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, CreditCard, Smartphone, Ticket } from "lucide-react";
+import { DollarSign, CreditCard, Smartphone, Ticket, UserCheck } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 
 type PaymentMethodKey =
@@ -18,7 +18,8 @@ type PaymentMethodKey =
   | "credito"
   | "debito"
   | "pix"
-  | "vale_refeicao";
+  | "vale_refeicao"
+  | "fiado";
 
 interface Movement {
   id: string;
@@ -41,6 +42,7 @@ const PAYMENT_METHOD_CONFIG: Record<PaymentMethodKey, { label: string; icon: typ
   debito: { label: "Débito", icon: CreditCard },
   pix: { label: "PIX", icon: Smartphone },
   vale_refeicao: { label: "Vale-refeição", icon: Ticket },
+  fiado: { label: "À Prazo", icon: UserCheck },
 };
 
 export function CashMovementsList({ movements }: CashMovementsListProps) {
