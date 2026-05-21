@@ -19,6 +19,7 @@ import PublicTasks from "./pages/PublicTasks";
 import PublicChecklistAccess from "./pages/PublicChecklistAccess";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
 import NotFound from "./pages/NotFound";
+import { RadixBodyUnlock } from "@/components/RadixBodyUnlock";
 
 const queryClient = new QueryClient();
 
