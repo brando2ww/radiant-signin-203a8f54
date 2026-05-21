@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Image as ImageIcon } from "lucide-react";
 import { useEvidenceGallery, useReviewEvidence, type EvidenceItem, type EvidenceFilters } from "@/hooks/use-checklist-evidence";
 import { toast } from "@/hooks/use-toast";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { format, isToday, isYesterday, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 import { EvidenceOverview } from "./evidence/EvidenceOverview";
 import { EvidenceFiltersBar } from "./evidence/EvidenceFilters";
@@ -12,6 +14,19 @@ import { EvidenceGridCard } from "./evidence/EvidenceGridCard";
 import { EvidenceLightbox } from "./evidence/EvidenceLightbox";
 import { EvidenceListView } from "./evidence/EvidenceListView";
 import { EvidenceAttentionSection } from "./evidence/EvidenceAttentionSection";
+
+function formatDateHeader(dateStr: string): string {
+  if (!dateStr) return "Sem data";
+  try {
+    const d = parseISO(dateStr);
+    if (isToday(d)) return "Hoje";
+    if (isYesterday(d)) return "Ontem";
+    return format(d, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  } catch {
+    return dateStr;
+  }
+}
+
 
 export function EvidenceGallery() {
   const [filters, setFilters] = useState<EvidenceFilters>({});
@@ -58,12 +73,21 @@ export function EvidenceGallery() {
         } catch { /* skip */ }
       }
       const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `evidencias_${filters.date || "todas"}.zip`);
+      saveAs(content, `evidencias_${rangeSuffix()}.zip`);
     } catch {
       toast({ title: "Erro ao exportar", variant: "destructive" });
     } finally {
       setExporting(false);
     }
+  };
+
+  const rangeSuffix = () => {
+    const from = filters.dateFrom || filters.date;
+    const to = filters.dateTo || filters.date;
+    if (from && to) return from === to ? from : `${from}_a_${to}`;
+    if (from) return `desde_${from}`;
+    if (to) return `ate_${to}`;
+    return "todas";
   };
 
   const handleExportCsv = () => {
@@ -75,13 +99,28 @@ export function EvidenceGallery() {
         .join(",")
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
-    saveAs(blob, `evidencias_metadados_${filters.date || "todas"}.csv`);
+    saveAs(blob, `evidencias_metadados_${rangeSuffix()}.csv`);
   };
+
 
   const openLightboxForItem = (item: EvidenceItem) => {
     const idx = evidence?.findIndex(e => e.executionItemId === item.executionItemId) ?? -1;
     if (idx >= 0) setLightboxIndex(idx);
   };
+
+  const groupedByDate = useMemo(() => {
+    if (!evidence?.length) return [] as { date: string; items: { item: EvidenceItem; index: number }[] }[];
+    const map = new Map<string, { item: EvidenceItem; index: number }[]>();
+    evidence.forEach((item, index) => {
+      const key = item.executionDate || "";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push({ item, index });
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([date, items]) => ({ date, items }));
+  }, [evidence]);
+
 
   return (
     <div className="space-y-4">
@@ -112,18 +151,31 @@ export function EvidenceGallery() {
           <EvidenceAttentionSection evidence={evidence} onView={openLightboxForItem} />
 
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {evidence.map((item, idx) => (
-                <EvidenceGridCard
-                  key={item.executionItemId}
-                  item={item}
-                  onView={() => setLightboxIndex(idx)}
-                  onApprove={() => handleReview(item.executionItemId, "aprovado")}
-                  onReject={() => handleReview(item.executionItemId, "reprovado")}
-                />
+            <div className="space-y-6">
+              {groupedByDate.map(group => (
+                <section key={group.date || "sem-data"} className="space-y-2">
+                  <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-1.5 border-b">
+                    <h3 className="text-sm font-semibold text-foreground">{formatDateHeader(group.date)}</h3>
+                    <span className="text-xs text-muted-foreground">
+                      {group.items.length} {group.items.length === 1 ? "foto" : "fotos"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {group.items.map(({ item, index }) => (
+                      <EvidenceGridCard
+                        key={item.executionItemId}
+                        item={item}
+                        onView={() => setLightboxIndex(index)}
+                        onApprove={() => handleReview(item.executionItemId, "aprovado")}
+                        onReject={() => handleReview(item.executionItemId, "reprovado")}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           ) : (
+
             <EvidenceListView
               evidence={evidence}
               onView={idx => setLightboxIndex(idx)}

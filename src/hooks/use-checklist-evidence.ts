@@ -28,13 +28,17 @@ export interface EvidenceItem {
 }
 
 export interface EvidenceFilters {
-  date?: string;
+  date?: string; // compat: equivalent to dateFrom=dateTo
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
   sector?: string;
   operatorId?: string;
   checklistId?: string;
   status?: ReviewStatus | "all";
   itemType?: ItemType | "all";
 }
+
 
 export function useEvidenceGallery(filters: EvidenceFilters) {
   const { user } = useAuth();
@@ -54,8 +58,13 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
         .not("photo_url", "is", null)
         .eq("checklist_executions.user_id", user.id);
 
-      if (filters.date) {
-        query = query.eq("checklist_executions.execution_date", filters.date);
+      const from = filters.dateFrom || filters.date;
+      const to = filters.dateTo || filters.date;
+      if (from) {
+        query = query.gte("checklist_executions.execution_date", from);
+      }
+      if (to) {
+        query = query.lte("checklist_executions.execution_date", to);
       }
       if (filters.operatorId) {
         query = query.eq("checklist_executions.operator_id", filters.operatorId);
@@ -64,8 +73,9 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
         query = query.eq("checklist_executions.checklist_id", filters.checklistId);
       }
 
-      const { data, error } = await query.order("id", { ascending: false }).limit(200);
+      const { data, error } = await query.order("id", { ascending: false }).limit(500);
       if (error) throw error;
+
 
       const itemIds = (data || []).map((d: any) => d.id);
       let reviews: Record<string, { status: ReviewStatus; comment: string | null; created_at: string; reviewer_id: string | null }> = {};
@@ -117,11 +127,32 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
         };
       }).filter(Boolean) as EvidenceItem[];
 
+      const term = (filters.search || "").trim().toLowerCase();
+      if (term) {
+        results = results.filter(e =>
+          e.itemTitle.toLowerCase().includes(term) ||
+          e.checklistName.toLowerCase().includes(term) ||
+          e.operatorName.toLowerCase().includes(term) ||
+          (e.reviewComment || "").toLowerCase().includes(term) ||
+          e.sector.toLowerCase().includes(term)
+        );
+      }
+
+      results.sort((a, b) => {
+        if (a.executionDate !== b.executionDate) {
+          return a.executionDate < b.executionDate ? 1 : -1;
+        }
+        const aT = a.completedAt || "";
+        const bT = b.completedAt || "";
+        return aT < bT ? 1 : aT > bT ? -1 : 0;
+      });
+
       return results;
     },
     enabled: !!user?.id,
   });
 }
+
 
 export function useReviewEvidence() {
   const { user } = useAuth();
