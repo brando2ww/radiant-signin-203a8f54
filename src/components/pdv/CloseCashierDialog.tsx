@@ -457,6 +457,7 @@ export function CloseCashierDialog({
   const [declaredVoucher, setDeclaredVoucher] = useState("");
   const [declaredOnline, setDeclaredOnline] = useState("");
   const [declaredOther, setDeclaredOther] = useState("");
+  const [declaredFiado, setDeclaredFiado] = useState("");
 
   // Etapa 2 — justificativas por meio
   const [justCash, setJustCash] = useState("");
