@@ -479,7 +479,7 @@ export function CloseCashierDialog({
     if (!open) {
       setStep("blind");
       setDeclaredCash(""); setDeclaredCredit(""); setDeclaredDebit("");
-      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredOther(""); setDeclaredFiado("");
+      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredFiado("");
       setJustCash(""); setJustCredit(""); setJustDebit(""); setJustPix("");
       setJustVoucher(""); setJustOnline(""); setJustOther(""); setJustFiado(""); setNotes("");
     }
