@@ -73,12 +73,21 @@ export function EvidenceGallery() {
         } catch { /* skip */ }
       }
       const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `evidencias_${filters.date || "todas"}.zip`);
+      saveAs(content, `evidencias_${rangeSuffix()}.zip`);
     } catch {
       toast({ title: "Erro ao exportar", variant: "destructive" });
     } finally {
       setExporting(false);
     }
+  };
+
+  const rangeSuffix = () => {
+    const from = filters.dateFrom || filters.date;
+    const to = filters.dateTo || filters.date;
+    if (from && to) return from === to ? from : `${from}_a_${to}`;
+    if (from) return `desde_${from}`;
+    if (to) return `ate_${to}`;
+    return "todas";
   };
 
   const handleExportCsv = () => {
@@ -90,8 +99,9 @@ export function EvidenceGallery() {
         .join(",")
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
-    saveAs(blob, `evidencias_metadados_${filters.date || "todas"}.csv`);
+    saveAs(blob, `evidencias_metadados_${rangeSuffix()}.csv`);
   };
+
 
   const openLightboxForItem = (item: EvidenceItem) => {
     const idx = evidence?.findIndex(e => e.executionItemId === item.executionItemId) ?? -1;
