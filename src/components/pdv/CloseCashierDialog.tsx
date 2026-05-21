@@ -712,7 +712,6 @@ export function CloseCashierDialog({
                 <BlindInput icon={CreditCard} label="Cartão de Débito" value={declaredDebit} onChange={setDeclaredDebit} />
                 <BlindInput icon={Smartphone} label="PIX" value={declaredPix} onChange={setDeclaredPix} />
                 <BlindInput icon={Ticket} label="Vale-refeição" value={declaredVoucher} onChange={setDeclaredVoucher} />
-                <BlindInput icon={Globe} label="Online (Delivery)" value={declaredOnline} onChange={setDeclaredOnline} />
                 <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
                 <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
               </div>
