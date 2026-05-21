@@ -456,7 +456,7 @@ export function CloseCashierDialog({
   const [declaredDebit, setDeclaredDebit] = useState("");
   const [declaredPix, setDeclaredPix] = useState("");
   const [declaredVoucher, setDeclaredVoucher] = useState("");
-  const [declaredOnline, setDeclaredOnline] = useState("");
+  
   const [declaredOther, setDeclaredOther] = useState("");
   const [declaredFiado, setDeclaredFiado] = useState("");
 
