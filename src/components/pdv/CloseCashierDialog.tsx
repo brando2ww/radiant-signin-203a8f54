@@ -599,16 +599,10 @@ export function CloseCashierDialog({
     { key: "debit", label: "Cartão de Débito", icon: CreditCard, expected: totalDebit, declared: parseN(declaredDebit), justification: justDebit, setJust: setJustDebit },
     { key: "pix", label: "PIX", icon: Smartphone, expected: totalPix, declared: parseN(declaredPix), justification: justPix, setJust: setJustPix },
     { key: "voucher", label: "Vale-refeição", icon: Ticket, expected: totalVoucher, declared: parseN(declaredVoucher), justification: justVoucher, setJust: setJustVoucher },
+    { key: "online", label: "Online (Delivery)", icon: Globe, expected: totalOnlineDelivery, declared: parseN(declaredOnline), justification: justOnline, setJust: setJustOnline },
+    { key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther },
+    { key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado },
   ];
-  if (totalOnlineDelivery > 0 || declaredOnline !== "") {
-    reviewRows.push({ key: "online", label: "Online (Delivery)", icon: Globe, expected: totalOnlineDelivery, declared: parseN(declaredOnline), justification: justOnline, setJust: setJustOnline });
-  }
-  if (totalOther > 0 || declaredOther !== "") {
-    reviewRows.push({ key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther });
-  }
-  if (totalFiado > 0 || declaredFiado !== "") {
-    reviewRows.push({ key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado });
-  }
 
   const rowsWithDiff = reviewRows.filter((r) => Math.abs(r.declared - r.expected) > TOL);
   const allJustified = rowsWithDiff.every((r) => r.justification.trim().length >= MIN_REVIEW_JUSTIFICATION);
