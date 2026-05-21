@@ -210,17 +210,15 @@ export function useEmployeeConsumption(employeeId?: string) {
         const description = params.employee_name
           ? `Venda a prazo — ${params.employee_name}`
           : "Venda a prazo";
-        await supabase.from("pdv_cashier_movements").insert({
-          user_id: ownerId,
+        const { error: mErr } = await supabase.from("pdv_cashier_movements").insert({
           cashier_session_id: activeSession.id,
-          operator_id: user.id,
           type: "venda",
           payment_method: "fiado",
           amount: params.amount,
           description,
           source: "salon",
-          order_id: params.order_id ?? null,
         } as any);
+        if (mErr) throw mErr;
         await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
       }
 
