@@ -1,53 +1,78 @@
-
 ## Objetivo
 
-Ao clicar em **À Prazo** no `PaymentDialog`, abrir um segundo modal dedicado (`CreditSaleAuthDialog`) que exige:
-1. Selecionar o cliente cadastrado (lista atual de `pdv_authorized_employees`).
-2. Digitar a **senha de operador autorizado** (mesma lógica usada hoje no fluxo de desconto).
-3. Justificativa obrigatória se o lançamento estourar o limite de crédito.
+Fazer toda venda lançada como **À Prazo** aparecer:
 
-Hoje o seletor de cliente aparece embutido no `PaymentDialog`. Vamos extraí-lo para um modal separado, espelhando o padrão visual/UX do passo de autorização de desconto.
+1. Na **lista de Movimentações** do caixa (rota `/pdv/caixa`).
+2. No **card "Vendas por forma de pagamento"** como linha `Vendas a Prazo`.
+3. No **demonstrativo impresso** (fechamento de caixa).
 
-## Novo componente
+Hoje a venda a prazo cria `pdv_employee_consumption_entries` + `pdv_payments(method='fiado')`, mas **não** insere nada em `pdv_cashier_movements`, então não soma nos totais da sessão nem aparece na lista de movimentações.
 
-**`src/components/pdv/cashier/CreditSaleAuthDialog.tsx`** (modal):
+## Banco de dados (migration)
 
-- Props: `open`, `onOpenChange`, `total`, `onConfirm(payload)`, `isProcessing`.
-- Conteúdo:
-  - Lista de clientes (`useAuthorizedEmployees`) com busca por nome — UI igual à atual seção inline.
-  - Card do cliente selecionado: saldo atual, limite, novo saldo previsto, badge "Excede limite" quando aplicável.
-  - Campo **Senha do operador** (`type=password`, `inputMode=numeric`) com botão **OK** que:
-    - Consulta `establishment_users` filtrando por `establishment_owner_id` e `is_active`.
-    - Valida `discount_password` (mesma coluna usada no desconto — fonte única de autorização operacional).
-    - Marca autorizado e mostra "Autorizado por {display_name}".
-  - Campo **Justificativa** (Textarea, mín. 10 caracteres) — exibido e obrigatório somente quando `creditNewDebt > credit_limit`.
-- Botões:
-  - **Cancelar** → fecha sem efeito.
-  - **Confirmar Venda a Prazo** (disabled até cliente + senha autorizada + justificativa quando exigida).
-- Ao confirmar, dispara `onConfirm({ employee_id, justification, authorizedBy })`.
+1. `ALTER TABLE pdv_cashier_sessions ADD COLUMN total_fiado numeric NOT NULL DEFAULT 0;`
+2. Recriar `pdv_recompute_session_totals(p_session_id)`:
+   - Adicionar `total_fiado = SUM(CASE WHEN type='venda' AND payment_method='fiado' THEN amount END)`.
+   - Excluir `'fiado'` do filtro de `total_other` (para não duplicar).
+   - `total_sales` continua somando todas as vendas (incluindo fiado).
+3. Backfill: rodar `pdv_recompute_session_totals` para todas as sessões abertas existentes.
 
-## Alterações no `PaymentDialog.tsx`
+> Nota: o constraint de `payment_method` em `pdv_cashier_movements` já aceita `'fiado'` (migration `20260521143812`).
 
-- Remover a seção inline de seleção de cliente / justificativa do método fiado (linhas ~1949-2050 da renderização atual).
-- O botão **À Prazo** deixa de selecionar `selectedMethod` permanentemente: apenas abre `CreditSaleAuthDialog` (`setCreditAuthOpen(true)`).
-- `handleSubmitCreditSale` é chamado a partir do `onConfirm` do novo modal, recebendo os dados do payload. Continua usando `registerCreditSale` do `use-employee-consumption` (sem mudanças no hook nem no banco).
-- Limpar estados `creditEmployeeId`, `creditEmployeeSearch`, justificativa e `selectedMethod` ao fechar o modal/finalizar.
-- `creditBlocks` e o ramo `selectedMethod === "fiado"` em `canSubmit` deixam de ser necessários (a confirmação ocorre dentro do segundo modal).
+## Backend (hook)
+
+**`src/hooks/use-employee-consumption.ts` → `registerCreditSale`**
+
+Depois de criar a entry e fechar a comanda, **inserir um movimento no caixa ativo** (somente se houver sessão aberta):
+
+```ts
+const { data: activeSession } = await supabase
+  .from("pdv_cashier_sessions")
+  .select("id")
+  .eq("user_id", ownerId)
+  .is("closed_at", null)
+  .order("opened_at", { ascending: false })
+  .maybeSingle();
+
+if (activeSession?.id) {
+  await supabase.from("pdv_cashier_movements").insert({
+    user_id: ownerId,
+    cashier_session_id: activeSession.id,
+    operator_id: user.id,
+    type: "venda",
+    payment_method: "fiado",
+    amount: params.amount,
+    description: `Venda a prazo — ${employeeName}`,
+    source: "credit_sale",
+    order_id: params.order_id ?? null,
+  });
+  await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
+}
+```
+
+`employee_name` é recebido via novo parâmetro opcional (`employee_name?: string`) preenchido pelo `PaymentDialog` (já temos `payload.employee_name` no `CreditSaleAuthDialog`).
+
+Invalidações novas no `onSuccess`: `pdv-cashier-movements`, `pdv-cashier-active`.
+
+## Frontend
+
+**`src/components/pdv/cashier/CashierSummaryFooter.tsx`**
+- Nova prop `totalFiado: number`.
+- Linha `<SummaryRow icon={UserCheck} label="Vendas a Prazo" value={totalFiado} />` no grid do bloco 2.
+
+**`src/pages/pdv/Cashier.tsx`**
+- Ler `totalFiado = (activeSession as any)?.total_fiado || 0` e passar ao footer.
+
+**`src/components/pdv/CashMovementsList.tsx`**
+- Estender `PaymentMethodKey` com `"fiado"`.
+- Entrada no `PAYMENT_METHOD_CONFIG`: `fiado: { label: "À Prazo", icon: UserCheck }`.
+
+**`src/components/pdv/CloseCashierDialog.tsx` (impressão)**
+- Ler `totalFiado` da `session`.
+- Adicionar linha `Vendas a Prazo: ${formatBRL(totalFiado)}` na seção pós-conferência, antes do `Total de Vendas (sistema)`.
+- Adicionar `fiado: "À Prazo"` ao `methodMap` da tabela de movimentações.
 
 ## Fora de escopo
 
-- Sem mudanças no schema, RPCs ou migrações.
-- Sem mudanças na lógica de baixa de fiado (continua via F5 / "Quitar Saldo").
-- Sem mudanças no fluxo de Dividir Pagamento (fiado segue desabilitado quando split está ativo).
-
-## Diagrama do fluxo
-
-```text
-PaymentDialog
-   └─ clica "À Prazo"
-        └─ abre CreditSaleAuthDialog
-              ├─ seleciona cliente
-              ├─ digita senha → valida em establishment_users.discount_password
-              ├─ (se exceder limite) preenche justificativa
-              └─ Confirmar → registerCreditSale() → fecha ambos os modais
-```
+- Conferência cega de fiado no fechamento (não há contagem física — é informativo).
+- Alterações em relatórios financeiros (DRE / fluxo de caixa) — fiado continua entrando no caixa apenas na quitação.
