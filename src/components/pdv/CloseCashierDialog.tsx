@@ -552,7 +552,6 @@ export function CloseCashierDialog({
     declaredDebit !== "" &&
     declaredPix !== "" &&
     declaredVoucher !== "" &&
-    declaredOnline !== "" &&
     declaredOther !== "" &&
     declaredFiado !== "";
 
