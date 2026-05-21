@@ -162,6 +162,7 @@ export function usePDVCashier() {
         declaredVoucher,
         declaredOnlineDelivery,
         declaredOther,
+        declaredFiado,
         declaredTotalSales,
         totalDifference,
         closingStatus,
