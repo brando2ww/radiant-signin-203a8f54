@@ -52,6 +52,7 @@ import ChecklistEditor from "./pdv/ChecklistEditor";
 import Customers from "./pdv/Customers";
 import CustomerDetail from "./pdv/CustomerDetail";
 import ProductionCenters from "./pdv/ProductionCenters";
+import EmployeeConsumptionAdmin from "./pdv/EmployeeConsumptionAdmin";
 
 function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; children: React.ReactNode; canAccess: (p: string) => boolean; defaultRoute: string }) {
   if (!canAccess(path)) {
@@ -163,6 +164,9 @@ export default function PDV() {
               {/* Clientes */}
               <Route path="clientes" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><Customers /></RoleRoute>} />
               <Route path="clientes/:id" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><CustomerDetail /></RoleRoute>} />
+
+              {/* Consumo de Funcionários (fiado interno) */}
+              <Route path="funcionarios-consumo" element={<RoleRoute path="/pdv/funcionarios-consumo" canAccess={canAccess} defaultRoute={defaultRoute}><EmployeeConsumptionAdmin /></RoleRoute>} />
             </Routes>
           </main>
       </div>
