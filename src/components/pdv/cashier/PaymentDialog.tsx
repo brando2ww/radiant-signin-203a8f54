@@ -80,6 +80,7 @@ import { formatTableLabel } from "@/utils/formatTableNumber";
 
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
+import { CancelComandaDialog, type CancelCategory } from "./CancelComandaDialog";
 import { formatBRL } from "@/lib/format";
 
 interface PaymentDialogProps {
