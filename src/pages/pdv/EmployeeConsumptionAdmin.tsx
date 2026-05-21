@@ -71,8 +71,8 @@ export default function EmployeeConsumptionAdmin() {
     return { totalOpen, monthPaid, topDebtor };
   }, [employees, payments]);
 
-  const handleNew = () => { setEditing(null); setFormOpen(true); };
-  const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setFormOpen(true); };
+  const handleNew = () => { setEditing(null); setTimeout(() => setFormOpen(true), 0); };
+  const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setTimeout(() => setFormOpen(true), 0); };
 
   const exportEntries = () => {
     const header = ["Funcionário", "Data", "Total", "Pago", "Saldo", "Status"];
