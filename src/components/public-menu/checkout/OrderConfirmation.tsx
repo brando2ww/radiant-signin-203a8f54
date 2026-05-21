@@ -70,6 +70,10 @@ export const OrderConfirmation = ({
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
   const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
   const [redeemedPointsAmount, setRedeemedPointsAmount] = useState(0);
+  // Chave de idempotência por tentativa de checkout — preserva entre retries
+  const [idempotencyKey] = useState(() =>
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
+  );
 
   const loyaltyActive = loyaltySettings?.is_active ?? false;
   const activePrizes = prizes.filter((p: any) => p.is_active && (!p.max_quantity || p.redeemed_count < p.max_quantity));
