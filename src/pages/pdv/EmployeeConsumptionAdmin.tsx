@@ -320,7 +320,7 @@ export default function EmployeeConsumptionAdmin() {
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir funcionário?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir cliente?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação não pode ser desfeita. Lançamentos existentes serão preservados.
             </AlertDialogDescription>
