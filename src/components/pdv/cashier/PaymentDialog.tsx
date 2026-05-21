@@ -231,6 +231,9 @@ export function PaymentDialog({
   const [addItemNotes, setAddItemNotes] = useState("");
   const paymentContentRef = useRef<HTMLDivElement | null>(null);
 
+  // Cancelamento da comanda (apenas quando o pagamento envolve UMA comanda)
+  const [cancelComandaOpen, setCancelComandaOpen] = useState(false);
+
   const resetNestedPaymentState = () => {
     setItemToRemove(null);
     setAddItemDialogOpen(false);
