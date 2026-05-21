@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Download, LayoutGrid, List } from "lucide-react";
+import { Download, LayoutGrid, List, Search } from "lucide-react";
+import { format, startOfMonth, subDays } from "date-fns";
 import { useEvidenceOperators, useEvidenceChecklists, type EvidenceFilters as Filters } from "@/hooks/use-checklist-evidence";
 
 const SECTORS = ["cozinha", "salao", "caixa", "bar", "estoque", "gerencia"];
@@ -22,6 +24,32 @@ const STATUS_OPTIONS = [
   { value: "reprovado", label: "Reprovada" },
 ];
 
+const PRESETS = [
+  { value: "all", label: "Todo período" },
+  { value: "today", label: "Hoje" },
+  { value: "yesterday", label: "Ontem" },
+  { value: "7", label: "Últimos 7 dias" },
+  { value: "30", label: "Últimos 30 dias" },
+  { value: "month", label: "Este mês" },
+  { value: "custom", label: "Personalizado" },
+];
+
+const ymd = (d: Date) => format(d, "yyyy-MM-dd");
+
+function detectPreset(from?: string, to?: string): string {
+  if (!from && !to) return "all";
+  const today = ymd(new Date());
+  const yest = ymd(subDays(new Date(), 1));
+  if (from === today && to === today) return "today";
+  if (from === yest && to === yest) return "yesterday";
+  if (to === today) {
+    if (from === ymd(subDays(new Date(), 6))) return "7";
+    if (from === ymd(subDays(new Date(), 29))) return "30";
+    if (from === ymd(startOfMonth(new Date()))) return "month";
+  }
+  return "custom";
+}
+
 interface Props {
   filters: Filters;
   onFiltersChange: (f: Partial<Filters>) => void;
@@ -37,14 +65,84 @@ export function EvidenceFiltersBar({ filters, onFiltersChange, viewMode, onViewM
   const { data: operators } = useEvidenceOperators();
   const { data: checklists } = useEvidenceChecklists();
 
+  const [searchInput, setSearchInput] = useState(filters.search || "");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if ((filters.search || "") !== searchInput) {
+        onFiltersChange({ search: searchInput || undefined });
+      }
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchInput]);
+
+  const preset = detectPreset(filters.dateFrom, filters.dateTo);
+
+  const applyPreset = (value: string) => {
+    const today = new Date();
+    switch (value) {
+      case "all":
+        onFiltersChange({ dateFrom: undefined, dateTo: undefined, date: undefined });
+        break;
+      case "today":
+        onFiltersChange({ dateFrom: ymd(today), dateTo: ymd(today), date: undefined });
+        break;
+      case "yesterday": {
+        const y = ymd(subDays(today, 1));
+        onFiltersChange({ dateFrom: y, dateTo: y, date: undefined });
+        break;
+      }
+      case "7":
+        onFiltersChange({ dateFrom: ymd(subDays(today, 6)), dateTo: ymd(today), date: undefined });
+        break;
+      case "30":
+        onFiltersChange({ dateFrom: ymd(subDays(today, 29)), dateTo: ymd(today), date: undefined });
+        break;
+      case "month":
+        onFiltersChange({ dateFrom: ymd(startOfMonth(today)), dateTo: ymd(today), date: undefined });
+        break;
+      case "custom":
+        // mantém os valores atuais; usuário ajusta os inputs
+        break;
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Input
-        type="date"
-        value={filters.date || ""}
-        onChange={e => onFiltersChange({ date: e.target.value || undefined })}
-        className="w-40"
-      />
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+        <Input
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          placeholder="Buscar foto, item, colaborador..."
+          className="pl-7 w-56 h-9"
+        />
+      </div>
+
+      <Select value={preset} onValueChange={applyPreset}>
+        <SelectTrigger className="w-40"><SelectValue placeholder="Período" /></SelectTrigger>
+        <SelectContent>
+          {PRESETS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-muted-foreground">De</span>
+        <Input
+          type="date"
+          value={filters.dateFrom || ""}
+          onChange={e => onFiltersChange({ dateFrom: e.target.value || undefined, date: undefined })}
+          className="w-36 h-9"
+        />
+        <span className="text-xs text-muted-foreground">até</span>
+        <Input
+          type="date"
+          value={filters.dateTo || ""}
+          onChange={e => onFiltersChange({ dateTo: e.target.value || undefined, date: undefined })}
+          className="w-36 h-9"
+        />
+      </div>
+
       <Select value={filters.sector || "all"} onValueChange={v => onFiltersChange({ sector: v === "all" ? undefined : v })}>
         <SelectTrigger className="w-32"><SelectValue placeholder="Setor" /></SelectTrigger>
         <SelectContent>
