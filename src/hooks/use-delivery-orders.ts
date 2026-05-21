@@ -30,6 +30,9 @@ export interface DeliveryOrder {
   delivered_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  cancellation_category?: string | null;
+  customer_notified?: boolean | null;
+  cancelled_by_user_id?: string | null;
   created_at: string;
   updated_at: string;
   driver_id?: string | null;
