@@ -6,8 +6,22 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
+  X,
 } from "lucide-react";
-import type { Comanda, ComandaItem } from "@/hooks/use-pdv-comandas";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  usePDVComandas,
+  type Comanda,
+  type ComandaItem,
+} from "@/hooks/use-pdv-comandas";
+import {
+  CancelComandaDialog,
+  type CancelCategory,
+} from "./CancelComandaDialog";
 
 interface SalonQueueCardProps {
   comanda: Comanda;
@@ -30,12 +44,27 @@ export function SalonQueueCard({
   onCharge,
 }: SalonQueueCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const { cancelComandaAsync, isCancellingComanda } = usePDVComandas();
 
   const isCharging = comanda.status === "em_cobranca";
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   const preview =
     items.slice(0, 3).map((i) => `${i.quantity}x ${i.product_name}`).join(", ") +
     (items.length > 3 ? ", …" : "");
+
+  const handleConfirmCancel = async (_payload: {
+    reason: string;
+    category: CancelCategory;
+    customerNotified: boolean;
+  }) => {
+    try {
+      await cancelComandaAsync(comanda.id);
+      setCancelOpen(false);
+    } catch {
+      // toast tratado na mutation
+    }
+  };
 
   return (
     <div
@@ -46,12 +75,10 @@ export function SalonQueueCard({
       )}
       aria-busy={isCharging}
     >
-      {/* Linha 1: identificação */}
       <div className="mb-1">
         <div className="font-semibold text-sm leading-tight truncate">{title}</div>
       </div>
 
-      {/* Linha 2: itens + valor (destaque) */}
       <div className="flex items-baseline justify-between gap-2 mb-1.5">
         <span className="text-xs text-muted-foreground">
           {totalQty} {totalQty === 1 ? "item" : "itens"}
@@ -61,21 +88,18 @@ export function SalonQueueCard({
         </span>
       </div>
 
-      {/* Prévia de itens */}
       {items.length > 0 && (
         <div className="text-[11px] text-muted-foreground line-clamp-1 mb-2">
           {preview}
         </div>
       )}
 
-      {/* Indicador de mesa com mais comandas */}
       {siblingCount > 0 && (
         <div className="text-[11px] text-muted-foreground mb-2 italic">
           Mesa tem mais {siblingCount} comanda{siblingCount > 1 ? "s" : ""}
         </div>
       )}
 
-      {/* Itens expandidos inline */}
       {expanded && (
         <div className="mt-2 mb-2 rounded-md bg-muted/40 p-2 space-y-1 max-h-48 overflow-auto">
           {items.length === 0 ? (
@@ -99,7 +123,6 @@ export function SalonQueueCard({
         </div>
       )}
 
-      {/* Ações */}
       <div className="flex items-center gap-1.5 mt-2">
         <Button
           size="sm"
@@ -123,7 +146,31 @@ export function SalonQueueCard({
             <ChevronDown className="h-4 w-4" />
           )}
         </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-10 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setCancelOpen(true)}
+              aria-label="Cancelar comanda"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Cancelar comanda</TooltipContent>
+        </Tooltip>
       </div>
+
+      <CancelComandaDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        comanda={comanda}
+        items={items}
+        title={title}
+        isLoading={isCancellingComanda}
+        onConfirm={handleConfirmCancel}
+      />
     </div>
   );
 }
