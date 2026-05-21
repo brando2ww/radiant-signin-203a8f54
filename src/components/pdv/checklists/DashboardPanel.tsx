@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,36 @@ interface DashboardPanelProps {
 
 export function DashboardPanel({ onNavigate, onQrOpen, onGenerateDaily, isGenerating }: DashboardPanelProps) {
   const [date, setDate] = useState(toLocalDateStr());
+  const autoDateRef = useRef(date);
+
+  // Auto-rollover: se o usuário está visualizando "hoje" e o dia mudou (virada de meia-noite
+  // ou aba ficou inativa), avança automaticamente para o novo dia.
+  useEffect(() => {
+    const check = () => {
+      const today = toLocalDateStr();
+      if (today !== autoDateRef.current) return; // não força se usuário já está em outro dia auto
+      setDate((prev) => {
+        if (prev !== autoDateRef.current) return prev; // usuário escolheu outra data manualmente
+        const fresh = toLocalDateStr();
+        autoDateRef.current = fresh;
+        return fresh;
+      });
+    };
+    const id = window.setInterval(check, 60_000);
+    const onVis = () => { if (document.visibilityState === "visible") check(); };
+    window.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", check);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", check);
+    };
+  }, []);
+
+  const handleDateChange = (value: string) => {
+    autoDateRef.current = value; // marca esta escolha como "ativa" para o auto-rollover
+    setDate(value);
+  };
   const [completedDialogOpen, setCompletedDialogOpen] = useState(false);
   const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
   const [notStartedDialogOpen, setNotStartedDialogOpen] = useState(false);
@@ -46,7 +76,7 @@ export function DashboardPanel({ onNavigate, onQrOpen, onGenerateDaily, isGenera
     <div className="space-y-4">
       {/* Top bar: date + shortcuts */}
       <div className="flex flex-wrap items-center gap-3">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
+        <Input type="date" value={date} onChange={(e) => handleDateChange(e.target.value)} className="w-44" />
         {unacknowledgedAlerts.length > 0 && (
           <Badge variant="destructive">{unacknowledgedAlerts.length} alerta(s)</Badge>
         )}
