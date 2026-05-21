@@ -200,6 +200,8 @@ export function PaymentDialog({
     comandaItems: liveComandaItems,
     lockItemsForCharging,
     unlockItemsForCharging,
+    cancelComandaAsync,
+    isCancellingComanda,
   } = usePDVComandas();
   const { products: productsList } = usePDVProducts();
   const { emitNFCe, isEmitting } = useNFCeEmission();
