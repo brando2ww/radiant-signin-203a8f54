@@ -16,7 +16,7 @@ import { CashierSummaryFooter } from "@/components/pdv/cashier/CashierSummaryFoo
 import { KeyboardShortcutsDialog } from "@/components/pdv/cashier/KeyboardShortcutsDialog";
 import { ChargeSelectionDialog } from "@/components/pdv/cashier/ChargeSelectionDialog";
 import { PaymentDialog } from "@/components/pdv/cashier/PaymentDialog";
-import { EmployeeConsumptionDialog } from "@/components/pdv/cashier/EmployeeConsumptionDialog";
+import { EmployeeConsumptionFlowDialog } from "@/components/pdv/cashier/EmployeeConsumptionFlowDialog";
 import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
@@ -473,9 +473,10 @@ export default function PDVCashier() {
         drawerBalance={drawerBalance}
       />
 
-      <EmployeeConsumptionDialog
+      <EmployeeConsumptionFlowDialog
         open={employeeDialog}
         onOpenChange={setEmployeeDialog}
+        cashierSessionId={activeSession?.id ?? null}
       />
 
       <QuickExpenseDialog
