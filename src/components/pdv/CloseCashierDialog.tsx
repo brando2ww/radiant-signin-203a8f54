@@ -165,6 +165,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
   const totalWithdrawals = Number(session?.total_withdrawals) || 0;
   const totalSales = Number(session?.total_sales) || 0;
   const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
+  const totalFiado = Number((session as any)?.total_fiado) || 0;
 
   const totalReinforcements = movements
     .filter((m) => m.type === "reforco")
