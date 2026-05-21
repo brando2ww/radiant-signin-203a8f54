@@ -265,8 +265,8 @@ ${conferenceHtml ? `<div class="divider"></div>
   ${conferenceHtml}
 </div>` : ""}
 <div class="divider"></div>
+<div class="divider"></div>
 <div class="section">
-  ${totalFiado > 0 ? `<div class="row"><span>Vendas a Prazo (fiado):</span><span>${formatBRL(totalFiado)}</span></div>` : ""}
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
 ${movements.length > 0 ? `
