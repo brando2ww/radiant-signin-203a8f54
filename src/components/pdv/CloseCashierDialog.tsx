@@ -28,6 +28,7 @@ import {
   Ticket,
   Globe,
   MoreHorizontal,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -517,6 +518,7 @@ export function CloseCashierDialog({
   const totalVoucher = Number(session?.total_voucher) || 0;
   const totalWithdrawals = Number(session?.total_withdrawals) || 0;
   const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
+  const totalFiado = Number((session as any)?.total_fiado) || 0;
 
   const totalReinforcements = useMemo(
     () => movements.filter((m) => m.type === "reforco").reduce((a, m) => a + m.amount, 0),
@@ -715,6 +717,22 @@ export function CloseCashierDialog({
                 )}
               </div>
 
+
+              {totalFiado > 0 && (
+                <Card className="bg-muted/40 border-dashed">
+                  <CardContent className="pt-3 pb-3 flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1 flex items-center justify-between gap-2">
+                      <div className="text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">Vendas a Prazo (fiado)</p>
+                        <p>Informativo — não entra na conferência da gaveta.</p>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFiado)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardContent className="pt-3 pb-3 flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Total geral apurado:</span>
@@ -767,6 +785,21 @@ export function CloseCashierDialog({
                   ))}
                 </div>
               </section>
+
+              {totalFiado > 0 && (
+                <Card className="bg-muted/40 border-dashed">
+                  <CardContent className="pt-3 pb-3 flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex-1 flex items-center justify-between gap-2">
+                      <div className="text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground">Vendas a Prazo (fiado)</p>
+                        <p>Informativo — não entra na conferência da gaveta.</p>
+                      </div>
+                      <span className="text-sm font-semibold tabular-nums">{formatBRL(totalFiado)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card className={cn("border-2", cashRiskConfig.bgColor)}>
                 <CardContent className="pt-3 pb-3">
