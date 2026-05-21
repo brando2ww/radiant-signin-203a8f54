@@ -552,16 +552,14 @@ export function CloseCashierDialog({
     declaredDebit !== "" &&
     declaredPix !== "" &&
     declaredVoucher !== "" &&
-    (totalOnlineDelivery <= 0 || declaredOnline !== "") &&
-    (totalOther <= 0 || declaredOther !== "") &&
-    (totalFiado <= 0 || declaredFiado !== "");
+    declaredOnline !== "" &&
+    declaredOther !== "" &&
+    declaredFiado !== "";
 
   const blindTotal =
     parseN(declaredCash) + parseN(declaredCredit) + parseN(declaredDebit) +
     parseN(declaredPix) + parseN(declaredVoucher) +
-    (declaredOnline !== "" ? parseN(declaredOnline) : 0) +
-    (declaredOther !== "" ? parseN(declaredOther) : 0) +
-    (declaredFiado !== "" ? parseN(declaredFiado) : 0);
+    parseN(declaredOnline) + parseN(declaredOther) + parseN(declaredFiado);
 
   const handleSubmitBlind = async () => {
     if (!session?.id || !allBlindFilled) return;
@@ -573,9 +571,9 @@ export function CloseCashierDialog({
         declaredDebit: parseN(declaredDebit),
         declaredPix: parseN(declaredPix),
         declaredVoucher: parseN(declaredVoucher),
-        declaredOnlineDelivery: declaredOnline !== "" ? parseN(declaredOnline) : null,
-        declaredOther: declaredOther !== "" ? parseN(declaredOther) : null,
-        declaredFiado: declaredFiado !== "" ? parseN(declaredFiado) : null,
+        declaredOnlineDelivery: parseN(declaredOnline),
+        declaredOther: parseN(declaredOther),
+        declaredFiado: parseN(declaredFiado),
         declaredTotal: blindTotal,
       });
       setStep("review");
@@ -601,16 +599,10 @@ export function CloseCashierDialog({
     { key: "debit", label: "Cartão de Débito", icon: CreditCard, expected: totalDebit, declared: parseN(declaredDebit), justification: justDebit, setJust: setJustDebit },
     { key: "pix", label: "PIX", icon: Smartphone, expected: totalPix, declared: parseN(declaredPix), justification: justPix, setJust: setJustPix },
     { key: "voucher", label: "Vale-refeição", icon: Ticket, expected: totalVoucher, declared: parseN(declaredVoucher), justification: justVoucher, setJust: setJustVoucher },
+    { key: "online", label: "Online (Delivery)", icon: Globe, expected: totalOnlineDelivery, declared: parseN(declaredOnline), justification: justOnline, setJust: setJustOnline },
+    { key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther },
+    { key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado },
   ];
-  if (totalOnlineDelivery > 0 || declaredOnline !== "") {
-    reviewRows.push({ key: "online", label: "Online (Delivery)", icon: Globe, expected: totalOnlineDelivery, declared: parseN(declaredOnline), justification: justOnline, setJust: setJustOnline });
-  }
-  if (totalOther > 0 || declaredOther !== "") {
-    reviewRows.push({ key: "other", label: "Outros meios", icon: MoreHorizontal, expected: totalOther, declared: parseN(declaredOther), justification: justOther, setJust: setJustOther });
-  }
-  if (totalFiado > 0 || declaredFiado !== "") {
-    reviewRows.push({ key: "fiado", label: "Vendas a Prazo", icon: UserCheck, expected: totalFiado, declared: parseN(declaredFiado), justification: justFiado, setJust: setJustFiado });
-  }
 
   const rowsWithDiff = reviewRows.filter((r) => Math.abs(r.declared - r.expected) > TOL);
   const allJustified = rowsWithDiff.every((r) => r.justification.trim().length >= MIN_REVIEW_JUSTIFICATION);
@@ -722,15 +714,9 @@ export function CloseCashierDialog({
                 <BlindInput icon={CreditCard} label="Cartão de Débito" value={declaredDebit} onChange={setDeclaredDebit} />
                 <BlindInput icon={Smartphone} label="PIX" value={declaredPix} onChange={setDeclaredPix} />
                 <BlindInput icon={Ticket} label="Vale-refeição" value={declaredVoucher} onChange={setDeclaredVoucher} />
-                {totalOnlineDelivery > 0 && (
-                  <BlindInput icon={Globe} label="Online (Delivery)" value={declaredOnline} onChange={setDeclaredOnline} />
-                )}
-                {totalOther > 0 && (
-                  <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
-                )}
-                {totalFiado > 0 && (
-                  <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
-                )}
+                <BlindInput icon={Globe} label="Online (Delivery)" value={declaredOnline} onChange={setDeclaredOnline} />
+                <BlindInput icon={MoreHorizontal} label="Outros meios" value={declaredOther} onChange={setDeclaredOther} />
+                <BlindInput icon={UserCheck} label="Vendas a Prazo" value={declaredFiado} onChange={setDeclaredFiado} />
               </div>
 
               <Card>
