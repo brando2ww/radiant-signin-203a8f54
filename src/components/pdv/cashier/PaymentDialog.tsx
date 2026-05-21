@@ -925,7 +925,7 @@ export function PaymentDialog({
     }
   };
 
-  const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine;
+  const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine || isRegisteringCreditSale;
 
   if (showSuccess) {
     const nfceEnabled = !!settings?.nfe_enable_nfce;
