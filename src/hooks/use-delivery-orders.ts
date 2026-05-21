@@ -202,21 +202,29 @@ export const useUpdateOrderStatus = () => {
 export const useCancelOrder = () => {
   const queryClient = useQueryClient();
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async ({
       id,
       reason,
+      category,
+      customerNotified,
     }: {
       id: string;
       reason: string;
+      category?: string | null;
+      customerNotified?: boolean;
     }) => {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("delivery_orders")
         .update({
           status: "cancelled",
           cancelled_at: new Date().toISOString(),
           cancellation_reason: reason,
-        })
+          cancellation_category: category ?? null,
+          customer_notified: !!customerNotified,
+          cancelled_by_user_id: user?.id ?? null,
+        } as any)
         .eq("id", id)
         .select()
         .single();
@@ -226,11 +234,18 @@ export const useCancelOrder = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-cancelled-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-delivery-queue"] });
       toast.success("Pedido cancelado!");
     },
     onError: (error: Error) => {
       toast.error("Erro ao cancelar pedido: " + error.message);
     },
+  });
+
+  return Object.assign(mutation, {
+    cancelOrderAsync: mutation.mutateAsync,
+    isCancellingOrder: mutation.isPending,
   });
 };
 
