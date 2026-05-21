@@ -48,6 +48,7 @@ import {
   Check,
   Ticket,
   UserCheck,
+  Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Comanda, ComandaItem, usePDVComandas } from "@/hooks/use-pdv-comandas";
@@ -79,6 +80,7 @@ import { formatTableLabel } from "@/utils/formatTableNumber";
 
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
+import { CancelComandaDialog, type CancelCategory } from "./CancelComandaDialog";
 import { formatBRL } from "@/lib/format";
 
 interface PaymentDialogProps {
@@ -198,6 +200,8 @@ export function PaymentDialog({
     comandaItems: liveComandaItems,
     lockItemsForCharging,
     unlockItemsForCharging,
+    cancelComandaAsync,
+    isCancellingComanda,
   } = usePDVComandas();
   const { products: productsList } = usePDVProducts();
   const { emitNFCe, isEmitting } = useNFCeEmission();
@@ -226,6 +230,9 @@ export function PaymentDialog({
   const [addItemQty, setAddItemQty] = useState("1");
   const [addItemNotes, setAddItemNotes] = useState("");
   const paymentContentRef = useRef<HTMLDivElement | null>(null);
+
+  // Cancelamento da comanda (apenas quando o pagamento envolve UMA comanda)
+  const [cancelComandaOpen, setCancelComandaOpen] = useState(false);
 
   const resetNestedPaymentState = () => {
     setItemToRemove(null);
@@ -2098,17 +2105,30 @@ export function PaymentDialog({
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between pt-4 border-t mt-4">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isProcessing}
-          >
-            Cancelar
-          </Button>
+        <div className="flex items-center justify-between gap-2 pt-4 border-t mt-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isProcessing || isCancellingComanda}
+            >
+              Fechar
+            </Button>
+            {involvedComandas.length === 1 && involvedComandas[0]?.id && (
+              <Button
+                variant="ghost"
+                onClick={() => setCancelComandaOpen(true)}
+                disabled={isProcessing || isCancellingComanda}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-2"
+              >
+                <Ban className="h-4 w-4" />
+                Cancelar comanda
+              </Button>
+            )}
+          </div>
           <Button
             onClick={handleSubmit}
-            disabled={!canSubmit || isProcessing}
+            disabled={!canSubmit || isProcessing || isCancellingComanda}
             size="lg"
             className="gap-2 min-w-[200px]"
           >
@@ -2322,6 +2342,31 @@ export function PaymentDialog({
       total={total}
       isProcessing={isRegisteringCreditSale}
       onConfirm={handleCreditSaleConfirm}
+    />
+
+    <CancelComandaDialog
+      open={cancelComandaOpen}
+      onOpenChange={setCancelComandaOpen}
+      comanda={involvedComandas[0] ?? null}
+      items={items.length > 0 ? items : tableItems}
+      title={
+        table
+          ? `${formatTableLabel(table.table_number)} — ${involvedComandas[0]?.customer_name ?? `#${involvedComandas[0]?.comanda_number ?? ""}`}`
+          : involvedComandas[0]?.customer_name ?? `Comanda #${involvedComandas[0]?.comanda_number ?? ""}`
+      }
+      isLoading={isCancellingComanda}
+      onConfirm={async (_payload: { reason: string; category: CancelCategory; customerNotified: boolean }) => {
+        const target = involvedComandas[0];
+        if (!target?.id) return;
+        try {
+          await cancelComandaAsync(target.id);
+          setCancelComandaOpen(false);
+          onOpenChange(false);
+          onSuccess?.();
+        } catch {
+          // toast tratado na mutation
+        }
+      }}
     />
     </>
   );
