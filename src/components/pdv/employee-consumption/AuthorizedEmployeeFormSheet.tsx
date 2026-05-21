@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -36,7 +36,7 @@ export function AuthorizedEmployeeFormSheet({ open, onOpenChange, employee }: Pr
   const [isActive, setIsActive] = useState(employee?.is_active ?? true);
   const [notes, setNotes] = useState(employee?.internal_notes || "");
 
-  useMemo(() => {
+  useEffect(() => {
     if (open) {
       setFullName(employee?.full_name || "");
       setRoleTitle(employee?.role_title || "");

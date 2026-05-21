@@ -71,8 +71,8 @@ export default function EmployeeConsumptionAdmin() {
     return { totalOpen, monthPaid, topDebtor };
   }, [employees, payments]);
 
-  const handleNew = () => { setEditing(null); setFormOpen(true); };
-  const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setFormOpen(true); };
+  const handleNew = () => { setEditing(null); setTimeout(() => setFormOpen(true), 0); };
+  const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setTimeout(() => setFormOpen(true), 0); };
 
   const exportEntries = () => {
     const header = ["Funcionário", "Data", "Total", "Pago", "Saldo", "Status"];
@@ -221,7 +221,7 @@ export default function EmployeeConsumptionAdmin() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setStatementEmp(emp)}>
+                            <DropdownMenuItem onClick={() => setTimeout(() => setStatementEmp(emp), 0)}>
                               <FileText className="h-4 w-4 mr-2" /> Extrato
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEdit(emp)}>
