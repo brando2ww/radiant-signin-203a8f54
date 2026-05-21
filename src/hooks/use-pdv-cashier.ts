@@ -398,6 +398,7 @@ export function usePDVCashier() {
       declaredVoucher?: number | null;
       declaredOnlineDelivery?: number | null;
       declaredOther?: number | null;
+      declaredFiado?: number | null;
       declaredTotal: number;
     }) => {
       if (!user?.id) throw new Error("Usuário não autenticado");
@@ -416,8 +417,9 @@ export function usePDVCashier() {
           declared_voucher: payload.declaredVoucher ?? null,
           declared_online_delivery: payload.declaredOnlineDelivery ?? null,
           declared_other: payload.declaredOther ?? null,
+          declared_fiado: payload.declaredFiado ?? null,
           declared_total: payload.declaredTotal,
-        })
+        } as any)
         .select()
         .single();
 
