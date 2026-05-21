@@ -672,6 +672,7 @@ export function CloseCashierDialog({
         declared_pix: payload.declaredPix,
         declared_voucher: payload.declaredVoucher,
         declared_online_delivery: payload.declaredOnlineDelivery,
+        declared_fiado: payload.declaredFiado,
       },
       movements,
       closingBalance: parseN(declaredCash),
