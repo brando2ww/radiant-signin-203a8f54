@@ -2343,6 +2343,31 @@ export function PaymentDialog({
       isProcessing={isRegisteringCreditSale}
       onConfirm={handleCreditSaleConfirm}
     />
+
+    <CancelComandaDialog
+      open={cancelComandaOpen}
+      onOpenChange={setCancelComandaOpen}
+      comanda={involvedComandas[0] ?? null}
+      items={items.length > 0 ? items : tableItems}
+      title={
+        table
+          ? `${formatTableLabel(table.table_number)} — ${involvedComandas[0]?.customer_name ?? `#${involvedComandas[0]?.comanda_number ?? ""}`}`
+          : involvedComandas[0]?.customer_name ?? `Comanda #${involvedComandas[0]?.comanda_number ?? ""}`
+      }
+      isLoading={isCancellingComanda}
+      onConfirm={async (_payload: { reason: string; category: CancelCategory; customerNotified: boolean }) => {
+        const target = involvedComandas[0];
+        if (!target?.id) return;
+        try {
+          await cancelComandaAsync(target.id);
+          setCancelComandaOpen(false);
+          onOpenChange(false);
+          onSuccess?.();
+        } catch {
+          // toast tratado na mutation
+        }
+      }}
+    />
     </>
   );
 }
