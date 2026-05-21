@@ -3530,12 +3530,17 @@ export type Database = {
       }
       pdv_comandas: {
         Row: {
+          cancellation_category: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by_user_id: string | null
           close_reason: string | null
           closed_by_user_id: string | null
           closed_by_waiter_at: string | null
           comanda_number: string
           created_at: string
           customer_name: string | null
+          customer_notified: boolean
           id: string
           notes: string | null
           order_id: string | null
@@ -3547,12 +3552,17 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancellation_category?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
           close_reason?: string | null
           closed_by_user_id?: string | null
           closed_by_waiter_at?: string | null
           comanda_number: string
           created_at?: string
           customer_name?: string | null
+          customer_notified?: boolean
           id?: string
           notes?: string | null
           order_id?: string | null
@@ -3564,12 +3574,17 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cancellation_category?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
           close_reason?: string | null
           closed_by_user_id?: string | null
           closed_by_waiter_at?: string | null
           comanda_number?: string
           created_at?: string
           customer_name?: string | null
+          customer_notified?: boolean
           id?: string
           notes?: string | null
           order_id?: string | null
@@ -7587,6 +7602,15 @@ export type Database = {
         Returns: string
       }
       pdv_assign_order_ticket: { Args: { p_order_id: string }; Returns: number }
+      pdv_cancel_comanda: {
+        Args: {
+          p_category: string
+          p_comanda_id: string
+          p_customer_notified: boolean
+          p_reason: string
+        }
+        Returns: Json
+      }
       pdv_cancel_order: {
         Args: { p_order_id: string; p_reason?: string }
         Returns: Json
@@ -7730,6 +7754,7 @@ export type Database = {
         | "view_history"
         | "process_payment"
         | "refund_payment"
+        | "cancel_comanda"
       pdv_stock_movement_type:
         | "entrada"
         | "saida_venda"
@@ -7935,6 +7960,7 @@ export const Constants = {
         "view_history",
         "process_payment",
         "refund_payment",
+        "cancel_comanda",
       ],
       pdv_stock_movement_type: [
         "entrada",
