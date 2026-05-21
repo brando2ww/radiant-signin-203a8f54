@@ -629,7 +629,7 @@ export function CloseCashierDialog({
       declaredPix: parseOpt(declaredPix),
       declaredVoucher: parseOpt(declaredVoucher),
       declaredOnlineDelivery: totalOnlineDelivery,
-      declaredOther: parseOpt(declaredOther),
+      declaredOther: null,
       declaredFiado: parseOpt(declaredFiado),
       declaredTotalSales: declaredTotal,
       totalDifference: totalDiff,
