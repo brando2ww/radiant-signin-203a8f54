@@ -300,6 +300,46 @@ export function useChecklistDashboard(filters?: DashboardFilters) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["checklist-alerts"] }),
   });
 
+  // Realtime: invalida queries do dashboard quando qualquer execução muda no estabelecimento.
+  useEffect(() => {
+    if (!visibleUserId) return;
+    const channel = supabase
+      .channel(`checklist-dashboard-rt-${visibleUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "checklist_executions",
+          filter: `user_id=eq.${visibleUserId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["checklist-dashboard-metrics", visibleUserId] });
+          qc.invalidateQueries({ queryKey: ["checklist-critical-tasks", visibleUserId] });
+          qc.invalidateQueries({ queryKey: ["checklist-timeline", visibleUserId] });
+          qc.invalidateQueries({ queryKey: ["checklist-completion-chart", visibleUserId] });
+          qc.invalidateQueries({ queryKey: ["checklist-shift-comparison", visibleUserId] });
+          qc.invalidateQueries({ queryKey: ["checklist-team-highlights", visibleUserId] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "checklist_alerts",
+          filter: `user_id=eq.${visibleUserId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["checklist-alerts", visibleUserId] });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [visibleUserId, qc]);
+
   // Health percentage
   const criticalPending = criticalTasks.length;
   const rawPct = metrics && metrics.total > 0
