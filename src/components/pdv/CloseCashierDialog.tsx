@@ -265,7 +265,6 @@ ${conferenceHtml ? `<div class="divider"></div>
   ${conferenceHtml}
 </div>` : ""}
 <div class="divider"></div>
-<div class="divider"></div>
 <div class="section">
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
