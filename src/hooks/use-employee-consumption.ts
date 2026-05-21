@@ -218,7 +218,7 @@ export function useEmployeeConsumption(employeeId?: string) {
           payment_method: "fiado",
           amount: params.amount,
           description,
-          source: "credit_sale",
+          source: "salon",
           order_id: params.order_id ?? null,
         } as any);
         await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
