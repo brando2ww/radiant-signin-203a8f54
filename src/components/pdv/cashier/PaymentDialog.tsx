@@ -611,13 +611,10 @@ export function PaymentDialog({
     setSelectedItemQtys(new Map());
   };
 
-  const handleSubmitCreditSale = async (finalAmount: number) => {
-    if (!selectedCreditEmployee) {
-      toast.error("Selecione o cliente para a venda a prazo");
-      return;
-    }
-    if (creditNeedsJustification) {
-      toast.error("Informe uma justificativa (mín. 10 caracteres) para exceder o limite");
+  const handleCreditSaleConfirm = async (payload: CreditSaleAuthPayload) => {
+    const finalAmount = total;
+    if (finalAmount <= 0) {
+      toast.error("Valor inválido para venda a prazo");
       return;
     }
 
@@ -641,15 +638,16 @@ export function PaymentDialog({
     }
 
     await registerCreditSale({
-      employee_id: selectedCreditEmployee.id,
+      employee_id: payload.employee_id,
       comanda_ids: comandaIds,
       order_id: orderId,
       amount: finalAmount,
       items: itemsSnapshot,
-      justification: creditOverLimit ? creditJustification.trim() : null,
+      justification: payload.justification,
     });
 
     paymentDoneRef.current = true;
+    setCreditAuthOpen(false);
     setSuccessData({ change: 0 });
     setShowSuccess(true);
   };
@@ -658,12 +656,6 @@ export function PaymentDialog({
     if (isProcessing) return;
     try {
       const finalAmount = total;
-
-      // Branch dedicado: Venda a Prazo (fiado)
-      if (selectedMethod === "fiado") {
-        await handleSubmitCreditSale(finalAmount);
-        return;
-      }
 
       // Mapeia "cartao" + cardType para credito/debito (granularidade exigida pela conferência do fechamento)
       const resolvedMethod: PaymentMethod =
