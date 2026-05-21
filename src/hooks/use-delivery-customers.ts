@@ -155,6 +155,7 @@ export const useCreateOrder = () => {
       paymentMethod: string;
       changeFor?: number;
       notes?: string;
+      idempotencyKey?: string;
       items: {
         productId: string;
         productName: string;
@@ -171,6 +172,25 @@ export const useCreateOrder = () => {
         }[];
       }[];
     }) => {
+      // Chave de idempotência: previne pedidos duplicados em duplo clique,
+      // retry de rede ou reenvio do formulário. O índice único
+      // (user_id, idempotency_key) garante atomicidade no servidor.
+      const idempotencyKey =
+        orderData.idempotencyKey ??
+        (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+
+      // Se já existe um pedido com a mesma chave, retorna o existente
+      // (sem reinserir itens) — comportamento idempotente.
+      const { data: existing } = await supabase
+        .from("delivery_orders")
+        .select("*")
+        .eq("user_id", orderData.userId)
+        .eq("idempotency_key", idempotencyKey as any)
+        .maybeSingle();
+      if (existing) {
+        return existing as any;
+      }
+
       // Número provisório — será substituído pelo sequencial do caixa via RPC
       // delivery_assign_order_ticket abaixo. Usamos um placeholder único por
       // segurança (a coluna order_number tem UNIQUE constraint).
@@ -199,11 +219,25 @@ export const useCreateOrder = () => {
           change_for: orderData.changeFor || null,
           notes: orderData.notes || null,
           estimated_time: 45,
-        })
+          idempotency_key: idempotencyKey,
+        } as any)
         .select()
         .single();
 
-      if (orderError) throw orderError;
+      // Se outro request paralelo criou o mesmo pedido (corrida),
+      // o índice único dispara 23505 — buscamos e retornamos o existente.
+      if (orderError) {
+        if ((orderError as any).code === "23505") {
+          const { data: race } = await supabase
+            .from("delivery_orders")
+            .select("*")
+            .eq("user_id", orderData.userId)
+            .eq("idempotency_key", idempotencyKey as any)
+            .maybeSingle();
+          if (race) return race as any;
+        }
+        throw orderError;
+      }
 
       // Numeração sequencial (#001, #002, …) é atribuída pelo trigger
       // BEFORE INSERT no servidor. Só caímos no fallback (RPC) caso o
