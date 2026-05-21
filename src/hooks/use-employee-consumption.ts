@@ -128,6 +128,86 @@ export function useEmployeeConsumption(employeeId?: string) {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const registerCreditSale = useMutation({
+    mutationFn: async (params: {
+      employee_id: string;
+      comanda_id?: string | null;
+      comanda_ids?: string[];
+      order_id?: string | null;
+      amount: number;
+      items: ConsumptionItemInput[];
+      justification?: string | null;
+    }) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      const ownerId = visibleUserId || user.id;
+      const comandaIds = (params.comanda_ids && params.comanda_ids.length > 0)
+        ? params.comanda_ids
+        : (params.comanda_id ? [params.comanda_id] : []);
+      if (comandaIds.length === 0) throw new Error("Comanda não informada");
+
+      const { data: entry, error: entryError } = await supabase
+        .from("pdv_employee_consumption_entries")
+        .insert({
+          user_id: ownerId,
+          employee_id: params.employee_id,
+          operator_id: user.id,
+          comanda_id: comandaIds[0],
+          total: params.amount,
+          paid_amount: 0,
+          status: "pendente",
+          items: params.items as any,
+          over_limit_justification: params.justification || null,
+        })
+        .select()
+        .single();
+      if (entryError) throw entryError;
+
+      const { data: closed, error: closeError } = await supabase
+        .from("pdv_comandas")
+        .update({ status: "fechada", updated_at: new Date().toISOString() })
+        .in("id", comandaIds)
+        .in("status", ["aberta", "aguardando_pagamento", "em_cobranca"])
+        .select();
+      if (closeError) throw closeError;
+      if (!closed || closed.length === 0) throw new Error("Comanda já finalizada");
+
+      if (params.order_id) {
+        const { count } = await supabase
+          .from("pdv_comandas")
+          .select("*", { count: "exact", head: true })
+          .eq("order_id", params.order_id)
+          .in("status", ["aberta", "aguardando_pagamento", "em_cobranca"]);
+        if ((count ?? 0) === 0) {
+          await supabase
+            .from("pdv_orders")
+            .update({ status: "fechada", updated_at: new Date().toISOString() })
+            .eq("id", params.order_id);
+          await supabase
+            .from("pdv_tables")
+            .update({ status: "livre", current_order_id: null, updated_at: new Date().toISOString() })
+            .eq("current_order_id", params.order_id);
+        }
+
+        await supabase.from("pdv_payments").insert({
+          order_id: params.order_id,
+          payment_method: "fiado",
+          amount: params.amount,
+        });
+      }
+
+      return entry as ConsumptionEntry;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pdv-emp-consumption-entries"] });
+      qc.invalidateQueries({ queryKey: ["pdv-authorized-employees"] });
+      qc.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      qc.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
+      qc.invalidateQueries({ queryKey: ["pdv-tables"] });
+      toast.success("Venda lançada a prazo");
+    },
+    onError: (e: any) => toast.error(e.message || "Erro ao lançar a prazo"),
+  });
+
   return {
     entries,
     payments,
@@ -135,5 +215,7 @@ export function useEmployeeConsumption(employeeId?: string) {
     isRegistering: registerConsumption.isPending,
     settleConsumption: settleConsumption.mutate,
     isSettling: settleConsumption.isPending,
+    registerCreditSale: registerCreditSale.mutateAsync,
+    isRegisteringCreditSale: registerCreditSale.isPending,
   };
 }
