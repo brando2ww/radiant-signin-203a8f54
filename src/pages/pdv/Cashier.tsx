@@ -226,6 +226,7 @@ export default function PDVCashier() {
   const totalPix = activeSession?.total_pix || 0;
   const totalVoucher = (activeSession as any)?.total_voucher || 0;
   const totalOnlineDelivery = (activeSession as any)?.total_online_delivery || 0;
+  const totalFiado = (activeSession as any)?.total_fiado || 0;
   const totalWithdrawals = activeSession?.total_withdrawals || 0;
   const totalSales = activeSession?.total_sales || 0;
 
