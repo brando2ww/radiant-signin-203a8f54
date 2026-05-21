@@ -1,36 +1,46 @@
-## Objetivo
+## Adicionar "Cancelar comanda" no PaymentDialog
 
-Hoje a Galeria de Evidências (`/pdv/tarefas` → aba Fotos/Evidências) mostra todas as fotos em uma grade plana e desordenada, ordenadas só pelo `id` interno. O filtro só aceita **uma** data exata. Vamos:
+Hoje o botão **Cancelar** no rodapé do diálogo de pagamento apenas fecha o modal — não há como cancelar a comanda de dentro da tela de cobrança. A solução é adicionar uma ação destrutiva explícita reaproveitando o `CancelComandaDialog` que já foi criado.
 
-1. Ordenar sempre da mais recente para a mais antiga.
-2. Agrupar as fotos por **data de execução** (com cabeçalho "Hoje", "Ontem", "21 de mai. de 2026" etc.).
-3. Trocar o filtro de "data única" por **período (de / até)** com presets rápidos (Hoje, Ontem, Últimos 7 dias, Últimos 30 dias).
-4. Adicionar um **campo de busca** (item, checklist, colaborador, comentário).
+### Mudanças
 
-## Mudanças
+**1. Rodapé do `PaymentDialog.tsx`**
 
-**`src/hooks/use-checklist-evidence.ts`**
-- `EvidenceFilters`: substituir `date?: string` por `dateFrom?: string` e `dateTo?: string`; adicionar `search?: string`.
-- Na query, usar `gte`/`lte` em `checklist_executions.execution_date` quando houver período; manter compatibilidade lendo `date` como atalho (from=to).
-- Ordenar resultado final por `executionDate` desc, depois `completedAt` desc.
-- Aplicar `search` (case-insensitive) sobre `itemTitle`, `checklistName`, `operatorName`, `reviewComment`.
+Renomear o atual botão "Cancelar" (que só fecha) para **"Fechar"** (variante `outline`, ícone X) e adicionar, ao lado dele, um botão **"Cancelar comanda"** (variante `ghost` em vermelho, ícone `Ban`). Layout do rodapé:
 
-**`src/components/pdv/checklists/evidence/EvidenceFilters.tsx`**
-- Trocar o `<Input type="date">` único por dois inputs `De` e `Até`.
-- Adicionar `<Select>` "Período" com presets: Hoje, Ontem, Últimos 7 dias, Últimos 30 dias, Este mês, Personalizado.
-- Adicionar `<Input>` de busca com ícone de lupa (debounced 250 ms via `useEffect`).
-- Manter os demais selects (setor, colaborador, checklist, status, tipo).
+```text
+[ Fechar ]  [ Cancelar comanda ]                  [ Confirmar R$ 10,00 ]
+```
 
-**`src/components/pdv/checklists/EvidenceGallery.tsx`**
-- Agrupar `evidence` por `executionDate` antes de renderizar.
-- Renderizar cada grupo com cabeçalho fixo: rótulo da data (`Hoje` / `Ontem` / `dd 'de' MMM 'de' yyyy` em pt-BR via `date-fns`) + contagem de fotos do dia.
-- Em modo "grid", cada grupo vira uma seção com sua própria grade `grid-cols-2 md:grid-cols-3 lg:grid-cols-4`.
-- Em modo "lista", passar os grupos para `EvidenceListView` (ou agrupar internamente lá com um separador por data).
-- `handleExportZip`: nome do arquivo dentro do ZIP já inclui `executionDate`; nome do ZIP usa intervalo (`evidencias_2026-05-14_a_2026-05-21.zip`).
+- "Cancelar comanda" só aparece quando o diálogo está cobrando **uma única comanda existente** (não em cobrança avulsa/mesa direta sem comanda persistida, nem em cobrança agrupada de várias comandas — nesses casos o cancelamento individual deve ser feito pela fila do Salão).
+- Desabilitado durante `isProcessing` do pagamento.
 
-## Notas técnicas
+**2. Fluxo de cancelamento**
 
-- Sem mudança de schema do banco.
-- Datas formatadas com `date-fns` + locale `ptBR` (já em uso no projeto, conforme memória de localização).
-- Cores: somente tokens semânticos (`bg-card`, `text-foreground`, `text-muted-foreground`), sem cores customizadas.
-- Componentes `Select` continuam usando `"all"` internamente para placeholder, conforme padrão do projeto.
+Ao clicar em "Cancelar comanda":
+- Abre o `CancelComandaDialog` por cima do `PaymentDialog` (sem fechá-lo).
+- O `PaymentDialog` permanece aberto mas com seus controles internos desabilitados enquanto o diálogo de cancelamento está aberto (overlay próprio do Radix já bloqueia interação).
+- O usuário preenche motivo (≥20 chars), categoria e marca o checkbox "Cliente informado".
+- Ao confirmar:
+  - Botão "Confirmar cancelamento" entra em loading (`Cancelando...`) — sem freeze de tela.
+  - Chama `cancelComandaMutation` do `use-pdv-comandas` com `{ id, reason, category, customerNotified }`.
+  - Em sucesso: fecha `CancelComandaDialog`, fecha `PaymentDialog`, toast "Comanda cancelada".
+  - Em erro: mantém ambos abertos, exibe toast de erro, libera os botões.
+
+**3. Também no card da fila (escopo original)**
+
+Para não perder o ponto de entrada principal: adicionar no `SalonQueueCard.tsx` um botão discreto **X** (ghost, vermelho) ao lado do botão "Cobrar" / chevron, que abre o mesmo `CancelComandaDialog`. Comportamento idêntico ao item 2.
+
+### Detalhes técnicos
+
+- `PaymentDialog` recebe novo prop opcional `onCancelComanda?: (comanda: Comanda) => void` ou gerencia o `CancelComandaDialog` internamente — preferir gerenciar internamente para não vazar lógica.
+- Estado local: `const [cancelOpen, setCancelOpen] = useState(false)` + `const [isCancelling, setIsCancelling] = useState(false)`.
+- Identificar a comanda alvo: usar o primeiro/único item de `comandas` se `comandas.length === 1` e `comandas[0].id` existir.
+- Reaproveitar o `cancelComandaMutation` existente em `use-pdv-comandas.ts` (que será atualizado em outro passo para chamar a RPC `pdv_cancel_comanda`).
+- Sem novos arquivos: apenas editar `PaymentDialog.tsx` e `SalonQueueCard.tsx`.
+
+### Fora do escopo deste passo
+
+- Implementação da migration `pdv_cancel_comanda` (já discutida).
+- Substituição da mutation pelo RPC (será feito junto com a migration).
+- Seção "Comandas canceladas" no relatório do caixa.
