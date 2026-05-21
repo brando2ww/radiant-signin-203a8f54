@@ -47,6 +47,7 @@ import {
   Minus,
   Check,
   Ticket,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Comanda, ComandaItem, usePDVComandas } from "@/hooks/use-pdv-comandas";
