@@ -13,6 +13,7 @@ import { PurchaseFunnel } from "./reports/PurchaseFunnel";
 import { PeakHoursHeatmap } from "./reports/PeakHoursHeatmap";
 import { NeighborhoodPerformance } from "./reports/NeighborhoodPerformance";
 import { ReportsToolbar } from "./reports/ReportsToolbar";
+import { CancelledOrders } from "./reports/CancelledOrders";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { Loader2 } from "lucide-react";
