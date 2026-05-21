@@ -287,9 +287,17 @@ export const OrderDetailDialog = ({
                         locale: ptBR,
                       })}
                     </p>
+                    {order.cancellation_category && (
+                      <p className="text-xs">
+                        Categoria: {getCancelCategoryLabel(order.cancellation_category)}
+                      </p>
+                    )}
                     {order.cancellation_reason && (
                       <p className="text-xs">Motivo: {order.cancellation_reason}</p>
                     )}
+                    <p className="text-xs">
+                      Cliente informado: {order.customer_notified ? "Sim" : "Não"}
+                    </p>
                   </div>
                 )}
               </div>
