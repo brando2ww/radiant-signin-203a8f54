@@ -223,6 +223,7 @@ export function usePDVCashier() {
         justifications.voucher ||
         justifications.onlineDelivery ||
         justifications.other ||
+        justifications.fiado ||
         closingJustification ||
         notes
       );
