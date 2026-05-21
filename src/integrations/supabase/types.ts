@@ -3196,6 +3196,7 @@ export type Database = {
           declared_cash: number | null
           declared_credit: number | null
           declared_debit: number | null
+          declared_fiado: number | null
           declared_online_delivery: number | null
           declared_other: number | null
           declared_pix: number | null
@@ -3203,11 +3204,13 @@ export type Database = {
           declared_voucher: number | null
           difference_justified: boolean | null
           expected_balance: number | null
+          fiado_difference: number | null
           fraud_risk_level: string | null
           id: string
           justification_cash: string | null
           justification_credit: string | null
           justification_debit: string | null
+          justification_fiado: string | null
           justification_online_delivery: string | null
           justification_other: string | null
           justification_pix: string | null
@@ -3248,6 +3251,7 @@ export type Database = {
           declared_cash?: number | null
           declared_credit?: number | null
           declared_debit?: number | null
+          declared_fiado?: number | null
           declared_online_delivery?: number | null
           declared_other?: number | null
           declared_pix?: number | null
@@ -3255,11 +3259,13 @@ export type Database = {
           declared_voucher?: number | null
           difference_justified?: boolean | null
           expected_balance?: number | null
+          fiado_difference?: number | null
           fraud_risk_level?: string | null
           id?: string
           justification_cash?: string | null
           justification_credit?: string | null
           justification_debit?: string | null
+          justification_fiado?: string | null
           justification_online_delivery?: string | null
           justification_other?: string | null
           justification_pix?: string | null
@@ -3300,6 +3306,7 @@ export type Database = {
           declared_cash?: number | null
           declared_credit?: number | null
           declared_debit?: number | null
+          declared_fiado?: number | null
           declared_online_delivery?: number | null
           declared_other?: number | null
           declared_pix?: number | null
@@ -3307,11 +3314,13 @@ export type Database = {
           declared_voucher?: number | null
           difference_justified?: boolean | null
           expected_balance?: number | null
+          fiado_difference?: number | null
           fraud_risk_level?: string | null
           id?: string
           justification_cash?: string | null
           justification_credit?: string | null
           justification_debit?: string | null
+          justification_fiado?: string | null
           justification_online_delivery?: string | null
           justification_other?: string | null
           justification_pix?: string | null
