@@ -131,6 +131,7 @@ export const OrderConfirmation = ({
       paymentMethod,
       changeFor,
       notes,
+      idempotencyKey,
       items: cart.map((item) => ({
         productId: item.productId,
         productName: item.name,
