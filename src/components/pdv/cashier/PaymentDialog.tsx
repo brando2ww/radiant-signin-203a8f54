@@ -133,10 +133,15 @@ export function PaymentDialog({
   const { user } = useAuth();
   
   // Payment state
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("dinheiro");
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | "fiado">("dinheiro");
   const [cardType, setCardType] = useState<CardType>("credito");
   const [cashReceived, setCashReceived] = useState("");
   const [installments, setInstallments] = useState("1");
+
+  // Venda a Prazo (fiado)
+  const [creditEmployeeId, setCreditEmployeeId] = useState<string>("");
+  const [creditEmployeeSearch, setCreditEmployeeSearch] = useState("");
+  const [creditJustification, setCreditJustification] = useState("");
   
   // Discount & fees — fluxo guiado em 4 etapas
   type DiscountStage = "idle" | "typing" | "confirming" | "applied";
