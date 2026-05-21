@@ -569,7 +569,7 @@ export function CloseCashierDialog({
         declaredPix: parseN(declaredPix),
         declaredVoucher: parseN(declaredVoucher),
         declaredOnlineDelivery: totalOnlineDelivery,
-        declaredOther: parseN(declaredOther),
+        declaredOther: null,
         declaredFiado: parseN(declaredFiado),
         declaredTotal: blindTotal,
       });
