@@ -102,6 +102,9 @@ export const OrderConfirmation = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Trava contra duplo submit / clique repetido
+    if (createOrder.isPending) return;
+
     const status = isStoreCurrentlyOpen(deliverySettings);
     if (!status.open) {
       toast.error(
