@@ -18,6 +18,7 @@ interface Props {
   totalCoupons: number;
   redeemedCoupons: number;
   onNpsClick?: (category: "promoters" | "neutrals" | "detractors" | "all") => void;
+  onTotalResponsesClick?: () => void;
 }
 
 function ClickableCard({

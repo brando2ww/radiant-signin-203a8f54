@@ -1,16 +1,19 @@
-## Diagnóstico
+## Objetivo
 
-A venda a prazo registra corretamente em `pdv_employee_consumption_entries` e em `pdv_payments`, mas **não** entra em `pdv_cashier_movements` (por isso não aparece em "Vendas por forma de pagamento" nem em `total_fiado` da sessão).
+Ao clicar no card **Total de Respostas** no dashboard de avaliações, abrir um modal com todas as respostas, ordenadas da última para a primeira (mais recente primeiro), em vez de navegar para a página de relatórios por pergunta.
 
-**Causa:** o hook `registerCreditSale` (`src/hooks/use-employee-consumption.ts`) insere o movimento com `source: "credit_sale"`, mas a tabela `pdv_cashier_movements` tem um CHECK constraint que só aceita `'salon' | 'counter' | 'delivery' | 'delivery_online' | 'quitacao_consumo'`. O insert é rejeitado silenciosamente (a chamada não usa `.throwOnError()`), então o toast "Venda lançada a prazo" aparece mesmo sem o movimento ter sido criado, e o `total_fiado` permanece zerado.
+## Mudanças
 
-## Correções
+### 1. `src/components/evaluations/dashboard/DashboardKPICards.tsx`
+- Trocar o `ClickableCard to="/pdv/avaliacoes/relatorios/por-pergunta"` do card "Total de Respostas" por um `Card` clicável que dispara `onNpsClick?.("all")` (o tipo de `onNpsClick` já aceita `"all"`).
+- Manter exatamente a mesma aparência (hover, cursor, borda) do `ClickableCard`.
 
-1. **`src/hooks/use-employee-consumption.ts`** (linha ~221): trocar `source: "credit_sale"` por `source: "salon"` para passar no CHECK constraint da tabela. Como a venda a prazo de comanda nasce do salão, esse valor é coerente.
+### 2. `src/components/evaluations/dashboard/NPSDetailDialog.tsx`
+- No `useMemo` que produz `filtered`, ordenar a lista por data (`evaluation_date || created_at`) em ordem **decrescente** (mais recente primeiro). Isso vale para todas as categorias, mas é especialmente o que o usuário pediu para "all".
 
-2. **Migração SQL — backfill da venda a prazo já feita hoje (R$ 10,00):**
-   - Inserir um `pdv_cashier_movements` correspondente ao `pdv_employee_consumption_entries` `892deda9-…` (sessão `97d96849-…`).
-   - Rodar `pdv_recompute_session_totals` para a sessão aberta, atualizando `total_fiado` e `total_sales`.
-   - (A venda a prazo de R$ 20,00 das 14:52 foi feita ANTES de a sessão atual abrir às 15:44, então não pertence a esta sessão e não será backfillada.)
+### 3. `src/pages/evaluations/EvaluationsDashboard.tsx`
+- Nenhuma alteração estrutural — `onNpsClick={setNpsFilter}` já encaminha `"all"` para o `NPSDetailDialog` existente. O modal já tem suporte completo à categoria `"all"` ("Todas as Respostas").
 
-Sem mudanças de UI; apenas hook + migração.
+## Resultado
+
+Clicar em "Total de Respostas" abre o modal já existente `NPSDetailDialog` no modo "Todas as Respostas", com busca, contagem, e linhas listadas da mais recente para a mais antiga.
