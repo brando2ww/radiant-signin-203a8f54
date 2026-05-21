@@ -178,7 +178,7 @@ export function usePDVCashier() {
       // 2. Lê os totais já reconciliados + opening_balance + reforços.
       const { data: session } = await supabase
         .from("pdv_cashier_sessions")
-        .select("opening_balance, total_cash, total_credit, total_debit, total_pix, total_voucher, total_online_delivery, total_other, total_withdrawals")
+        .select("opening_balance, total_cash, total_credit, total_debit, total_pix, total_voucher, total_online_delivery, total_other, total_fiado, total_withdrawals")
         .eq("id", sessionId)
         .single();
 
