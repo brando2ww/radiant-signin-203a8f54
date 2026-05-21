@@ -1,32 +1,39 @@
-## Diagnóstico
+# Apresentação Comercial PDF — Velara Checklist & Avaliação
 
-Encontrei duplicidade real em `delivery_orders`: dois pedidos recentes do mesmo cliente, mesmo telefone, mesmos itens e mesmo total, criados com 31 segundos de diferença. Não há duplicidade em `pdv_cashier_movements` para o mesmo `delivery_order_id`, então o problema principal parece estar na criação repetida do pedido pelo cardápio digital, não no registro financeiro do caixa.
+Apresentação **horizontal (16:9, 1920×1080)** em PDF, voltada para venda dos módulos a restaurantes. Tom comercial, visual, com seções ilustradas e linguagem de benefício (não técnica). Utilizar o logotipo da velara também nas paginas. 
 
-## Plano de correção
+## Estrutura dos 10 slides
 
-1. **Bloquear duplo envio no checkout do cardápio**
-   - Adicionar uma trava local no `OrderConfirmation` para impedir clique duplo/submit repetido enquanto o pedido está sendo criado.
-   - Manter o botão “Confirmar Pedido” desabilitado até o fluxo terminar e evitar múltiplas chamadas ao `createOrder.mutate`.
+1. **Capa** — Logo Velara, título "Operação impecável e clientes encantados", subtítulo "Módulos Checklist & Avaliação", tagline + visual hero.
+2. **O problema** — Dores do restaurante: equipe sem padrão, retrabalho, falhas de higiene/abertura/fechamento, reviews negativos, clientes que somem.
+3. **A solução Velara** — Duas frentes integradas: *Checklist* (padroniza a operação) + *Avaliação* (escuta o cliente e recupera detratores).
+4. **Módulo Checklist — Visão geral** — O que é, para quem (abertura, fechamento, limpeza, segurança alimentar, manutenção), com mock da tela principal.
+5. **Checklist — Funcionalidades**: editor de itens (texto, foto, assinatura, número), agendamentos recorrentes, execução mobile com PIN, evidências fotográficas, QR code por setor, biblioteca de templates, alertas de atraso, validade de itens, gestão de operadores.
+6. **Checklist — Gestão e indicadores**: dashboard de saúde da operação, score por equipe/operador, pódio de performance, galeria de evidências, logs de acesso, relatórios de conformidade.
+7. **Módulo Avaliação — Visão geral** — NPS + pesquisa pós-atendimento, link público, QR na mesa, integração com Google Reviews e iFood.
+8. **Avaliação — Funcionalidades**: campanhas configuráveis, perguntas (estrelas, escolha, texto), cupons de recompensa automáticos, hub de clientes, deduplicação por telefone, relatórios por pergunta, painel de NPS, identificação de detratores.
+9. **Resultados que o cliente vê** — Bloco de benefícios com números/impacto: redução de falhas operacionais, aumento de NPS, recuperação de detratores, mais reviews 5 estrelas, time mais engajado. Depoimento curto fictício/placeholder.
+10. **Próximos passos / Call to action** — Como começar, planos, contato (WhatsApp, e-mail, site), QR code para agendar demonstração.
 
-2. **Adicionar idempotência server-side na criação do pedido**
-   - Criar um campo/chave de idempotência em `delivery_orders`, gerado por tentativa de checkout.
-   - Adicionar índice único para garantir que a mesma tentativa de checkout não crie dois pedidos, mesmo com duplo clique, retry do navegador ou latência.
-   - Ajustar `useCreateOrder` para usar `upsert`/tratamento de conflito pela chave de idempotência e retornar o pedido já existente quando a tentativa já tiver sido processada.
+## Visual
 
-3. **Evitar itens duplicados em pedidos idempotentes**
-   - Só inserir `delivery_order_items` e `delivery_order_item_options` quando o pedido for realmente novo.
-   - Se o pedido já existir por idempotência, retornar o pedido existente sem inserir itens novamente.
+- Paleta sóbria e comercial: fundo claro com seções escuras em capa/conclusão (estrutura "sandwich"), acento único da marca.
+- Tipografia com personalidade no título + sans-serif limpa no corpo.
+- Cada slide com **um elemento visual dominante**: mockup de tela, ícones em círculos coloridos, cards de estatística, ou hero image.
+- Capa e slide final em fundo escuro; slides de conteúdo em fundo claro.
 
-4. **Reforçar o registro no caixa contra duplicidade concorrente**
-   - Adicionar/garantir índice único em `pdv_cashier_movements.delivery_order_id` quando o movimento vem de delivery.
-   - Isso impede que dois operadores/duplo clique registrem o mesmo pedido duas vezes no caixa em condições de corrida.
+## Imagens das seções
 
-5. **Limpar a exibição da fila, se necessário**
-   - Manter a fila agrupada por `id` do pedido e invalidada via Realtime.
-   - Não ocultar pedidos distintos por heurística visual; a prevenção deve acontecer na criação.
+Plano: capturar screenshots reais das telas (`/pdv/checklists`, `/pdv/checklists/equipe`, `/pdv/checklists/evidencias`, `/pdv/avaliacoes`, `/pdv/avaliacoes/clients`, `/pdv/avaliacoes/reports`) via browser do sandbox, com o usuário logado. Caso login não esteja disponível no preview, usar **mockups ilustrativos gerados** (frames de UI estilizados) para representar cada seção sem expor dados reais.
 
-## Resultado esperado
+## Entregável
 
-- Duplo clique ou reenvio no cardápio digital não cria novo pedido duplicado.
-- O mesmo pedido não pode gerar dois movimentos financeiros no caixa.
-- Pedidos legitimamente diferentes continuam sendo aceitos normalmente.
+- Arquivo único `/mnt/documents/velara-checklist-avaliacao.pdf` (16:9, 10 páginas).
+- Gerado via Python (`reportlab`) com imagens embutidas em alta resolução.
+- QA visual obrigatório: render de cada página em JPG e revisão antes de entregar.
+
+## Perguntas antes de gerar
+
+1. **Imagens das telas**: posso usar **mockups ilustrativos** dos módulos (mais limpos, sem dados sensíveis) ou você prefere que eu tente capturar **screenshots reais** das telas do app? *(mockup é mais rápido e visualmente consistente; screenshot real exige credenciais de login no preview)*
+2. **Contato / CTA do último slide**: qual WhatsApp, e-mail e site devo colocar? (Se não informar, uso placeholders `contato@velara.app` / site atual.)
+3. **Logo Velara**: existe um arquivo de logo no projeto que eu deva usar? Se sim, qual caminho? (Caso contrário, faço lockup tipográfico "Velara".)
