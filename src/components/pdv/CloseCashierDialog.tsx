@@ -165,6 +165,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
   const totalWithdrawals = Number(session?.total_withdrawals) || 0;
   const totalSales = Number(session?.total_sales) || 0;
   const totalOnlineDelivery = Number(session?.total_online_delivery) || 0;
+  const totalFiado = Number((session as any)?.total_fiado) || 0;
 
   const totalReinforcements = movements
     .filter((m) => m.type === "reforco")
@@ -213,6 +214,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
       debito: "Débito",
       pix: "PIX",
       vale_refeicao: "VR",
+      fiado: "À Prazo",
     };
     const method = m.payment_method ? methodMap[m.payment_method] || m.payment_method : "";
     return `<tr>
@@ -261,6 +263,7 @@ ${conferenceHtml ? `<div class="divider"></div>
 </div>` : ""}
 <div class="divider"></div>
 <div class="section">
+  ${totalFiado > 0 ? `<div class="row"><span>Vendas a Prazo (fiado):</span><span>${formatBRL(totalFiado)}</span></div>` : ""}
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
 ${movements.length > 0 ? `

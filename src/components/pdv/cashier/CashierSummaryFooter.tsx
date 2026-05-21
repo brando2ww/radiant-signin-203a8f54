@@ -1,4 +1,4 @@
-import { Banknote, CreditCard, Smartphone, TrendingDown, TrendingUp, Wallet, Ticket, Receipt, Globe } from "lucide-react";
+import { Banknote, CreditCard, Smartphone, TrendingDown, TrendingUp, Wallet, Ticket, Receipt, Globe, UserCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatBRL } from "@/lib/format";
 
@@ -16,6 +16,7 @@ interface CashierSummaryFooterProps {
   totalPix: number;
   totalVoucher: number;
   totalOnlineDelivery: number;
+  totalFiado: number;
   totalSales: number;
   isOpen: boolean;
 }
@@ -62,6 +63,7 @@ export function CashierSummaryFooter({
   totalPix,
   totalVoucher,
   totalOnlineDelivery,
+  totalFiado,
   totalSales,
   isOpen,
 }: CashierSummaryFooterProps) {
@@ -115,6 +117,7 @@ export function CashierSummaryFooter({
             <SummaryRow icon={Smartphone} label="PIX" value={totalPix} />
             <SummaryRow icon={Ticket} label="Vale-refeição" value={totalVoucher} />
             <SummaryRow icon={Globe} label="Online (Delivery)" value={totalOnlineDelivery} />
+            <SummaryRow icon={UserCheck} label="Vendas a Prazo" value={totalFiado} />
           </div>
           <div className="mt-2 pt-2 border-t">
             <SummaryRow
