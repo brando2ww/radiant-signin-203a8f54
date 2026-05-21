@@ -127,11 +127,32 @@ export function useEvidenceGallery(filters: EvidenceFilters) {
         };
       }).filter(Boolean) as EvidenceItem[];
 
+      const term = (filters.search || "").trim().toLowerCase();
+      if (term) {
+        results = results.filter(e =>
+          e.itemTitle.toLowerCase().includes(term) ||
+          e.checklistName.toLowerCase().includes(term) ||
+          e.operatorName.toLowerCase().includes(term) ||
+          (e.reviewComment || "").toLowerCase().includes(term) ||
+          e.sector.toLowerCase().includes(term)
+        );
+      }
+
+      results.sort((a, b) => {
+        if (a.executionDate !== b.executionDate) {
+          return a.executionDate < b.executionDate ? 1 : -1;
+        }
+        const aT = a.completedAt || "";
+        const bT = b.completedAt || "";
+        return aT < bT ? 1 : aT > bT ? -1 : 0;
+      });
+
       return results;
     },
     enabled: !!user?.id,
   });
 }
+
 
 export function useReviewEvidence() {
   const { user } = useAuth();
