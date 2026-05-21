@@ -76,6 +76,9 @@ import { useNFCeEmission } from "@/hooks/use-nfce-emission";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { printNonFiscalReceipt, printDanfeFromUrl } from "@/lib/print-fiscal-receipt";
 import { formatTableLabel } from "@/utils/formatTableNumber";
+import { useAuthorizedEmployees } from "@/hooks/use-authorized-employees";
+import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
+import { formatBRL } from "@/lib/format";
 
 interface PaymentDialogProps {
   open: boolean;
