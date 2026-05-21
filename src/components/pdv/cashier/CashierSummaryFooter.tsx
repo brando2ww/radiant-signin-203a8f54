@@ -16,6 +16,7 @@ interface CashierSummaryFooterProps {
   totalPix: number;
   totalVoucher: number;
   totalOnlineDelivery: number;
+  totalFiado: number;
   totalSales: number;
   isOpen: boolean;
 }
