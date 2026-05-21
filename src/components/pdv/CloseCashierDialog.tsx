@@ -180,6 +180,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
   const declaredPix = session?.declared_pix;
   const declaredVoucher = session?.declared_voucher;
   const declaredOnline = session?.declared_online_delivery;
+  const declaredFiado = (session as any)?.declared_fiado;
 
   const conferenceRows: Array<[string, number, number | null]> = [
     ["Crédito", totalCredit, declaredCredit],
@@ -187,6 +188,7 @@ export function printCashierReport(params: PrintCashierReportParams) {
     ["PIX", totalPix, declaredPix],
     ["Vale-refeição", totalVoucher, declaredVoucher],
     ["Online (Delivery)", totalOnlineDelivery, declaredOnline],
+    ["Vendas a Prazo", totalFiado, declaredFiado],
   ];
 
   const conferenceHtml = conferenceRows
