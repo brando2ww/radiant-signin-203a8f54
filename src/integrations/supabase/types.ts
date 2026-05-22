@@ -3562,6 +3562,7 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           cancelled_by_user_id: string | null
+          cashier_session_id: string | null
           close_reason: string | null
           closed_by_user_id: string | null
           closed_by_waiter_at: string | null
@@ -3584,6 +3585,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
+          cashier_session_id?: string | null
           close_reason?: string | null
           closed_by_user_id?: string | null
           closed_by_waiter_at?: string | null
@@ -3606,6 +3608,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
+          cashier_session_id?: string | null
           close_reason?: string | null
           closed_by_user_id?: string | null
           closed_by_waiter_at?: string | null
@@ -3624,6 +3627,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pdv_comandas_cashier_session_id_fkey"
+            columns: ["cashier_session_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_cashier_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pdv_comandas_order_id_fkey"
             columns: ["order_id"]
@@ -7671,6 +7681,13 @@ export type Database = {
         Args: { p_item_ids: string[]; p_session_id: string }
         Returns: {
           locked_id: string
+        }[]
+      }
+      pdv_next_comanda_number: {
+        Args: { p_owner: string }
+        Returns: {
+          cashier_session_id: string
+          comanda_number: string
         }[]
       }
       pdv_recompute_session_totals: {
