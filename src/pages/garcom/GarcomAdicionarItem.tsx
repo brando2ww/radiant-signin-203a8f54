@@ -50,7 +50,7 @@ export default function GarcomAdicionarItem() {
 
 
   const { data: productOptions } = usePDVProductOptionsForOrder(selectedProduct?.id);
-  const { data: compositionGroups } = useCompositionGroups(selectedProduct?.id);
+  const { groups: compositionGroups } = useCompositionGroups(selectedProduct?.id);
 
   const selectedOptions: SelectedOption[] = [...compositionSelections, ...optionSelections];
 
