@@ -43,6 +43,10 @@ export default function PDVCashier() {
     totalReinforcements,
   } = usePDVCashier();
 
+  // Realtime dos totais da gaveta e movimentos do caixa ativo
+  usePDVCashierRealtime(activeSession?.id);
+
+
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
   const { tables } = usePDVTables();
   const { orders, cancelOrder } = usePDVOrders();
