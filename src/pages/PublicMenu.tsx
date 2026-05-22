@@ -250,7 +250,7 @@ const PublicMenu = () => {
   return (
     <div className="min-h-screen bg-background">
       <PublicMenuRealtime userId={userId} />
-      <PublicMenuHeader userId={userId} />
+      <PublicMenuHeader userId={userId} handle={handle} />
       
       <div className="sticky top-0 z-30 bg-background border-b">
         <CategoryNav categories={categories} />
