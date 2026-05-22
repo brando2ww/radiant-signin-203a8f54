@@ -1,138 +1,98 @@
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { usePDVReports } from "@/hooks/use-pdv-reports";
-import { ReportSummaryCards } from "@/components/pdv/ReportSummaryCards";
-import { PaymentMethodChart } from "@/components/pdv/PaymentMethodChart";
-import { ProductsTable } from "@/components/pdv/ProductsTable";
-import { HourlySalesChart } from "@/components/pdv/HourlySalesChart";
-import { MonthlyRevenueSection } from "@/components/pdv/MonthlyRevenueSection";
+import { Button } from "@/components/ui/button";
+import { BarChart3, CalendarRange, Layers, Users, Ban, BadgePercent, ShoppingCart, Package, Menu } from "lucide-react";
+import OverviewReport from "./reports/OverviewReport";
+import MonthlyReport from "./reports/MonthlyReport";
+import ByCategoryReport from "./reports/ByCategoryReport";
+import ByUserReport from "./reports/ByUserReport";
+import CancellationsReport from "./reports/CancellationsReport";
+import DiscountsReport from "./reports/DiscountsReport";
+import PurchasesReport from "./reports/PurchasesReport";
+import SalesByProductReport from "./reports/SalesByProductReport";
+
+type ReportKey =
+  | "overview" | "monthly" | "category" | "user"
+  | "cancellations" | "discounts" | "purchases" | "sales-by-product";
+
+const NAV: Array<{ key: ReportKey; label: string; icon: any; group: string }> = [
+  { key: "overview", label: "Visão Geral", icon: BarChart3, group: "Resumo" },
+  { key: "monthly", label: "Mensal / YoY", icon: CalendarRange, group: "Resumo" },
+  { key: "sales-by-product", label: "Vendas por Produto", icon: Package, group: "Produtos" },
+  { key: "category", label: "Categorias", icon: Layers, group: "Produtos" },
+  { key: "user", label: "Por Usuário", icon: Users, group: "Operações" },
+  { key: "cancellations", label: "Cancelamentos", icon: Ban, group: "Operações" },
+  { key: "discounts", label: "Descontos e Cupons", icon: BadgePercent, group: "Operações" },
+  { key: "purchases", label: "Compras", icon: ShoppingCart, group: "Estoque" },
+];
+
+function renderReport(key: ReportKey) {
+  switch (key) {
+    case "overview": return <OverviewReport />;
+    case "monthly": return <MonthlyReport />;
+    case "sales-by-product": return <SalesByProductReport />;
+    case "category": return <ByCategoryReport />;
+    case "user": return <ByUserReport />;
+    case "cancellations": return <CancellationsReport />;
+    case "discounts": return <DiscountsReport />;
+    case "purchases": return <PurchasesReport />;
+  }
+}
 
 export default function PDVReports() {
-  const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
-  const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [active, setActive] = useState<ReportKey>("overview");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const {
-    salesReport,
-    paymentReport,
-    productReport,
-    hourlyReport,
-    isLoading,
-  } = usePDVReports(startDate, endDate);
-
-  const quickFilters = [
-    { label: "Hoje", days: 0 },
-    { label: "Últimos 7 dias", days: 7 },
-    { label: "Últimos 30 dias", days: 30 },
-    { label: "Este mês", special: "month" },
-  ];
-
-  const handleQuickFilter = (filter: any) => {
-    if (filter.special === "month") {
-      setStartDate(startOfMonth(new Date()));
-      setEndDate(endOfMonth(new Date()));
-    } else {
-      setStartDate(subDays(new Date(), filter.days));
-      setEndDate(new Date());
-    }
-  };
+  const groups = Array.from(new Set(NAV.map((n) => n.group)));
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Relatórios</h1>
-          <p className="text-muted-foreground">
-            Análise detalhada de vendas e performance
-          </p>
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      {/* Sidebar */}
+      <aside className={cn(
+        "w-60 shrink-0 border-r bg-card flex-col gap-1 p-3",
+        mobileOpen ? "flex absolute inset-y-0 left-0 z-40 md:relative" : "hidden md:flex",
+      )}>
+        <div className="px-2 py-2 mb-2">
+          <h2 className="text-sm font-semibold">Relatórios</h2>
+          <p className="text-xs text-muted-foreground">Análises e exportação</p>
         </div>
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
+        {groups.map((g) => (
+          <div key={g} className="mb-2">
+            <p className="px-2 text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{g}</p>
+            <div className="flex flex-col gap-0.5">
+              {NAV.filter((n) => n.group === g).map((n) => {
+                const Icon = n.icon;
+                const isActive = active === n.key;
+                return (
+                  <button
+                    key={n.key}
+                    onClick={() => { setActive(n.key); setMobileOpen(false); }}
                     className={cn(
-                      "justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground"
+                      "flex items-center gap-2 px-2 py-2 rounded-md text-sm text-left transition-colors",
+                      isActive ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "PPP", { locale: ptBR }) : "Início"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={(date) => date && setStartDate(date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-
-              <span className="text-muted-foreground">até</span>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "PPP", { locale: ptBR }) : "Fim"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={(date) => date && setEndDate(date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="flex gap-2 flex-wrap">
-              {quickFilters.map((filter) => (
-                <Button
-                  key={filter.label}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickFilter(filter)}
-                >
-                  {filter.label}
-                </Button>
-              ))}
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{n.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+      </aside>
 
-      <ReportSummaryCards data={salesReport} isLoading={isLoading} />
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <PaymentMethodChart data={paymentReport} isLoading={isLoading} />
-        <HourlySalesChart data={hourlyReport} isLoading={isLoading} />
+      {/* Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="md:hidden border-b p-2">
+          <Button variant="outline" size="sm" onClick={() => setMobileOpen((v) => !v)}>
+            <Menu className="h-4 w-4 mr-2" /> Relatórios
+          </Button>
+        </div>
+        <div className="flex-1 p-4 md:p-6 overflow-x-hidden">
+          {renderReport(active)}
+        </div>
       </div>
-
-      <ProductsTable data={productReport} isLoading={isLoading} />
-
-      <MonthlyRevenueSection />
     </div>
   );
 }
