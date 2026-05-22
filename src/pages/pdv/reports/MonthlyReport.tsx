@@ -43,42 +43,51 @@ export default function MonthlyReport() {
       const start = new Date(year - 1, 0, 1).toISOString();
       const end = new Date(year + 1, 0, 1).toISOString();
 
-      const [ordersRes, itemsRes] = await Promise.all([
+      // Revenue from pdv_payments (processed_at), items from pdv_comanda_items via orders
+      const [paymentsRes, ordersRes] = await Promise.all([
+        supabase
+          .from("pdv_payments")
+          .select("amount, processed_at, order_id, order:pdv_orders!inner(user_id)")
+          .eq("order.user_id", visibleUserId!)
+          .gte("processed_at", start)
+          .lt("processed_at", end)
+          .not("processed_at", "is", null),
         supabase
           .from("pdv_orders")
-          .select("id, total, closed_at")
+          .select("id, opened_at")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
-          .not("closed_at", "is", null)
-          .gte("closed_at", start)
-          .lt("closed_at", end),
-        supabase
-          .from("pdv_order_items")
-          .select("quantity, order:pdv_orders!inner(user_id, status, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .eq("order.status", "fechada")
-          .gte("order.closed_at", start)
-          .lt("order.closed_at", end),
+          .gte("opened_at", start)
+          .lt("opened_at", end),
       ]);
-      if (ordersRes.error) throw ordersRes.error;
+      if (paymentsRes.error) throw paymentsRes.error;
+      const payments = paymentsRes.data || [];
       const orders = ordersRes.data || [];
-      const items = itemsRes.data || [];
 
-      const buckets: Record<string, { revenue: number; orders: number; items: number }> = {};
-      orders.forEach((o: any) => {
-        const d = new Date(o.closed_at);
+      // Items via comandas → orders in window
+      const orderIds = orders.map((o: any) => o.id);
+      const items = orderIds.length
+        ? (await import("@/lib/reports-data-source")).fetchItemsByOrderIds
+          ? await (await import("@/lib/reports-data-source")).fetchItemsByOrderIds(orderIds)
+          : []
+        : [];
+      const orderTime = new Map<string, string>(orders.map((o: any) => [o.id, o.opened_at]));
+
+      const buckets: Record<string, { revenue: number; orders: Set<string>; items: number }> = {};
+      payments.forEach((p: any) => {
+        const d = new Date(p.processed_at);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (!buckets[key]) buckets[key] = { revenue: 0, orders: 0, items: 0 };
-        buckets[key].revenue += Number(o.total || 0);
-        buckets[key].orders += 1;
+        if (!buckets[key]) buckets[key] = { revenue: 0, orders: new Set(), items: 0 };
+        buckets[key].revenue += Number(p.amount || 0);
+        if (p.order_id) buckets[key].orders.add(p.order_id);
       });
       items.forEach((it: any) => {
-        const t = it.order?.closed_at;
+        const t = orderTime.get(it.order_id);
         if (!t) return;
         const d = new Date(t);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (!buckets[key]) buckets[key] = { revenue: 0, orders: 0, items: 0 };
-        buckets[key].items += Number(it.quantity || 0);
+        if (!buckets[key]) buckets[key] = { revenue: 0, orders: new Set(), items: 0 };
+        buckets[key].items += it.quantity;
       });
 
       const list: MonthRow[] = MONTHS.map((label, m) => {
