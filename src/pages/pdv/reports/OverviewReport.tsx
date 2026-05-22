@@ -37,52 +37,57 @@ export default function OverviewReport() {
       const end = new Date(endDate); end.setHours(23, 59, 59, 999);
       const { prevStart, prevEnd } = previousPeriod(start, end);
 
-      const [curRes, prevRes, itemsRes] = await Promise.all([
+      const [curRes, prevRes] = await Promise.all([
         supabase
           .from("pdv_orders")
-          .select("id, total, discount, status, customer_id, customer_name, closed_at, cancelled_at, opened_at")
+          .select("id, discount, status, customer_id, customer_name, closed_at, opened_at")
           .eq("user_id", visibleUserId!)
           .gte("opened_at", start.toISOString())
           .lte("opened_at", end.toISOString()),
         supabase
           .from("pdv_orders")
-          .select("total, status")
+          .select("id, status")
           .eq("user_id", visibleUserId!)
           .gte("opened_at", prevStart.toISOString())
           .lte("opened_at", prevEnd.toISOString()),
-        supabase
-          .from("pdv_order_items")
-          .select("quantity, subtotal, product_id, order:pdv_orders!inner(user_id, status, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .eq("order.status", "fechada")
-          .gte("order.closed_at", start.toISOString())
-          .lte("order.closed_at", end.toISOString()),
       ]);
 
       const curOrders = curRes.data || [];
       const prevOrders = prevRes.data || [];
-      const items = itemsRes.data || [];
 
       const closed = curOrders.filter((o: any) => o.status === "fechada");
       const cancelled = curOrders.filter((o: any) => o.status === "cancelada");
-      const revenue = closed.reduce((s, o: any) => s + Number(o.total || 0), 0);
+      const prevClosed = prevOrders.filter((o: any) => o.status === "fechada");
+
+      // Buscar pagamentos e itens reais
+      const closedIds = closed.map((o: any) => o.id);
+      const [paymentsByOrder, items, prevPayments] = await Promise.all([
+        fetchPaymentsByOrderIds(closedIds),
+        fetchItemsByOrderIds(closedIds),
+        fetchPaymentsByOrderIds(prevClosed.map((o: any) => o.id)),
+      ]);
+
+      const orderRevenue = (id: string) => paymentsByOrder.get(id)?.total || 0;
+      const revenue = closed.reduce((s, o: any) => s + orderRevenue(o.id), 0);
       const totalDiscount = closed.reduce((s, o: any) => s + Number(o.discount || 0), 0);
-      const totalItems = items.reduce((s, it: any) => s + Number(it.quantity || 0), 0);
+      const totalItems = items.reduce((s, it) => s + it.quantity, 0);
       const cancelledRate = curOrders.length > 0 ? cancelled.length / curOrders.length : 0;
 
-      const prevClosed = prevOrders.filter((o: any) => o.status === "fechada");
-      const prevRevenue = prevClosed.reduce((s, o: any) => s + Number(o.total || 0), 0);
-      const prevAvgTicket = prevClosed.length > 0 ? prevRevenue / prevClosed.length : 0;
-      const curAvgTicket = closed.length > 0 ? revenue / closed.length : 0;
+      const ordersWithRevenue = closed.filter((o: any) => orderRevenue(o.id) > 0).length;
+      let prevRevenue = 0;
+      let prevOrdersWithRevenue = 0;
+      prevPayments.forEach((r) => { prevRevenue += r.total; if (r.total > 0) prevOrdersWithRevenue += 1; });
+      const prevAvgTicket = prevOrdersWithRevenue > 0 ? prevRevenue / prevOrdersWithRevenue : 0;
+      const curAvgTicket = ordersWithRevenue > 0 ? revenue / ordersWithRevenue : 0;
 
       // Weekday
       const wd = WEEKDAYS.map((label, i) => ({ day: label, idx: i, revenue: 0, orders: 0 }));
       closed.forEach((o: any) => {
-        const t = o.closed_at || o.opened_at;
+        const t = paymentsByOrder.get(o.id)?.paidAt || o.closed_at || o.opened_at;
         if (!t) return;
         const d = new Date(t).getDay();
-        wd[d].revenue += Number(o.total || 0);
-        wd[d].orders += 1;
+        wd[d].revenue += orderRevenue(o.id);
+        if (orderRevenue(o.id) > 0) wd[d].orders += 1;
       });
 
       // Top customers
@@ -90,30 +95,32 @@ export default function OverviewReport() {
       closed.forEach((o: any) => {
         const id = o.customer_id || o.customer_name || "anon";
         if (id === "anon" || !o.customer_name) return;
+        const rev = orderRevenue(o.id);
+        if (rev <= 0) return;
         if (!byCust.has(id)) byCust.set(id, { id, name: o.customer_name, revenue: 0, orders: 0 });
         const r = byCust.get(id)!;
-        r.revenue += Number(o.total || 0);
+        r.revenue += rev;
         r.orders += 1;
       });
       const topCustomers = Array.from(byCust.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
 
-      // Top categories
-      const pids = Array.from(new Set(items.map((it: any) => it.product_id).filter(Boolean))) as string[];
+      // Top categories — items × pdv_products.category
+      const pids = Array.from(new Set(items.map((it) => it.product_id).filter(Boolean))) as string[];
       const { data: products } = pids.length
         ? await supabase.from("pdv_products").select("id, category").in("id", pids)
         : { data: [] as any[] };
       const catMap = new Map((products || []).map((p: any) => [p.id, p.category || "Sem categoria"]));
       const byCat = new Map<string, number>();
-      items.forEach((it: any) => {
-        const c = catMap.get(it.product_id) || "Sem categoria";
-        byCat.set(c, (byCat.get(c) || 0) + Number(it.subtotal || 0));
+      items.forEach((it) => {
+        const c = (it.product_id && catMap.get(it.product_id)) || "Sem categoria";
+        byCat.set(c, (byCat.get(c) || 0) + it.subtotal);
       });
       const topCategories = Array.from(byCat.entries()).map(([category, revenue]) => ({ category, revenue })).sort((a, b) => b.revenue - a.revenue).slice(0, 3);
 
       return {
         revenue, totalDiscount, totalItems, cancelledRate,
         prevRevenue, prevAvgTicket, curAvgTicket,
-        avgItemsPerOrder: closed.length > 0 ? totalItems / closed.length : 0,
+        avgItemsPerOrder: ordersWithRevenue > 0 ? totalItems / ordersWithRevenue : 0,
         discountPct: revenue > 0 ? totalDiscount / revenue : 0,
         revenueDelta: pctDelta(revenue, prevRevenue),
         ticketDelta: pctDelta(curAvgTicket, prevAvgTicket),
