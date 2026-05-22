@@ -17,9 +17,11 @@ import { formatBRL } from "@/lib/format";
 import {
   useLookupCouponForPDV,
   useRedeemCouponForPDV,
+  useSearchCouponsForPDV,
   type CouponLookupResult,
   type CouponRewardType,
 } from "@/hooks/use-coupon-redemption";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 export interface AppliedCouponReward {
