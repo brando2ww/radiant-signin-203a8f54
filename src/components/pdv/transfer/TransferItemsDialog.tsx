@@ -69,13 +69,32 @@ export function TransferItemsDialog({
   const hasDrafts = draftItems.length > 0;
   const hasSent = items.length > 0;
 
-  // Reset qtyMap quando o conjunto de itens muda
+  // Reset qtyMap quando o conjunto de itens muda (chave estável evita loop)
+  const itemsSignature = useMemo(
+    () =>
+      [
+        ...items.map((it) => `${it.id}:${it.quantity}`),
+        ...draftItems.map((it) => `${it.draftId}:${it.quantity}`),
+      ].join("|"),
+    [items, draftItems],
+  );
   useEffect(() => {
     const next: Record<string, number> = {};
     items.forEach((it) => (next[it.id] = it.quantity));
     draftItems.forEach((it) => (next[it.draftId] = it.quantity));
-    setQtyMap(next);
-  }, [items, draftItems]);
+    setQtyMap((prev) => {
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((k) => prev[k] === next[k])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsSignature]);
 
   const totalAmount = useMemo(() => {
     const sentTotal = items.reduce(
