@@ -15,6 +15,7 @@ import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { previousPeriod, pctDelta, eachDay } from "@/lib/report-period";
+import { fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted-foreground))", "hsl(var(--destructive))"];
 
