@@ -160,6 +160,10 @@ export default function DiscountsReport() {
   });
 
   const orders = data?.orders || [];
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [startDate, endDate, orders.length]);
   const coupons = data?.coupons || [];
   const byCoupon = data?.byCoupon || [];
   const byDay = data?.byDay || [];
