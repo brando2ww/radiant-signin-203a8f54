@@ -1,13 +1,14 @@
 // Centralized data source for PDV reports.
 //
-// Background: `pdv_orders.total` and `pdv_orders.subtotal` are stored as 0 in
-// this system. The actual revenue is recorded in `pdv_payments.amount`
-// (settled money) and item-level data lives in `pdv_comanda_items`
-// (linked via `pdv_comandas.order_id`).
+// Revenue source of truth: `pdv_cashier_movements` where type = 'venda',
+// joined to `pdv_cashier_sessions` to scope by establishment owner. This
+// includes BOTH salão/balcão sales and delivery sales (source = 'delivery'),
+// and is the only column that reflects every receivable in this system.
 //
-// All revenue numbers in reports should come from `pdv_payments`. Item-level
-// breakdowns (categories, products, quantities) should come from
-// `pdv_comanda_items`.
+// `pdv_orders.total` / `pdv_orders.subtotal` are stored as 0 and must not be
+// used. `pdv_payments` is also incomplete (covers only part of the operation).
+// Item-level breakdowns still come from `pdv_comanda_items` (linked via
+// `pdv_comandas.order_id`) and `delivery_order_items`.
 
 import { supabase } from "@/integrations/supabase/client";
 
