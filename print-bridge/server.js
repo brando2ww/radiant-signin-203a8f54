@@ -236,7 +236,9 @@ async function processJob(job) {
         modifiers: p.modifiers,
         parent_product_name: p.parent_product_name,
         is_composite_child: p.is_composite_child,
+        composition_group_label: p.composition_group_label,
       }];
+
 
   // Cabeçalho hierárquico: MESA destacada, comanda média
   const mesaRaw = p.mesa_numero
