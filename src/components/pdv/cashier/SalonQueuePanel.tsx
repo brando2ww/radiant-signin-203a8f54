@@ -321,9 +321,9 @@ export function SalonQueuePanel({
               >
                 <Bike className="h-3.5 w-3.5" />
                 Delivery
-                {delivery.actionableCount > 0 && (
+                {delivery.totalCount > 0 && (
                   <Badge className="bg-orange-500 text-white hover:bg-orange-500 h-4 px-1.5 text-[10px]">
-                    {delivery.actionableCount}
+                    {delivery.totalCount}
                   </Badge>
                 )}
               </TabsTrigger>
