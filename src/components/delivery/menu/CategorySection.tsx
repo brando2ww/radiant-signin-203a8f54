@@ -219,7 +219,7 @@ export const CategorySection = ({
               >
                 <SortableContext
                   items={products.map((p) => p.id)}
-                  strategy={verticalListSortingStrategy}
+                  strategy={rectSortingStrategy}
                 >
                   <div className="grid gap-3 grid-cols-1 xl:grid-cols-2 auto-rows-fr">
                     {products.map((product) => (
