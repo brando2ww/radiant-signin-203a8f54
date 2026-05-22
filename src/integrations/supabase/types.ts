@@ -3476,7 +3476,7 @@ export type Database = {
           notes: string | null
           paid_quantity: number
           parent_item_id: string | null
-          product_id: string
+          product_id: string | null
           product_name: string
           production_center_id: string | null
           quantity: number
@@ -3496,7 +3496,7 @@ export type Database = {
           notes?: string | null
           paid_quantity?: number
           parent_item_id?: string | null
-          product_id: string
+          product_id?: string | null
           product_name: string
           production_center_id?: string | null
           quantity?: number
@@ -3516,7 +3516,7 @@ export type Database = {
           notes?: string | null
           paid_quantity?: number
           parent_item_id?: string | null
-          product_id?: string
+          product_id?: string | null
           product_name?: string
           production_center_id?: string | null
           quantity?: number
