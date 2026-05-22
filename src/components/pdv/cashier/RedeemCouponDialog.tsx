@@ -65,6 +65,8 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
   const [selectedComandaId, setSelectedComandaId] = useState<string>("");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [productSearch, setProductSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
   const { visibleUserId } = useEstablishmentId();
@@ -116,6 +118,25 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
     enabled: open && showLaunch && !!visibleUserId,
   });
 
+  const productsQ = useQuery({
+    queryKey: ["pdv-products-for-coupon", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return [] as { id: string; name: string }[];
+      const { data, error } = await supabase
+        .from("pdv_products")
+        .select("id, name, is_available")
+        .eq("user_id", visibleUserId)
+        .order("name", { ascending: true })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? [])
+        .filter((p: any) => p.is_available !== false)
+        .map((p: any) => ({ id: p.id, name: p.name as string }));
+    },
+    enabled: open && showLaunch && !!visibleUserId,
+  });
+
+
   useEffect(() => {
     if (open) {
       setTab("code");
@@ -126,6 +147,8 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
       setError(null);
       setShowLaunch(false);
       setSelectedComandaId("");
+      setSelectedProductId("");
+      setProductSearch("");
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -221,7 +244,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
         </DialogHeader>
 
         <div className="space-y-4">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); }}>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); setSelectedProductId(""); setProductSearch(""); }}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="code">Por código</TabsTrigger>
               <TabsTrigger value="customer">Por cliente</TabsTrigger>
@@ -341,16 +364,22 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
               </div>
 
               {result.status === "active" && (() => {
-                const canLaunch =
-                  mode === "standalone" &&
-                  result.reward_type === "free_product" &&
-                  !!result.reward_product_id;
+                const isDiscount = result.reward_type === "percent" || result.reward_type === "fixed";
+                const canLaunch = mode === "standalone" && !isDiscount;
+                const hasFixedProduct = !!result.reward_product_id;
+                const effectiveProductId = hasFixedProduct ? result.reward_product_id! : selectedProductId;
                 const primaryLabel =
                   mode === "payment"
-                    ? (result.reward_type === "percent" || result.reward_type === "fixed")
+                    ? isDiscount
                       ? "Aplicar na comanda"
                       : "Validar cupom"
                     : "Marcar como resgatado";
+
+                const filteredProducts = (productsQ.data ?? []).filter((p) =>
+                  productSearch.trim()
+                    ? p.name.toLowerCase().includes(productSearch.trim().toLowerCase())
+                    : true,
+                );
 
                 return (
                   <div className="space-y-2">
@@ -365,39 +394,67 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                     )}
 
                     {canLaunch && showLaunch && (
-                      <div className="space-y-2 rounded-md border bg-muted/40 p-3">
-                        <Label className="text-xs">Selecione a comanda aberta</Label>
-                        <Select value={selectedComandaId || "none"} onValueChange={(v) => setSelectedComandaId(v === "none" ? "" : v)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder={openComandasQ.isLoading ? "Carregando..." : "Escolher comanda"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(openComandasQ.data ?? []).length === 0 && (
-                              <SelectItem value="none" disabled>Nenhuma comanda aberta</SelectItem>
-                            )}
-                            {(openComandasQ.data ?? []).map((c) => (
-                              <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-3 rounded-md border bg-muted/40 p-3">
+                        {!hasFixedProduct && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Produto do prêmio</Label>
+                            <Input
+                              placeholder="Buscar produto..."
+                              value={productSearch}
+                              onChange={(e) => setProductSearch(e.target.value)}
+                              className="h-9"
+                            />
+                            <Select value={selectedProductId || "none"} onValueChange={(v) => setSelectedProductId(v === "none" ? "" : v)}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={productsQ.isLoading ? "Carregando..." : "Escolher produto"} />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-64">
+                                {filteredProducts.length === 0 && (
+                                  <SelectItem value="none" disabled>Nenhum produto</SelectItem>
+                                )}
+                                {filteredProducts.slice(0, 100).map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Comanda aberta</Label>
+                          <Select value={selectedComandaId || "none"} onValueChange={(v) => setSelectedComandaId(v === "none" ? "" : v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder={openComandasQ.isLoading ? "Carregando..." : "Escolher comanda"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(openComandasQ.data ?? []).length === 0 && (
+                                <SelectItem value="none" disabled>Nenhuma comanda aberta</SelectItem>
+                              )}
+                              {(openComandasQ.data ?? []).map((c) => (
+                                <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
                             className="flex-1"
-                            onClick={() => { setShowLaunch(false); setSelectedComandaId(""); }}
+                            onClick={() => { setShowLaunch(false); setSelectedComandaId(""); setSelectedProductId(""); setProductSearch(""); }}
                           >
                             Cancelar
                           </Button>
                           <Button
                             className="flex-1"
-                            disabled={!selectedComandaId || launch.isPending}
+                            disabled={!selectedComandaId || !effectiveProductId || launch.isPending}
                             onClick={() => {
-                              if (!result.reward_product_id) return;
+                              if (!effectiveProductId) return;
                               launch.mutate(
                                 {
                                   winId: result.win_id,
                                   comandaId: selectedComandaId,
-                                  productId: result.reward_product_id,
+                                  productId: effectiveProductId,
                                   prizeName: result.prize_name,
                                   couponCode: result.coupon_code,
                                 },
