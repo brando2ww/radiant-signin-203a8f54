@@ -9,7 +9,7 @@ import ByUserReport from "./reports/ByUserReport";
 import CancellationsReport from "./reports/CancellationsReport";
 import DiscountsReport from "./reports/DiscountsReport";
 import PurchasesReport from "./reports/PurchasesReport";
-import SalesByProductReport from "./reports/SalesByProductReport";
+import ProductsAnalyticsReport from "./reports/ProductsAnalyticsReport";
 
 type ReportKey =
   | "overview" | "monthly" | "category" | "user"
@@ -18,7 +18,7 @@ type ReportKey =
 const NAV: Array<{ key: ReportKey; label: string; icon: any; group: string }> = [
   { key: "overview", label: "Visão Geral", icon: BarChart3, group: "Resumo" },
   { key: "monthly", label: "Mensal / YoY", icon: CalendarRange, group: "Resumo" },
-  { key: "sales-by-product", label: "Vendas por Produto", icon: Package, group: "Produtos" },
+  { key: "sales-by-product", label: "Produtos", icon: Package, group: "Produtos" },
   { key: "category", label: "Categorias", icon: Layers, group: "Produtos" },
   { key: "user", label: "Por Usuário", icon: Users, group: "Operações" },
   { key: "cancellations", label: "Cancelamentos", icon: Ban, group: "Operações" },
@@ -30,7 +30,7 @@ function renderReport(key: ReportKey) {
   switch (key) {
     case "overview": return <OverviewReport />;
     case "monthly": return <MonthlyReport />;
-    case "sales-by-product": return <SalesByProductReport />;
+    case "sales-by-product": return <ProductsAnalyticsReport />;
     case "category": return <ByCategoryReport />;
     case "user": return <ByUserReport />;
     case "cancellations": return <CancellationsReport />;
@@ -38,6 +38,7 @@ function renderReport(key: ReportKey) {
     case "purchases": return <PurchasesReport />;
   }
 }
+
 
 export default function PDVReports() {
   const [active, setActive] = useState<ReportKey>("overview");

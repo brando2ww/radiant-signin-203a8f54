@@ -1,150 +1,129 @@
-## O que já existe
+## Objetivo
 
-**Página `/pdv/relatorios`** (`src/pages/pdv/Reports.tsx`) — filtros de data + 4 blocos:
-- `ReportSummaryCards` (total vendas, pedidos, ticket médio, cancelados)
-- `PaymentMethodChart` (formas de pagamento)
-- `ProductsTable` (vendas por produto, sem export)
-- `HourlySalesChart` (vendas por hora)
-- `MonthlyRevenueSection` (receita por mês — bem básico)
+Página completa de **Análise de Produtos** para o gestor — não só "quanto vendeu", mas também margem, lucratividade, curva ABC, tendência, canais (salão/balcão/delivery), parados, cancelados, modificadores, kits e cobertura de estoque.
 
-Hook `usePDVReports` consulta `pdv_orders`, `pdv_order_items`, `pdv_cashier_movements`, `pdv_cashier_sessions`.
+## Onde encaixa
 
-**Outras seções com "relatórios" já cobertas e que NÃO entram neste escopo:**
-- `/pdv/financeiro/*` — DRE, Fluxo de Caixa, CMV Geral, CMV por Produto, Demo. Caixa.
-- `/pdv/delivery/relatorios` — relatórios do delivery.
-- `/pdv/avaliacoes/relatorios/*` — relatórios de NPS.
+Hoje a aba **"Vendas por Produto"** dentro do hub `/pdv/relatorios` é rasa (ranking simples). Em vez de criar uma rota nova solta, **expandir essa aba** transformando-a em uma página rica multi-seção, renomeada para **"Produtos"** na sidebar. Mantém o padrão do hub já existente (filtro de período no topo, botão único "Exportar Excel" gerando workbook com várias abas).
 
-**Dependências já instaladas:** `xlsx@0.18.5` ✅ (não precisa instalar nada).
+Arquivo principal substituído: `src/pages/pdv/reports/SalesByProductReport.tsx` → novo `ProductsAnalyticsReport.tsx`. Sub-seções organizadas em tabs internas (componente `Tabs` do shadcn).
 
-**Tabelas relevantes mapeadas:** `pdv_orders` (status, total, discount, cancellation_reason, source, opened_by, closed_by_user_id, cancelled_at, closed_at, customer_id), `pdv_order_items` (product_id, product_name, quantity, subtotal), `pdv_comanda_items`, `pdv_products` (category), `pdv_purchase_orders` (supplier_id, total, status, order_date), `pdv_purchase_order_items` (ingredient_id, quantity, total_price), `pdv_ingredients`, `pdv_suppliers`, `profiles` (nome de usuários), `campaign_prize_wins` (cupons resgatados / descontos por cupom).
+## Estrutura da página
 
-## O que vamos construir
+Cabeçalho fixo:
+- Título "Análise de Produtos"
+- Filtros globais: período (com atalhos), categoria (multi), origem (Salão / Balcão / Delivery), busca por nome.
+- Botão **"Exportar Excel"** (gera workbook único com todas as abas).
 
-Refatorar `/pdv/relatorios` em um **hub com sidebar fixa** (mesmo padrão do módulo Checklists — `mem://ui-patterns/checklists-sidebar-layout`), com 8 sub-rotas. Cada sub-rota tem filtro de período próprio, KPIs, tabela/gráfico e **botão "Exportar Excel"** no canto superior direito.
+Sub-tabs internas (em ordem):
 
-### Estrutura de rotas (em `src/pages/PDV.tsx`)
+### 1. Visão Geral
+KPIs:
+- Produtos vendidos (distintos)
+- Quantidade total
+- Receita total
+- CMV total
+- Lucro bruto (receita − CMV)
+- Margem média (%)
+- Ticket médio por item
 
-```text
-/pdv/relatorios                       → redirect para /pdv/relatorios/visao-geral
-/pdv/relatorios/visao-geral           → conteúdo atual (renomeado)
-/pdv/relatorios/mensal                → evolução mês a mês + YoY
-/pdv/relatorios/categorias            → vendas por categoria
-/pdv/relatorios/usuario               → vendas por usuário/operador
-/pdv/relatorios/cancelamentos         → pedidos/itens cancelados
-/pdv/relatorios/descontos             → descontos aplicados e cupons
-/pdv/relatorios/compras               → compras de insumos
-/pdv/relatorios/vendas-por-produto    → ranking expandido
-```
+Mais um mini-card com o "Top 1" e o "Pior margem".
 
-Layout: `src/pages/pdv/reports/ReportsLayout.tsx` (sidebar + `<Outlet />`). Sidebar usa o padrão dos Checklists.
+### 2. Ranking
+Tabela ordenável (clique no header), uma linha por produto:
 
-### Utilitário de exportação Excel
+| Produto | Categoria | Qtd | Receita | CMV | Lucro | Margem % | Pedidos | Ticket médio item | % Receita | Δ vs período anterior |
 
-`src/lib/xlsx-export.ts` — função única:
+- Compara com período imediatamente anterior do mesmo tamanho (ex.: 30 dias atuais vs 30 dias anteriores) → coluna "Δ" mostra crescimento/queda em receita.
+- Paginação leve (renderização virtual ou top 200) para evitar travar.
 
-```ts
-exportToXlsx(filename: string, sheets: { name: string; rows: any[]; columns?: { key: string; label: string; width?: number; type?: "currency"|"number"|"percent"|"date" }[] }[])
-```
+### 3. Curva ABC (Pareto)
+- Ordena por receita decrescente, calcula receita acumulada %.
+- Classifica: **A** (até 80%), **B** (80–95%), **C** (95–100%).
+- Gráfico Pareto: barras (receita) + linha (acumulado %).
+- Cards-resumo: quantos produtos em A/B/C, % da receita que cada faixa representa.
 
-- Usa `XLSX.utils.json_to_sheet`, aplica larguras, formata BRL/datas, escreve header em negrito.
-- Todos os relatórios chamam essa função.
+### 4. Margem & Lucratividade
+- Top 10 mais lucrativos (lucro bruto absoluto).
+- Top 10 maior margem %.
+- Top 10 menor margem (alerta).
+- Scatter: eixo X = qtd vendida, eixo Y = margem %, ponto = produto (mostra "vacas leiteiras" vs "abacaxis").
+- Fonte de CMV: reaproveita `usePDVCmv` (recipes + composições — já corrigido).
 
-### Detalhamento de cada relatório
+### 5. Tendência
+- Selecionar até 5 produtos (ou usar top 5 por padrão).
+- Gráfico de linha: receita diária no período.
+- Comparativo: mesmo período anterior.
 
-#### 1. Mensal (`reports/Monthly.tsx`)
-- Filtro: ano (default ano atual) + comparativo com ano anterior.
-- KPIs: receita total no ano, ticket médio, total de pedidos, crescimento YoY (%).
-- Gráfico de barras agrupadas: Jan..Dez (ano atual vs ano anterior).
-- Tabela: mês | nº pedidos | receita | ticket médio | YoY %.
-- Fonte: `pdv_orders` (status=fechada, agrupar por `date_trunc('month', closed_at)`).
-- Excel: 1 aba "Mensal" + 1 aba "Comparativo Anual".
+### 6. Canais (Salão × Balcão × Delivery)
+Matriz produto × canal:
 
-#### 2. Categorias (`reports/ByCategory.tsx`)
-- Filtro: período (datas + atalhos hoje/7/30/mês).
-- KPIs: nº de categorias com venda, melhor categoria, pior margem (se houver CMV).
-- Gráfico pizza + tabela: categoria | qtd vendida | receita | % do total.
-- Fonte: `pdv_order_items` JOIN `pdv_products(category)` filtrando pelo período de `pdv_orders.closed_at`.
-- Excel: aba única com a tabela completa.
+| Produto | Salão (qtd / R$) | Balcão (qtd / R$) | Delivery (qtd / R$) | Total |
 
-#### 3. Usuário (`reports/ByUser.tsx`)
-- Filtro: período + (opcional) usuário específico.
-- KPIs: total operadores ativos, top vendedor, ticket médio geral.
-- Tabela: usuário | nº pedidos abertos (opened_by) | nº pedidos fechados (closed_by_user_id) | receita fechada | ticket médio | descontos concedidos | cancelados.
-- Fonte: `pdv_orders` JOIN `profiles` por `opened_by` e `closed_by_user_id`.
-- Excel: aba "Por Usuário" + aba "Detalhe de Pedidos".
+- Fonte: `pdv_orders.source` para salão/balcão (via `pdv_order_items`) + `delivery_order_items` JOIN `delivery_orders` (status `entregue`) para delivery.
+- Permite ver produtos que vendem só num canal.
 
-#### 4. Cancelamentos (`reports/Cancellations.tsx`)
-- Filtro: período.
-- KPIs: nº cancelamentos, valor cancelado, % sobre vendas, top motivo.
-- Gráfico: top motivos (`cancellation_reason`).
-- Tabela: data | nº pedido | cliente | valor | motivo | usuário (closed_by) — uma linha por pedido cancelado.
-- Fonte: `pdv_orders` onde `status='cancelada'` ou `cancelled_at IS NOT NULL` no período.
-- Excel: aba "Cancelamentos" + aba "Resumo por motivo".
+### 7. Por hora e dia da semana
+- Heatmap (7 dias × 24 horas) mostrando qtd vendida (todos os produtos, ou filtrado por produto via dropdown).
+- Tabela complementar: "Melhor dia" e "Melhor hora" por produto (top 20).
 
-#### 5. Descontos (`reports/Discounts.tsx`)
-- Filtro: período.
-- KPIs: total descontos (R$), nº pedidos com desconto, ticket médio com desconto, cupons resgatados.
-- Tabela 1: pedidos com `discount > 0` — data, nº pedido, cliente, subtotal, desconto, total, usuário.
-- Tabela 2: cupons resgatados no período — `campaign_prize_wins` (código, cliente, prêmio, data resgate, campanha).
-- Excel: 2 abas ("Descontos Diretos" + "Cupons").
+### 8. Produtos parados
+- Lista de `pdv_products` (do tenant) que **não tiveram nenhuma venda** no período selecionado.
+- Colunas: produto, categoria, preço, dias desde a última venda (consulta isolada do último `pdv_order_items.created_at`).
+- Ajuda a decidir descontinuar / promover.
 
-#### 6. Compras (`reports/Purchases.tsx`)
-- Filtro: período (sobre `order_date`) + status + fornecedor.
-- KPIs: total comprado (R$), nº ordens, fornecedores ativos, frete total.
-- Tabelas:
-  - Por fornecedor: fornecedor | nº ordens | total | frete.
-  - Por insumo: insumo | qtd comprada | preço médio | total | última compra.
-  - Detalhe de ordens (linha por OC): nº | data | fornecedor | status | subtotal | desconto | frete | total | entrega prevista/efetuada.
-- Fonte: `pdv_purchase_orders` + `pdv_purchase_order_items` + `pdv_suppliers` + `pdv_ingredients`.
-- Excel: 3 abas (Fornecedor / Insumo / Ordens).
+### 9. Itens cancelados
+- Itens em pedidos cancelados (`pdv_orders.status='cancelada'`) agregados por produto: qtd cancelada, valor perdido, % sobre vendido.
+- Lista detalhada (data, pedido, produto, qtd, valor, motivo do cancelamento do pedido).
 
-#### 7. Vendas por Produto (`reports/SalesByProduct.tsx`)
-- Filtro: período + categoria + busca por nome.
-- KPIs: produtos vendidos (distintos), produto top, receita total, qtd total.
-- Tabela ordenável: produto | categoria | qtd | receita | ticket médio do item | nº pedidos distintos | % da receita.
-- Gráfico: top 10 por receita (barra horizontal).
-- Fonte: `pdv_order_items` JOIN `pdv_orders` (fechadas no período) JOIN `pdv_products(category)`.
-- Excel: aba única, formato pronto para análise (colunas com formatação numérica/BRL).
+### 10. Modificadores / Opcionais
+- Agrega `pdv_order_items.modifiers` (jsonb) extraindo cada modificador escolhido.
+- Tabela: modificador | vezes escolhido | receita extra (somando `price_adjustment`).
+- Ajuda a entender opcionais populares (ex.: "adicional de bacon").
 
-#### 8. Visão Geral (`reports/Overview.tsx`)
-- Move o conteúdo atual de `Reports.tsx` (intacto) + adiciona botão "Exportar tudo" que gera Excel com 4 abas (resumo, pagamentos, produtos, horários).
+### 11. Composições / Kits
+- Lista de produtos com `is_composite=true`, mostrando: qtd do kit vendida, receita do kit, e top sub-produtos contidos (via `pdv_product_compositions`).
+- Útil para entender desempenho de combos.
 
-### Navegação
+### 12. Cobertura de estoque
+- Apenas para produtos com receita (`pdv_product_recipes`).
+- Calcula consumo médio de cada ingrediente por dia (com base no período) → estoque atual / consumo diário = dias de cobertura.
+- Tabela: produto | ingrediente crítico | estoque atual | consumo/dia | dias restantes | status (verde / amarelo / vermelho).
+- Sinaliza onde estoque vai acabar antes da próxima compra.
 
-- Atualizar `PDVHeaderNav.tsx`: o item "Relatórios" abre um sub-menu (padrão dos demais itens) com os 8 links — OU mantém o link único `/pdv/relatorios` e a navegação interna acontece na sidebar do hub. **Decisão técnica:** manter o link único no header e usar a sidebar do hub (menos poluição no header).
-- Atualizar `use-user-role.ts`: replicar as permissões de `/pdv/relatorios` para todos os filhos `/pdv/relatorios/*` (mesma regra de acesso da página atual).
+## Exportação Excel
 
-### Hooks novos (em `src/hooks/reports/`)
+Botão único gera **um workbook** com as abas:
+- `Ranking`, `ABC`, `Margem`, `Canais`, `Parados`, `Cancelados`, `Modificadores`, `Kits`, `Cobertura Estoque`.
+- Cada aba já formatada (R$, %, datas) via `exportToXlsx`.
 
-- `use-report-monthly.ts`
-- `use-report-by-category.ts`
-- `use-report-by-user.ts`
-- `use-report-cancellations.ts`
-- `use-report-discounts.ts`
-- `use-report-purchases.ts`
-- `use-report-sales-by-product.ts`
+## Detalhes técnicos
 
-Cada um expõe `data`, `isLoading` e uma função `buildExportRows()` reutilizada pelo botão de Excel.
-
-## Detalhes técnicos (resumo)
-
-- Escopo de tenant: usar `useEstablishmentId().visibleUserId` em todos os hooks (memória "Staff Data Visibility").
-- Formatação BRL: sempre via `formatBRL` (memória "Currency").
-- Datas: `date-fns` com `ptBR` (memória "Localization").
-- Cores: somente tokens semânticos (memória "Color Scheme").
-- Hub usa `min-h-[calc(100vh-3.5rem)]` (memória "Full Page Height").
+- Hook unificado novo: `src/hooks/reports/use-product-analytics.ts`
+  - Recebe `{ start, end, source[], category[] }`.
+  - Faz 1 query para `pdv_order_items` no período + 1 para `delivery_order_items` + 1 para `pdv_products` (catálogo completo do tenant) + reuso de `usePDVCmv` para CMV.
+  - Retorna um objeto consolidado consumido por todas as sub-tabs (evita N consultas duplicadas).
+  - Aplica memoização para classificar ABC, calcular margem, agregar por canal/hora/dia.
+- Período anterior: calcula automaticamente com mesmo tamanho do filtro atual.
+- Reusa: `useEstablishmentId`, `formatBRL`, `formatBRLCompact`, `ReportDateFilter`, `ReportPageHeader`, `exportToXlsx`, `usePDVCmv`.
+- Sidebar do hub `Reports.tsx`: renomeia "Vendas por Produto" → **"Produtos"** com mesmo ícone (`Package`).
+- Cores estritamente semânticas (memória do projeto).
 
 ## O que NÃO entra
 
-- Permissões granulares por sub-relatório (mantém a permissão atual de `/pdv/relatorios`).
-- Relatórios do delivery, fiscais, financeiros (DRE/Fluxo/CMV) — já existem em outros lugares.
-- Agendamento/envio automático de relatórios por email/WhatsApp.
+- Devoluções/trocas (não há tabela dedicada hoje).
+- Forecast / previsão de vendas com IA — fora do escopo desta entrega.
+- Edição/ações em produto direto da tabela (apenas leitura; usuário usa /pdv/produtos para editar).
+- Permissões granulares — herda a permissão atual de `/pdv/relatorios`.
 
-## Ordem sugerida de implementação
+## Ordem de implementação
 
-1. Util `xlsx-export.ts` + `ReportsLayout` + rotas.
-2. Mover conteúdo atual para `Overview.tsx`.
-3. Vendas por Produto, Mensal, Categorias (mais usados).
-4. Usuário, Cancelamentos, Descontos.
-5. Compras (depende de joins maiores).
-6. Smoke-test em cada página + export Excel.
+1. Hook `use-product-analytics.ts` consolidado (com integração ao `usePDVCmv`).
+2. Página `ProductsAnalyticsReport.tsx` com tabs vazias + Visão Geral + Ranking.
+3. ABC + Margem.
+4. Tendência + Canais.
+5. Hora/dia + Parados.
+6. Cancelados + Modificadores + Kits.
+7. Cobertura de estoque.
+8. Export Excel consolidado.
+9. Renomeia entrada na sidebar do hub.
