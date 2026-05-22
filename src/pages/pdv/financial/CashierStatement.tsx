@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CalendarIcon, Download, DollarSign, Banknote, CreditCard, Smartphone, ArrowDownFromLine, AlertTriangle } from "lucide-react";
-import { usePDVCashierStatement, CashierStatementSession } from "@/hooks/use-pdv-cashier-statement";
+import { usePDVCashierStatement } from "@/hooks/use-pdv-cashier-statement";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -12,19 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { downloadCsv } from "@/lib/csv-export";
+import { SessionsTable } from "@/components/pdv/financial/SessionsTable";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-function riskBadge(level: string | null) {
-  switch (level) {
-    case "ok": return <Badge className="bg-success text-success-foreground">OK</Badge>;
-    case "low": return <Badge variant="outline">Baixo</Badge>;
-    case "medium": return <Badge className="bg-warning text-warning-foreground">Médio</Badge>;
-    case "high": return <Badge variant="destructive">Alto</Badge>;
-    case "critical": return <Badge variant="destructive">Crítico</Badge>;
-    default: return <Badge variant="outline">—</Badge>;
-  }
-}
 
 export default function CashierStatement() {
   const [mode, setMode] = useState<"daily" | "monthly">("daily");
