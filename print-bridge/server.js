@@ -279,7 +279,9 @@ async function processJob(job) {
     notes: it.notes,
     modifiers: it.modifiers,
     parent_product_name: it.is_composite_child ? it.parent_product_name : null,
+    composition_group_label: it.is_composite_child ? (it.composition_group_label || null) : null,
   }));
+
 
   const buf = buildReceipt({
     mesa,
