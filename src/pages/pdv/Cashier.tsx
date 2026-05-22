@@ -9,7 +9,6 @@ import { OpenCashierDialog } from "@/components/pdv/OpenCashierDialog";
 import { CloseCashierDialog, printCashierReport } from "@/components/pdv/CloseCashierDialog";
 import { CashMovementDialog } from "@/components/pdv/CashMovementDialog";
 import { CashMovementsList } from "@/components/pdv/CashMovementsList";
-import { Skeleton } from "@/components/ui/skeleton";
 import { CashierHeader } from "@/components/pdv/cashier/CashierHeader";
 import { CashierActionsSidebar } from "@/components/pdv/cashier/CashierActionsSidebar";
 import { CashierSummaryFooter } from "@/components/pdv/cashier/CashierSummaryFooter";
@@ -31,7 +30,6 @@ export default function PDVCashier() {
   const {
     activeSession,
     movements,
-    isLoading,
     openCashier,
     isOpeningCashier,
     closeCashier,
@@ -319,19 +317,6 @@ export default function PDVCashier() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
-
-  if (isLoading) {
-    return (
-      <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
-        <Skeleton className="h-20 w-full" />
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
-          <Skeleton className="lg:col-span-3" />
-          <Skeleton className="" />
-        </div>
-        <Skeleton className="h-32 w-full" />
-      </div>
-    );
-  }
 
   return (
     <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
