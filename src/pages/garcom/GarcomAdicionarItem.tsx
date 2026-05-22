@@ -4,8 +4,10 @@ import { ArrowLeft, Search, Plus, Minus, ClipboardCheck } from "lucide-react";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { useDraftCart } from "@/contexts/DraftCartContext";
 import { usePDVProductOptionsForOrder } from "@/hooks/use-pdv-product-options";
+import { useCompositionGroups } from "@/hooks/use-pdv-composition-groups";
 import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { MobileProductOptionSelector } from "@/components/garcom/MobileProductOptionSelector";
+import { MobileCompositionGroupSelector } from "@/components/garcom/MobileCompositionGroupSelector";
 import { ProductCategoryNav } from "@/components/garcom/ProductCategoryNav";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-type Step = "options" | "quantity";
+type Step = "composition" | "options" | "quantity";
 
 export default function GarcomAdicionarItem() {
   const { id: comandaId } = useParams<{ id: string }>();
@@ -43,7 +45,9 @@ export default function GarcomAdicionarItem() {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [step, setStep] = useState<Step>("quantity");
-  const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
+  const [compositionSelections, setCompositionSelections] = useState<SelectedOption[]>([]);
+  const [optionSelections, setOptionSelections] = useState<SelectedOption[]>([]);
+
 
   const { data: productOptions } = usePDVProductOptionsForOrder(selectedProduct?.id);
 
