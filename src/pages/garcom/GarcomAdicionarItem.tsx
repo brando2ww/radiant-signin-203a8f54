@@ -4,8 +4,10 @@ import { ArrowLeft, Search, Plus, Minus, ClipboardCheck } from "lucide-react";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { useDraftCart } from "@/contexts/DraftCartContext";
 import { usePDVProductOptionsForOrder } from "@/hooks/use-pdv-product-options";
+import { useCompositionGroups } from "@/hooks/use-pdv-composition-groups";
 import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { MobileProductOptionSelector } from "@/components/garcom/MobileProductOptionSelector";
+import { MobileCompositionGroupSelector } from "@/components/garcom/MobileCompositionGroupSelector";
 import { ProductCategoryNav } from "@/components/garcom/ProductCategoryNav";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,7 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-type Step = "options" | "quantity";
+type Step = "composition" | "options" | "quantity";
 
 export default function GarcomAdicionarItem() {
   const { id: comandaId } = useParams<{ id: string }>();
@@ -43,9 +45,14 @@ export default function GarcomAdicionarItem() {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
   const [step, setStep] = useState<Step>("quantity");
-  const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
+  const [compositionSelections, setCompositionSelections] = useState<SelectedOption[]>([]);
+  const [optionSelections, setOptionSelections] = useState<SelectedOption[]>([]);
+
 
   const { data: productOptions } = usePDVProductOptionsForOrder(selectedProduct?.id);
+  const { groups: compositionGroups } = useCompositionGroups(selectedProduct?.id);
+
+  const selectedOptions: SelectedOption[] = [...compositionSelections, ...optionSelections];
 
   const optionsExtra = selectedOptions.reduce(
     (total, opt) => total + opt.items.reduce((s, i) => s + i.priceAdjustment, 0),
@@ -64,7 +71,8 @@ export default function GarcomAdicionarItem() {
 
   const resetSheet = () => {
     setSelectedProduct(null);
-    setSelectedOptions([]);
+    setCompositionSelections([]);
+    setOptionSelections([]);
     setStep("quantity");
     setQuantity(1);
     setNotes("");
@@ -72,18 +80,25 @@ export default function GarcomAdicionarItem() {
 
   const handleSelectProduct = (product: any) => {
     setSelectedProduct(product);
-    setSelectedOptions([]);
+    setCompositionSelections([]);
+    setOptionSelections([]);
     setQuantity(1);
     setNotes("");
-    // Vamos para "options"; se o produto não tiver options, o efeito abaixo
-    // (avaliação direta no JSX) renderiza a tela de quantidade.
-    setStep("options");
+    // Começa em "composition"; o effectiveStep abaixo pula etapas vazias.
+    setStep("composition");
   };
 
-  // Quando os productOptions carregarem e o produto não tiver opções,
-  // pula direto para a tela de quantidade.
+  const hasComposition = (compositionGroups?.length ?? 0) > 0;
   const hasOptions = (productOptions?.length ?? 0) > 0;
-  const effectiveStep: Step = step === "options" && !hasOptions ? "quantity" : step;
+
+  // Pula etapas que não se aplicam ao produto.
+  const effectiveStep: Step = (() => {
+    if (step === "composition" && !hasComposition) {
+      return hasOptions ? "options" : "quantity";
+    }
+    if (step === "options" && !hasOptions) return "quantity";
+    return step;
+  })();
 
   const handleAdd = () => {
     if (!selectedProduct || !comandaId) return;
@@ -104,6 +119,7 @@ export default function GarcomAdicionarItem() {
     toast.success("Adicionado ao rascunho");
     resetSheet();
   };
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -214,6 +230,21 @@ export default function GarcomAdicionarItem() {
             </SheetTitle>
           </SheetHeader>
 
+          {/* Step: Composition (escolha de itens da composição) */}
+          {effectiveStep === "composition" && hasComposition && compositionGroups && (
+            <div className="mt-4">
+              <MobileCompositionGroupSelector
+                groups={compositionGroups}
+                basePrice={selectedProduct?.price_salon ?? 0}
+                onConfirm={(s) => {
+                  setCompositionSelections(s);
+                  setStep(hasOptions ? "options" : "quantity");
+                }}
+                onBack={() => resetSheet()}
+              />
+            </div>
+          )}
+
           {/* Step: Options */}
           {effectiveStep === "options" && hasOptions && productOptions && (
             <div className="mt-4">
@@ -221,13 +252,21 @@ export default function GarcomAdicionarItem() {
                 options={productOptions}
                 basePrice={selectedProduct?.price_salon ?? 0}
                 onConfirm={(s) => {
-                  setSelectedOptions(s);
+                  setOptionSelections(s);
                   setStep("quantity");
                 }}
-                onBack={() => resetSheet()}
+                onBack={() => {
+                  if (hasComposition) {
+                    setOptionSelections([]);
+                    setStep("composition");
+                  } else {
+                    resetSheet();
+                  }
+                }}
               />
             </div>
           )}
+
 
           {/* Step: Quantity */}
           {effectiveStep === "quantity" && (
@@ -281,19 +320,25 @@ export default function GarcomAdicionarItem() {
 
               {/* Action buttons */}
               <div className="flex gap-2">
-                {hasOptions && (
+                {(hasOptions || hasComposition) && (
                   <Button
                     type="button"
                     variant="outline"
                     className="flex-1 h-12"
                     onClick={() => {
-                      setSelectedOptions([]);
-                      setStep("options");
+                      if (hasOptions) {
+                        setOptionSelections([]);
+                        setStep("options");
+                      } else {
+                        setCompositionSelections([]);
+                        setStep("composition");
+                      }
                     }}
                   >
                     Voltar
                   </Button>
                 )}
+
                 <Button
                   className="flex-1 h-12 text-base active:scale-[0.98] transition-transform"
                   onClick={handleAdd}
