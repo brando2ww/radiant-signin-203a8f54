@@ -186,3 +186,93 @@ export function useSearchCouponsForPDV() {
     },
   });
 }
+
+export interface OpenComandaOption {
+  id: string;
+  label: string;
+}
+
+/**
+ * Lista comandas abertas/em cobrança do tenant para o select de lançamento.
+ */
+export function useOpenComandasForCoupon(enabled: boolean) {
+  const { visibleUserId } = useEstablishmentId();
+  return {
+    queryKey: ["open-comandas-for-coupon", visibleUserId] as const,
+    enabled: !!visibleUserId && enabled,
+    visibleUserId,
+  };
+}
+
+/**
+ * Lança o prêmio (produto cortesia) em uma comanda aberta e marca o cupom como resgatado.
+ * Atômico do ponto de vista do usuário: se o insert falhar, não marca como resgatado.
+ */
+export function useLaunchCouponOnComanda() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      winId: string;
+      comandaId: string;
+      productId: string;
+      prizeName: string;
+      couponCode: string;
+    }) => {
+      // valida comanda ativa
+      const { data: comanda, error: cErr } = await supabase
+        .from("pdv_comandas")
+        .select("status")
+        .eq("id", input.comandaId)
+        .maybeSingle();
+      if (cErr) throw cErr;
+      if (!comanda) throw new Error("Comanda não encontrada");
+      const allowed = ["aberta", "aguardando_pagamento", "em_cobranca"];
+      if (!allowed.includes(comanda.status)) {
+        throw new Error("Esta comanda já foi finalizada");
+      }
+
+      // busca produto
+      const { data: product, error: pErr } = await supabase
+        .from("pdv_products")
+        .select("id, name")
+        .eq("id", input.productId)
+        .maybeSingle();
+      if (pErr) throw pErr;
+      if (!product) throw new Error("Produto do prêmio não encontrado");
+
+      // insere item cortesia
+      const { error: insErr } = await supabase
+        .from("pdv_comanda_items")
+        .insert([{
+          comanda_id: input.comandaId,
+          product_id: product.id,
+          product_name: `🎁 ${product.name}`,
+          quantity: 1,
+          unit_price: 0,
+          subtotal: 0,
+          notes: `Cortesia — Cupom ${input.couponCode} (${input.prizeName})`,
+          kitchen_status: "pendente",
+        }]);
+      if (insErr) throw insErr;
+
+      // marca cupom como resgatado
+      const { data: redeemed, error: rErr } = await supabase
+        .from("campaign_prize_wins")
+        .update({ is_redeemed: true, redeemed_at: new Date().toISOString() })
+        .eq("id", input.winId)
+        .eq("is_redeemed", false)
+        .select()
+        .maybeSingle();
+      if (rErr) throw rErr;
+      if (!redeemed) throw new Error("Cupom já havia sido resgatado");
+
+      return { ok: true };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      qc.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
+      qc.invalidateQueries({ queryKey: ["all-prize-wins"] });
+      qc.invalidateQueries({ queryKey: ["campaign-prize-wins"] });
+    },
+  });
+}
