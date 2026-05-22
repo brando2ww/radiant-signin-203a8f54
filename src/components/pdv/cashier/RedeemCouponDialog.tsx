@@ -52,13 +52,18 @@ const rewardLabel = (t: CouponRewardType, v: number | null) => {
 };
 
 export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: RedeemCouponDialogProps) {
+  const [tab, setTab] = useState<"code" | "customer">("code");
   const [code, setCode] = useState("");
+  const [customerTerm, setCustomerTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<CouponLookupResult[]>([]);
   const [result, setResult] = useState<CouponLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const customerInputRef = useRef<HTMLInputElement>(null);
 
   const lookup = useLookupCouponForPDV();
   const redeem = useRedeemCouponForPDV();
+  const search = useSearchCouponsForPDV();
 
   useEffect(() => {
     if (open) {
