@@ -80,26 +80,37 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
       if (!visibleUserId) return [] as { id: string; label: string }[];
       const { data, error } = await supabase
         .from("pdv_comandas")
-        .select("id, comanda_number, customer_name, table_id")
+        .select("id, comanda_number, customer_name, order_id")
         .eq("user_id", visibleUserId)
         .in("status", ["aberta", "aguardando_pagamento", "em_cobranca"])
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
-      const tableIds = Array.from(new Set((data ?? []).map((c) => c.table_id).filter(Boolean))) as string[];
-      const tableMap = new Map<string, string>();
-      if (tableIds.length) {
-        const { data: tables } = await supabase
-          .from("pdv_tables")
-          .select("id, table_number")
-          .in("id", tableIds);
-        (tables ?? []).forEach((t: any) => tableMap.set(t.id, String(t.table_number)));
+      const orderIds = Array.from(new Set((data ?? []).map((c) => c.order_id).filter(Boolean))) as string[];
+      const tableByOrder = new Map<string, string>();
+      if (orderIds.length) {
+        const { data: orders } = await supabase
+          .from("pdv_orders")
+          .select("id, table_id")
+          .in("id", orderIds);
+        const tIds = Array.from(new Set((orders ?? []).map((o: any) => o.table_id).filter(Boolean))) as string[];
+        const tableMap = new Map<string, string>();
+        if (tIds.length) {
+          const { data: tables } = await supabase
+            .from("pdv_tables")
+            .select("id, table_number")
+            .in("id", tIds);
+          (tables ?? []).forEach((t: any) => tableMap.set(t.id, String(t.table_number)));
+        }
+        (orders ?? []).forEach((o: any) => {
+          if (o.table_id && tableMap.has(o.table_id)) tableByOrder.set(o.id, tableMap.get(o.table_id)!);
+        });
       }
       return (data ?? []).map((c) => {
-        const tbl = c.table_id ? tableMap.get(c.table_id) : null;
+        const tbl = c.order_id ? tableByOrder.get(c.order_id) : null;
         const who = c.customer_name?.trim() || `Comanda ${c.comanda_number}`;
         const where = tbl ? `Mesa ${tbl}` : "Balcão";
-        return { id: c.id, label: `${where} · ${who}` };
+        return { id: c.id, label: `${where} · ${who} (#${c.comanda_number})` };
       });
     },
     enabled: open && showLaunch && !!visibleUserId,
