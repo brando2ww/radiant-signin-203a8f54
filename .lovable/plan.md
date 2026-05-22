@@ -1,27 +1,17 @@
-## Problema
+## Plano
 
-A tela `/pdv/caixa` fica em loading skeleton porque um loop de renderização infinito está acontecendo no app (Maximum update depth exceeded), originado em `TransferItemsDialog`.
+1. **Eliminar loops de renderização na página de Caixa**
+   - Ajustar o painel `SalonQueuePanel` para não depender de arrays instáveis em `useEffect`.
+   - Usar uma assinatura estável do primeiro pedido de delivery em vez de `delivery.all` inteiro.
 
-Stack do console aponta exatamente para o `useEffect` em `src/components/pdv/transfer/TransferItemsDialog.tsx` linhas 73-78:
+2. **Estabilizar callbacks usados no atalho F5 da Frente de Caixa**
+   - Evitar que o `useEffect` de teclado em `Cashier.tsx` seja reinstalado desnecessariamente a cada render por causa de funções/sets recriados.
+   - Manter o comportamento atual dos atalhos, sem alterar regras de negócio.
 
-```ts
-useEffect(() => {
-  const next: Record<string, number> = {};
-  items.forEach((it) => (next[it.id] = it.quantity));
-  draftItems.forEach((it) => (next[it.draftId] = it.quantity));
-  setQtyMap(next);
-}, [items, draftItems]);
-```
+3. **Corrigir dependência incompleta no `PaymentDialog`**
+   - Incluir `pendingSubtotal` nas dependências do efeito que fecha o pagamento sem itens, evitando estado stale e avisos/fechamentos incorretos.
+   - Não mexer novamente no cálculo de desconto já corrigido.
 
-`items` e `draftItems` (que tem default `= []`) recebem nova referência a cada render do pai. O effect dispara `setQtyMap` em todo render → re-render → loop infinito → React congela a árvore inteira (inclusive a página de Caixa que compartilha providers).
-
-## Correção
-
-Em `src/components/pdv/transfer/TransferItemsDialog.tsx`:
-
-1. Calcular o "próximo qtyMap" via `useMemo` baseado em uma chave estável (ids+quantidades concatenados), evitando rebuild quando o conteúdo não muda.
-2. No `useEffect`, comparar com o estado atual e só chamar `setQtyMap` se realmente houver diferença (shallow compare das chaves/valores). Dependência: a chave estável (string), não os arrays.
-
-Resultado: o effect para de disparar em loop, a página do Caixa volta a renderizar normalmente.
-
-Nenhuma outra alteração é necessária.
+4. **Validar após implementação**
+   - Verificar os logs/runtime errors.
+   - Abrir `/pdv/caixa` na prévia; se a sessão do navegador cair no login, confirmar que a rota está redirecionando por autenticação e orientar login na prévia.
