@@ -148,16 +148,16 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const productIds = (products || []).map((p) => p.id);
       const productMap = new Map((products || []).map((p) => [p.id, p]));
 
-      // 2. PDV items in period (salão + balcão) - filtered by channels later
+      // 2. PDV items in period — items live in pdv_comanda_items, linked via pdv_comandas.order_id
       const wantPdv = channels.includes("salao") || channels.includes("balcao");
       const { data: pdvItems } = wantPdv
         ? await supabase
-          .from("pdv_order_items")
-          .select("product_id, product_name, quantity, subtotal, modifiers, created_at, order:pdv_orders!inner(id, order_number, user_id, status, source, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .in("order.status", ["fechada", "fechado"])
-          .gte("order.closed_at", startISO)
-          .lte("order.closed_at", endISO)
+          .from("pdv_comanda_items")
+          .select("product_id, product_name, quantity, subtotal, modifiers, created_at, comanda:pdv_comandas!inner(order_id, created_at, order:pdv_orders!inner(id, order_number, user_id, status, source, closed_at, opened_at))")
+          .eq("comanda.order.user_id", visibleUserId!)
+          .in("comanda.order.status", ["fechada", "fechado"])
+          .gte("comanda.created_at", startISO)
+          .lte("comanda.created_at", endISO)
         : { data: [] as any[] };
 
       // 3. Delivery items
@@ -174,12 +174,12 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       // 4. Previous-period revenue per product (for delta) — combined PDV+delivery
       const { data: prevPdv } = wantPdv
         ? await supabase
-          .from("pdv_order_items")
-          .select("product_id, subtotal, order:pdv_orders!inner(user_id, status, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .in("order.status", ["fechada", "fechado"])
-          .gte("order.closed_at", prevStartISO)
-          .lte("order.closed_at", prevEndISO)
+          .from("pdv_comanda_items")
+          .select("product_id, subtotal, comanda:pdv_comandas!inner(created_at, order:pdv_orders!inner(user_id, status))")
+          .eq("comanda.order.user_id", visibleUserId!)
+          .in("comanda.order.status", ["fechada", "fechado"])
+          .gte("comanda.created_at", prevStartISO)
+          .lte("comanda.created_at", prevEndISO)
         : { data: [] as any[] };
       const { data: prevDel } = channels.includes("delivery")
         ? await supabase
