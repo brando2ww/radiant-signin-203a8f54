@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { resolveProductionCenterId } from "@/utils/resolveProductionCenter";
 import { expandComposition } from "@/utils/expandComposition";
+import { expandSelectedOptions } from "@/utils/expandSelectedOptions";
+import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { toast } from "sonner";
 
 export interface PDVOrderItem {
