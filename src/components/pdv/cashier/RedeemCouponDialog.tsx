@@ -148,6 +148,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
       setError(null);
       setShowLaunch(false);
       setSelectedComandaId("");
+      setLaunchMode("text");
       setSelectedProductId("");
       setProductSearch("");
       setTimeout(() => inputRef.current?.focus(), 50);
