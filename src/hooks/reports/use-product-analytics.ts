@@ -148,16 +148,16 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const productIds = (products || []).map((p) => p.id);
       const productMap = new Map((products || []).map((p) => [p.id, p]));
 
-      // 2. PDV items in period (salão + balcão) - filtered by channels later
+      // 2. PDV items in period — items live in pdv_comanda_items, linked via pdv_comandas.order_id
       const wantPdv = channels.includes("salao") || channels.includes("balcao");
       const { data: pdvItems } = wantPdv
         ? await supabase
-          .from("pdv_order_items")
-          .select("product_id, product_name, quantity, subtotal, modifiers, created_at, order:pdv_orders!inner(id, order_number, user_id, status, source, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .in("order.status", ["fechada", "fechado"])
-          .gte("order.closed_at", startISO)
-          .lte("order.closed_at", endISO)
+          .from("pdv_comanda_items")
+          .select("product_id, product_name, quantity, subtotal, modifiers, created_at, comanda:pdv_comandas!inner(order_id, created_at, order:pdv_orders!inner(id, order_number, user_id, status, source, closed_at, opened_at))")
+          .eq("comanda.order.user_id", visibleUserId!)
+          .in("comanda.order.status", ["fechada", "fechado"])
+          .gte("comanda.created_at", startISO)
+          .lte("comanda.created_at", endISO)
         : { data: [] as any[] };
 
       // 3. Delivery items
@@ -174,12 +174,12 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       // 4. Previous-period revenue per product (for delta) — combined PDV+delivery
       const { data: prevPdv } = wantPdv
         ? await supabase
-          .from("pdv_order_items")
-          .select("product_id, subtotal, order:pdv_orders!inner(user_id, status, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .in("order.status", ["fechada", "fechado"])
-          .gte("order.closed_at", prevStartISO)
-          .lte("order.closed_at", prevEndISO)
+          .from("pdv_comanda_items")
+          .select("product_id, subtotal, comanda:pdv_comandas!inner(created_at, order:pdv_orders!inner(user_id, status))")
+          .eq("comanda.order.user_id", visibleUserId!)
+          .in("comanda.order.status", ["fechada", "fechado"])
+          .gte("comanda.created_at", prevStartISO)
+          .lte("comanda.created_at", prevEndISO)
         : { data: [] as any[] };
       const { data: prevDel } = channels.includes("delivery")
         ? await supabase
@@ -206,10 +206,10 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         : { data: [] as any[] };
       const { cost: unitCostOf, compMap } = buildUnitCostResolver(recipes || [], comps || [], productIds);
 
-      // 6. Cancelled PDV items in period
+      // 6. Cancelled PDV items in period — items live in pdv_comanda_items via pdv_comandas
       const { data: cancelledOrders } = await supabase
         .from("pdv_orders")
-        .select("id, order_number, cancellation_reason, cancelled_at, pdv_order_items(product_id, product_name, quantity, subtotal)")
+        .select("id, order_number, cancellation_reason, cancelled_at, pdv_comandas(pdv_comanda_items(product_id, product_name, quantity, subtotal))")
         .eq("user_id", visibleUserId!)
         .eq("status", "cancelada")
         .gte("cancelled_at", startISO)
@@ -225,8 +225,9 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       // ===== AGGREGATION =====
       // Apply channel filter for pdv items (by source)
       const sourceAllowed = (src: string) => {
-        if (src === "salao") return channels.includes("salao");
-        if (src === "balcao") return channels.includes("balcao");
+        const s = (src || "").toLowerCase();
+        if (s === "salao" || s === "salon" || s === "") return channels.includes("salao");
+        if (s === "balcao") return channels.includes("balcao");
         return false;
       };
 
@@ -265,7 +266,8 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       };
 
       (pdvItems || []).forEach((it: any) => {
-        const src = it.order?.source as ChannelKey;
+        const order = it.comanda?.order;
+        const src = order?.source as ChannelKey;
         if (!sourceAllowed(src)) return;
         const pid = it.product_id || it.product_name;
         if (!pid) return;
@@ -274,13 +276,14 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         const rev = Number(it.subtotal || 0);
         acc.quantity += qty;
         acc.revenue += rev;
-        acc.orderIds.add(it.order?.id);
+        if (order?.id) acc.orderIds.add(order.id);
         if (src === "salao" || src === "balcao") {
           acc.channels[src].qty += qty;
           acc.channels[src].revenue += rev;
         }
-        // Heat
-        const dt = it.order?.closed_at ? new Date(it.order.closed_at) : null;
+        // Heat — prefer item.created_at, fallback to comanda.created_at / order.closed_at
+        const tstr = it.created_at || it.comanda?.created_at || order?.closed_at;
+        const dt = tstr ? new Date(tstr) : null;
         if (dt) {
           hourHeat[dt.getDay()][dt.getHours()] += qty;
           const dkey = format(dt, "yyyy-MM-dd");
@@ -376,7 +379,7 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         profit: totalProfit,
         margin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
         orders: new Set([
-          ...(pdvItems || []).map((i: any) => i.order?.id),
+          ...(pdvItems || []).map((i: any) => i.comanda?.order?.id),
           ...(delItems || []).map((i: any) => i.order?.id),
         ].filter(Boolean)).size,
         avg_ticket_item: totalQty > 0 ? totalRevenue / totalQty : 0,
@@ -396,7 +399,8 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const cancelledByProd = new Map<string, { product_id: string; product_name: string; quantity: number; value: number; orders: Set<string> }>();
       const cancelledDetails: CancelledItemRow[] = [];
       (cancelledOrders || []).forEach((o: any) => {
-        (o.pdv_order_items || []).forEach((it: any) => {
+        const items: any[] = (o.pdv_comandas || []).flatMap((c: any) => c.pdv_comanda_items || []);
+        items.forEach((it: any) => {
           const pid = it.product_id || it.product_name;
           if (!cancelledByProd.has(pid)) cancelledByProd.set(pid, { product_id: pid, product_name: it.product_name, quantity: 0, value: 0, orders: new Set() });
           const c = cancelledByProd.get(pid)!;
@@ -442,7 +446,7 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       if (inactiveCandidates.length) {
         const ids = inactiveCandidates.map((p: any) => p.id);
         const { data: lastSales } = await supabase
-          .from("pdv_order_items")
+          .from("pdv_comanda_items")
           .select("product_id, created_at")
           .in("product_id", ids)
           .order("created_at", { ascending: false })

@@ -1,24 +1,31 @@
-## Melhorias no gráfico "Formas de Pagamento"
+## Por que nada aparece em "Produtos"
 
-Problemas atuais (visíveis no print):
-- Rótulos sobrepostos (fiado/vale_refeicao/debito colidem)
-- Chaves cruas exibidas ("credito", "debito", "vale_refeicao", "fiado") sem capitalização nem label PT
-- Cores quase iguais (tudo escuro) — slices indistinguíveis
-- Sem valor em R$ ao lado, só %
-- Sem destaque para fatias pequenas (<3%)
+A aba está zerada porque o hook `useProductAnalytics` lê de `pdv_order_items` (vazia neste banco — só 0 linhas no período) em vez de `pdv_comanda_items`, que é onde os itens realmente vivem (1.989 itens / R$ 68.842 em maio/2026 confirmado).
 
-### Mudanças em `src/components/pdv/PaymentMethodChart.tsx`
+Mesma raiz do problema já resolvido nos outros relatórios: os dados de venda passam por `pdv_comandas` → `pdv_comanda_items`; `pdv_order_items` está deprecada.
 
-1. **Normalizar labels** usando `paymentMethodLabel` de `src/lib/financial/payment-method-keys.ts` (já cobre dinheiro, pix, credito→Crédito, debito→Débito, vale_refeicao→Vale-refeição, ifood etc.). Adicionar "fiado" → "Fiado" no mapa.
-2. **Paleta com contraste real** usando tokens do design system (`--chart-1` a `--chart-5` + `--primary`), uma cor por método — não repetir o azul-escuro em tudo.
-3. **Layout donut + legenda lateral rica** no lugar do pie com labels flutuantes:
-   - `innerRadius` para virar donut; centro mostra total (R$) e nº de transações
-   - Remover `label` inline do `<Pie>` (causa da sobreposição)
-   - Legenda customizada à direita (ou abaixo no mobile) listando: cor • método • R$ valor • % • (nº de vendas)
-   - Ordenar do maior para o menor
-4. **Agrupar fatias <2%** em "Outros" para não poluir, mantendo detalhamento na legenda.
-5. **Tooltip** mostrando valor BRL + % + contagem.
-6. **Responsivo**: legenda embaixo em telas estreitas, lateral em ≥md.
-7. Manter estados loading/empty existentes.
+## Correção (escopo: hook de analytics + filtro de período)
 
-Escopo: somente o componente do gráfico. Sem mudanças na fonte de dados nem no hook.
+### `src/hooks/reports/use-product-analytics.ts`
+
+1. **Trocar fonte dos itens PDV** de `pdv_order_items` para:
+   ```
+   pdv_comanda_items
+     ↳ comanda:pdv_comandas!inner(order_id, created_at, status,
+         order:pdv_orders!inner(id, order_number, user_id, status, source, closed_at, opened_at))
+   ```
+2. **Filtro de período**: por `comanda.created_at` no intervalo (mais confiável que `closed_at`, que muitas vezes está nulo). Manter `order.status in ('fechada','fechado')` e `order.user_id = visibleUserId`.
+3. **Channel filter** continua via `order.source`. Reaproveitar `channelOfSource` de `reports-data-source.ts` para aceitar `salao`/`salon`.
+4. **Heatmap por horário e série diária**: usar `comanda.created_at` (era `order.closed_at`).
+5. **Modificadores**: lidos de `pdv_comanda_items.modifiers` (mesma coluna JSONB).
+6. **Período anterior (delta)**: aplicar a mesma troca para `prevPdv`.
+7. **Delivery**: mantém `delivery_order_items` como hoje (já correto).
+8. **Cancelados**: hoje lê `pdv_orders.pdv_order_items`. Trocar para `pdv_orders.pdv_comandas.pdv_comanda_items` no mesmo select aninhado, filtrando `status='cancelada'` por `cancelled_at`.
+9. **Totais de pedidos distintos**: contar `order.id` distintos vindos das duas fontes.
+
+Sem mudanças em `ProductsAnalyticsReport.tsx` (UI permanece igual; apenas os dados passam a chegar).
+
+### Validação
+- May/2026 deve passar a mostrar ~R$ 68.8k de receita de itens, ~1.989 itens, ~227 pedidos.
+- Curva ABC, Ranking, Margem, Tendência, Canais e Horários todos populados.
+- "Receita" aqui é a soma de `pdv_comanda_items.subtotal` (verdade operacional por produto), diferente da "Receita financeira" do `pdv_cashier_movements` usada na Visão Geral — isso é esperado e está alinhado com a regra já registrada nos outros relatórios.
