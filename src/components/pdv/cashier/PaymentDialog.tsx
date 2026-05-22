@@ -1253,11 +1253,11 @@ export function PaymentDialog({
                       <div className="flex items-center gap-2 text-sm">
                         <CheckCircle className="h-4 w-4 text-emerald-600" />
                         <span className="font-medium">
-                          Desconto aplicado: -{formatCurrency(appliedDiscount.amount)}{" "}
+                          Desconto aplicado: -{formatCurrency(discountAmount)}{" "}
                           <span className="text-muted-foreground">
                             ({appliedDiscount.type === "percent"
                               ? `${appliedDiscount.rawValue}%`
-                              : `${appliedDiscount.percent.toFixed(1).replace(".", ",")}%`})
+                              : `${discountPercentEffective.toFixed(1).replace(".", ",")}%`})
                           </span>
                         </span>
                       </div>
