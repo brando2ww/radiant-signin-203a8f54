@@ -32,7 +32,7 @@ export default function DiscountsReport() {
       const [discOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
         supabase
           .from("delivery_orders")
-          .select("id, order_number, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
+          .select("id, order_number, customer_id, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
           .eq("user_id", visibleUserId!)
           .gt("discount", 0)
           .not("status", "in", "(cancelled,cancelado)")
@@ -70,10 +70,28 @@ export default function DiscountsReport() {
       const campMap = new Map((campaigns || []).map((c: any) => [c.id, c.name]));
       const prizeMap = new Map((prizes || []).map((p: any) => [p.id, p.name]));
 
+      const missingNameIds = Array.from(new Set(
+        rawOrders
+          .filter((o: any) => !(o.customer_name && String(o.customer_name).trim()) && o.customer_id)
+          .map((o: any) => o.customer_id)
+      )) as string[];
+      const customersMap = new Map<string, string>();
+      if (missingNameIds.length) {
+        const { data: custs } = await supabase
+          .from("delivery_customers")
+          .select("id, name")
+          .in("id", missingNameIds);
+        (custs || []).forEach((c: any) => {
+          if (c?.id && c?.name) customersMap.set(c.id, c.name);
+        });
+      }
+
       const orders = rawOrders.map((o: any) => ({
         id: o.id,
         order_number: o.order_number,
-        customer_name: o.customer_name,
+        customer_name: (o.customer_name && String(o.customer_name).trim())
+          || customersMap.get(o.customer_id)
+          || "",
         subtotal: Number(o.subtotal || 0),
         discount: Number(o.discount || 0),
         total: Number(o.total || 0),
