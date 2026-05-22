@@ -1,96 +1,72 @@
-## Objetivo
+## Diagnóstico
 
-Hoje cada sub-relatório do hub `/pdv/relatorios` mostra basicamente 3–4 KPIs + uma tabela. Faltam comparativos, evoluções, segmentações e cortes adicionais que um gestor precisa para tomar decisão. Vou enriquecer cada página com novos KPIs, gráficos e tabelas, mantendo o layout atual (sidebar + ReportPageHeader + ReportDateFilter + export XLSX).
+Investiguei o banco do tenant atual e o problema é estrutural, não específico da Visão Geral:
 
-A página **Produtos** (`sales-by-product`) já foi reformulada com 12 abas — não entra neste plano.
+- `pdv_orders.total` → **sempre 0** (216/216 pedidos fechados em maio com total=0)
+- `pdv_orders.subtotal` → **sempre 0** (216/216)
+- `pdv_orders.closed_at` → **NULL em 207/216** pedidos
+- `pdv_order_items` → **vazio** para esses pedidos (0 registros)
 
----
+A receita real está em duas outras tabelas:
 
-## 1. Visão Geral (`OverviewReport.tsx`)
+- **`pdv_payments.amount`** → R$ 16.881,49 em maio (116 pagamentos). É o "dinheiro que entrou".
+- **`pdv_comanda_items`** (via `pdv_comandas.order_id → pdv_orders.id`) → 1.967 itens, R$ 67.310,80 em itens consumidos. É o "que foi vendido".
 
-**Adicionar:**
-- KPIs extras: itens vendidos no período, média de itens por pedido, % desconto médio, % cancelamento, ticket médio vs período anterior (Δ%).
-- Comparativo automático com período anterior equivalente (mesma quantidade de dias antes) — chip "vs período anterior" em cada KPI.
-- Card "Dia da semana" — barras com receita média por dia (Seg–Dom) para identificar pico.
-- Card "Top 5 clientes" — ranking por receita (a partir de `pdv_orders.customer_id/customer_name`).
-- Card "Top 3 categorias" abaixo dos pagamentos.
-- Atualizar XLSX com abas extras: "Dia da semana", "Top clientes".
+Os relatórios atuais leem de `pdv_orders.total` / `pdv_order_items`, por isso aparecem como zero. O gráfico de "Formas de Pagamento" funciona porque usa outra fonte (`pdv_cashier_movements`).
 
-## 2. Mensal / YoY (`MonthlyReport.tsx`)
+Também: o filtro por período usa às vezes `opened_at`, às vezes `closed_at`, às vezes `created_at` — inconsistente. Com `closed_at` quase sempre nulo, qualquer query baseada nele perde dados.
 
-**Adicionar:**
-- KPI "Melhor mês" e "Pior mês" do ano selecionado.
-- Linha de tendência (line chart) acumulado YTD vs ano anterior.
-- Coluna "Itens vendidos" e "Δ pedidos YoY" na tabela.
-- Card "Sazonalidade" — média móvel de 3 meses.
-- Toggle entre Receita | Pedidos | Ticket médio no gráfico principal.
+## Proposta
 
-## 3. Categorias (`ByCategoryReport.tsx`)
+Padronizar a camada de dados de relatórios em **uma única fonte de verdade** e reescrever as queries:
 
-**Adicionar:**
-- KPIs: ticket médio por categoria (top), categoria em crescimento (vs período anterior).
-- Coluna na tabela: ticket médio (receita/qtd), preço médio, Δ% vs período anterior.
-- Gráfico de barras horizontal "Receita por categoria" (substitui pizza quando >5 categorias).
-- Drill-down: ao clicar em uma categoria, expande os 5 produtos top dessa categoria.
-- Evolução temporal — line chart das 5 maiores categorias no período (agregado por dia/semana automático).
+### 1. Nova camada compartilhada (`src/lib/reports-data-source.ts`)
+- `fetchRevenueByPeriod(userId, start, end)` → consulta `pdv_payments` agregada por `processed_at`, retornando: total bruto, total por método, total por dia, total por hora, líquido (descontando `fee_amount`).
+- `fetchOrdersByPeriod(userId, start, end)` → consulta `pdv_orders` + agregado de `pdv_comanda_items` (via join `pdv_comandas`) para obter receita por pedido, total de itens, descontos. Filtro de período usa `COALESCE(closed_at, opened_at)`.
+- `fetchItemsByPeriod(userId, start, end)` → `pdv_comanda_items` joinado com `pdv_comandas → pdv_orders`, devolvendo product_id, product_name, quantity, subtotal, hora de consumo.
+- `fetchCancellationsByPeriod` → mantém `pdv_orders` mas calcula valor cancelado via soma de `pdv_comanda_items` dos pedidos cancelados.
 
-## 4. Por Usuário (`ByUserReport.tsx`)
+Cada função retorna estruturas tipadas e já corrige o problema de `total=0`.
 
-**Adicionar:**
-- KPIs: vendedor com maior ticket médio, vendedor com mais cancelamentos, vendedor com mais descontos concedidos.
-- Colunas extras na tabela: itens vendidos, % desconto sobre receita, % cancelamento, mix de pagamento principal (ex.: "60% Pix").
-- Card "Ranking de receita" (bar chart horizontal).
-- Card "Mix por usuário" — % do total que cada usuário representa (pizza/donut).
-- Card "Horários de operação" — primeira/última venda média por usuário.
+### 2. Refatorar `usePDVReports` (`src/hooks/use-pdv-reports.ts`)
+- `salesReport.totalSales` → `sum(pdv_payments.amount)` no período
+- `salesReport.totalOrders` → contagem distinta de `order_id` em `pdv_payments` (ou pedidos com pelo menos 1 item)
+- `salesReport.averageTicket` → totalSales / totalOrders
+- `productReport` → agrupa `pdv_comanda_items` por `product_name`
+- `hourlyReport` → agrupa `pdv_payments` por hora de `processed_at`
+- `paymentReport` → continua via `pdv_cashier_movements` (já funciona)
 
-## 5. Cancelamentos (`CancellationsReport.tsx`)
+### 3. Atualizar os 7 sub-relatórios para consumir a nova camada
+Cada arquivo abaixo passa a chamar `fetchRevenueByPeriod` / `fetchItemsByPeriod` em vez de ler `pdv_orders.total`:
 
-**Adicionar:**
-- KPIs: ticket médio cancelado, tempo médio entre abertura e cancelamento, usuário que mais cancela.
-- Gráfico "Cancelamentos por dia" (line/bar) no período.
-- Card "Por usuário" — tabela qtd, valor, % do total.
-- Card "Itens cancelados" — top 10 produtos mais presentes em pedidos cancelados (join `pdv_order_items`).
-- Filtro por motivo (multi-select) sobre a tabela detalhada.
+- `OverviewReport.tsx` — receita, ticket, dia da semana, top clientes, top categorias
+- `ByCategoryReport.tsx` — receita por categoria via items
+- `ByUserReport.tsx` — receita por operador via `pdv_payments.processed_by`
+- `CancellationsReport.tsx` — valor cancelado via items dos pedidos cancelados
+- `DiscountsReport.tsx` — descontos via `pdv_orders.discount` somado dos pedidos com items
+- `MonthlyReport.tsx` — série mensal via `pdv_payments` agrupado por mês
+- `ProductsAnalyticsReport.tsx` — já usa items, validar consistência
 
-## 6. Descontos e Cupons (`DiscountsReport.tsx`) ← página da imagem
+### 4. Period-over-period
+O helper `previousPeriod` continua válido. As funções de delta passam a comparar receita-de-payments do período atual vs anterior, não mais `orders.total`.
 
-**Adicionar:**
-- KPIs: desconto médio por pedido, % desconto médio sobre subtotal, maior desconto único, total economizado pelos clientes via cupom.
-- Card "Descontos por usuário" — quem mais concedeu desconto (qtd + valor + % sobre suas vendas).
-- Card "Evolução diária" — linha de desconto/dia no período.
-- Card "Taxa de resgate de cupons" — comparar cupons gerados (`campaign_prize_wins` total no período) vs resgatados; tempo médio entre geração e resgate.
-- Card "Top campanhas/prêmios" — agrupamento por `campaign_name` e `prize_name` com qtd resgatada.
-- Tornar visível a coluna **Campanha** corretamente (hoje aparece "—" porque a query busca apenas `evaluation_campaigns`; também buscar `marketing_campaigns` se existir — verificar em build).
-- XLSX: adicionar abas "Por usuário", "Por campanha", "Evolução diária".
+### 5. Validação manual após implementar
+Tabela de checagem para o tenant `d9087102-…` em maio/2026:
 
-## 7. Compras (`PurchasesReport.tsx`)
+| Métrica | Esperado |
+|---|---|
+| Receita (Visão Geral) | ≈ R$ 16.881,49 |
+| Total de pedidos | ≈ 116 distintos |
+| Itens vendidos | ≈ 1.967 |
 
-**Adicionar:**
-- KPIs: ticket médio por OC, % frete sobre total, ordens pendentes (status ≠ recebida), % entrega no prazo.
-- Card "Evolução mensal de compras" — bar chart por mês.
-- Coluna "Variação de preço" no Por Insumo — comparar preço médio atual vs período anterior (alerta visual se >10%).
-- Card "Atrasos" — ordens com `expected_delivery < actual_delivery` ou pendentes vencidas.
-- Card "Concentração" — % das compras nos top 3 fornecedores.
+## Arquivos a editar
 
----
+- **Novo:** `src/lib/reports-data-source.ts`
+- **Reescrito:** `src/hooks/use-pdv-reports.ts`
+- **Ajustados:** `src/pages/pdv/reports/OverviewReport.tsx`, `ByCategoryReport.tsx`, `ByUserReport.tsx`, `CancellationsReport.tsx`, `DiscountsReport.tsx`, `MonthlyReport.tsx`, `ProductsAnalyticsReport.tsx`
 
-## Considerações técnicas
+`PurchasesReport.tsx` não é afetado (usa `pdv_purchase_orders`, fonte diferente).
 
-- Reutilizar `ReportDateFilter`, `ReportPageHeader`, `exportToXlsx`, `formatBRL/formatBRLCompact`, `useEstablishmentId`.
-- Manter design system (sem cores customizadas — `hsl(var(--primary))`, `bg-card`, `text-muted-foreground`).
-- Para "período anterior", calcular `prevStart/prevEnd` com mesma duração imediatamente antes de `startDate`.
-- Gráficos com `recharts` (já em uso). Locale ptBR via `date-fns/locale`.
-- Cada página continua com 1 `useQuery` principal — adicionar queries auxiliares (período anterior, dimensões extras) compostas em paralelo via `Promise.all`.
-- Tabelas longas: limitar a top 20–50 com nota "…e mais N" + export XLSX completo.
+## Observação
 
-## Ordem de implementação sugerida
-
-1. Descontos e Cupons (página onde o usuário está reclamando agora)
-2. Cancelamentos
-3. Por Usuário
-4. Categorias
-5. Compras
-6. Visão Geral
-7. Mensal / YoY
-
-Posso entregar tudo num único build ou ir uma a uma — me diga sua preferência ao aprovar.
+Antes de codar: confirmar se concorda que **a receita correta é `pdv_payments.amount`** (dinheiro efetivamente recebido). A alternativa seria usar `sum(pdv_comanda_items.subtotal)` (consumo bruto), que dá R$ 67k vs R$ 16k — números muito diferentes, com significados diferentes (consumido vs pago). Em PDVs costuma-se reportar **receita = pagamentos liquidados**, mas posso usar a outra base se preferir.
