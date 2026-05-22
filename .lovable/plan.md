@@ -1,53 +1,27 @@
-# Imprimir somente as opções selecionadas
+## Objetivo
 
-## Problema
+Os blocos "Gaveta (dinheiro físico)" e "Vendas por forma de pagamento" na tela `/pdv/caixa` devem se atualizar automaticamente (sem recarregar a página) sempre que houver uma venda, sangria ou reforço.
 
-Produtos com grupos de opções (ex.: escolher 2 sabores de 4) estão imprimindo TODOS os itens cadastrados, e não apenas os que o garçom selecionou.
+## Causa atual
 
-## Causa raiz
+Esses blocos leem `activeSession` (totais em `pdv_cashier_sessions`) e `movements` (`pdv_cashier_movements`) via `usePDVCashier`. Hoje só existe Realtime para comandas/mesas/pedidos (`usePDVComandasRealtime`), não para a sessão de caixa nem para seus movimentos — por isso só atualizam após reload.
 
-No fluxo de adicionar item da comanda (`useDraftCart` → `usePDVComandas.addItem`):
+## Mudanças
 
-1. O `MobileProductOptionSelector` coleta as opções escolhidas em `selectedOptions` (cada item carrega `linkedProductId` e `printerStation`).
-2. Esse array fica salvo apenas no `DraftCart`. Quando o garçom envia para a cozinha (`handleFlushDraft` em `GarcomComandaDetalhe` e `GarcomMesaDetalhe`), o `persistItem` é chamado **sem** `selectedOptions` — somente as notas textuais sobrevivem.
-3. Dentro do `addItemMutation`, se o produto tem `is_composite = true`, é chamado `expandComposition` (em `src/utils/expandComposition.ts`), que insere como filhos para roteamento de cozinha **todos** os componentes cadastrados em `pdv_product_compositions`, ignorando a seleção do cliente.
-4. Em `sendToKitchen`, esses filhos são incluídos via `parent_item_id` e a Print Bridge imprime cada um — daí a cozinha receber todos os itens.
+1. **Novo hook `src/hooks/use-pdv-cashier-realtime.ts`**
+   - Recebe `sessionId` (id da sessão de caixa ativa).
+   - Cria um canal Supabase Realtime que escuta:
+     - `pdv_cashier_sessions` filtrado por `id=eq.{sessionId}` (capta atualizações de `total_cash`, `total_credit`, `total_debit`, `total_pix`, `total_voucher`, `total_online_delivery`, `total_fiado`, `total_withdrawals` feitas pelo trigger / `pdv_recompute_session_totals`).
+     - `pdv_cashier_movements` filtrado por `cashier_session_id=eq.{sessionId}` (capta novas vendas, sangrias e reforços).
+   - Em qualquer evento, invalida as queries `["pdv-cashier-active"]` e `["pdv-cashier-movements"]`.
+   - Limpa o canal no unmount / quando `sessionId` muda.
 
-O fluxo do PDV (`ComandaAddItemDialog` e `AddItemDialog`) tem o mesmo problema: monta `linkedPrinterStations` mas o handler em `pages/pdv/Comandas.tsx` descarta o campo antes de chamar `addItem`.
+2. **`src/pages/pdv/Cashier.tsx`**
+   - Importar e chamar o novo hook passando `activeSession?.id` logo após `usePDVComandasRealtime()`.
 
-## Solução
+Nenhum outro arquivo precisa ser tocado: como o `CashierSummaryFooter` é puramente apresentacional e recebe seus valores derivados de `activeSession` + `movements`, a invalidação dispara o re-render automaticamente.
 
-Passar a seleção do cliente até o `addItem` e criar filhos apenas para os itens efetivamente escolhidos (quando o produto usa option groups). Manter o `expandComposition` atual para kits fixos (produtos compostos sem option groups).
+## Fora de escopo
 
-### Mudanças
-
-1. **`src/contexts/DraftCartContext.tsx`** — já guarda `selectedOptions`; nenhuma mudança.
-
-2. **`src/utils/expandSelectedOptions.ts`** (novo) — função que recebe `selectedOptions: SelectedOption[]` + `parentQuantity` + `ownerUserId` e retorna `ExpandedChild[]`, usando `linkedProductId` como `product_id` e resolvendo `production_center_id` via `resolveProductionCenterId` a partir do `printerStation` do linked product. Itens sem `linkedProductId` são ignorados (são apenas modificadores de preço).
-
-3. **`src/hooks/use-pdv-comandas.ts` (`addItemMutation`)**
-   - Adicionar `selectedOptions?: SelectedOption[]` ao payload.
-   - Lógica nova:
-     - Se `selectedOptions` tem itens com `linkedProductId` → expandir via `expandSelectedOptions` e **pular** `expandComposition` (mesmo se `is_composite = true`).
-     - Caso contrário → manter `expandComposition` como hoje (kits fixos continuam funcionando).
-   - Inserir os filhos com `parent_item_id`, `is_composite_child = true`, `unit_price = 0`, `production_center_id` resolvido.
-
-4. **`src/hooks/use-pdv-orders.ts` (`addItemMutation`)** — mesmo tratamento, simétrico ao das comandas.
-
-5. **Repasse de `selectedOptions` para o `addItem`**:
-   - `src/pages/garcom/GarcomComandaDetalhe.tsx` — `handleFlushDraft`: incluir `selectedOptions: it.selectedOptions`.
-   - `src/pages/garcom/GarcomMesaDetalhe.tsx` — idem.
-   - `src/components/pdv/ComandaAddItemDialog.tsx` — passar `selectedOptions` no `onAddItem` (remover/ignorar `linkedPrinterStations`, que não é usado em lugar nenhum).
-   - `src/components/pdv/AddItemDialog.tsx` — passar `selectedOptions` no callback do PDV de pedido em mesa.
-   - `src/pages/pdv/Comandas.tsx` (`handleAddItem`) e `src/pages/pdv/Salon.tsx` (handlers equivalentes) — repassar `selectedOptions` ao `addItem`.
-
-### Detalhes técnicos
-
-- `expandSelectedOptions` mantém o mesmo formato de retorno (`ExpandedChild`) que `expandComposition`, então o restante do `addItemMutation` (toast "sem centro de produção", insert dos filhos, fluxo da Print Bridge) permanece intacto.
-- `notes` textual com a lista de opções (já gerado em `optionsNotes`) continua sendo gravado no pai — bom para o resumo na comanda e para itens de opção que não têm `linkedProductId`.
-- Não há alteração no schema, na Print Bridge nem nas migrations.
-
-### Não escopo
-
-- Não vou mexer no fluxo de delivery (já usa `delivery_order_item_options` corretamente).
-- Não vou alterar a baixa de estoque dos sub-produtos (já tratada pelo `linked_product_id` do item de opção em outro caminho).
+- Não alterar lógica de negócio, cálculos nem layout.
+- Não mexer em comandas/mesas (já cobertas por `usePDVComandasRealtime`).

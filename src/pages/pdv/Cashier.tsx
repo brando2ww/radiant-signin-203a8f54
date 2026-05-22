@@ -20,6 +20,7 @@ import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialo
 import { RedeemCouponDialog } from "@/components/pdv/cashier/RedeemCouponDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
+import { usePDVCashierRealtime } from "@/hooks/use-pdv-cashier-realtime";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVOrders } from "@/hooks/use-pdv-orders";
 
@@ -41,6 +42,10 @@ export default function PDVCashier() {
     drawerBalance,
     totalReinforcements,
   } = usePDVCashier();
+
+  // Realtime dos totais da gaveta e movimentos do caixa ativo
+  usePDVCashierRealtime(activeSession?.id);
+
 
   const { comandas, cancelComanda, getPendingPaymentComandas, getItemsByComanda } = usePDVComandas();
   const { tables } = usePDVTables();
