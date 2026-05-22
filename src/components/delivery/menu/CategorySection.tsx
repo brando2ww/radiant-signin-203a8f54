@@ -34,7 +34,7 @@ import {
 import {
   SortableContext,
   arrayMove,
-  rectSortingStrategy,
+  verticalListSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -219,9 +219,9 @@ export const CategorySection = ({
               >
                 <SortableContext
                   items={products.map((p) => p.id)}
-                  strategy={rectSortingStrategy}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <div className="grid gap-3 grid-cols-1 xl:grid-cols-2 auto-rows-fr">
+                  <div className="flex flex-col gap-2">
                     {products.map((product) => (
                       <ProductCard
                         key={product.id}
