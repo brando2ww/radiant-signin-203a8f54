@@ -84,8 +84,8 @@ export function useCampaignQuestionAnalytics(
         .eq("campaign_id", campaignId)
         .order("evaluation_date", { ascending: false });
 
-      if (startDate) evalQuery = evalQuery.gte("evaluation_date", `${startDate}T00:00:00`);
-      if (endDate) evalQuery = evalQuery.lte("evaluation_date", `${endDate}T23:59:59.999`);
+      if (startDate) evalQuery = evalQuery.gte("evaluation_date", `${startDate}T00:00:00-03:00`);
+      if (endDate) evalQuery = evalQuery.lte("evaluation_date", `${endDate}T23:59:59.999-03:00`);
 
       const { data: evals, error: eErr } = await evalQuery;
       if (eErr) throw eErr;
