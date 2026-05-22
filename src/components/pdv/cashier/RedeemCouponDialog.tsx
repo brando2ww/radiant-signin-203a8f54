@@ -18,10 +18,15 @@ import {
   useLookupCouponForPDV,
   useRedeemCouponForPDV,
   useSearchCouponsForPDV,
+  useLaunchCouponOnComanda,
   type CouponLookupResult,
   type CouponRewardType,
 } from "@/hooks/use-coupon-redemption";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
 
 export interface AppliedCouponReward {
@@ -58,12 +63,58 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
   const [searchResults, setSearchResults] = useState<CouponLookupResult[]>([]);
   const [result, setResult] = useState<CouponLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showLaunch, setShowLaunch] = useState(false);
+  const [selectedComandaId, setSelectedComandaId] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
+  const { visibleUserId } = useEstablishmentId();
 
   const lookup = useLookupCouponForPDV();
   const redeem = useRedeemCouponForPDV();
   const search = useSearchCouponsForPDV();
+  const launch = useLaunchCouponOnComanda();
+
+  const openComandasQ = useQuery({
+    queryKey: ["open-comandas-for-coupon", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return [] as { id: string; label: string }[];
+      const { data, error } = await supabase
+        .from("pdv_comandas")
+        .select("id, comanda_number, customer_name, order_id")
+        .eq("user_id", visibleUserId)
+        .in("status", ["aberta", "aguardando_pagamento", "em_cobranca"])
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const orderIds = Array.from(new Set((data ?? []).map((c) => c.order_id).filter(Boolean))) as string[];
+      const tableByOrder = new Map<string, string>();
+      if (orderIds.length) {
+        const { data: orders } = await supabase
+          .from("pdv_orders")
+          .select("id, table_id")
+          .in("id", orderIds);
+        const tIds = Array.from(new Set((orders ?? []).map((o: any) => o.table_id).filter(Boolean))) as string[];
+        const tableMap = new Map<string, string>();
+        if (tIds.length) {
+          const { data: tables } = await supabase
+            .from("pdv_tables")
+            .select("id, table_number")
+            .in("id", tIds);
+          (tables ?? []).forEach((t: any) => tableMap.set(t.id, String(t.table_number)));
+        }
+        (orders ?? []).forEach((o: any) => {
+          if (o.table_id && tableMap.has(o.table_id)) tableByOrder.set(o.id, tableMap.get(o.table_id)!);
+        });
+      }
+      return (data ?? []).map((c) => {
+        const tbl = c.order_id ? tableByOrder.get(c.order_id) : null;
+        const who = c.customer_name?.trim() || `Comanda ${c.comanda_number}`;
+        const where = tbl ? `Mesa ${tbl}` : "Balcão";
+        return { id: c.id, label: `${where} · ${who} (#${c.comanda_number})` };
+      });
+    },
+    enabled: open && showLaunch && !!visibleUserId,
+  });
 
   useEffect(() => {
     if (open) {
@@ -73,6 +124,8 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
       setSearchResults([]);
       setResult(null);
       setError(null);
+      setShowLaunch(false);
+      setSelectedComandaId("");
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -168,7 +221,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
         </DialogHeader>
 
         <div className="space-y-4">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); }}>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); }}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="code">Por código</TabsTrigger>
               <TabsTrigger value="customer">Por cliente</TabsTrigger>
@@ -287,20 +340,95 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                 Recompensa: {rewardLabel(result.reward_type, result.reward_value)}
               </div>
 
-              {result.status === "active" && (
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleApply}
-                  disabled={redeem.isPending}
-                >
-                  {mode === "payment"
+              {result.status === "active" && (() => {
+                const canLaunch =
+                  mode === "standalone" &&
+                  result.reward_type === "free_product" &&
+                  !!result.reward_product_id;
+                const primaryLabel =
+                  mode === "payment"
                     ? (result.reward_type === "percent" || result.reward_type === "fixed")
                       ? "Aplicar na comanda"
                       : "Validar cupom"
-                    : "Marcar como resgatado"}
-                </Button>
-              )}
+                    : "Marcar como resgatado";
+
+                return (
+                  <div className="space-y-2">
+                    {canLaunch && !showLaunch && (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={() => setShowLaunch(true)}
+                      >
+                        Lançar prêmio em comanda
+                      </Button>
+                    )}
+
+                    {canLaunch && showLaunch && (
+                      <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+                        <Label className="text-xs">Selecione a comanda aberta</Label>
+                        <Select value={selectedComandaId || "none"} onValueChange={(v) => setSelectedComandaId(v === "none" ? "" : v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={openComandasQ.isLoading ? "Carregando..." : "Escolher comanda"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(openComandasQ.data ?? []).length === 0 && (
+                              <SelectItem value="none" disabled>Nenhuma comanda aberta</SelectItem>
+                            )}
+                            {(openComandasQ.data ?? []).map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => { setShowLaunch(false); setSelectedComandaId(""); }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            disabled={!selectedComandaId || launch.isPending}
+                            onClick={() => {
+                              if (!result.reward_product_id) return;
+                              launch.mutate(
+                                {
+                                  winId: result.win_id,
+                                  comandaId: selectedComandaId,
+                                  productId: result.reward_product_id,
+                                  prizeName: result.prize_name,
+                                  couponCode: result.coupon_code,
+                                },
+                                {
+                                  onSuccess: () => {
+                                    toast.success(`Prêmio lançado e cupom ${result.coupon_code} resgatado`);
+                                    onOpenChange(false);
+                                  },
+                                  onError: (e: Error) => setError(e.message),
+                                },
+                              );
+                            }}
+                          >
+                            Confirmar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant={canLaunch ? "outline" : "default"}
+                      onClick={handleApply}
+                      disabled={redeem.isPending}
+                    >
+                      {canLaunch ? "Apenas marcar como resgatado" : primaryLabel}
+                    </Button>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
