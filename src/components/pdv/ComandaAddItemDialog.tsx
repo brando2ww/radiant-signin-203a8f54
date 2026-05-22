@@ -85,11 +85,8 @@ export function ComandaAddItemDialog({
       .join("; ");
     const fullNotes = [optionsNotes, notes.trim()].filter(Boolean).join(" | ");
 
-    const linkedPrinterStations = selectedOptions
-      .flatMap((opt) => opt.items)
-      .filter((i) => i.printerStation)
-      .map((i) => i.printerStation);
-    void linkedPrinterStations;
+    // Opções selecionadas (com produto vinculado) viram filhos para roteamento de cozinha
+
 
     await onAddItem({
       productId: selectedProduct.id,
