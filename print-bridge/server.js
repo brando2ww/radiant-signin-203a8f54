@@ -133,14 +133,21 @@ function buildReceipt({ mesa, comanda, subheader, body, centerName }) {
       text("--------------------------------");
       line();
     }
+    // Rótulo do grupo de composição (ex.: "Etapa 1") logo antes do filho
+    if (item.composition_group_label) {
+      push(GS, 0x21, 0x00);
+      text(`[${String(item.composition_group_label).toUpperCase()}]`);
+      line();
+    }
     push(GS, 0x21, 0x01);
     text(`${item.quantity}x ${String(item.product_name).toUpperCase()}`);
     line();
     push(GS, 0x21, 0x00);
-    if (item.parent_product_name) {
+    if (!item.composition_group_label && item.parent_product_name) {
       text(`  (parte de: ${String(item.parent_product_name).toUpperCase()})`);
       line();
     }
+
     if (item.notes) {
       text(`  OBS: ${item.notes}`);
       line();
