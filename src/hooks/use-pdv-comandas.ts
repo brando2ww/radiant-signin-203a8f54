@@ -99,21 +99,21 @@ export function usePDVComandas() {
     enabled: !!visibleUserId && activeComandaIds.length > 0,
   });
 
-  // Generate next comanda number
-  const generateComandaNumber = async (): Promise<string> => {
-    const today = new Date();
-    const datePrefix = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`;
-    const ownerId = visibleUserId || user?.id;
-
-    const { count } = await supabase
-      .from("pdv_comandas")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", ownerId)
-      .gte("created_at", today.toISOString().split("T")[0]);
-
-    const nextNumber = (count || 0) + 1;
-    return `${datePrefix}-${String(nextNumber).padStart(3, "0")}`;
+  // Geração atômica de número de comanda (por sessão de caixa)
+  const generateComandaNumber = async (
+    ownerId: string,
+  ): Promise<{ number: string; sessionId: string }> => {
+    const { data, error } = await supabase.rpc("pdv_next_comanda_number" as any, {
+      p_owner: ownerId,
+    });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row?.comanda_number || !row?.cashier_session_id) {
+      throw new Error("Caixa fechado: abra o caixa antes de criar comandas");
+    }
+    return { number: row.comanda_number as string, sessionId: row.cashier_session_id as string };
   };
+
 
   // Create comanda
   const createComandaMutation = useMutation({
