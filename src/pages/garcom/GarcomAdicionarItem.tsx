@@ -230,6 +230,21 @@ export default function GarcomAdicionarItem() {
             </SheetTitle>
           </SheetHeader>
 
+          {/* Step: Composition (escolha de itens da composição) */}
+          {effectiveStep === "composition" && hasComposition && compositionGroups && (
+            <div className="mt-4">
+              <MobileCompositionGroupSelector
+                groups={compositionGroups}
+                basePrice={selectedProduct?.price_salon ?? 0}
+                onConfirm={(s) => {
+                  setCompositionSelections(s);
+                  setStep(hasOptions ? "options" : "quantity");
+                }}
+                onBack={() => resetSheet()}
+              />
+            </div>
+          )}
+
           {/* Step: Options */}
           {effectiveStep === "options" && hasOptions && productOptions && (
             <div className="mt-4">
@@ -237,13 +252,21 @@ export default function GarcomAdicionarItem() {
                 options={productOptions}
                 basePrice={selectedProduct?.price_salon ?? 0}
                 onConfirm={(s) => {
-                  setSelectedOptions(s);
+                  setOptionSelections(s);
                   setStep("quantity");
                 }}
-                onBack={() => resetSheet()}
+                onBack={() => {
+                  if (hasComposition) {
+                    setOptionSelections([]);
+                    setStep("composition");
+                  } else {
+                    resetSheet();
+                  }
+                }}
               />
             </div>
           )}
+
 
           {/* Step: Quantity */}
           {effectiveStep === "quantity" && (
