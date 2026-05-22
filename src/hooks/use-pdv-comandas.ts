@@ -193,7 +193,7 @@ export function usePDVComandas() {
         if (existing) return existing as Comanda;
       }
 
-      const comandaNumber = await generateComandaNumber();
+      const { number: comandaNumber, sessionId } = await generateComandaNumber(ownerId);
 
       const { data: newComanda, error } = await supabase
         .from("pdv_comandas")
@@ -201,6 +201,7 @@ export function usePDVComandas() {
           user_id: ownerId,
           order_id: effectiveOrderId,
           comanda_number: comandaNumber,
+          cashier_session_id: sessionId,
           customer_name: data.customerName || null,
           person_number: data.personNumber || null,
           notes: data.notes || null,
