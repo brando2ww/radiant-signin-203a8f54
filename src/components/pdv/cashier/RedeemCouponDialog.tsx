@@ -124,6 +124,8 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
       setSearchResults([]);
       setResult(null);
       setError(null);
+      setShowLaunch(false);
+      setSelectedComandaId("");
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
