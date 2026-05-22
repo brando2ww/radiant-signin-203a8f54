@@ -49,39 +49,29 @@ export function usePDVReports(startDate: Date, endDate: Date) {
   const start = startOfDay(startDate).toISOString();
   const end = endOfDay(endDate).toISOString();
 
-  // Receita real vem de pdv_payments. Quantidade de pedidos = pedidos distintos
-  // com pelo menos um pagamento no período.
+  // Receita real do sistema = pdv_cashier_movements (type=venda). Inclui
+  // PDV (salão/balcão) e Delivery. Pedidos = nº de movimentos de venda.
   const { data: salesReport, isLoading: isLoadingSales } = useQuery({
-    queryKey: ["pdv-sales-report-v2", user?.id, start, end],
+    queryKey: ["pdv-sales-report-v3", user?.id, start, end],
     queryFn: async (): Promise<SalesReport> => {
       if (!user?.id) throw new Error("User not authenticated");
 
-      // 1) Pagamentos no período (somente pedidos do usuário)
-      const { data: orderIdsData } = await supabase
+      const { fetchCashierSalesByPeriod } = await import("@/lib/reports-data-source");
+      const movements = await fetchCashierSalesByPeriod(user.id, start, end);
+
+      const totalSales = movements.reduce((s, m) => s + m.amount, 0);
+      const totalOrders = movements.length;
+
+      // Cancelamentos (informativo) — continua vindo de pdv_orders + payments
+      const { data: cancelledOrdersData } = await supabase
         .from("pdv_orders")
-        .select("id, status")
+        .select("id")
         .eq("user_id", user.id)
+        .eq("status", "cancelada")
         .gte("opened_at", start)
         .lte("opened_at", end);
-
-      const allOrders = orderIdsData || [];
-      const closedIds = allOrders.filter((o: any) => o.status === "fechada").map((o: any) => o.id);
-      const cancelledIds = allOrders.filter((o: any) => o.status === "cancelada").map((o: any) => o.id);
-
-      const [payClosed, payCancelled] = await Promise.all([
-        fetchPaymentsByOrderIds(closedIds),
-        fetchPaymentsByOrderIds(cancelledIds),
-      ]);
-
-      let totalSales = 0;
-      let ordersWithRevenue = 0;
-      payClosed.forEach((r) => {
-        totalSales += r.total;
-        if (r.total > 0) ordersWithRevenue += 1;
-      });
-
-      // Pedidos sem pagamento ainda contam? Não — só "vendas efetivamente recebidas"
-      const totalOrders = ordersWithRevenue;
+      const cancelledIds = (cancelledOrdersData || []).map((o: any) => o.id);
+      const payCancelled = await fetchPaymentsByOrderIds(cancelledIds);
       let cancelledValue = 0;
       payCancelled.forEach((r) => (cancelledValue += r.total));
 
@@ -95,6 +85,7 @@ export function usePDVReports(startDate: Date, endDate: Date) {
     },
     enabled: !!user?.id,
   });
+
 
   // Relatório por forma de pagamento — usa pdv_cashier_movements (já correto)
   const { data: paymentReport = [], isLoading: isLoadingPayments } = useQuery({
