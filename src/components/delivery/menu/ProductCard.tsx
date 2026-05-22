@@ -99,7 +99,7 @@ export const ProductCard = ({
       <button
         type="button"
         data-no-card-click
-        className="flex items-center px-1 -ml-1 cursor-grab active:cursor-grabbing text-muted-foreground/60 hover:text-foreground touch-none opacity-0 group-hover:opacity-100 transition-opacity"
+        className="flex items-center px-1 -ml-1 cursor-grab active:cursor-grabbing text-muted-foreground/60 hover:text-foreground touch-none"
         aria-label="Arrastar para reordenar"
         {...attributes}
         {...listeners}
