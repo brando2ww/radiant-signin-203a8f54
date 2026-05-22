@@ -1,23 +1,27 @@
 ## Diagnóstico
-A captura confirma que a rota `/pdv/caixa` abre e o cabeçalho do PDV aparece, mas o corpo da tela fica preso nos placeholders. O status do caixa já mostra `Fechado`, então a sessão do caixa foi resolvida; o bloqueio restante está no `if (isLoading)` de `Cashier.tsx`, que está escondendo toda a tela por causa de algum estado de query ainda carregando/refetching.
+O clique em **Abrir Caixa** está chegando no Supabase e retornando sucesso (`201`). O problema real é que já existem várias sessões de caixa abertas ao mesmo tempo para o mesmo usuário, e a consulta usa `.maybeSingle()` em uma busca que pode retornar múltiplas linhas. Isso deixa o estado do caixa inconsistente: a abertura acontece no banco, mas a UI pode continuar mostrando `Fechado` ou não refletir a sessão corretamente.
 
 ## Plano de correção
-1. **Não bloquear a tela inteira por loading de caixa**
-   - Alterar `src/pages/pdv/Cashier.tsx` para renderizar a estrutura principal mesmo quando o hook ainda está carregando.
-   - Manter skeletons apenas dentro dos blocos necessários, não substituindo a tela inteira.
+1. **Buscar somente uma sessão ativa**
+   - Em `use-pdv-cashier`, alterar a query de sessão ativa para usar `.limit(1).maybeSingle()` após ordenar por `opened_at desc`.
+   - Assim a UI sempre pega a sessão aberta mais recente, mesmo que existam duplicadas antigas.
 
-2. **Renderizar estado fechado com segurança**
-   - Quando não houver `activeSession`, exibir imediatamente `Caixa fechado`, botão `Abrir Caixa`, resumo zerado e fila do salão/delivery.
-   - Isso evita que uma query secundária impeça o operador de abrir o caixa.
+2. **Impedir nova sessão quando já existe caixa aberto**
+   - Antes de inserir uma nova sessão, consultar se já existe sessão aberta para o `visibleUserId`.
+   - Se existir, retornar essa sessão em vez de criar outra.
+   - Isso evita múltiplos caixas abertos simultaneamente.
 
-3. **Refinar o hook `use-pdv-cashier`**
-   - Ajustar o `isLoading` para representar apenas o carregamento inicial indispensável.
-   - Usar `isFetching`/estado de refetch apenas para dados auxiliares, sem bloquear a renderização.
+3. **Abrir para o estabelecimento correto**
+   - Inserir `user_id: visibleUserId` em vez de `user.id`, mantendo a regra do projeto de usar o dono do estabelecimento como fonte dos dados.
+   - Manter a trava atual de que apenas o responsável pode abrir o caixa.
 
-4. **Adicionar logs temporários se ainda persistir**
-   - Se a tela continuar presa após o ajuste, inserir logs pontuais no `Cashier.tsx` para identificar exatamente qual flag/query está mantendo o skeleton.
+4. **Atualizar a UI imediatamente após abrir**
+   - No `onSuccess`, preencher o cache de `pdv-cashier-active` com a sessão retornada.
+   - Invalidar também status/header e movimentos relacionados para sincronizar todo o PDV.
 
-5. **Validar**
-   - Reabrir `/pdv/caixa` no preview.
-   - Confirmar que aparecem `Movimentações`, painel de ações e botão `Abrir Caixa` mesmo com caixa fechado.
-   - Confirmar ausência de erro no console/runtime.
+5. **Melhorar a mensagem de erro**
+   - Mostrar o erro real no toast quando a abertura falhar, em vez de apenas `Erro ao abrir caixa`.
+
+6. **Validar**
+   - Abrir `/pdv/caixa`, clicar em **Abrir Caixa**, informar um valor e confirmar.
+   - Confirmar que o status muda para `Aberto`, o botão muda para ações de caixa aberto e não cria sessões duplicadas.
