@@ -1,16 +1,33 @@
 import { useBusinessSettings, usePublicSettings } from "@/hooks/use-public-menu";
-import { Clock, MapPin } from "lucide-react";
+import { Clock, MapPin, Star, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatBRL } from "@/lib/format";
 import { isStoreCurrentlyOpen, formatTodayShifts } from "@/lib/delivery-hours";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useLoyaltySettings, useCustomerPoints } from "@/hooks/use-delivery-loyalty";
+import { usePublicCustomer } from "@/hooks/use-public-customer";
+import { LoyaltyIdentifyDialog } from "./LoyaltyIdentifyDialog";
 
 interface PublicMenuHeaderProps {
   userId: string;
+  handle?: string;
 }
 
-export const PublicMenuHeader = ({ userId }: PublicMenuHeaderProps) => {
+export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
   const { data: businessSettings } = useBusinessSettings(userId);
   const { data: deliverySettings } = usePublicSettings(userId);
+  const { data: loyaltySettings } = useLoyaltySettings(userId);
+  const { customer, setCustomer } = usePublicCustomer(userId);
+  const { data: points = 0 } = useCustomerPoints(userId, customer?.id);
+  const [identifyOpen, setIdentifyOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const loyaltyActive = loyaltySettings?.is_active ?? false;
+  const cashbackPerPoint = Number(loyaltySettings?.cashback_value_per_point ?? 0);
+  const cashbackValue = points * cashbackPerPoint;
+  const loyaltyPath = `/cardapio/${handle || userId}/meus-pontos`;
 
   return (
     <div className="border-b bg-card">
@@ -97,7 +114,58 @@ export const PublicMenuHeader = ({ userId }: PublicMenuHeaderProps) => {
             </div>
           </div>
         </div>
+
+        {/* Loyalty entry */}
+        {loyaltyActive && (
+          <div className="mt-4">
+            {customer ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+                <Star className="h-4 w-4 text-primary fill-primary" />
+                <span>
+                  Olá{customer.name ? `, ${customer.name.split(" ")[0]}` : ""}! Você tem{" "}
+                  <strong className="text-primary">{points} pontos</strong>
+                  {cashbackPerPoint > 0 && (
+                    <span className="text-muted-foreground"> · {formatBRL(cashbackValue)} em cashback</span>
+                  )}
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => navigate(loyaltyPath)}
+                  >
+                    Ver prêmios
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setCustomer(null)}
+                    title="Sair"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIdentifyOpen(true)}
+                className="gap-2"
+              >
+                <Star className="h-4 w-4 text-primary" />
+                Ver meus pontos de fidelidade
+              </Button>
+            )}
+          </div>
+        )}
       </div>
+
+      <LoyaltyIdentifyDialog
+        open={identifyOpen}
+        onOpenChange={setIdentifyOpen}
+        onConfirm={(c) => setCustomer(c)}
+      />
     </div>
   );
 };
