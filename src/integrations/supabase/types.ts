@@ -356,6 +356,9 @@ export type Database = {
           name: string
           probability: number
           redeemed_count: number
+          reward_product_id: string | null
+          reward_type: string
+          reward_value: number | null
         }
         Insert: {
           campaign_id: string
@@ -368,6 +371,9 @@ export type Database = {
           name: string
           probability?: number
           redeemed_count?: number
+          reward_product_id?: string | null
+          reward_type?: string
+          reward_value?: number | null
         }
         Update: {
           campaign_id?: string
@@ -380,6 +386,9 @@ export type Database = {
           name?: string
           probability?: number
           redeemed_count?: number
+          reward_product_id?: string | null
+          reward_type?: string
+          reward_value?: number | null
         }
         Relationships: [
           {
@@ -387,6 +396,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "evaluation_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_prizes_reward_product_id_fkey"
+            columns: ["reward_product_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_products"
             referencedColumns: ["id"]
           },
         ]
