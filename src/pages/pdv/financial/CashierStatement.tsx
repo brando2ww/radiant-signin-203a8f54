@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, Download, DollarSign, Banknote, CreditCard, Smartphone, ArrowDownFromLine, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Download, DollarSign, Banknote, CreditCard, Smartphone, ArrowDownFromLine, AlertTriangle, ChevronRight } from "lucide-react";
 import { usePDVCashierStatement } from "@/hooks/use-pdv-cashier-statement";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -178,6 +178,7 @@ export default function CashierStatement() {
                       <TableHead className="text-right">PIX</TableHead>
                       <TableHead className="text-right">Sangrias</TableHead>
                       <TableHead className="text-center">Diferença</TableHead>
+                      <TableHead className="text-right w-[160px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -196,9 +197,23 @@ export default function CashierStatement() {
                         <TableCell className="text-center">
                           {day.hasDifference ? <Badge variant="destructive">Sim</Badge> : <Badge variant="outline">Não</Badge>}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/pdv/financeiro/demonstrativo-caixa/dia/${day.date}`);
+                            }}
+                          >
+                            Ver detalhes
+                            <ChevronRight className="ml-1 h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
 
                     ))}
+
                   </TableBody>
                 </Table>
               ) : (
