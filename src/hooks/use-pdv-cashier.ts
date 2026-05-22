@@ -91,6 +91,7 @@ export function usePDVCashier() {
         .eq("user_id", visibleUserId)
         .is("closed_at", null)
         .order("opened_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -121,12 +122,25 @@ export function usePDVCashier() {
   const openCashier = useMutation({
     mutationFn: async ({ openingBalance }: { openingBalance: number }) => {
       if (!user?.id) throw new Error("Usuário não autenticado");
+      if (!visibleUserId) throw new Error("Estabelecimento não resolvido");
       if (!isOwner) throw new Error("Apenas o responsável pelo estabelecimento pode abrir o caixa");
+
+      // Se já existe sessão aberta, reutiliza em vez de duplicar
+      const { data: existing } = await supabase
+        .from("pdv_cashier_sessions")
+        .select("*")
+        .eq("user_id", visibleUserId)
+        .is("closed_at", null)
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) return existing as CashierSession;
 
       const { data, error } = await supabase
         .from("pdv_cashier_sessions")
         .insert({
-          user_id: user.id,
+          user_id: visibleUserId,
           opening_balance: openingBalance,
           total_sales: 0,
           total_cash: 0,
@@ -140,13 +154,15 @@ export function usePDVCashier() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData(["pdv-cashier-active", visibleUserId], data);
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       toast.success("Caixa aberto com sucesso!");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Erro ao abrir caixa:", error);
-      toast.error("Erro ao abrir caixa");
+      toast.error(error?.message || "Erro ao abrir caixa");
     },
   });
 
