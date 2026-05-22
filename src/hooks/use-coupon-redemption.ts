@@ -193,18 +193,6 @@ export interface OpenComandaOption {
 }
 
 /**
- * Lista comandas abertas/em cobrança do tenant para o select de lançamento.
- */
-export function useOpenComandasForCoupon(enabled: boolean) {
-  const { visibleUserId } = useEstablishmentId();
-  return {
-    queryKey: ["open-comandas-for-coupon", visibleUserId] as const,
-    enabled: !!visibleUserId && enabled,
-    visibleUserId,
-  };
-}
-
-/**
  * Lança o prêmio (produto cortesia) em uma comanda aberta e marca o cupom como resgatado.
  * Atômico do ponto de vista do usuário: se o insert falhar, não marca como resgatado.
  */
