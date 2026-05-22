@@ -206,10 +206,10 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         : { data: [] as any[] };
       const { cost: unitCostOf, compMap } = buildUnitCostResolver(recipes || [], comps || [], productIds);
 
-      // 6. Cancelled PDV items in period
+      // 6. Cancelled PDV items in period — items live in pdv_comanda_items via pdv_comandas
       const { data: cancelledOrders } = await supabase
         .from("pdv_orders")
-        .select("id, order_number, cancellation_reason, cancelled_at, pdv_order_items(product_id, product_name, quantity, subtotal)")
+        .select("id, order_number, cancellation_reason, cancelled_at, pdv_comandas(pdv_comanda_items(product_id, product_name, quantity, subtotal))")
         .eq("user_id", visibleUserId!)
         .eq("status", "cancelada")
         .gte("cancelled_at", startISO)
