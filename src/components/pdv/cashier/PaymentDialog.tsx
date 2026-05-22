@@ -2363,6 +2363,48 @@ export function PaymentDialog({
       onConfirm={handleCreditSaleConfirm}
     />
 
+    <RedeemCouponDialog
+      open={couponsDialogOpen}
+      onOpenChange={setCouponsDialogOpen}
+      mode="payment"
+      onApply={(reward: AppliedCouponReward) => {
+        if (reward.rewardType === "percent") {
+          const v = Math.min(100, Math.max(0, reward.rewardValue));
+          const amt = (subtotal * v) / 100;
+          setDiscountTypeChosen("percent");
+          setDiscountValue(String(v));
+          setAppliedDiscount({
+            type: "percent",
+            rawValue: String(v),
+            amount: amt,
+            percent: v,
+            reason: `Cupom ${reward.code} — ${reward.prizeName}`,
+            authorizedBy: reward.customerName,
+            couponCode: reward.code,
+          });
+          setDiscountStage("applied");
+          toast.success(`Cupom ${reward.code} aplicado (-${v}%)`);
+        } else if (reward.rewardType === "fixed") {
+          const amt = Math.min(subtotal, Math.max(0, reward.rewardValue));
+          const pct = subtotal > 0 ? (amt / subtotal) * 100 : 0;
+          setDiscountTypeChosen("value");
+          setDiscountValue(String(amt));
+          setAppliedDiscount({
+            type: "value",
+            rawValue: String(amt),
+            amount: amt,
+            percent: pct,
+            reason: `Cupom ${reward.code} — ${reward.prizeName}`,
+            authorizedBy: reward.customerName,
+            couponCode: reward.code,
+          });
+          setDiscountStage("applied");
+          toast.success(`Cupom ${reward.code} aplicado (-${formatCurrency(amt)})`);
+        }
+      }}
+    />
+
+
     <CancelComandaDialog
       open={cancelComandaOpen}
       onOpenChange={setCancelComandaOpen}
