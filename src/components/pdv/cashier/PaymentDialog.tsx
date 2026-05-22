@@ -77,6 +77,8 @@ import { useNFCeEmission } from "@/hooks/use-nfce-emission";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { printNonFiscalReceipt, printDanfeFromUrl } from "@/lib/print-fiscal-receipt";
 import { formatTableLabel } from "@/utils/formatTableNumber";
+import { RedeemCouponDialog, type AppliedCouponReward } from "@/components/pdv/cashier/RedeemCouponDialog";
+
 
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
@@ -163,7 +165,9 @@ export function PaymentDialog({
     percent: number;
     reason?: string;
     authorizedBy?: string;
+    couponCode?: string;
   } | null>(null);
+  const [couponsDialogOpen, setCouponsDialogOpen] = useState(false);
   const [serviceFeeEnabled, setServiceFeeEnabled] = useState(true);
   // Settings carregam um pouco depois do mount; quando vierem com taxa
   // desativada, sincronizamos o estado local para refletir a configuração.
