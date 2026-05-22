@@ -1,19 +1,24 @@
-## Objetivo
+## Problema
 
-Na tabela "Pedidos com desconto" (`/pdv/relatorios?tab=discounts`), exibir apenas os 10 primeiros pedidos e adicionar um botão "Carregar mais 10" abaixo da tabela, incrementando 10 a cada clique até esgotar a lista.
+Em `/pdv/relatorios?tab=cancellations`, a coluna "Cliente" da tabela "Pedidos cancelados" mostra `—` na maioria das linhas porque `pdv_orders.customer_name` está vazio na maior parte dos pedidos cancelados (especialmente vindos do PDV/balcão).
 
-## Alterações
+## Causa
 
-Editar apenas `src/pages/pdv/reports/DiscountsReport.tsx`:
+A query lê só `pdv_orders.customer_name`. Porém o nome geralmente fica em `pdv_comandas.customer_name` (ex.: "espera", "felipe", "Giuseppe", ou "Mesa Mesa 04"). Em alguns casos `pdv_orders.customer_id` também aponta para `pdv_customers`, mas raramente.
 
-1. Adicionar estado local `const [visibleCount, setVisibleCount] = useState(10);`.
-2. Resetar `visibleCount` para 10 quando o período/filtros mudarem ou quando a lista de pedidos for recarregada (via `useEffect` dependente do tamanho/identidade da lista).
-3. Na renderização da tabela "Pedidos com desconto", usar `orders.slice(0, visibleCount)` em vez da lista completa.
-4. Abaixo da tabela, quando `visibleCount < orders.length`, mostrar:
-   - Texto sutil: `Mostrando {visibleCount} de {orders.length}`.
-   - Botão `variant="outline"` com label `Carregar mais 10` que faz `setVisibleCount((c) => Math.min(c + 10, orders.length))`.
-5. Não alterar XLSX export (continua exportando todos os pedidos), KPIs, gráficos, agregação por cupom, nem nenhuma outra aba/relatório.
+## Correção
+
+Editar apenas `src/pages/pdv/reports/CancellationsReport.tsx`:
+
+1. Após buscar os pedidos cancelados, fazer um único `supabase.from("pdv_comandas").select("order_id, customer_name").in("order_id", cancelIds)`.
+2. Montar um `Map<order_id, comanda_customer_name>` (primeiro nome não vazio por pedido, ignorando strings só com "Mesa ..." quando houver alternativa real — mas se for o único disponível, usa mesmo assim).
+3. Ao mapear cada pedido para `CancelOrder`, definir:
+   `displayName = (o.customer_name?.trim()) || comandaNameMap.get(o.id) || "—"`
+   e salvar em `customer_name`.
+4. Aplicar o mesmo `displayName` na exportação XLSX (aba "Cancelamentos").
+
+Sem alterações em KPIs, gráficos, agregações por motivo/usuário/item ou outros relatórios.
 
 ## Validação
 
-Abrir o relatório de descontos, conferir que a tabela mostra 10 linhas, clicar em "Carregar mais 10" e ver 20, depois 30, até o botão desaparecer ao atingir o total. Trocar o período e confirmar que a contagem volta para 10.
+Reabrir o relatório de cancelamentos e conferir que pedidos antes com `—` agora exibem nomes vindos de `pdv_comandas` (ex.: "espera", "Mesa Mesa 04", "Giuseppe"). Pedidos sem nenhum nome registrado continuam com `—`.
