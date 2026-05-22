@@ -142,10 +142,10 @@ export function usePDVCmv(selectedMonth?: Date) {
         const mRev = (mOrders || []).reduce((s, o) => s + Number(o.total), 0);
         let mCmv = 0;
         (mItems || []).forEach((item: any) => {
-          if (recipeCostMap[item.product_id]) {
-            mCmv += recipeCostMap[item.product_id] * Number(item.quantity);
-          }
+          const unitCost = computeCost(item.product_id, new Set());
+          if (unitCost > 0) mCmv += unitCost * Number(item.quantity);
         });
+
 
         evolution.push({ month: format(m, "MMM/yy"), cmv: mCmv, revenue: mRev });
       }
