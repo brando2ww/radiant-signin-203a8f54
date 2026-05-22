@@ -114,6 +114,7 @@ export default function ComandasPage() {
     quantity: number;
     unitPrice: number;
     notes?: string;
+    selectedOptions?: import("@/components/pdv/ProductOptionSelector").SelectedOption[];
   }) => {
     if (!addItemComanda) return;
     await addItem({
