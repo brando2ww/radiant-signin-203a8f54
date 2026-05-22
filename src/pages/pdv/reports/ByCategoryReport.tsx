@@ -128,8 +128,8 @@ export default function ByCategoryReport() {
       curItems.forEach((it: any) => {
         const cat = catMap.get(it.product_id) || "Sem categoria";
         if (!top5.includes(cat)) return;
-        const closed = (it.order?.closed_at || "").slice(0, 10);
-        const idx = dayIndex.get(closed);
+        const day = (it._time || "").slice(0, 10);
+        const idx = dayIndex.get(day);
         if (idx !== undefined) dailyRows[idx][cat] += Number(it.subtotal || 0);
       });
 
