@@ -118,3 +118,86 @@ export function orderEffectiveTime(o: {
 }): string | null {
   return o.closed_at || o.opened_at || null;
 }
+
+// ===== Cashier-based revenue (single source of truth) =====
+
+export interface CashierMovement {
+  amount: number;
+  payment_method: string | null;
+  source: string | null; // 'salao' | 'salon' | 'balcao' | 'delivery' | null
+  delivery_order_id: string | null;
+  created_at: string;
+  description: string | null;
+}
+
+/**
+ * Fetches all "venda" cashier movements for the given owner in a date range.
+ * Joins through pdv_cashier_sessions to filter by user_id.
+ */
+export async function fetchCashierSalesByPeriod(
+  ownerUserId: string,
+  startISO: string,
+  endISO: string,
+): Promise<CashierMovement[]> {
+  // 1) Sessions for this owner intersecting the window (paged)
+  const sessionIds: string[] = [];
+  const pageSize = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("pdv_cashier_sessions")
+      .select("id")
+      .eq("user_id", ownerUserId)
+      .lte("opened_at", endISO)
+      .or(`closed_at.is.null,closed_at.gte.${startISO}`)
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const ids = (data || []).map((s: any) => s.id);
+    sessionIds.push(...ids);
+    if (ids.length < pageSize) break;
+    from += pageSize;
+  }
+  if (!sessionIds.length) return [];
+
+  // 2) Movements in those sessions within the window (paged + chunked)
+  const out: CashierMovement[] = [];
+  const sessionChunk = 200;
+  for (let i = 0; i < sessionIds.length; i += sessionChunk) {
+    const chunk = sessionIds.slice(i, i + sessionChunk);
+    let f = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("pdv_cashier_movements")
+        .select("amount, payment_method, source, delivery_order_id, created_at, description")
+        .in("cashier_session_id", chunk)
+        .eq("type", "venda")
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
+        .range(f, f + pageSize - 1);
+      if (error) throw error;
+      const rows = (data || []) as any[];
+      out.push(
+        ...rows.map((r) => ({
+          amount: Number(r.amount || 0),
+          payment_method: r.payment_method,
+          source: r.source,
+          delivery_order_id: r.delivery_order_id,
+          created_at: r.created_at,
+          description: r.description,
+        })),
+      );
+      if (rows.length < pageSize) break;
+      f += pageSize;
+    }
+  }
+  return out;
+}
+
+/** Maps any source value to one of three buckets used in dashboards. */
+export function channelOfSource(source: string | null | undefined): "salao" | "balcao" | "delivery" {
+  const s = (source || "").toLowerCase();
+  if (s === "delivery") return "delivery";
+  if (s === "balcao") return "balcao";
+  return "salao"; // 'salon', 'salao', empty, anything else
+}
+
