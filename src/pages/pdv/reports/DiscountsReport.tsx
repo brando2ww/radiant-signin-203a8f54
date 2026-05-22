@@ -20,6 +20,7 @@ export default function DiscountsReport() {
   const { visibleUserId } = useEstablishmentId();
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const { data, isLoading } = useQuery({
     queryKey: ["report-discounts-v3", visibleUserId, startDate.toISOString(), endDate.toISOString()],
