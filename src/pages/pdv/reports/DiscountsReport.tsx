@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { startOfMonth, endOfMonth, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ export default function DiscountsReport() {
   const { visibleUserId } = useEstablishmentId();
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const { data, isLoading } = useQuery({
     queryKey: ["report-discounts-v3", visibleUserId, startDate.toISOString(), endDate.toISOString()],
@@ -158,6 +160,10 @@ export default function DiscountsReport() {
   });
 
   const orders = data?.orders || [];
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [startDate, endDate, orders.length]);
   const coupons = data?.coupons || [];
   const byCoupon = data?.byCoupon || [];
   const byDay = data?.byDay || [];
@@ -393,7 +399,7 @@ export default function DiscountsReport() {
               </TableRow></TableHeader>
               <TableBody>
                 {orders.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum desconto no período</TableCell></TableRow> :
-                  orders.slice(0, 100).map((o: any) => {
+                  orders.slice(0, visibleCount).map((o: any) => {
                     const pct = Number(o.subtotal || 0) > 0 ? (Number(o.discount || 0) / Number(o.subtotal || 0)) * 100 : 0;
                     return (
                       <TableRow key={o.id}>
@@ -411,7 +417,18 @@ export default function DiscountsReport() {
               </TableBody>
             </Table>
           )}
-          {orders.length > 100 && <p className="text-xs text-muted-foreground mt-2">Mostrando 100 de {orders.length}. Exporte para Excel para ver todos.</p>}
+          {orders.length > visibleCount && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <p className="text-xs text-muted-foreground">Mostrando {visibleCount} de {orders.length}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleCount((c) => Math.min(c + 10, orders.length))}
+              >
+                Carregar mais 10
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
