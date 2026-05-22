@@ -77,6 +77,8 @@ import { useNFCeEmission } from "@/hooks/use-nfce-emission";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { printNonFiscalReceipt, printDanfeFromUrl } from "@/lib/print-fiscal-receipt";
 import { formatTableLabel } from "@/utils/formatTableNumber";
+import { RedeemCouponDialog, type AppliedCouponReward } from "@/components/pdv/cashier/RedeemCouponDialog";
+
 
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
@@ -163,7 +165,9 @@ export function PaymentDialog({
     percent: number;
     reason?: string;
     authorizedBy?: string;
+    couponCode?: string;
   } | null>(null);
+  const [couponsDialogOpen, setCouponsDialogOpen] = useState(false);
   const [serviceFeeEnabled, setServiceFeeEnabled] = useState(true);
   // Settings carregam um pouco depois do mount; quando vierem com taxa
   // desativada, sincronizamos o estado local para refletir a configuração.
@@ -680,6 +684,7 @@ export function PaymentDialog({
         discountAmount: appliedDiscount ? appliedDiscount.amount : undefined,
         discountReason: appliedDiscount ? appliedDiscount.reason : undefined,
         discountAuthorizedBy: appliedDiscount ? appliedDiscount.authorizedBy : undefined,
+        couponCode: appliedDiscount?.couponCode,
       };
 
       // Modo "Por produto": pagamento parcial dos itens selecionados
@@ -1264,6 +1269,20 @@ export function PaymentDialog({
                         Remover
                       </Button>
                     </div>
+                  )}
+
+                  {/* Botão Resgatar cupom — sempre visível (exceto quando já tem desconto aplicado) */}
+                  {discountStage !== "applied" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-center gap-2 border-primary/40 hover:bg-primary/5"
+                      onClick={() => setCouponsDialogOpen(true)}
+                    >
+                      <Ticket className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Resgatar cupom de avaliação</span>
+                      <kbd className="text-[10px] opacity-60 bg-muted px-1.5 py-0.5 rounded ml-1">F7</kbd>
+                    </Button>
                   )}
 
                   {/* === ETAPA: idle / typing — escolha de tipo + campo === */}
@@ -2343,6 +2362,48 @@ export function PaymentDialog({
       isProcessing={isRegisteringCreditSale}
       onConfirm={handleCreditSaleConfirm}
     />
+
+    <RedeemCouponDialog
+      open={couponsDialogOpen}
+      onOpenChange={setCouponsDialogOpen}
+      mode="payment"
+      onApply={(reward: AppliedCouponReward) => {
+        if (reward.rewardType === "percent") {
+          const v = Math.min(100, Math.max(0, reward.rewardValue));
+          const amt = (subtotal * v) / 100;
+          setDiscountTypeChosen("percent");
+          setDiscountValue(String(v));
+          setAppliedDiscount({
+            type: "percent",
+            rawValue: String(v),
+            amount: amt,
+            percent: v,
+            reason: `Cupom ${reward.code} — ${reward.prizeName}`,
+            authorizedBy: reward.customerName,
+            couponCode: reward.code,
+          });
+          setDiscountStage("applied");
+          toast.success(`Cupom ${reward.code} aplicado (-${v}%)`);
+        } else if (reward.rewardType === "fixed") {
+          const amt = Math.min(subtotal, Math.max(0, reward.rewardValue));
+          const pct = subtotal > 0 ? (amt / subtotal) * 100 : 0;
+          setDiscountTypeChosen("value");
+          setDiscountValue(String(amt));
+          setAppliedDiscount({
+            type: "value",
+            rawValue: String(amt),
+            amount: amt,
+            percent: pct,
+            reason: `Cupom ${reward.code} — ${reward.prizeName}`,
+            authorizedBy: reward.customerName,
+            couponCode: reward.code,
+          });
+          setDiscountStage("applied");
+          toast.success(`Cupom ${reward.code} aplicado (-${formatCurrency(amt)})`);
+        }
+      }}
+    />
+
 
     <CancelComandaDialog
       open={cancelComandaOpen}

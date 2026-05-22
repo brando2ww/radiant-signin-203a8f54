@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { CircleDot, Plus, Pencil, Trash2, Clock, Palette, Gift, Trophy, AlertCircle } from "lucide-react";
 import { useEvaluationCampaigns, useUpdateCampaign } from "@/hooks/use-evaluation-campaigns";
-import { useCampaignPrizes, useCreatePrize, useUpdatePrize, useDeletePrize, type CampaignPrize } from "@/hooks/use-campaign-prizes";
+import { useCampaignPrizes, useCreatePrize, useUpdatePrize, useDeletePrize, type CampaignPrize, type CampaignPrizeRewardType } from "@/hooks/use-campaign-prizes";
 import { RoulettePreview } from "@/components/pdv/evaluations/RoulettePreview";
 import { PrizeDialog } from "@/components/pdv/evaluations/PrizeDialog";
 
@@ -109,7 +109,7 @@ function CampaignRouletteCard({ campaign }: { campaign: any }) {
     updateCampaign.mutate({ id: campaign.id, [field]: value } as any);
   }, [campaign.id, updateCampaign]);
 
-  const handlePrizeSave = (data: { name: string; color: string; probability: number; max_quantity: number | null; coupon_validity_days: number }) => {
+  const handlePrizeSave = (data: { name: string; color: string; probability: number; max_quantity: number | null; coupon_validity_days: number; reward_type: CampaignPrizeRewardType; reward_value: number | null }) => {
     if (editingPrize) {
       updatePrize.mutate({ id: editingPrize.id, campaign_id: campaign.id, ...data }, { onSuccess: () => setDialogOpen(false) });
     } else {

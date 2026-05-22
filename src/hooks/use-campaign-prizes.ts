@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export type CampaignPrizeRewardType = "percent" | "fixed" | "free_product" | "manual";
+
 export interface CampaignPrize {
   id: string;
   campaign_id: string;
@@ -13,6 +15,9 @@ export interface CampaignPrize {
   coupon_validity_days: number;
   is_active: boolean;
   created_at: string;
+  reward_type: CampaignPrizeRewardType;
+  reward_value: number | null;
+  reward_product_id: string | null;
 }
 
 export interface CampaignPrizeWin {
@@ -29,6 +34,17 @@ export interface CampaignPrizeWin {
   created_at: string;
 }
 
+interface PrizeWriteData {
+  name: string;
+  color: string;
+  probability: number;
+  max_quantity?: number | null;
+  coupon_validity_days?: number;
+  reward_type?: CampaignPrizeRewardType;
+  reward_value?: number | null;
+  reward_product_id?: string | null;
+}
+
 // Admin: list prizes for a campaign
 export const useCampaignPrizes = (campaignId: string) => {
   return useQuery({
@@ -40,7 +56,7 @@ export const useCampaignPrizes = (campaignId: string) => {
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as CampaignPrize[];
+      return data as unknown as CampaignPrize[];
     },
     enabled: !!campaignId,
   });
@@ -49,8 +65,8 @@ export const useCampaignPrizes = (campaignId: string) => {
 export const useCreatePrize = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { campaign_id: string; name: string; color: string; probability: number; max_quantity?: number | null; coupon_validity_days?: number }) => {
-      const { error } = await supabase.from("campaign_prizes").insert(data);
+    mutationFn: async (data: PrizeWriteData & { campaign_id: string }) => {
+      const { error } = await supabase.from("campaign_prizes").insert(data as any);
       if (error) throw error;
     },
     onSuccess: (_, v) => {
@@ -64,8 +80,8 @@ export const useCreatePrize = () => {
 export const useUpdatePrize = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, campaign_id, ...data }: { id: string; campaign_id: string; name?: string; color?: string; probability?: number; max_quantity?: number | null; coupon_validity_days?: number; is_active?: boolean }) => {
-      const { error } = await supabase.from("campaign_prizes").update(data).eq("id", id);
+    mutationFn: async ({ id, campaign_id, ...data }: { id: string; campaign_id: string; is_active?: boolean } & Partial<PrizeWriteData>) => {
+      const { error } = await supabase.from("campaign_prizes").update(data as any).eq("id", id);
       if (error) throw error;
       return campaign_id;
     },
@@ -106,7 +122,7 @@ export const usePublicCampaignPrizes = (campaignId: string, enabled = true) => {
         .order("created_at", { ascending: true });
       if (error) throw error;
       // Filter out prizes that reached max quantity
-      return (data as CampaignPrize[]).filter(
+      return (data as unknown as CampaignPrize[]).filter(
         (p) => p.max_quantity === null || p.redeemed_count < p.max_quantity
       );
     },

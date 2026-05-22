@@ -18,6 +18,7 @@ import { ChargeSelectionDialog } from "@/components/pdv/cashier/ChargeSelectionD
 import { PaymentDialog } from "@/components/pdv/cashier/PaymentDialog";
 import { EmployeeConsumptionFlowDialog } from "@/components/pdv/cashier/EmployeeConsumptionFlowDialog";
 import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
+import { RedeemCouponDialog } from "@/components/pdv/cashier/RedeemCouponDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
@@ -74,6 +75,7 @@ export default function PDVCashier() {
   const [paymentSplitByComanda, setPaymentSplitByComanda] = useState(false);
   const [employeeDialog, setEmployeeDialog] = useState(false);
   const [quickExpenseDialog, setQuickExpenseDialog] = useState(false);
+  const [couponsDialog, setCouponsDialog] = useState(false);
 
   // Payment state
   const [selectedComanda, setSelectedComanda] = useState<Comanda | null>(null);
@@ -303,6 +305,10 @@ export default function PDVCashier() {
             }
           }
           break;
+        case "F6":
+          e.preventDefault();
+          if (activeSession) window.setTimeout(() => setCouponsDialog(true), 0);
+          break;
         case "F12":
           e.preventDefault();
           setShortcutsDialog(prev => !prev);
@@ -398,6 +404,7 @@ export default function PDVCashier() {
               onShowHelp={() => setShortcutsDialog(true)}
               onReprintLast={lastClosedSession ? handleReprintLastCashier : undefined}
               onQuickExpense={() => window.setTimeout(() => setQuickExpenseDialog(true), 0)}
+              onOpenCoupons={() => window.setTimeout(() => setCouponsDialog(true), 0)}
             />
           </CardContent>
         </Card>
@@ -485,6 +492,12 @@ export default function PDVCashier() {
         open={quickExpenseDialog}
         onOpenChange={setQuickExpenseDialog}
         cashierSessionId={activeSession?.id ?? null}
+      />
+
+      <RedeemCouponDialog
+        open={couponsDialog}
+        onOpenChange={setCouponsDialog}
+        mode="standalone"
       />
     </div>
   );
