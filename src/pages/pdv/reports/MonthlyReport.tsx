@@ -227,7 +227,11 @@ export default function MonthlyReport() {
         <Kpi label={`Receita ${year}`} value={formatBRL(totals.revenue)} />
         <Kpi label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} />
         <Kpi label="Itens vendidos" value={totals.items.toLocaleString("pt-BR")} />
-        <Kpi label={`vs ${year - 1}`} value={`${(totals.yoy * 100).toFixed(1)}%`} />
+        {rows.reduce((s, r) => s + r.prevRevenue, 0) > 0 ? (
+          <Kpi label={`vs ${year - 1}`} value={`${(totals.yoy * 100).toFixed(1)}%`} />
+        ) : (
+          <Kpi label={`vs ${year - 1}`} value={`Sem dados de ${year - 1}`} />
+        )}
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <Kpi label="Ticket médio" value={formatBRL(totals.ticket)} />
@@ -291,6 +295,10 @@ export default function MonthlyReport() {
         <CardHeader><CardTitle>Detalhe por mês</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? <Skeleton className="h-64 w-full" /> : (
+            <>
+            {rows.every((r) => r.prevRevenue === 0 && r.prevOrders === 0) && (
+              <p className="text-xs text-muted-foreground mb-2">Sem histórico de {year - 1} para comparação.</p>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -314,15 +322,20 @@ export default function MonthlyReport() {
                     <TableCell className="text-right">{formatBRL(r.currentTicket)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{formatBRL(r.prevRevenue)}</TableCell>
                     <TableCell className={`text-right ${r.prevRevenue > 0 ? (r.yoyRevenue >= 0 ? "" : "text-destructive") : "text-muted-foreground"}`}>
-                      {r.prevRevenue > 0 ? `${r.yoyRevenue >= 0 ? "+" : ""}${(r.yoyRevenue * 100).toFixed(1)}%` : "—"}
+                      {r.prevRevenue > 0
+                        ? `${r.yoyRevenue >= 0 ? "+" : ""}${(r.yoyRevenue * 100).toFixed(1)}%`
+                        : r.currentRevenue > 0 ? "Novo" : "—"}
                     </TableCell>
                     <TableCell className={`text-right ${r.prevOrders > 0 ? (r.yoyOrders >= 0 ? "" : "text-destructive") : "text-muted-foreground"}`}>
-                      {r.prevOrders > 0 ? `${r.yoyOrders >= 0 ? "+" : ""}${(r.yoyOrders * 100).toFixed(1)}%` : "—"}
+                      {r.prevOrders > 0
+                        ? `${r.yoyOrders >= 0 ? "+" : ""}${(r.yoyOrders * 100).toFixed(1)}%`
+                        : r.currentOrders > 0 ? "Novo" : "—"}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>

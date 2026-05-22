@@ -1,24 +1,29 @@
 ## Problema
 
-Em `/pdv/relatorios?tab=cancellations`, a coluna "Cliente" da tabela "Pedidos cancelados" mostra `—` na maioria das linhas porque `pdv_orders.customer_name` está vazio na maior parte dos pedidos cancelados (especialmente vindos do PDV/balcão).
+Em `/pdv/relatorios?tab=monthly`, na tabela "Detalhe por mês", as colunas **YoY Receita** e **YoY Pedidos** ficam todas com `—` (e o card "vs 2025" mostra `0.0%`). 
 
 ## Causa
 
-A query lê só `pdv_orders.customer_name`. Porém o nome geralmente fica em `pdv_comandas.customer_name` (ex.: "espera", "felipe", "Giuseppe", ou "Mesa Mesa 04"). Em alguns casos `pdv_orders.customer_id` também aponta para `pdv_customers`, mas raramente.
+O cálculo de YoY divide pelo valor do ano anterior:
+- `yoyRevenue = (cur - prev) / prev` (só calcula se `prev > 0`)
+- A UI exibe `—` sempre que `prevRevenue === 0` ou `prevOrders === 0`.
 
-## Correção
+Como o estabelecimento só tem dados a partir de 2026, **2025 não tem nenhum movimento** — daí todas as linhas caem no fallback "—". Não há bug de query, é falta de base comparativa.
 
-Editar apenas `src/pages/pdv/reports/CancellationsReport.tsx`:
+## Correção (UX)
 
-1. Após buscar os pedidos cancelados, fazer um único `supabase.from("pdv_comandas").select("order_id, customer_name").in("order_id", cancelIds)`.
-2. Montar um `Map<order_id, comanda_customer_name>` (primeiro nome não vazio por pedido, ignorando strings só com "Mesa ..." quando houver alternativa real — mas se for o único disponível, usa mesmo assim).
-3. Ao mapear cada pedido para `CancelOrder`, definir:
-   `displayName = (o.customer_name?.trim()) || comandaNameMap.get(o.id) || "—"`
-   e salvar em `customer_name`.
-4. Aplicar o mesmo `displayName` na exportação XLSX (aba "Cancelamentos").
+Editar apenas `src/pages/pdv/reports/MonthlyReport.tsx` para mostrar informação útil em vez de `—` quando não há ano-anterior:
 
-Sem alterações em KPIs, gráficos, agregações por motivo/usuário/item ou outros relatórios.
+1. Nas células de YoY Receita / YoY Pedidos da tabela:
+   - Se `prev > 0` → manter `+12.3%` / `-4.5%` como hoje.
+   - Se `prev === 0` e `cur > 0` → exibir `Novo` (badge sutil em `text-muted-foreground`), indicando que é mês inédito sem comparativo.
+   - Se `prev === 0` e `cur === 0` → manter `—`.
+2. No KPI "vs {year-1}" (topo): se `totalPrev === 0`, trocar o valor de `0.0%` por `Sem dados de {year - 1}` em `text-sm text-muted-foreground` (mesmo card).
+3. Adicionar uma nota discreta abaixo do cabeçalho da tabela quando **todo** o ano anterior estiver zerado:
+   `Sem histórico de {year - 1} para comparação.` (texto pequeno, `text-xs text-muted-foreground`).
+
+Sem mudanças em query, exportação XLSX, gráficos ou outros relatórios.
 
 ## Validação
 
-Reabrir o relatório de cancelamentos e conferir que pedidos antes com `—` agora exibem nomes vindos de `pdv_comandas` (ex.: "espera", "Mesa Mesa 04", "Giuseppe"). Pedidos sem nenhum nome registrado continuam com `—`.
+Recarregar `/pdv/relatorios?tab=monthly` no ano 2026: meses com receita (Abr, Mai) passam a mostrar `Novo` nas colunas YoY; meses zerados continuam com `—`; o KPI no topo passa a mostrar "Sem dados de 2025". Trocar para 2025 ou anos com base histórica volta a exibir percentuais reais.
