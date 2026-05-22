@@ -399,7 +399,8 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const cancelledByProd = new Map<string, { product_id: string; product_name: string; quantity: number; value: number; orders: Set<string> }>();
       const cancelledDetails: CancelledItemRow[] = [];
       (cancelledOrders || []).forEach((o: any) => {
-        (o.pdv_order_items || []).forEach((it: any) => {
+        const items: any[] = (o.pdv_comandas || []).flatMap((c: any) => c.pdv_comanda_items || []);
+        items.forEach((it: any) => {
           const pid = it.product_id || it.product_name;
           if (!cancelledByProd.has(pid)) cancelledByProd.set(pid, { product_id: pid, product_name: it.product_name, quantity: 0, value: 0, orders: new Set() });
           const c = cancelledByProd.get(pid)!;
