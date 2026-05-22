@@ -1,40 +1,53 @@
-## Objetivo
-Numerar comandas de forma sequencial por sessão de caixa: a cada caixa aberto a contagem reinicia em `001`, `002`, `003`... — independente de salão, balcão ou delivery.
+# Imprimir somente as opções selecionadas
 
-## Como funciona hoje
-- `comanda_number` é uma string `YYYYMMDD-NNN` calculada no cliente via `COUNT(*)` na tabela.
-- Sem trava atômica → duas inserções simultâneas geram o mesmo número.
-- Não há vínculo entre `pdv_comandas` e a sessão de caixa.
+## Problema
 
-## Plano
+Produtos com grupos de opções (ex.: escolher 2 sabores de 4) estão imprimindo TODOS os itens cadastrados, e não apenas os que o garçom selecionou.
 
-1. **Vincular comanda à sessão de caixa**
-   - Adicionar coluna `cashier_session_id uuid` em `pdv_comandas`, referenciando `pdv_cashier_sessions`.
-   - Índice único parcial `(cashier_session_id, comanda_number)` para garantir números únicos por sessão.
+## Causa raiz
 
-2. **RPC atômica `pdv_next_comanda_number(p_owner uuid)`**
-   - `SECURITY DEFINER`, `search_path = public`.
-   - Busca a sessão ativa do `p_owner` (`closed_at IS NULL`, mais recente).
-   - Se não houver sessão aberta → retorna erro `Caixa fechado` (já é regra do projeto).
-   - Faz `SELECT ... FOR UPDATE` na linha da sessão (lock leve) e calcula `MAX(comanda_number::int) + 1` entre as comandas dessa sessão.
-   - Retorna a string formatada `001`, `002`, ... (zero-padded em 3 dígitos).
+No fluxo de adicionar item da comanda (`useDraftCart` → `usePDVComandas.addItem`):
 
-3. **Frontend**
-   - Em `src/hooks/use-pdv-comandas.ts`:
-     - Remover `generateComandaNumber` client-side.
-     - Antes do `insert`, chamar `supabase.rpc('pdv_next_comanda_number', { p_owner })` para obter o número.
-     - Buscar `cashier_session_id` da sessão ativa (já disponível via `useCashier`) e gravar no insert.
-   - Comandas criadas a partir de delivery/pedidos automáticos também passam pela mesma RPC.
+1. O `MobileProductOptionSelector` coleta as opções escolhidas em `selectedOptions` (cada item carrega `linkedProductId` e `printerStation`).
+2. Esse array fica salvo apenas no `DraftCart`. Quando o garçom envia para a cozinha (`handleFlushDraft` em `GarcomComandaDetalhe` e `GarcomMesaDetalhe`), o `persistItem` é chamado **sem** `selectedOptions` — somente as notas textuais sobrevivem.
+3. Dentro do `addItemMutation`, se o produto tem `is_composite = true`, é chamado `expandComposition` (em `src/utils/expandComposition.ts`), que insere como filhos para roteamento de cozinha **todos** os componentes cadastrados em `pdv_product_compositions`, ignorando a seleção do cliente.
+4. Em `sendToKitchen`, esses filhos são incluídos via `parent_item_id` e a Print Bridge imprime cada um — daí a cozinha receber todos os itens.
 
-4. **Backfill das comandas existentes**
-   - Preencher `cashier_session_id` das comandas já criadas associando pelo `order.cashier_session_id` (quando existir) ou pela sessão aberta na data da comanda.
-   - Renumerar somente as duplicatas existentes para não quebrar referências externas.
+O fluxo do PDV (`ComandaAddItemDialog` e `AddItemDialog`) tem o mesmo problema: monta `linkedPrinterStations` mas o handler em `pages/pdv/Comandas.tsx` descarta o campo antes de chamar `addItem`.
 
-5. **Validar**
-   - Abrir o caixa, criar várias comandas (salão + delivery em sequência) → 001, 002, 003.
-   - Fechar e reabrir o caixa → próxima comanda volta para 001.
-   - Tentar criar comanda com caixa fechado → bloqueado com mensagem clara.
+## Solução
 
-## Detalhes técnicos
-- O cast `comanda_number::int` funciona porque o novo formato é puramente numérico. Comandas antigas no formato `YYYYMMDD-NNN` permanecem como histórico e ficam fora do `MAX` por estarem em sessões antigas (ou fora da sessão ativa).
-- O lock em `pdv_cashier_sessions` serializa apenas a geração de número da sessão atual — operações de outros caixas não são afetadas.
+Passar a seleção do cliente até o `addItem` e criar filhos apenas para os itens efetivamente escolhidos (quando o produto usa option groups). Manter o `expandComposition` atual para kits fixos (produtos compostos sem option groups).
+
+### Mudanças
+
+1. **`src/contexts/DraftCartContext.tsx`** — já guarda `selectedOptions`; nenhuma mudança.
+
+2. **`src/utils/expandSelectedOptions.ts`** (novo) — função que recebe `selectedOptions: SelectedOption[]` + `parentQuantity` + `ownerUserId` e retorna `ExpandedChild[]`, usando `linkedProductId` como `product_id` e resolvendo `production_center_id` via `resolveProductionCenterId` a partir do `printerStation` do linked product. Itens sem `linkedProductId` são ignorados (são apenas modificadores de preço).
+
+3. **`src/hooks/use-pdv-comandas.ts` (`addItemMutation`)**
+   - Adicionar `selectedOptions?: SelectedOption[]` ao payload.
+   - Lógica nova:
+     - Se `selectedOptions` tem itens com `linkedProductId` → expandir via `expandSelectedOptions` e **pular** `expandComposition` (mesmo se `is_composite = true`).
+     - Caso contrário → manter `expandComposition` como hoje (kits fixos continuam funcionando).
+   - Inserir os filhos com `parent_item_id`, `is_composite_child = true`, `unit_price = 0`, `production_center_id` resolvido.
+
+4. **`src/hooks/use-pdv-orders.ts` (`addItemMutation`)** — mesmo tratamento, simétrico ao das comandas.
+
+5. **Repasse de `selectedOptions` para o `addItem`**:
+   - `src/pages/garcom/GarcomComandaDetalhe.tsx` — `handleFlushDraft`: incluir `selectedOptions: it.selectedOptions`.
+   - `src/pages/garcom/GarcomMesaDetalhe.tsx` — idem.
+   - `src/components/pdv/ComandaAddItemDialog.tsx` — passar `selectedOptions` no `onAddItem` (remover/ignorar `linkedPrinterStations`, que não é usado em lugar nenhum).
+   - `src/components/pdv/AddItemDialog.tsx` — passar `selectedOptions` no callback do PDV de pedido em mesa.
+   - `src/pages/pdv/Comandas.tsx` (`handleAddItem`) e `src/pages/pdv/Salon.tsx` (handlers equivalentes) — repassar `selectedOptions` ao `addItem`.
+
+### Detalhes técnicos
+
+- `expandSelectedOptions` mantém o mesmo formato de retorno (`ExpandedChild`) que `expandComposition`, então o restante do `addItemMutation` (toast "sem centro de produção", insert dos filhos, fluxo da Print Bridge) permanece intacto.
+- `notes` textual com a lista de opções (já gerado em `optionsNotes`) continua sendo gravado no pai — bom para o resumo na comanda e para itens de opção que não têm `linkedProductId`.
+- Não há alteração no schema, na Print Bridge nem nas migrations.
+
+### Não escopo
+
+- Não vou mexer no fluxo de delivery (já usa `delivery_order_item_options` corretamente).
+- Não vou alterar a baixa de estoque dos sub-produtos (já tratada pelo `linked_product_id` do item de opção em outro caminho).

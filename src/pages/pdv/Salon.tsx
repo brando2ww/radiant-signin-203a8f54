@@ -497,7 +497,14 @@ export default function PDVSalon() {
     setComandaForTable(null);
   };
 
-  const handleAddComandaItem = async (data: { productId: string; productName: string; quantity: number; unitPrice: number; notes?: string }) => {
+  const handleAddComandaItem = async (data: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    notes?: string;
+    selectedOptions?: import("@/components/pdv/ProductOptionSelector").SelectedOption[];
+  }) => {
     if (!selectedComanda) return;
     await addComandaItem({
       comandaId: selectedComanda.id,
@@ -506,6 +513,7 @@ export default function PDVSalon() {
       quantity: data.quantity,
       unitPrice: data.unitPrice,
       notes: data.notes,
+      selectedOptions: data.selectedOptions,
     });
     setComandaAddItemOpen(false);
   };

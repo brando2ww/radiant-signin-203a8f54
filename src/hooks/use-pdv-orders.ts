@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { resolveProductionCenterId } from "@/utils/resolveProductionCenter";
 import { expandComposition } from "@/utils/expandComposition";
+import { expandSelectedOptions } from "@/utils/expandSelectedOptions";
+import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { toast } from "sonner";
 
 export interface PDVOrderItem {
@@ -169,6 +171,7 @@ export function usePDVOrders() {
       notes?: string;
       modifiers?: any;
       kitchen_status?: string;
+      selectedOptions?: SelectedOption[];
     }) => {
       if (!user) throw new Error("Usuário não autenticado");
 
@@ -196,8 +199,17 @@ export function usePDVOrders() {
 
       if (error) throw error;
 
-      // Expandir produto composto: cria filhos invisíveis para roteamento de cozinha
-      const children = await expandComposition(item.product_id, item.quantity, ownerId);
+      // Roteamento de cozinha:
+      // - Se houver opções selecionadas com produto vinculado, criamos filhos
+      //   APENAS para essas opções.
+      // - Caso contrário, expandimos a composição fixa (kits/combos).
+      const hasSelected =
+        (item.selectedOptions ?? []).some((o) =>
+          o.items.some((i) => !!i.linkedProductId),
+        );
+      const children = hasSelected
+        ? await expandSelectedOptions(item.selectedOptions, item.quantity, ownerId)
+        : await expandComposition(item.product_id, item.quantity, ownerId);
       if (children.length > 0) {
         const missing = children.filter((c) => !c.production_center_id);
         if (missing.length > 0) {
