@@ -227,7 +227,11 @@ export default function MonthlyReport() {
         <Kpi label={`Receita ${year}`} value={formatBRL(totals.revenue)} />
         <Kpi label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} />
         <Kpi label="Itens vendidos" value={totals.items.toLocaleString("pt-BR")} />
-        <Kpi label={`vs ${year - 1}`} value={`${(totals.yoy * 100).toFixed(1)}%`} />
+        {rows.reduce((s, r) => s + r.prevRevenue, 0) > 0 ? (
+          <Kpi label={`vs ${year - 1}`} value={`${(totals.yoy * 100).toFixed(1)}%`} />
+        ) : (
+          <Kpi label={`vs ${year - 1}`} value={`Sem dados de ${year - 1}`} />
+        )}
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <Kpi label="Ticket médio" value={formatBRL(totals.ticket)} />
