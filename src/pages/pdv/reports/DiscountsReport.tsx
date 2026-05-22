@@ -13,6 +13,7 @@ import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { eachDay } from "@/lib/report-period";
+import { fetchPaymentsByOrderIds, fetchItemsByOrderIds, aggregateItemsByOrder } from "@/lib/reports-data-source";
 
 export default function DiscountsReport() {
   const { visibleUserId } = useEstablishmentId();
