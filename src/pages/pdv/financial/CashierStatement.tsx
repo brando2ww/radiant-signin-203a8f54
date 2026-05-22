@@ -182,7 +182,11 @@ export default function CashierStatement() {
                   </TableHeader>
                   <TableBody>
                     {data!.dailySummaries.map((day) => (
-                      <TableRow key={day.date}>
+                      <TableRow
+                        key={day.date}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/pdv/financeiro/demonstrativo-caixa/dia/${day.date}`)}
+                      >
                         <TableCell className="font-medium">{format(new Date(day.date), "dd/MM")}</TableCell>
                         <TableCell className="text-right">{fmt(day.totalSales)}</TableCell>
                         <TableCell className="text-right">{fmt(day.totalCash)}</TableCell>
@@ -193,6 +197,7 @@ export default function CashierStatement() {
                           {day.hasDifference ? <Badge variant="destructive">Sim</Badge> : <Badge variant="outline">Não</Badge>}
                         </TableCell>
                       </TableRow>
+
                     ))}
                   </TableBody>
                 </Table>
@@ -207,54 +212,5 @@ export default function CashierStatement() {
   );
 }
 
-function SessionsTable({ sessions }: { sessions: CashierStatementSession[] }) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Abertura</TableHead>
-          <TableHead>Fechamento</TableHead>
-          <TableHead className="text-right">Vendas</TableHead>
-          <TableHead className="text-right">Dinheiro</TableHead>
-          <TableHead className="text-right">Cartão</TableHead>
-          <TableHead className="text-right">PIX</TableHead>
-          <TableHead className="text-right">Sangrias</TableHead>
-          <TableHead className="text-right">Diferença</TableHead>
-          <TableHead className="text-center">Status</TableHead>
-          <TableHead className="text-center">Risco</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sessions.map((s) => {
-          const status = s.closing_status as string | null | undefined;
-          const justification = s.closing_justification || s.notes || "";
-          return (
-            <TableRow key={s.id} title={justification ? `Justificativa: ${justification}` : undefined}>
-              <TableCell>{format(new Date(s.opened_at), "HH:mm")}</TableCell>
-              <TableCell>{s.closed_at ? format(new Date(s.closed_at), "HH:mm") : <Badge variant="outline">Aberto</Badge>}</TableCell>
-              <TableCell className="text-right font-medium">{fmt(s.total_sales)}</TableCell>
-              <TableCell className="text-right">{fmt(s.total_cash)}</TableCell>
-              <TableCell className="text-right">{fmt(s.total_card)}</TableCell>
-              <TableCell className="text-right">{fmt(s.total_pix)}</TableCell>
-              <TableCell className="text-right">{fmt(s.total_withdrawals)}</TableCell>
-              <TableCell className="text-right">
-                {s.balance_difference != null ? (
-                  <span className={Math.abs(s.balance_difference) > 5 ? "text-destructive font-medium" : ""}>
-                    {fmt(s.balance_difference)}
-                  </span>
-                ) : "—"}
-              </TableCell>
-              <TableCell className="text-center">
-                {status === "no_difference" && <Badge variant="outline" className="border-green-500 text-green-700">Sem diferença</Badge>}
-                {status === "surplus" && <Badge variant="outline" className="border-orange-500 text-orange-700">Sobra</Badge>}
-                {status === "shortage" && <Badge variant="destructive">Falta</Badge>}
-                {!status && "—"}
-              </TableCell>
-              <TableCell className="text-center">{riskBadge(s.fraud_risk_level)}</TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
-  );
-}
+
+
