@@ -12,8 +12,8 @@ export function useDashboardCoupons(startDate?: string, endDate?: string) {
         .from("campaign_prize_wins")
         .select("id, is_redeemed, created_at, campaign_id");
 
-      if (startDate) query = query.gte("created_at", startDate);
-      if (endDate) query = query.lte("created_at", endDate + "T23:59:59");
+      if (startDate) query = query.gte("created_at", `${startDate}T00:00:00-03:00`);
+      if (endDate) query = query.lte("created_at", `${endDate}T23:59:59.999-03:00`);
 
       const { data, error } = await query;
       if (error) throw error;
