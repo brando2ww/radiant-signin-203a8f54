@@ -1,63 +1,31 @@
-# Impressão duplicada de delivery — dedup definitivo no banco
+## Problema
 
-## Diagnóstico (confirmado)
+Na tela `/pdv/delivery/cardapio`, arrastar um produto para cima ou para baixo dentro da categoria está confuso e o resultado não bate com o que o usuário soltou.
 
-O pedido #006 (21/05/2026 19:28) gerou **2 jobs idênticos** em `pdv_print_jobs` com 152 ms de diferença, ambos para o mesmo `source_item_id`, mesmo centro e mesma impressora.
+## Causas identificadas
 
-Isso aconteceu porque há **múltiplos clientes legítimos** (operadores em abas/dispositivos diferentes, todos logados na mesma conta) rodando o `useDeliveryOrdersWatcher`. Cada um recebe o evento Realtime do `INSERT` em `delivery_orders` e dispara `dispatchDeliveryPrintJobs`.
+1. **Estratégia de ordenação errada para grid.** Em `CategorySection.tsx` os produtos são renderizados em grid 2 colunas (`grid-cols-1 xl:grid-cols-2`) mas o `SortableContext` usa `verticalListSortingStrategy`. Isso faz o dnd-kit calcular as posições como se fosse uma única coluna, deixando o "preview" do arrasto desalinhado dos slots reais — o item parece "pular" para uma posição que não corresponde ao que está sob o cursor.
+2. **Sem atualização otimista.** O `useReorderProducts` só reflete a nova ordem depois que o `UPDATE` no Supabase retorna e o `invalidateQueries` refaz o fetch. Entre soltar o item e a lista re-renderizar há um flash em que a ordem antiga volta a aparecer — reforça a sensação de "não funcionou".
+3. **Alça de arraste só aparece no hover.** O `GripVertical` tem `opacity-0 group-hover:opacity-100`. Em telas touch / trackpad isso dificulta acertar a alça e o usuário acaba arrastando o card pelo corpo (que dispara `onClick` para editar). Fica parecendo que o drag "não pega".
 
-O dedup atual está na aplicação (`SELECT` → `INSERT` em `src/lib/delivery-print.ts`) e não é atômico: dois clientes fazem o `SELECT` quase ao mesmo tempo, ambos veem "vazio" e ambos inserem.
+## Plano de correção (somente front-end do cardápio)
 
-**Múltiplos operadores é cenário normal e desejado.** O sistema é que precisa garantir um único job por pedido/centro, independente de quantos clientes estejam ouvindo.
+1. **`src/components/delivery/menu/CategorySection.tsx`**
+   - Trocar `verticalListSortingStrategy` por `rectSortingStrategy` (correto para grids 2D do dnd-kit).
+   - Manter o `closestCenter` (ok para grid).
 
-## Correção
+2. **`src/hooks/use-delivery-products.ts` (`useReorderProducts`)**
+   - Adicionar update otimista: no `onMutate`, ler o cache de `["delivery-products", userId]`, aplicar os novos `order_position`, reordenar e gravar de volta; em `onError` restaurar o snapshot; manter o `invalidateQueries` no `onSettled` para `delivery-products`, `public-products` e `public-menu`.
+   - Resultado: a nova ordem fica visível instantaneamente ao soltar, sem flash.
 
-Mover o dedup para o **banco**, onde ele é atômico por definição.
+3. **`src/components/delivery/menu/ProductCard.tsx`**
+   - Deixar a alça de arraste sempre visível (remover `opacity-0 group-hover:opacity-100`, manter cor suave). Garante que o usuário sempre tenha onde "pegar" o card, inclusive em touch.
 
-### 1. Migration — limpar duplicados antigos e criar índice único parcial
+## Reflexo no cardápio público
 
-```sql
--- 1) Remove jobs duplicados existentes (mantém o mais antigo)
-DELETE FROM public.pdv_print_jobs a
-USING public.pdv_print_jobs b
-WHERE a.source_kind = 'delivery'
-  AND b.source_kind = 'delivery'
-  AND a.source_item_id IS NOT NULL
-  AND a.source_item_id = b.source_item_id
-  AND a.center_id IS NOT DISTINCT FROM b.center_id
-  AND a.created_at > b.created_at;
+Já existe `PublicMenuRealtime` ouvindo `delivery_products` e invalidando `["public-products", userId]` e `["public-menu"]`. Como o `update` de `order_position` dispara o evento Realtime, o cardápio público re-busca automaticamente e mostra a nova ordem — nenhuma mudança extra é necessária ali. O ajuste no `onSettled` da mutation cobre o caso de quem está com o cardápio público aberto na mesma sessão/aba.
 
--- 2) Índice único parcial: 1 job por (item, centro) para delivery automático
-CREATE UNIQUE INDEX IF NOT EXISTS pdv_print_jobs_delivery_item_center_uniq
-  ON public.pdv_print_jobs (source_item_id, center_id)
-  WHERE source_kind = 'delivery' AND source_item_id IS NOT NULL;
-```
+## Fora do escopo
 
-O índice inclui `center_id` para preservar o agrupamento legítimo por centro (ex.: cozinha + bar imprimem separadamente para o mesmo item).
-
-### 2. Ajuste em `src/lib/delivery-print.ts`
-
-- Manter o `SELECT` pré-INSERT como fast-path (otimiza o caso comum).
-- Tratar erro `23505` (unique_violation) do `INSERT` como **sucesso silencioso**: significa que outro cliente ganhou a corrida — o job já existe, nada a fazer.
-- Quando `jobs === 0`, o watcher já não exibe toast de "impressão enviada" — comportamento atual preservado.
-
-### 3. Reimpressão manual continua funcionando
-
-Reimpressão (`useReprintOrder`, com `auto !== true`) precisa criar um **novo** job toda vez. Para não colidir com o índice único, reimpressões manuais passarão a inserir com `source_item_id = NULL` (sinalizando "job manual, não dedup-ável"). O conteúdo do payload é idêntico e a print-bridge não depende de `source_item_id` para imprimir.
-
-## Por que essa abordagem
-
-- **Atômica**: o banco garante unicidade — nenhuma combinação de timing ou número de clientes pode burlar.
-- **Sem regressão**: o agrupamento por centro continua igual; só impede o duplicado bit-a-bit.
-- **Compatível com multi-operador**: que é o uso normal do sistema.
-- **Reimpressão preservada**: marcador `source_item_id = NULL` libera reimpressão sem perder rastreabilidade (o `payload` mantém `customer_name`, `order_number`, etc.).
-
-## Arquivos afetados
-
-- `supabase/migrations/<timestamp>_dedupe_delivery_print_jobs.sql` (novo)
-- `src/lib/delivery-print.ts` (tratar `23505`; `source_item_id = NULL` em reimpressão manual)
-
-## Fora de escopo
-
-- Trigger de cascata salão↔caixa (assunto anterior).
-- Refatorar o watcher para ter um único "leader" entre abas (complexidade desnecessária se o banco já garante unicidade).
+- Não mexer no drag de categorias, nem em produtos do PDV, nem na lógica de RLS / banco.
+- Não alterar a aparência do card além de tornar a alça visível.
