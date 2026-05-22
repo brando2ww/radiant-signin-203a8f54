@@ -115,3 +115,74 @@ export function useRedeemCouponForPDV() {
     },
   });
 }
+
+/**
+ * Busca cupons por nome ou telefone do cliente, escopado ao establishment_owner.
+ */
+export function useSearchCouponsForPDV() {
+  const { visibleUserId } = useEstablishmentId();
+
+  return useMutation({
+    mutationFn: async (rawTerm: string): Promise<CouponLookupResult[]> => {
+      const term = rawTerm.trim();
+      if (!term) throw new Error("Digite um nome ou telefone");
+      if (!visibleUserId) throw new Error("Sessão inválida");
+
+      const { data: campaigns, error: cErr } = await supabase
+        .from("evaluation_campaigns")
+        .select("id, name")
+        .eq("user_id", visibleUserId);
+      if (cErr) throw cErr;
+      if (!campaigns?.length) return [];
+
+      const campaignIds = campaigns.map((c) => c.id);
+      const campaignMap = new Map(campaigns.map((c) => [c.id, c.name]));
+
+      const { data: wins, error: wErr } = await supabase
+        .from("campaign_prize_wins")
+        .select("*")
+        .in("campaign_id", campaignIds)
+        .or(`customer_name.ilike.%${term}%,customer_whatsapp.ilike.%${term}%`)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (wErr) throw wErr;
+      if (!wins?.length) return [];
+
+      const prizeIds = Array.from(new Set(wins.map((w) => w.prize_id)));
+      const { data: prizes, error: pErr } = await supabase
+        .from("campaign_prizes")
+        .select("id, name, reward_type, reward_value, reward_product_id")
+        .in("id", prizeIds);
+      if (pErr) throw pErr;
+      const prizeMap = new Map((prizes ?? []).map((p: any) => [p.id, p]));
+
+      const now = Date.now();
+      return wins.map((win): CouponLookupResult => {
+        const prize: any = prizeMap.get(win.prize_id) ?? {};
+        const expired = new Date(win.coupon_expires_at).getTime() < now;
+        const status: CouponLookupResult["status"] = win.is_redeemed
+          ? "redeemed"
+          : expired
+          ? "expired"
+          : "active";
+        return {
+          win_id: win.id,
+          coupon_code: win.coupon_code,
+          customer_name: win.customer_name,
+          customer_whatsapp: win.customer_whatsapp,
+          coupon_expires_at: win.coupon_expires_at,
+          is_redeemed: win.is_redeemed,
+          redeemed_at: win.redeemed_at,
+          campaign_id: win.campaign_id,
+          campaign_name: campaignMap.get(win.campaign_id) ?? "Campanha",
+          prize_id: win.prize_id,
+          prize_name: prize.name ?? "Prêmio",
+          reward_type: (prize.reward_type as CouponRewardType) ?? "manual",
+          reward_value: prize.reward_value ?? null,
+          reward_product_id: prize.reward_product_id ?? null,
+          status,
+        };
+      });
+    },
+  });
+}
