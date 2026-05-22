@@ -295,6 +295,10 @@ export default function MonthlyReport() {
         <CardHeader><CardTitle>Detalhe por mês</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? <Skeleton className="h-64 w-full" /> : (
+            <>
+            {rows.every((r) => r.prevRevenue === 0 && r.prevOrders === 0) && (
+              <p className="text-xs text-muted-foreground mb-2">Sem histórico de {year - 1} para comparação.</p>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
