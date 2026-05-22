@@ -103,9 +103,9 @@ export default function PDVProducts() {
   };
 
   const handleDuplicate = (product: PDVProduct) => {
-    const { id, user_id, created_at, updated_at, ...productData } = product;
-    createProduct({ ...productData, name: `${product.name} (cópia)` });
+    duplicateProduct(product.id);
   };
+
 
   const handleDelete = () => {
     if (deleteDialog) {
