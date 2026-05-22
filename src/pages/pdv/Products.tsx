@@ -31,6 +31,7 @@ export default function PDVProducts() {
     isUpdating,
     deleteProduct,
     isDeleting,
+    duplicateProduct,
   } = usePDVProducts();
 
   const { data: sharedIds = new Set<string>() } = useSharedProductIds();
