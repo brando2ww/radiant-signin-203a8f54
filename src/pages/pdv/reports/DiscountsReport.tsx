@@ -137,18 +137,6 @@ export default function DiscountsReport() {
         }
       });
 
-      // Daily evolution
-      const days = eachDay(start, end);
-      const byDay = new Map(days.map((d) => [d, { day: d, discount: 0, count: 0 }]));
-      ordersEnriched.forEach((o: any) => {
-        const k = (o.closed_at || "").slice(0, 10);
-        if (byDay.has(k)) {
-          const r = byDay.get(k)!;
-          r.discount += Number(o.discount || 0);
-          r.count += 1;
-        }
-      });
-
       // By campaign / prize
       const byCampaign = new Map<string, { campaign: string; prize: string; count: number }>();
       couponsEnriched.forEach((c: any) => {
