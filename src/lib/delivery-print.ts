@@ -100,10 +100,26 @@ export async function dispatchDeliveryPrintJobs(
     };
   });
 
+  // Para reimpressões manuais, zera source_item_id para escapar do índice
+  // único parcial (pdv_print_jobs_delivery_item_center_uniq) que garante
+  // um único job automático por (item, centro). Sem isso, a 2ª reimpressão
+  // colidiria com a 1ª.
+  if (!options?.auto) {
+    jobs.forEach((j: any) => {
+      j.source_item_id = null;
+    });
+  }
+
   const { error: insertError } = await supabase
     .from("pdv_print_jobs")
     .insert(jobs as any);
   if (insertError) {
+    // 23505 = unique_violation. Significa que outro cliente Realtime
+    // (outra aba/operador) já enfileirou este job — dedup atômico do banco
+    // venceu a corrida. Tratamos como sucesso silencioso.
+    if ((insertError as any).code === "23505") {
+      return { jobs: 0 };
+    }
     console.error("Erro ao enfileirar prints de delivery:", insertError);
     return { jobs: 0 };
   }
