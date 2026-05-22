@@ -80,15 +80,34 @@ export default function CancellationsReport() {
         : { data: [] as any[] };
       const nameMap = new Map((profiles || []).map((p: any) => [p.id, p.full_name || "—"]));
 
+      // Fallback de nome do cliente via pdv_comandas
+      const comandaNameMap = new Map<string, string>();
+      if (cancelIds.length) {
+        const { data: comandas } = await supabase
+          .from("pdv_comandas")
+          .select("order_id, customer_name")
+          .in("order_id", cancelIds);
+        (comandas || []).forEach((c: any) => {
+          const n = (c.customer_name || "").trim();
+          if (!n) return;
+          const existing = comandaNameMap.get(c.order_id);
+          // prefere nome real ao invés de "Mesa ..."
+          if (!existing || (/^mesa\b/i.test(existing) && !/^mesa\b/i.test(n))) {
+            comandaNameMap.set(c.order_id, n);
+          }
+        });
+      }
+
       const orders: CancelOrder[] = cancelled.map((o: any) => {
         const uid = o.closed_by_user_id || o.opened_by;
         const ttm = o.cancelled_at && o.opened_at
           ? (new Date(o.cancelled_at).getTime() - new Date(o.opened_at).getTime()) / 60000
           : 0;
+        const displayName = (o.customer_name && String(o.customer_name).trim()) || comandaNameMap.get(o.id) || "";
         return {
           id: o.id,
           order_number: o.order_number,
-          customer_name: o.customer_name,
+          customer_name: displayName,
           total: cancelValByOrder.get(o.id)?.revenue || 0,
           reason: o.cancellation_reason || "Sem motivo",
           cancelled_at: o.cancelled_at,
