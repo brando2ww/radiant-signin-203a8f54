@@ -84,7 +84,7 @@ export default function PDVReports() {
                 return (
                   <button
                     key={n.key}
-                    onClick={() => { setActive(n.key); setMobileOpen(false); }}
+                    onClick={() => selectTab(n.key)}
                     className={cn(
                       "flex items-center gap-2 px-2 py-2 rounded-md text-sm text-left transition-colors",
                       isActive ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
