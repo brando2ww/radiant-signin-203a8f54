@@ -1,20 +1,23 @@
-## Problema identificado
-A rota `/pdv/caixa` existe e não apresentou erro JavaScript no preview. O replay mostra o layout carregando, mas a área do caixa fica presa nos skeletons enquanto o indicador do caixa alterna entre `Fechado` e `...`. Isso indica que a tela está bloqueada por estado de carregamento/refetch, não por rota inexistente.
+## Diagnóstico
+A captura confirma que a rota `/pdv/caixa` abre e o cabeçalho do PDV aparece, mas o corpo da tela fica preso nos placeholders. O status do caixa já mostra `Fechado`, então a sessão do caixa foi resolvida; o bloqueio restante está no `if (isLoading)` de `Cashier.tsx`, que está escondendo toda a tela por causa de algum estado de query ainda carregando/refetching.
 
 ## Plano de correção
-1. **Ajustar o loading do caixa**
-   - Em `use-pdv-cashier`, incluir o carregamento de `useEstablishmentId` no `isLoading` principal.
-   - Evitar que a tela fique travada quando não há sessão ativa de caixa; nesse caso, a tela deve renderizar normalmente com `Caixa fechado` e botão `Abrir Caixa`.
+1. **Não bloquear a tela inteira por loading de caixa**
+   - Alterar `src/pages/pdv/Cashier.tsx` para renderizar a estrutura principal mesmo quando o hook ainda está carregando.
+   - Manter skeletons apenas dentro dos blocos necessários, não substituindo a tela inteira.
 
-2. **Separar loading de sessão e movimentos**
-   - Tratar `movements` como carregando somente quando existe `activeSession`.
-   - Se o caixa estiver fechado, não esperar movimentos de uma sessão inexistente.
+2. **Renderizar estado fechado com segurança**
+   - Quando não houver `activeSession`, exibir imediatamente `Caixa fechado`, botão `Abrir Caixa`, resumo zerado e fila do salão/delivery.
+   - Isso evita que uma query secundária impeça o operador de abrir o caixa.
 
-3. **Reduzir refetch visual no cabeçalho**
-   - Ajustar `CashierStatus` para não causar percepção de tela “sumindo” durante refetchs curtos.
-   - Manter o último estado útil ou mostrar `Fechado` quando não houver sessão, em vez de alternar agressivamente para `...`.
+3. **Refinar o hook `use-pdv-cashier`**
+   - Ajustar o `isLoading` para representar apenas o carregamento inicial indispensável.
+   - Usar `isFetching`/estado de refetch apenas para dados auxiliares, sem bloquear a renderização.
 
-4. **Validar no preview**
-   - Abrir `/pdv/caixa` novamente.
-   - Confirmar se aparece a tela completa com `Movimentações`, painel de ações, fila do salão e botão `Abrir Caixa` quando não houver sessão ativa.
-   - Se a sessão do preview estiver expirada, confirmar apenas o redirecionamento correto para login.
+4. **Adicionar logs temporários se ainda persistir**
+   - Se a tela continuar presa após o ajuste, inserir logs pontuais no `Cashier.tsx` para identificar exatamente qual flag/query está mantendo o skeleton.
+
+5. **Validar**
+   - Reabrir `/pdv/caixa` no preview.
+   - Confirmar que aparecem `Movimentações`, painel de ações e botão `Abrir Caixa` mesmo com caixa fechado.
+   - Confirmar ausência de erro no console/runtime.
