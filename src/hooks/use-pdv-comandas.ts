@@ -380,7 +380,10 @@ export function usePDVComandas() {
             production_center_id: c.production_center_id,
             parent_item_id: (newItem as ComandaItem).id,
             is_composite_child: true,
+            composition_group_label: c.composition_group_label ?? null,
+            composition_position: c.composition_position ?? null,
           }));
+
           const { error: childError } = await supabase
             .from("pdv_comanda_items")
             .insert(childRows);
