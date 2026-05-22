@@ -446,7 +446,7 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       if (inactiveCandidates.length) {
         const ids = inactiveCandidates.map((p: any) => p.id);
         const { data: lastSales } = await supabase
-          .from("pdv_order_items")
+          .from("pdv_comanda_items")
           .select("product_id, created_at")
           .in("product_id", ids)
           .order("created_at", { ascending: false })
