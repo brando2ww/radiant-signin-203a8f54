@@ -7720,6 +7720,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      redeem_loyalty_prize: {
+        Args: { _customer_id: string; _prize_id: string; _user_id: string }
+        Returns: string
+      }
       resolve_business_slug: { Args: { _slug: string }; Returns: string }
     }
     Enums: {

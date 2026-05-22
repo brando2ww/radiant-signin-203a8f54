@@ -211,6 +211,47 @@ export function useRedeemPoints() {
   });
 }
 
+// ---- Public customer history ----
+export function useCustomerPointsHistory(userId?: string, customerId?: string) {
+  return useQuery({
+    queryKey: ["loyalty-points-history", userId, customerId],
+    queryFn: async () => {
+      if (!userId || !customerId) return [];
+      const { data, error } = await supabase
+        .from("delivery_loyalty_points")
+        .select("id, points, type, description, created_at, reference_id")
+        .eq("user_id", userId)
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!userId && !!customerId,
+  });
+}
+
+// ---- Public prize redemption via secure RPC ----
+export function useRedeemLoyaltyPrize() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (values: { user_id: string; customer_id: string; prize_id: string }) => {
+      const { data, error } = await supabase.rpc("redeem_loyalty_prize", {
+        _user_id: values.user_id,
+        _customer_id: values.customer_id,
+        _prize_id: values.prize_id,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["loyalty-points-balance", vars.user_id, vars.customer_id] });
+      qc.invalidateQueries({ queryKey: ["loyalty-points-history", vars.user_id, vars.customer_id] });
+      qc.invalidateQueries({ queryKey: ["loyalty-prizes", vars.user_id] });
+    },
+  });
+}
+
 // ---- Ranking (admin) ----
 export function useCustomerRanking() {
   const { user } = useAuth();
