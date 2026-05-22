@@ -65,6 +65,8 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
   const [selectedComandaId, setSelectedComandaId] = useState<string>("");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [productSearch, setProductSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
   const { visibleUserId } = useEstablishmentId();
