@@ -399,7 +399,7 @@ export default function DiscountsReport() {
               </TableRow></TableHeader>
               <TableBody>
                 {orders.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum desconto no período</TableCell></TableRow> :
-                  orders.slice(0, 100).map((o: any) => {
+                  orders.slice(0, visibleCount).map((o: any) => {
                     const pct = Number(o.subtotal || 0) > 0 ? (Number(o.discount || 0) / Number(o.subtotal || 0)) * 100 : 0;
                     return (
                       <TableRow key={o.id}>
