@@ -118,6 +118,25 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
     enabled: open && showLaunch && !!visibleUserId,
   });
 
+  const productsQ = useQuery({
+    queryKey: ["pdv-products-for-coupon", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return [] as { id: string; name: string }[];
+      const { data, error } = await supabase
+        .from("pdv_products")
+        .select("id, name, is_available")
+        .eq("user_id", visibleUserId)
+        .order("name", { ascending: true })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? [])
+        .filter((p: any) => p.is_available !== false)
+        .map((p: any) => ({ id: p.id, name: p.name as string }));
+    },
+    enabled: open && showLaunch && !!visibleUserId,
+  });
+
+
   useEffect(() => {
     if (open) {
       setTab("code");
