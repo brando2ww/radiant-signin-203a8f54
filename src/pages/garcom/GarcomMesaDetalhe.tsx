@@ -53,6 +53,7 @@ export default function GarcomMesaDetalhe() {
             quantity: it.quantity,
             unitPrice: it.unitPrice,
             notes: it.notes,
+            selectedOptions: it.selectedOptions,
           }),
         ),
       );
