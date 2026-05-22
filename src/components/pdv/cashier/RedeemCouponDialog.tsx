@@ -338,20 +338,95 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                 Recompensa: {rewardLabel(result.reward_type, result.reward_value)}
               </div>
 
-              {result.status === "active" && (
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleApply}
-                  disabled={redeem.isPending}
-                >
-                  {mode === "payment"
+              {result.status === "active" && (() => {
+                const canLaunch =
+                  mode === "standalone" &&
+                  result.reward_type === "free_product" &&
+                  !!result.reward_product_id;
+                const primaryLabel =
+                  mode === "payment"
                     ? (result.reward_type === "percent" || result.reward_type === "fixed")
                       ? "Aplicar na comanda"
                       : "Validar cupom"
-                    : "Marcar como resgatado"}
-                </Button>
-              )}
+                    : "Marcar como resgatado";
+
+                return (
+                  <div className="space-y-2">
+                    {canLaunch && !showLaunch && (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={() => setShowLaunch(true)}
+                      >
+                        Lançar prêmio em comanda
+                      </Button>
+                    )}
+
+                    {canLaunch && showLaunch && (
+                      <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+                        <Label className="text-xs">Selecione a comanda aberta</Label>
+                        <Select value={selectedComandaId || "none"} onValueChange={(v) => setSelectedComandaId(v === "none" ? "" : v)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder={openComandasQ.isLoading ? "Carregando..." : "Escolher comanda"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(openComandasQ.data ?? []).length === 0 && (
+                              <SelectItem value="none" disabled>Nenhuma comanda aberta</SelectItem>
+                            )}
+                            {(openComandasQ.data ?? []).map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => { setShowLaunch(false); setSelectedComandaId(""); }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            disabled={!selectedComandaId || launch.isPending}
+                            onClick={() => {
+                              if (!result.reward_product_id) return;
+                              launch.mutate(
+                                {
+                                  winId: result.win_id,
+                                  comandaId: selectedComandaId,
+                                  productId: result.reward_product_id,
+                                  prizeName: result.prize_name,
+                                  couponCode: result.coupon_code,
+                                },
+                                {
+                                  onSuccess: () => {
+                                    toast.success(`Prêmio lançado e cupom ${result.coupon_code} resgatado`);
+                                    onOpenChange(false);
+                                  },
+                                  onError: (e: Error) => setError(e.message),
+                                },
+                              );
+                            }}
+                          >
+                            Confirmar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      variant={canLaunch ? "outline" : "default"}
+                      onClick={handleApply}
+                      disabled={redeem.isPending}
+                    >
+                      {canLaunch ? "Apenas marcar como resgatado" : primaryLabel}
+                    </Button>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
