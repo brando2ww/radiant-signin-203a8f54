@@ -379,7 +379,7 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         profit: totalProfit,
         margin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
         orders: new Set([
-          ...(pdvItems || []).map((i: any) => i.order?.id),
+          ...(pdvItems || []).map((i: any) => i.comanda?.order?.id),
           ...(delItems || []).map((i: any) => i.order?.id),
         ].filter(Boolean)).size,
         avg_ticket_item: totalQty > 0 ? totalRevenue / totalQty : 0,
