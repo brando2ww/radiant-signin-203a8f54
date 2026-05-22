@@ -244,7 +244,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
         </DialogHeader>
 
         <div className="space-y-4">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); }}>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); setSelectedProductId(""); setProductSearch(""); }}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="code">Por código</TabsTrigger>
               <TabsTrigger value="customer">Por cliente</TabsTrigger>
