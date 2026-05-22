@@ -65,6 +65,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
   const [error, setError] = useState<string | null>(null);
   const [showLaunch, setShowLaunch] = useState(false);
   const [selectedComandaId, setSelectedComandaId] = useState<string>("");
+  const [launchMode, setLaunchMode] = useState<"text" | "product">("text");
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [productSearch, setProductSearch] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +148,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
       setError(null);
       setShowLaunch(false);
       setSelectedComandaId("");
+      setLaunchMode("text");
       setSelectedProductId("");
       setProductSearch("");
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -244,7 +246,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
         </DialogHeader>
 
         <div className="space-y-4">
-          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); setSelectedProductId(""); setProductSearch(""); }}>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); setShowLaunch(false); setSelectedComandaId(""); setLaunchMode("text"); setSelectedProductId(""); setProductSearch(""); }}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="code">Por código</TabsTrigger>
               <TabsTrigger value="customer">Por cliente</TabsTrigger>
@@ -367,6 +369,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                 const isDiscount = result.reward_type === "percent" || result.reward_type === "fixed";
                 const canLaunch = mode === "standalone" && !isDiscount;
                 const hasFixedProduct = !!result.reward_product_id;
+                const effectiveMode: "text" | "product" = hasFixedProduct ? "product" : launchMode;
                 const effectiveProductId = hasFixedProduct ? result.reward_product_id! : selectedProductId;
                 const primaryLabel =
                   mode === "payment"
@@ -380,6 +383,11 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                     ? p.name.toLowerCase().includes(productSearch.trim().toLowerCase())
                     : true,
                 );
+
+                const canConfirm =
+                  !!selectedComandaId &&
+                  (effectiveMode === "product" ? !!effectiveProductId : !!result.prize_name?.trim()) &&
+                  !launch.isPending;
 
                 return (
                   <div className="space-y-2">
@@ -396,6 +404,36 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                     {canLaunch && showLaunch && (
                       <div className="space-y-3 rounded-md border bg-muted/40 p-3">
                         {!hasFixedProduct && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Como lançar o prêmio</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                type="button"
+                                variant={launchMode === "text" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setLaunchMode("text")}
+                              >
+                                Texto do prêmio
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={launchMode === "product" ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setLaunchMode("product")}
+                              >
+                                Buscar produto
+                              </Button>
+                            </div>
+                            {launchMode === "text" && (
+                              <div className="rounded-md border bg-background px-3 py-2 text-sm">
+                                <span className="text-muted-foreground text-xs block mb-0.5">Será lançado como (R$ 0,00):</span>
+                                <span className="font-medium">🎁 {result.prize_name}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {effectiveMode === "product" && !hasFixedProduct && (
                           <div className="space-y-1.5">
                             <Label className="text-xs">Produto do prêmio</Label>
                             <Input
@@ -441,20 +479,20 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                           <Button
                             variant="outline"
                             className="flex-1"
-                            onClick={() => { setShowLaunch(false); setSelectedComandaId(""); setSelectedProductId(""); setProductSearch(""); }}
+                            onClick={() => { setShowLaunch(false); setSelectedComandaId(""); setSelectedProductId(""); setProductSearch(""); setLaunchMode("text"); }}
                           >
                             Cancelar
                           </Button>
                           <Button
                             className="flex-1"
-                            disabled={!selectedComandaId || !effectiveProductId || launch.isPending}
+                            disabled={!canConfirm}
                             onClick={() => {
-                              if (!effectiveProductId) return;
                               launch.mutate(
                                 {
                                   winId: result.win_id,
                                   comandaId: selectedComandaId,
-                                  productId: effectiveProductId,
+                                  productId: effectiveMode === "product" ? effectiveProductId : null,
+                                  customName: effectiveMode === "text" ? result.prize_name : null,
                                   prizeName: result.prize_name,
                                   couponCode: result.coupon_code,
                                 },
@@ -473,6 +511,7 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
                         </div>
                       </div>
                     )}
+
 
                     <Button
                       className="w-full"

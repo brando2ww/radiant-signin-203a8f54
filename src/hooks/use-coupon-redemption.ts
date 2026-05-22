@@ -202,7 +202,8 @@ export function useLaunchCouponOnComanda() {
     mutationFn: async (input: {
       winId: string;
       comandaId: string;
-      productId: string;
+      productId?: string | null;
+      customName?: string | null;
       prizeName: string;
       couponCode: string;
     }) => {
@@ -219,22 +220,32 @@ export function useLaunchCouponOnComanda() {
         throw new Error("Esta comanda já foi finalizada");
       }
 
-      // busca produto
-      const { data: product, error: pErr } = await supabase
-        .from("pdv_products")
-        .select("id, name")
-        .eq("id", input.productId)
-        .maybeSingle();
-      if (pErr) throw pErr;
-      if (!product) throw new Error("Produto do prêmio não encontrado");
+      let productId: string | null = null;
+      let itemName: string;
+
+      if (input.productId) {
+        const { data: product, error: pErr } = await supabase
+          .from("pdv_products")
+          .select("id, name")
+          .eq("id", input.productId)
+          .maybeSingle();
+        if (pErr) throw pErr;
+        if (!product) throw new Error("Produto do prêmio não encontrado");
+        productId = product.id;
+        itemName = `🎁 ${product.name}`;
+      } else {
+        const raw = (input.customName ?? input.prizeName ?? "").trim();
+        if (!raw) throw new Error("Informe o nome do prêmio");
+        itemName = `🎁 ${raw}`;
+      }
 
       // insere item cortesia
       const { error: insErr } = await supabase
         .from("pdv_comanda_items")
         .insert([{
           comanda_id: input.comandaId,
-          product_id: product.id,
-          product_name: `🎁 ${product.name}`,
+          product_id: productId,
+          product_name: itemName,
           quantity: 1,
           unit_price: 0,
           subtotal: 0,
@@ -264,3 +275,4 @@ export function useLaunchCouponOnComanda() {
     },
   });
 }
+

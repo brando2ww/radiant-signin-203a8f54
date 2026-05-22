@@ -1,0 +1,1 @@
+ALTER TABLE public.pdv_comanda_items ALTER COLUMN product_id DROP NOT NULL;
