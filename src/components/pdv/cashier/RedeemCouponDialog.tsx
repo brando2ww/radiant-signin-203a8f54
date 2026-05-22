@@ -17,9 +17,11 @@ import { formatBRL } from "@/lib/format";
 import {
   useLookupCouponForPDV,
   useRedeemCouponForPDV,
+  useSearchCouponsForPDV,
   type CouponLookupResult,
   type CouponRewardType,
 } from "@/hooks/use-coupon-redemption";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 export interface AppliedCouponReward {
@@ -50,17 +52,25 @@ const rewardLabel = (t: CouponRewardType, v: number | null) => {
 };
 
 export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: RedeemCouponDialogProps) {
+  const [tab, setTab] = useState<"code" | "customer">("code");
   const [code, setCode] = useState("");
+  const [customerTerm, setCustomerTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<CouponLookupResult[]>([]);
   const [result, setResult] = useState<CouponLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const customerInputRef = useRef<HTMLInputElement>(null);
 
   const lookup = useLookupCouponForPDV();
   const redeem = useRedeemCouponForPDV();
+  const search = useSearchCouponsForPDV();
 
   useEffect(() => {
     if (open) {
+      setTab("code");
       setCode("");
+      setCustomerTerm("");
+      setSearchResults([]);
       setResult(null);
       setError(null);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -72,6 +82,19 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
     setResult(null);
     lookup.mutate(code, {
       onSuccess: (r) => setResult(r),
+      onError: (e: Error) => setError(e.message),
+    });
+  };
+
+  const handleSearchCustomer = () => {
+    setError(null);
+    setResult(null);
+    setSearchResults([]);
+    search.mutate(customerTerm, {
+      onSuccess: (list) => {
+        setSearchResults(list);
+        if (list.length === 0) setError("Nenhum cupom encontrado para este cliente");
+      },
       onError: (e: Error) => setError(e.message),
     });
   };
@@ -145,30 +168,82 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="coupon-code">Código do cupom</Label>
-            <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                id="coupon-code"
-                placeholder="Ex: ABC-1234"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleValidate();
-                  }
-                }}
-                className="font-mono uppercase tracking-wider"
-                autoComplete="off"
-              />
-              <Button onClick={handleValidate} disabled={lookup.isPending || !code.trim()}>
-                <Search className="h-4 w-4 mr-1" />
-                Validar
-              </Button>
-            </div>
-          </div>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v as "code" | "customer"); setError(null); setResult(null); setSearchResults([]); }}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="code">Por código</TabsTrigger>
+              <TabsTrigger value="customer">Por cliente</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="code" className="space-y-2 mt-3">
+              <Label htmlFor="coupon-code">Código do cupom</Label>
+              <div className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  id="coupon-code"
+                  placeholder="Ex: ABC-1234"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleValidate();
+                    }
+                  }}
+                  className="font-mono uppercase tracking-wider"
+                  autoComplete="off"
+                />
+                <Button onClick={handleValidate} disabled={lookup.isPending || !code.trim()}>
+                  <Search className="h-4 w-4 mr-1" />
+                  Validar
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="customer" className="space-y-2 mt-3">
+              <Label htmlFor="customer-term">Nome ou telefone</Label>
+              <div className="flex gap-2">
+                <Input
+                  ref={customerInputRef}
+                  id="customer-term"
+                  placeholder="Ex: Maria ou 11999..."
+                  value={customerTerm}
+                  onChange={(e) => setCustomerTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSearchCustomer();
+                    }
+                  }}
+                  autoComplete="off"
+                />
+                <Button onClick={handleSearchCustomer} disabled={search.isPending || !customerTerm.trim()}>
+                  <Search className="h-4 w-4 mr-1" />
+                  Buscar
+                </Button>
+              </div>
+
+              {searchResults.length > 0 && !result && (
+                <div className="space-y-1.5 max-h-[280px] overflow-y-auto pt-2">
+                  {searchResults.map((r) => (
+                    <button
+                      key={r.win_id}
+                      type="button"
+                      onClick={() => setResult(r)}
+                      className="w-full text-left rounded-md border bg-card hover:bg-accent transition-colors p-2.5 space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm font-semibold">{r.coupon_code}</span>
+                        {statusBadge(r)}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {r.customer_name} · {r.prize_name}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
 
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive flex items-start gap-2">
