@@ -202,6 +202,12 @@ export const CouponsTab = () => {
         />
       )}
 
+      <CouponAnalyticsDialog
+        coupon={analytics}
+        open={!!analytics}
+        onOpenChange={(o) => !o && setAnalytics(null)}
+      />
+
       <AlertDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
