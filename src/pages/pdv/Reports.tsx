@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { BarChart3, CalendarRange, Layers, Users, Ban, BadgePercent, ShoppingCart, Package, Menu } from "lucide-react";
@@ -41,8 +42,24 @@ function renderReport(key: ReportKey) {
 
 
 export default function PDVReports() {
-  const [active, setActive] = useState<ReportKey>("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validKeys: ReportKey[] = ["overview", "monthly", "category", "user", "cancellations", "discounts", "purchases", "sales-by-product"];
+  const initial = (searchParams.get("tab") as ReportKey);
+  const [active, setActive] = useState<ReportKey>(validKeys.includes(initial) ? initial : "overview");
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const t = searchParams.get("tab") as ReportKey;
+    if (validKeys.includes(t) && t !== active) setActive(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const selectTab = (key: ReportKey) => {
+    setActive(key);
+    setMobileOpen(false);
+    setSearchParams({ tab: key }, { replace: true });
+  };
+
 
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
 
@@ -67,7 +84,7 @@ export default function PDVReports() {
                 return (
                   <button
                     key={n.key}
-                    onClick={() => { setActive(n.key); setMobileOpen(false); }}
+                    onClick={() => selectTab(n.key)}
                     className={cn(
                       "flex items-center gap-2 px-2 py-2 rounded-md text-sm text-left transition-colors",
                       isActive ? "bg-muted text-foreground font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
