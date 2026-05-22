@@ -32,7 +32,7 @@ export default function DiscountsReport() {
       const [discOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
         supabase
           .from("delivery_orders")
-          .select("id, order_number, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
+          .select("id, order_number, customer_id, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
           .eq("user_id", visibleUserId!)
           .gt("discount", 0)
           .not("status", "in", "(cancelled,cancelado)")
