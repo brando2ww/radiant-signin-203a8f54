@@ -53,7 +53,7 @@ export default function DiscountsReport() {
       const prizeIds = Array.from(new Set((coupons || []).map((c: any) => c.prize_id).filter(Boolean)));
       const [{ data: campaigns }, { data: prizes }] = await Promise.all([
         campaignIds.length ? supabase.from("evaluation_campaigns").select("id, name").in("id", campaignIds) : Promise.resolve({ data: [] as any[] }),
-        prizeIds.length ? supabase.from("evaluation_prizes").select("id, name").in("id", prizeIds) : Promise.resolve({ data: [] as any[] }),
+        prizeIds.length ? supabase.from("campaign_prizes").select("id, name").in("id", prizeIds) : Promise.resolve({ data: [] as any[] }),
       ]);
       const campMap = new Map((campaigns || []).map((c: any) => [c.id, c.name]));
       const prizeMap = new Map((prizes || []).map((p: any) => [p.id, p.name]));
