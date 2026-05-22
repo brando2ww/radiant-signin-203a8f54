@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "./use-establishment-id";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,24 +30,6 @@ export interface MonthlyRevenueResult {
   summary: MonthlyRevenueSummary;
 }
 
-const PAGE_SIZE = 1000;
-
-async function fetchAllPaged<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
-): Promise<T[]> {
-  const out: T[] = [];
-  let from = 0;
-  while (true) {
-    const to = from + PAGE_SIZE - 1;
-    const { data, error } = await build(from, to);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    out.push(...data);
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-  return out;
-}
 
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -63,51 +44,22 @@ export function usePdvMonthlyRevenue() {
   const { visibleUserId, isLoading: loadingId } = useEstablishmentId();
 
   return useQuery({
-    queryKey: ["pdv-monthly-revenue", visibleUserId],
+    queryKey: ["pdv-monthly-revenue-v2", visibleUserId],
     enabled: !!visibleUserId && !loadingId,
     staleTime: 1000 * 60 * 5,
     queryFn: async (): Promise<MonthlyRevenueResult> => {
       const userId = visibleUserId!;
       const now = new Date();
-      // Build 24-month window ending at end-of-current-month
+      // 24-month window ending at end-of-current-month
       const startWindow = startOfMonth(subMonths(now, 23));
       const startISO = startWindow.toISOString();
+      const endISO = new Date().toISOString();
 
-      // 1) PDV orders (salão + balcão)
-      const pdvRows = await fetchAllPaged<{
-        total: number | null;
-        source: string | null;
-        status: string | null;
-        closed_at: string | null;
-        created_at: string;
-      }>((from, to) =>
-        supabase
-          .from("pdv_orders")
-          .select("total, source, status, closed_at, created_at")
-          .eq("user_id", userId)
-          .eq("status", "fechada")
-          .gte("created_at", startISO)
-          .order("created_at", { ascending: true })
-          .range(from, to)
+      // Use cashier movements as the single source of truth (includes PDV + delivery)
+      const { fetchCashierSalesByPeriod, channelOfSource } = await import(
+        "@/lib/reports-data-source"
       );
-
-      // 2) Delivery orders
-      const deliveryRows = await fetchAllPaged<{
-        total: number | null;
-        status: string | null;
-        payment_status: string | null;
-        created_at: string;
-      }>((from, to) =>
-        supabase
-          .from("delivery_orders")
-          .select("total, status, payment_status, created_at")
-          .eq("user_id", userId)
-          .in("status", ["completed", "delivered"])
-          .eq("payment_status", "paid")
-          .gte("created_at", startISO)
-          .order("created_at", { ascending: true })
-          .range(from, to)
-      );
+      const movements = await fetchCashierSalesByPeriod(userId, startISO, endISO);
 
       // Initialize 24 months
       const months: MonthlyRevenuePoint[] = [];
@@ -127,28 +79,15 @@ export function usePdvMonthlyRevenue() {
       const idx: Record<string, MonthlyRevenuePoint> = {};
       for (const m of months) idx[m.month] = m;
 
-      // Aggregate PDV
-      for (const r of pdvRows) {
-        const dateStr = r.closed_at || r.created_at;
-        if (!dateStr) continue;
-        const key = monthKey(new Date(dateStr));
+      movements.forEach((m) => {
+        const key = monthKey(new Date(m.created_at));
         const bucket = idx[key];
-        if (!bucket) continue;
-        const value = Number(r.total || 0);
-        if (r.source === "balcao") bucket.balcao += value;
-        else bucket.salao += value; // salao + outros (default)
+        if (!bucket) return;
+        const value = m.amount;
+        const ch = channelOfSource(m.source);
+        bucket[ch] += value;
         bucket.total += value;
-      }
-
-      // Aggregate delivery
-      for (const r of deliveryRows) {
-        const key = monthKey(new Date(r.created_at));
-        const bucket = idx[key];
-        if (!bucket) continue;
-        const value = Number(r.total || 0);
-        bucket.delivery += value;
-        bucket.total += value;
-      }
+      });
 
       // Summary
       const currentKey = monthKey(startOfMonth(now));
@@ -183,3 +122,4 @@ export function usePdvMonthlyRevenue() {
     },
   });
 }
+

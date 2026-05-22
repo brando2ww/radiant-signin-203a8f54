@@ -1,72 +1,77 @@
-## Diagnóstico
+## Problema identificado
 
-Investiguei o banco do tenant atual e o problema é estrutural, não específico da Visão Geral:
+O relatório mensal está errado por dois motivos principais:
 
-- `pdv_orders.total` → **sempre 0** (216/216 pedidos fechados em maio com total=0)
-- `pdv_orders.subtotal` → **sempre 0** (216/216)
-- `pdv_orders.closed_at` → **NULL em 207/216** pedidos
-- `pdv_order_items` → **vazio** para esses pedidos (0 registros)
+1. **A receita do PDV está vindo de `pdv_payments`**, mas essa tabela está incompleta para este sistema.
+   - Em maio/2026: `pdv_payments` mostra **R$ 16.881,49**.
+   - O caixa (`pdv_cashier_movements`, tipo `venda`) mostra **R$ 98.056,73** no mesmo mês.
 
-A receita real está em duas outras tabelas:
+2. **O campo “Pedidos” está exibindo IDs concatenados** porque o código está somando/exibindo um `Set` diretamente, em vez de usar `.size`.
 
-- **`pdv_payments.amount`** → R$ 16.881,49 em maio (116 pagamentos). É o "dinheiro que entrou".
-- **`pdv_comanda_items`** (via `pdv_comandas.order_id → pdv_orders.id`) → 1.967 itens, R$ 67.310,80 em itens consumidos. É o "que foi vendido".
+Além disso, a tela mensal hoje soma apenas parte da operação. Para “receita total do sistema”, a fonte correta deve ser a movimentação financeira efetivamente registrada no caixa.
 
-Os relatórios atuais leem de `pdv_orders.total` / `pdv_order_items`, por isso aparecem como zero. O gráfico de "Formas de Pagamento" funciona porque usa outra fonte (`pdv_cashier_movements`).
+## Correção proposta
 
-Também: o filtro por período usa às vezes `opened_at`, às vezes `closed_at`, às vezes `created_at` — inconsistente. Com `closed_at` quase sempre nulo, qualquer query baseada nele perde dados.
+### 1. Definir a fonte única de receita total
+Usar `pdv_cashier_movements` como fonte principal da receita do sistema:
 
-## Proposta
+- Filtrar `type = 'venda'`.
+- Agrupar pela data de `created_at` do movimento.
+- Vincular com `pdv_cashier_sessions.user_id = visibleUserId` para respeitar dono/funcionário.
+- Separar canais por `source`:
+  - `delivery` → Delivery
+  - `salon`, `salao`, vazio ou outros → Salão/Balcão conforme disponível
 
-Padronizar a camada de dados de relatórios em **uma única fonte de verdade** e reescrever as queries:
+Isso fará o relatório mensal mostrar a receita total real registrada no caixa, incluindo PDV e Delivery.
 
-### 1. Nova camada compartilhada (`src/lib/reports-data-source.ts`)
-- `fetchRevenueByPeriod(userId, start, end)` → consulta `pdv_payments` agregada por `processed_at`, retornando: total bruto, total por método, total por dia, total por hora, líquido (descontando `fee_amount`).
-- `fetchOrdersByPeriod(userId, start, end)` → consulta `pdv_orders` + agregado de `pdv_comanda_items` (via join `pdv_comandas`) para obter receita por pedido, total de itens, descontos. Filtro de período usa `COALESCE(closed_at, opened_at)`.
-- `fetchItemsByPeriod(userId, start, end)` → `pdv_comanda_items` joinado com `pdv_comandas → pdv_orders`, devolvendo product_id, product_name, quantity, subtotal, hora de consumo.
-- `fetchCancellationsByPeriod` → mantém `pdv_orders` mas calcula valor cancelado via soma de `pdv_comanda_items` dos pedidos cancelados.
+### 2. Ajustar o relatório “Mensal — Evolução e YoY”
+Em `MonthlyReport.tsx`:
 
-Cada função retorna estruturas tipadas e já corrige o problema de `total=0`.
+- Substituir a busca em `pdv_payments` por `pdv_cashier_movements` + `pdv_cashier_sessions`.
+- Corrigir `currentOrders`, `prevOrders`, `currentTicket` e YoY para usar contagem numérica, não `Set`.
+- Mostrar “Pedidos/Vendas” com base na quantidade de movimentos de venda ou pedidos vinculados quando houver identificador disponível.
+- Manter “Itens vendidos” vindo de `pdv_comanda_items` e `delivery_order_items`, mas sem contaminar receita.
+- Garantir que a tabela mensal não quebre layout com UUIDs.
 
-### 2. Refatorar `usePDVReports` (`src/hooks/use-pdv-reports.ts`)
-- `salesReport.totalSales` → `sum(pdv_payments.amount)` no período
-- `salesReport.totalOrders` → contagem distinta de `order_id` em `pdv_payments` (ou pedidos com pelo menos 1 item)
-- `salesReport.averageTicket` → totalSales / totalOrders
-- `productReport` → agrupa `pdv_comanda_items` por `product_name`
-- `hourlyReport` → agrupa `pdv_payments` por hora de `processed_at`
-- `paymentReport` → continua via `pdv_cashier_movements` (já funciona)
+### 3. Corrigir o hook de evolução mensal usado na Visão Geral
+Em `use-pdv-monthly-revenue.ts`:
 
-### 3. Atualizar os 7 sub-relatórios para consumir a nova camada
-Cada arquivo abaixo passa a chamar `fetchRevenueByPeriod` / `fetchItemsByPeriod` em vez de ler `pdv_orders.total`:
+- Trocar `pdv_orders.total` por `pdv_cashier_movements.amount`.
+- Remover dependência de `pdv_orders.total`, que está zerado.
+- Incluir delivery pela mesma fonte do caixa quando `source = delivery`, evitando dupla contagem com `delivery_orders`.
+- Preservar o gráfico por canais: Salão, Balcão e Delivery.
 
-- `OverviewReport.tsx` — receita, ticket, dia da semana, top clientes, top categorias
-- `ByCategoryReport.tsx` — receita por categoria via items
-- `ByUserReport.tsx` — receita por operador via `pdv_payments.processed_by`
-- `CancellationsReport.tsx` — valor cancelado via items dos pedidos cancelados
-- `DiscountsReport.tsx` — descontos via `pdv_orders.discount` somado dos pedidos com items
-- `MonthlyReport.tsx` — série mensal via `pdv_payments` agrupado por mês
-- `ProductsAnalyticsReport.tsx` — já usa items, validar consistência
+### 4. Padronizar os relatórios que ainda usam fonte parcial
+Ajustar os relatórios já impactados para não misturarem fontes incorretas:
 
-### 4. Period-over-period
-O helper `previousPeriod` continua válido. As funções de delta passam a comparar receita-de-payments do período atual vs anterior, não mais `orders.total`.
+- `OverviewReport`
+- `usePDVReports`
+- `ByUserReport`
+- `ProductsAnalyticsReport`
+- `ByCategoryReport`
 
-### 5. Validação manual após implementar
-Tabela de checagem para o tenant `d9087102-…` em maio/2026:
+Regra:
+- **Receita total financeira**: sempre `pdv_cashier_movements` tipo `venda`.
+- **Itens/produtos/categorias**: `pdv_comanda_items` e `delivery_order_items`.
+- Quando receita por produto/categoria não tiver vínculo financeiro perfeito, usar subtotal dos itens apenas como rateio operacional, não como “receita total do sistema”.
 
-| Métrica | Esperado |
-|---|---|
-| Receita (Visão Geral) | ≈ R$ 16.881,49 |
-| Total de pedidos | ≈ 116 distintos |
-| Itens vendidos | ≈ 1.967 |
+### 5. Criar utilitário central para evitar regressão
+Criar/ajustar `src/lib/reports-data-source.ts` com funções reutilizáveis:
 
-## Arquivos a editar
+- `fetchCashierRevenueByPeriod(...)`
+- `fetchCashierRevenueByMonth(...)`
+- `fetchSystemItemsByPeriod(...)`
 
-- **Novo:** `src/lib/reports-data-source.ts`
-- **Reescrito:** `src/hooks/use-pdv-reports.ts`
-- **Ajustados:** `src/pages/pdv/reports/OverviewReport.tsx`, `ByCategoryReport.tsx`, `ByUserReport.tsx`, `CancellationsReport.tsx`, `DiscountsReport.tsx`, `MonthlyReport.tsx`, `ProductsAnalyticsReport.tsx`
+Assim todos os relatórios passam a usar a mesma fonte e a correção não fica espalhada.
 
-`PurchasesReport.tsx` não é afetado (usa `pdv_purchase_orders`, fonte diferente).
+### 6. Validação depois da implementação
+Validar especificamente maio/2026:
 
-## Observação
+- O mensal deve sair de **R$ 19.117,17** para refletir a receita do caixa: aproximadamente **R$ 98.056,73** em maio/2026.
+- Abril/2026 deve refletir aproximadamente **R$ 27.790,76**.
+- O campo “Pedidos” não pode mais mostrar UUIDs.
+- Ticket médio deve voltar a calcular corretamente.
 
-Antes de codar: confirmar se concorda que **a receita correta é `pdv_payments.amount`** (dinheiro efetivamente recebido). A alternativa seria usar `sum(pdv_comanda_items.subtotal)` (consumo bruto), que dá R$ 67k vs R$ 16k — números muito diferentes, com significados diferentes (consumido vs pago). Em PDVs costuma-se reportar **receita = pagamentos liquidados**, mas posso usar a outra base se preferir.
+## Resultado esperado
+
+A tela mensal passará a mostrar a **receita total real do sistema**, baseada no caixa, e os demais relatórios deixarão de puxar valores parciais/zerados de pedidos ou pagamentos incompletos.
