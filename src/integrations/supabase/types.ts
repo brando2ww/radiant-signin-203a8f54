@@ -3468,6 +3468,8 @@ export type Database = {
         Row: {
           charging_session_id: string | null
           comanda_id: string
+          composition_group_label: string | null
+          composition_position: number | null
           created_at: string
           id: string
           is_composite_child: boolean
@@ -3488,6 +3490,8 @@ export type Database = {
         Insert: {
           charging_session_id?: string | null
           comanda_id: string
+          composition_group_label?: string | null
+          composition_position?: number | null
           created_at?: string
           id?: string
           is_composite_child?: boolean
@@ -3508,6 +3512,8 @@ export type Database = {
         Update: {
           charging_session_id?: string | null
           comanda_id?: string
+          composition_group_label?: string | null
+          composition_position?: number | null
           created_at?: string
           id?: string
           is_composite_child?: boolean
@@ -4793,6 +4799,8 @@ export type Database = {
           added_at: string | null
           added_by: string | null
           assigned_to_person: number | null
+          composition_group_label: string | null
+          composition_position: number | null
           created_at: string | null
           id: string
           is_composite_child: boolean
@@ -4815,6 +4823,8 @@ export type Database = {
           added_at?: string | null
           added_by?: string | null
           assigned_to_person?: number | null
+          composition_group_label?: string | null
+          composition_position?: number | null
           created_at?: string | null
           id?: string
           is_composite_child?: boolean
@@ -4837,6 +4847,8 @@ export type Database = {
           added_at?: string | null
           added_by?: string | null
           assigned_to_person?: number | null
+          composition_group_label?: string | null
+          composition_position?: number | null
           created_at?: string | null
           id?: string
           is_composite_child?: boolean
@@ -7401,6 +7413,8 @@ export type Database = {
           center_name: string | null
           comanda_id: string | null
           comanda_number: string | null
+          composition_group_label: string | null
+          composition_position: number | null
           customer_name: string | null
           id: string | null
           is_composite_child: boolean | null
@@ -7421,7 +7435,6 @@ export type Database = {
           table_id: string | null
           table_number: string | null
           tenant_user_id: string | null
-          ticket_number: number | null
         }
         Relationships: [
           {
@@ -7501,9 +7514,11 @@ export type Database = {
       vw_print_bridge_order_items: {
         Row: {
           center_name: string | null
-          customer_name: string | null
+          composition_group_label: string | null
+          composition_position: number | null
           id: string | null
           is_composite_child: boolean | null
+          is_virtual: boolean | null
           kitchen_status: string | null
           modifiers: Json | null
           notes: string | null
@@ -7517,7 +7532,6 @@ export type Database = {
           production_center_id: string | null
           quantity: number | null
           sent_to_kitchen_at: string | null
-          source: string | null
           table_id: string | null
           table_number: string | null
           tenant_user_id: string | null
