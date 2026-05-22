@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "./use-establishment-id";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,24 +30,6 @@ export interface MonthlyRevenueResult {
   summary: MonthlyRevenueSummary;
 }
 
-const PAGE_SIZE = 1000;
-
-async function fetchAllPaged<T>(
-  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
-): Promise<T[]> {
-  const out: T[] = [];
-  let from = 0;
-  while (true) {
-    const to = from + PAGE_SIZE - 1;
-    const { data, error } = await build(from, to);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    out.push(...data);
-    if (data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
-  }
-  return out;
-}
 
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
