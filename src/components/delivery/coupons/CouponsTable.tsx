@@ -19,6 +19,7 @@ interface Props {
   onCopyLink: (code: string) => void;
   onShareQR: (c: DeliveryCoupon) => void;
   onDelete: (c: DeliveryCoupon) => void;
+  onOpenAnalytics: (c: DeliveryCoupon) => void;
 }
 
 export function CouponsTable({
@@ -31,6 +32,7 @@ export function CouponsTable({
   onCopyLink,
   onShareQR,
   onDelete,
+  onOpenAnalytics,
 }: Props) {
   return (
     <div className="rounded-md border bg-card overflow-hidden">
@@ -67,6 +69,7 @@ export function CouponsTable({
               onCopyLink={() => onCopyLink(c.code)}
               onShareQR={() => onShareQR(c)}
               onDelete={() => onDelete(c)}
+              onOpenAnalytics={() => onOpenAnalytics(c)}
             />
           ))}
         </TableBody>

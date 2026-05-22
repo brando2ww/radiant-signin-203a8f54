@@ -126,11 +126,18 @@ export function CouponRow({
         <TableCell className="text-sm">
           {coupon.min_order_value > 0 ? formatBRL(coupon.min_order_value) : "—"}
         </TableCell>
-        <TableCell className="min-w-[160px]">
+        <TableCell
+          className="min-w-[160px] cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenAnalytics();
+          }}
+          title="Ver análise detalhada"
+        >
           <div className="space-y-1">
             <Progress value={usagePct} className="h-1.5" />
-            <div className="text-xs text-muted-foreground">
-              {coupon.usage_count}/{coupon.usage_limit} usados
+            <div className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+              {coupon.usage_count}/{coupon.usage_limit} usados — ver análise
             </div>
           </div>
         </TableCell>
