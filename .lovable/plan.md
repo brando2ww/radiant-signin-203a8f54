@@ -1,39 +1,63 @@
-# Apresentação Comercial PDF — Velara Checklist & Avaliação
+# Impressão duplicada de delivery — dedup definitivo no banco
 
-Apresentação **horizontal (16:9, 1920×1080)** em PDF, voltada para venda dos módulos a restaurantes. Tom comercial, visual, com seções ilustradas e linguagem de benefício (não técnica). Utilizar o logotipo da velara também nas paginas. 
+## Diagnóstico (confirmado)
 
-## Estrutura dos 10 slides
+O pedido #006 (21/05/2026 19:28) gerou **2 jobs idênticos** em `pdv_print_jobs` com 152 ms de diferença, ambos para o mesmo `source_item_id`, mesmo centro e mesma impressora.
 
-1. **Capa** — Logo Velara, título "Operação impecável e clientes encantados", subtítulo "Módulos Checklist & Avaliação", tagline + visual hero.
-2. **O problema** — Dores do restaurante: equipe sem padrão, retrabalho, falhas de higiene/abertura/fechamento, reviews negativos, clientes que somem.
-3. **A solução Velara** — Duas frentes integradas: *Checklist* (padroniza a operação) + *Avaliação* (escuta o cliente e recupera detratores).
-4. **Módulo Checklist — Visão geral** — O que é, para quem (abertura, fechamento, limpeza, segurança alimentar, manutenção), com mock da tela principal.
-5. **Checklist — Funcionalidades**: editor de itens (texto, foto, assinatura, número), agendamentos recorrentes, execução mobile com PIN, evidências fotográficas, QR code por setor, biblioteca de templates, alertas de atraso, validade de itens, gestão de operadores.
-6. **Checklist — Gestão e indicadores**: dashboard de saúde da operação, score por equipe/operador, pódio de performance, galeria de evidências, logs de acesso, relatórios de conformidade.
-7. **Módulo Avaliação — Visão geral** — NPS + pesquisa pós-atendimento, link público, QR na mesa, integração com Google Reviews e iFood.
-8. **Avaliação — Funcionalidades**: campanhas configuráveis, perguntas (estrelas, escolha, texto), cupons de recompensa automáticos, hub de clientes, deduplicação por telefone, relatórios por pergunta, painel de NPS, identificação de detratores.
-9. **Resultados que o cliente vê** — Bloco de benefícios com números/impacto: redução de falhas operacionais, aumento de NPS, recuperação de detratores, mais reviews 5 estrelas, time mais engajado. Depoimento curto fictício/placeholder.
-10. **Próximos passos / Call to action** — Como começar, planos, contato (WhatsApp, e-mail, site), QR code para agendar demonstração.
+Isso aconteceu porque há **múltiplos clientes legítimos** (operadores em abas/dispositivos diferentes, todos logados na mesma conta) rodando o `useDeliveryOrdersWatcher`. Cada um recebe o evento Realtime do `INSERT` em `delivery_orders` e dispara `dispatchDeliveryPrintJobs`.
 
-## Visual
+O dedup atual está na aplicação (`SELECT` → `INSERT` em `src/lib/delivery-print.ts`) e não é atômico: dois clientes fazem o `SELECT` quase ao mesmo tempo, ambos veem "vazio" e ambos inserem.
 
-- Paleta sóbria e comercial: fundo claro com seções escuras em capa/conclusão (estrutura "sandwich"), acento único da marca.
-- Tipografia com personalidade no título + sans-serif limpa no corpo.
-- Cada slide com **um elemento visual dominante**: mockup de tela, ícones em círculos coloridos, cards de estatística, ou hero image.
-- Capa e slide final em fundo escuro; slides de conteúdo em fundo claro.
+**Múltiplos operadores é cenário normal e desejado.** O sistema é que precisa garantir um único job por pedido/centro, independente de quantos clientes estejam ouvindo.
 
-## Imagens das seções
+## Correção
 
-Plano: capturar screenshots reais das telas (`/pdv/checklists`, `/pdv/checklists/equipe`, `/pdv/checklists/evidencias`, `/pdv/avaliacoes`, `/pdv/avaliacoes/clients`, `/pdv/avaliacoes/reports`) via browser do sandbox, com o usuário logado. Caso login não esteja disponível no preview, usar **mockups ilustrativos gerados** (frames de UI estilizados) para representar cada seção sem expor dados reais.
+Mover o dedup para o **banco**, onde ele é atômico por definição.
 
-## Entregável
+### 1. Migration — limpar duplicados antigos e criar índice único parcial
 
-- Arquivo único `/mnt/documents/velara-checklist-avaliacao.pdf` (16:9, 10 páginas).
-- Gerado via Python (`reportlab`) com imagens embutidas em alta resolução.
-- QA visual obrigatório: render de cada página em JPG e revisão antes de entregar.
+```sql
+-- 1) Remove jobs duplicados existentes (mantém o mais antigo)
+DELETE FROM public.pdv_print_jobs a
+USING public.pdv_print_jobs b
+WHERE a.source_kind = 'delivery'
+  AND b.source_kind = 'delivery'
+  AND a.source_item_id IS NOT NULL
+  AND a.source_item_id = b.source_item_id
+  AND a.center_id IS NOT DISTINCT FROM b.center_id
+  AND a.created_at > b.created_at;
 
-## Perguntas antes de gerar
+-- 2) Índice único parcial: 1 job por (item, centro) para delivery automático
+CREATE UNIQUE INDEX IF NOT EXISTS pdv_print_jobs_delivery_item_center_uniq
+  ON public.pdv_print_jobs (source_item_id, center_id)
+  WHERE source_kind = 'delivery' AND source_item_id IS NOT NULL;
+```
 
-1. **Imagens das telas**: posso usar **mockups ilustrativos** dos módulos (mais limpos, sem dados sensíveis) ou você prefere que eu tente capturar **screenshots reais** das telas do app? *(mockup é mais rápido e visualmente consistente; screenshot real exige credenciais de login no preview)*
-2. **Contato / CTA do último slide**: qual WhatsApp, e-mail e site devo colocar? (Se não informar, uso placeholders `contato@velara.app` / site atual.)
-3. **Logo Velara**: existe um arquivo de logo no projeto que eu deva usar? Se sim, qual caminho? (Caso contrário, faço lockup tipográfico "Velara".)
+O índice inclui `center_id` para preservar o agrupamento legítimo por centro (ex.: cozinha + bar imprimem separadamente para o mesmo item).
+
+### 2. Ajuste em `src/lib/delivery-print.ts`
+
+- Manter o `SELECT` pré-INSERT como fast-path (otimiza o caso comum).
+- Tratar erro `23505` (unique_violation) do `INSERT` como **sucesso silencioso**: significa que outro cliente ganhou a corrida — o job já existe, nada a fazer.
+- Quando `jobs === 0`, o watcher já não exibe toast de "impressão enviada" — comportamento atual preservado.
+
+### 3. Reimpressão manual continua funcionando
+
+Reimpressão (`useReprintOrder`, com `auto !== true`) precisa criar um **novo** job toda vez. Para não colidir com o índice único, reimpressões manuais passarão a inserir com `source_item_id = NULL` (sinalizando "job manual, não dedup-ável"). O conteúdo do payload é idêntico e a print-bridge não depende de `source_item_id` para imprimir.
+
+## Por que essa abordagem
+
+- **Atômica**: o banco garante unicidade — nenhuma combinação de timing ou número de clientes pode burlar.
+- **Sem regressão**: o agrupamento por centro continua igual; só impede o duplicado bit-a-bit.
+- **Compatível com multi-operador**: que é o uso normal do sistema.
+- **Reimpressão preservada**: marcador `source_item_id = NULL` libera reimpressão sem perder rastreabilidade (o `payload` mantém `customer_name`, `order_number`, etc.).
+
+## Arquivos afetados
+
+- `supabase/migrations/<timestamp>_dedupe_delivery_print_jobs.sql` (novo)
+- `src/lib/delivery-print.ts` (tratar `23505`; `source_item_id = NULL` em reimpressão manual)
+
+## Fora de escopo
+
+- Trigger de cascata salão↔caixa (assunto anterior).
+- Refatorar o watcher para ter um único "leader" entre abas (complexidade desnecessária se o banco já garante unicidade).
