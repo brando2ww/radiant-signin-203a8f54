@@ -225,8 +225,9 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       // ===== AGGREGATION =====
       // Apply channel filter for pdv items (by source)
       const sourceAllowed = (src: string) => {
-        if (src === "salao") return channels.includes("salao");
-        if (src === "balcao") return channels.includes("balcao");
+        const s = (src || "").toLowerCase();
+        if (s === "salao" || s === "salon" || s === "") return channels.includes("salao");
+        if (s === "balcao") return channels.includes("balcao");
         return false;
       };
 
