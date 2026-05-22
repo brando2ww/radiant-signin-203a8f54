@@ -33,6 +33,7 @@ import {
   useDeliveryDrivers,
 } from "@/hooks/use-delivery-drivers";
 import { DriverFormSheet } from "@/components/delivery/DriverFormSheet";
+import { DriverReports } from "@/components/delivery/drivers/DriverReports";
 
 const VEHICLE_ICON: Record<VehicleType, typeof Bike> = {
   moto: Bike,
@@ -265,6 +266,8 @@ export default function DeliveryDrivers() {
           })}
         </div>
       )}
+
+      {drivers.length > 0 && <DriverReports drivers={drivers} />}
 
       <DriverFormSheet open={sheetOpen} onOpenChange={setSheetOpen} driver={editingDriver} />
 
