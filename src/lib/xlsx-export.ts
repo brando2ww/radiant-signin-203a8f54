@@ -30,7 +30,7 @@ function sanitizeSheetName(name: string): string {
 }
 
 function buildSheet(sheet: XlsxSheet): XLSX.WorkSheet {
-  const columns =
+  const columns: XlsxColumn[] =
     sheet.columns ??
     (sheet.rows[0]
       ? Object.keys(sheet.rows[0]).map((k) => ({ key: k, label: k }))
