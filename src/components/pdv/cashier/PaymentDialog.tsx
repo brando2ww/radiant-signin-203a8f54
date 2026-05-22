@@ -343,8 +343,20 @@ export function PaymentDialog({
     : `Comanda #${comanda?.comanda_number}`;
 
   // Calculate discount — só conta no total quando confirmado/aplicado
-  // Durante "typing"/"confirming" o operador ainda não decidiu, então o total fica intacto
-  const discountAmount = appliedDiscount?.amount ?? 0;
+  // Durante "typing"/"confirming" o operador ainda não decidiu, então o total fica intacto.
+  // Para desconto em %, recalculamos sobre o subtotal ATUAL para que mudanças nos itens
+  // após aplicar o desconto mantenham o percentual coerente (ex.: 30% segue sendo 30%).
+  // Para desconto em R$, mantemos o valor fixo, limitado ao subtotal atual.
+  const discountAmount = (() => {
+    if (!appliedDiscount) return 0;
+    if (appliedDiscount.type === "percent") {
+      const v = parseFloat(appliedDiscount.rawValue) || 0;
+      const amt = (subtotal * v) / 100;
+      return Math.min(subtotal, Math.max(0, amt));
+    }
+    return Math.min(subtotal, Math.max(0, appliedDiscount.amount));
+  })();
+  const discountPercentEffective = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
 
   // Valor calculado do desconto a partir do que está digitado (independe do stage).
   // Necessário porque o operador clica "Confirmar" quando o stage já mudou para "confirming".
