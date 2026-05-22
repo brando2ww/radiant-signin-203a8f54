@@ -305,6 +305,7 @@ export function PaymentDialog({
       toast.warning("Não há itens pendentes para cobrar.");
       onOpenChange(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, showSuccess, comanda, table, displayItems.length, fullSubtotal, onOpenChange]);
 
   // Pagamento parcial (modo by-product) é suportado apenas quando temos itens reais persistidos.

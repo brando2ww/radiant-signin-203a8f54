@@ -250,15 +250,15 @@ export function SalonQueuePanel({
   // Pisca aba Delivery quando chega novo pedido
   const lastFirstId = useRef<string | null>(null);
   const [pulse, setPulse] = useState(false);
+  const firstDeliveryId = delivery.all[0]?.id ?? null;
   useEffect(() => {
-    const firstId = delivery.all[0]?.id ?? null;
-    if (lastFirstId.current && firstId && firstId !== lastFirstId.current) {
+    if (lastFirstId.current && firstDeliveryId && firstDeliveryId !== lastFirstId.current) {
       setPulse(true);
       const t = setTimeout(() => setPulse(false), 3000);
       return () => clearTimeout(t);
     }
-    lastFirstId.current = firstId;
-  }, [delivery.all]);
+    lastFirstId.current = firstDeliveryId;
+  }, [firstDeliveryId]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
