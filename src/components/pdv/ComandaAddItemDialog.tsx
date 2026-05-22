@@ -89,6 +89,7 @@ export function ComandaAddItemDialog({
       .flatMap((opt) => opt.items)
       .filter((i) => i.printerStation)
       .map((i) => i.printerStation);
+    void linkedPrinterStations;
 
     await onAddItem({
       productId: selectedProduct.id,
@@ -96,7 +97,7 @@ export function ComandaAddItemDialog({
       quantity,
       unitPrice: getProductPrice(selectedProduct) + optionsExtra,
       notes: fullNotes || undefined,
-      linkedPrinterStations: linkedPrinterStations.length > 0 ? linkedPrinterStations : undefined,
+      selectedOptions: selectedOptions.length > 0 ? selectedOptions : undefined,
     });
 
     // Reset and close
