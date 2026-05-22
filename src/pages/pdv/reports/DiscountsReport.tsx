@@ -417,7 +417,18 @@ export default function DiscountsReport() {
               </TableBody>
             </Table>
           )}
-          {orders.length > 100 && <p className="text-xs text-muted-foreground mt-2">Mostrando 100 de {orders.length}. Exporte para Excel para ver todos.</p>}
+          {orders.length > visibleCount && (
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <p className="text-xs text-muted-foreground">Mostrando {visibleCount} de {orders.length}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleCount((c) => Math.min(c + 10, orders.length))}
+              >
+                Carregar mais 10
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
