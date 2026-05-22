@@ -310,6 +310,7 @@ export function usePDVComandas() {
       quantity: number;
       unitPrice: number;
       notes?: string;
+      selectedOptions?: SelectedOption[];
     }) => {
       // Bloqueia adicionar item em comanda finalizada/cancelada.
       // Permitido: 'aberta' (garçom) e 'aguardando_pagamento'/'em_cobranca' (correção pelo caixa).
@@ -348,9 +349,18 @@ export function usePDVComandas() {
 
       if (error) throw error;
 
-      // Expandir produto composto: cria filhos invisíveis para roteamento de cozinha
+      // Roteamento de cozinha:
+      // - Se o cliente escolheu opções com produto vinculado, criamos filhos
+      //   APENAS para essas opções (não imprimimos a composição completa).
+      // - Caso contrário, expandimos a composição fixa do produto (kits/combos).
       if (ownerId) {
-        const children = await expandComposition(data.productId, data.quantity, ownerId);
+        const hasSelected =
+          (data.selectedOptions ?? []).some((o) =>
+            o.items.some((i) => !!i.linkedProductId),
+          );
+        const children = hasSelected
+          ? await expandSelectedOptions(data.selectedOptions, data.quantity, ownerId)
+          : await expandComposition(data.productId, data.quantity, ownerId);
         if (children.length > 0) {
           const missing = children.filter((c) => !c.production_center_id);
           if (missing.length > 0) {
