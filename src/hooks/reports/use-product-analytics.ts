@@ -265,7 +265,8 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       };
 
       (pdvItems || []).forEach((it: any) => {
-        const src = it.order?.source as ChannelKey;
+        const order = it.comanda?.order;
+        const src = order?.source as ChannelKey;
         if (!sourceAllowed(src)) return;
         const pid = it.product_id || it.product_name;
         if (!pid) return;
@@ -274,13 +275,14 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         const rev = Number(it.subtotal || 0);
         acc.quantity += qty;
         acc.revenue += rev;
-        acc.orderIds.add(it.order?.id);
+        if (order?.id) acc.orderIds.add(order.id);
         if (src === "salao" || src === "balcao") {
           acc.channels[src].qty += qty;
           acc.channels[src].revenue += rev;
         }
-        // Heat
-        const dt = it.order?.closed_at ? new Date(it.order.closed_at) : null;
+        // Heat — prefer item.created_at, fallback to comanda.created_at / order.closed_at
+        const tstr = it.created_at || it.comanda?.created_at || order?.closed_at;
+        const dt = tstr ? new Date(tstr) : null;
         if (dt) {
           hourHeat[dt.getDay()][dt.getHours()] += qty;
           const dkey = format(dt, "yyyy-MM-dd");
