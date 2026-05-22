@@ -322,15 +322,20 @@ export default function MonthlyReport() {
                     <TableCell className="text-right">{formatBRL(r.currentTicket)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{formatBRL(r.prevRevenue)}</TableCell>
                     <TableCell className={`text-right ${r.prevRevenue > 0 ? (r.yoyRevenue >= 0 ? "" : "text-destructive") : "text-muted-foreground"}`}>
-                      {r.prevRevenue > 0 ? `${r.yoyRevenue >= 0 ? "+" : ""}${(r.yoyRevenue * 100).toFixed(1)}%` : "—"}
+                      {r.prevRevenue > 0
+                        ? `${r.yoyRevenue >= 0 ? "+" : ""}${(r.yoyRevenue * 100).toFixed(1)}%`
+                        : r.currentRevenue > 0 ? "Novo" : "—"}
                     </TableCell>
                     <TableCell className={`text-right ${r.prevOrders > 0 ? (r.yoyOrders >= 0 ? "" : "text-destructive") : "text-muted-foreground"}`}>
-                      {r.prevOrders > 0 ? `${r.yoyOrders >= 0 ? "+" : ""}${(r.yoyOrders * 100).toFixed(1)}%` : "—"}
+                      {r.prevOrders > 0
+                        ? `${r.yoyOrders >= 0 ? "+" : ""}${(r.yoyOrders * 100).toFixed(1)}%`
+                        : r.currentOrders > 0 ? "Novo" : "—"}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
