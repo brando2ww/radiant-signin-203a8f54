@@ -31,16 +31,52 @@ export function usePDVCmv(selectedMonth?: Date) {
         .select("id, name, price_salon, price_balcao, category")
         .eq("user_id", user.id);
 
+      const productIds = (products || []).map((p) => p.id);
+
+      // Compositions (kits/combos) for these products — para custo recursivo
+      const compositionMap: Record<string, { child_product_id: string; quantity: number }[]> = {};
+      if (productIds.length) {
+        const { data: comps } = await supabase
+          .from("pdv_product_compositions")
+          .select("parent_product_id, child_product_id, quantity")
+          .in("parent_product_id", productIds);
+        (comps || []).forEach((c: any) => {
+          if (!compositionMap[c.parent_product_id]) compositionMap[c.parent_product_id] = [];
+          compositionMap[c.parent_product_id].push({
+            child_product_id: c.child_product_id,
+            quantity: Number(c.quantity) || 0,
+          });
+        });
+      }
+
+      // Custo unitário recursivo (receita + composição), com memoização e proteção contra ciclo
+      const costMemo = new Map<string, number>();
+      const computeCost = (pid: string, visited: Set<string>): number => {
+        if (visited.has(pid)) return 0;
+        if (costMemo.has(pid)) return costMemo.get(pid)!;
+        visited.add(pid);
+        const recipeCost = recipeCostMap[pid] || 0;
+        let compCost = 0;
+        const children = compositionMap[pid] || [];
+        for (const ch of children) {
+          compCost += ch.quantity * computeCost(ch.child_product_id, new Set(visited));
+        }
+        const total = recipeCost + compCost;
+        costMemo.set(pid, total);
+        return total;
+      };
+
       // Calculate per-product CMV
       const productCmvList = (products || [])
-        .filter((p) => recipeCostMap[p.id] !== undefined)
         .map((p) => {
-          const cost = recipeCostMap[p.id];
+          const cost = computeCost(p.id, new Set());
           const price = Number(p.price_salon || p.price_balcao || 0);
           const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
           return { id: p.id, name: p.name, category: p.category, cost, price, margin };
         })
+        .filter((p) => p.cost > 0)
         .sort((a, b) => b.margin - a.margin);
+
 
       // Current month revenue + cmv from sold items
       const ms = format(startOfMonth(refDate), "yyyy-MM-dd");
@@ -64,11 +100,11 @@ export function usePDVCmv(selectedMonth?: Date) {
 
       let totalCmv = 0;
       (orderItems || []).forEach((item: any) => {
-        if (recipeCostMap[item.product_id]) {
-          const itemCost = recipeCostMap[item.product_id] * Number(item.quantity);
-          totalCmv += itemCost;
+        const unitCost = computeCost(item.product_id, new Set());
+        if (unitCost > 0) {
+          totalCmv += unitCost * Number(item.quantity);
 
-          // Track by ingredient category
+          // Track by ingredient category (apenas parcela de receita direta deste produto)
           const recipe = (recipes || []).filter((r: any) => r.product_id === item.product_id);
           recipe.forEach((r: any) => {
             const cat = r.pdv_ingredients?.category || "Outros";
@@ -77,6 +113,7 @@ export function usePDVCmv(selectedMonth?: Date) {
           });
         }
       });
+
 
       const cmvPercent = totalRevenue > 0 ? (totalCmv / totalRevenue) * 100 : 0;
       const grossMargin = 100 - cmvPercent;
@@ -105,10 +142,10 @@ export function usePDVCmv(selectedMonth?: Date) {
         const mRev = (mOrders || []).reduce((s, o) => s + Number(o.total), 0);
         let mCmv = 0;
         (mItems || []).forEach((item: any) => {
-          if (recipeCostMap[item.product_id]) {
-            mCmv += recipeCostMap[item.product_id] * Number(item.quantity);
-          }
+          const unitCost = computeCost(item.product_id, new Set());
+          if (unitCost > 0) mCmv += unitCost * Number(item.quantity);
         });
+
 
         evolution.push({ month: format(m, "MMM/yy"), cmv: mCmv, revenue: mRev });
       }
