@@ -19,8 +19,10 @@ const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", curren
 
 
 export default function CashierStatement() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<"daily" | "monthly">("daily");
   const [selectedDate, setSelectedDate] = useState(new Date());
+
   const { data, isLoading } = usePDVCashierStatement(mode, selectedDate);
 
   const handleExport = () => {
