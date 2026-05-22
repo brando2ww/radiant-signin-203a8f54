@@ -328,65 +328,66 @@ export function ComandaDetailsDialog({
             )}
           </ScrollArea>
 
-          {selectMode && (
-            <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
-              <span className="text-sm font-medium">
-                {selectedIds.size} {selectedIds.size === 1 ? "item selecionado" : "itens selecionados"}
-              </span>
-              <Button
-                size="sm"
-                onClick={handleTransferSelected}
-                disabled={selectedIds.size === 0}
-              >
-                <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
-                Mover {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
-              </Button>
-            </div>
-          )}
+          <div className="shrink-0 space-y-2">
+            {selectMode && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 p-3">
+                <span className="text-sm font-medium">
+                  {selectedIds.size} {selectedIds.size === 1 ? "item selecionado" : "itens selecionados"}
+                </span>
+                <Button
+                  size="sm"
+                  onClick={handleTransferSelected}
+                  disabled={selectedIds.size === 0}
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+                  Mover {selectedIds.size > 0 ? `(${selectedIds.size})` : ""}
+                </Button>
+              </div>
+            )}
 
-          <Separator className="my-2" />
+            <Separator className="my-2" />
 
-          {/* Totals */}
-          <div className="space-y-2">
+            {/* Totals */}
             <div className="flex items-center justify-between text-lg font-bold">
               <span>Total</span>
               <span>{formatBRL(comanda.subtotal)}</span>
             </div>
+
+            {/* Actions */}
+            {isOpen && (
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button variant="outline" className="flex-1" onClick={onAddItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Item
+                </Button>
+                {hasPendingItems && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleSendAllToKitchen}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Enviar Cozinha ({pendingItems.length})
+                  </Button>
+                )}
+                <div className="w-full flex gap-2">
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => setConfirmCancel(true)}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancelar
+                  </Button>
+                  <Button className="flex-1" onClick={() => setConfirmClose(true)}>
+                    <ChefHat className="h-4 w-4 mr-2" />
+                    Fechar Comanda
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Actions */}
-          {isOpen && (
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button variant="outline" className="flex-1" onClick={onAddItem}>
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Item
-              </Button>
-              {hasPendingItems && (
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={handleSendAllToKitchen}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar Cozinha ({pendingItems.length})
-                </Button>
-              )}
-              <div className="w-full flex gap-2">
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={() => setConfirmCancel(true)}
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancelar
-                </Button>
-                <Button className="flex-1" onClick={() => setConfirmClose(true)}>
-                  <ChefHat className="h-4 w-4 mr-2" />
-                  Fechar Comanda
-                </Button>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 
