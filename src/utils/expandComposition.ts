@@ -7,6 +7,8 @@ export interface ExpandedChild {
   quantity: number;
   production_center_id: string | null;
   printer_station: string | null;
+  composition_group_label?: string | null;
+  composition_position?: number | null;
 }
 
 /**
@@ -35,7 +37,7 @@ export async function expandComposition(
   const { data: comps, error } = await supabase
     .from("pdv_product_compositions")
     .select(
-      `id, quantity, child_product:pdv_products!pdv_product_compositions_child_product_id_fkey(id, name, printer_station)`,
+      `id, quantity, order_position, child_product:pdv_products!pdv_product_compositions_child_product_id_fkey(id, name, printer_station)`,
     )
     .eq("parent_product_id", parentProductId)
     .order("order_position", { ascending: true });
@@ -43,6 +45,7 @@ export async function expandComposition(
   if (error || !comps) return [];
 
   const children: ExpandedChild[] = [];
+  let idx = 0;
   for (const c of comps as any[]) {
     const child = c.child_product;
     if (!child) continue;
@@ -53,7 +56,10 @@ export async function expandComposition(
       quantity: Number(c.quantity) * parentQuantity,
       production_center_id: center,
       printer_station: child.printer_station ?? null,
+      composition_group_label: null,
+      composition_position: Number(c.order_position ?? idx),
     });
+    idx++;
   }
   return children;
 }

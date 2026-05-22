@@ -380,7 +380,10 @@ export function usePDVComandas() {
             production_center_id: c.production_center_id,
             parent_item_id: (newItem as ComandaItem).id,
             is_composite_child: true,
+            composition_group_label: c.composition_group_label ?? null,
+            composition_position: c.composition_position ?? null,
           }));
+
           const { error: childError } = await supabase
             .from("pdv_comanda_items")
             .insert(childRows);
@@ -595,17 +598,23 @@ export function usePDVComandas() {
           arr.push(c);
           childrenByParent.set(key, arr);
         }
+        const sortByPosition = (arr: any[]) =>
+          arr.sort((a, b) => {
+            const pa = a.composition_position ?? Number.MAX_SAFE_INTEGER;
+            const pb = b.composition_position ?? Number.MAX_SAFE_INTEGER;
+            return pa - pb;
+          });
         const out: any[] = [];
         for (const p of parents) {
           out.push(p);
           const kids = childrenByParent.get(p.id);
           if (kids) {
-            out.push(...kids);
+            out.push(...sortByPosition(kids));
             childrenByParent.delete(p.id);
           }
         }
         // orphan children (parent not in this group)
-        for (const kids of childrenByParent.values()) out.push(...kids);
+        for (const kids of childrenByParent.values()) out.push(...sortByPosition(kids));
         return out;
       };
 
@@ -643,12 +652,14 @@ export function usePDVComandas() {
               modifiers: r.modifiers,
               parent_product_name: r.parent_product_name,
               is_composite_child: r.is_composite_child,
+              composition_group_label: r.composition_group_label,
             })),
           },
           status: hasPrinter ? "pending" : "failed",
           error_message: hasPrinter ? null : "sem impressora configurada",
         };
       });
+
 
 
       if (jobs.length > 0) {

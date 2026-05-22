@@ -103,9 +103,18 @@ export default function GarcomAdicionarItem() {
   const handleAdd = () => {
     if (!selectedProduct || !comandaId) return;
 
+    // Não duplicar como OBS as opções que já viram filhos de composição
+    // (com produto vinculado). Apenas extras/modificadores sem produto
+    // vinculado continuam como observação no pai.
     const optionsNotes = selectedOptions
-      .map((opt) => `${opt.optionName}: ${opt.items.map((i) => i.itemName).join(", ")}`)
+      .map((opt) => {
+        const visibleItems = opt.items.filter((i) => !i.linkedProductId);
+        if (visibleItems.length === 0) return "";
+        return `${opt.optionName}: ${visibleItems.map((i) => i.itemName).join(", ")}`;
+      })
+      .filter(Boolean)
       .join("; ");
+
     const fullNotes = [optionsNotes, notes.trim()].filter(Boolean).join(" | ");
 
     draft.addItem(comandaId, {

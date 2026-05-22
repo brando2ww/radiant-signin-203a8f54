@@ -10,6 +10,9 @@ import type { ExpandedChild } from "@/utils/expandComposition";
  * - Itens sem `linkedProductId` são ignorados (são apenas modificadores de preço).
  * - `production_center_id` é resolvido a partir do `printer_station` do
  *   produto vinculado (pdv_products.printer_station).
+ * - `composition_group_label` recebe o nome do grupo (ex.: "Etapa 1")
+ *   e `composition_position` mantém a ordem dos grupos e a ordem de
+ *   seleção dentro de cada grupo (usada para ordenar a impressão).
  *
  * Retorna [] se não houver itens vinculados.
  */
@@ -21,14 +24,30 @@ export async function expandSelectedOptions(
   if (!selectedOptions || selectedOptions.length === 0) return [];
   if (!ownerUserId || parentQuantity <= 0) return [];
 
-  // Coleta todos os itens com produto vinculado
-  const linked = selectedOptions.flatMap((opt) =>
-    opt.items.filter((i) => !!i.linkedProductId),
-  );
+  // Coleta itens vinculados preservando a ordem (grupo, item)
+  type LinkedRow = {
+    linkedProductId: string;
+    groupLabel: string;
+    position: number;
+  };
+  const linked: LinkedRow[] = [];
+  selectedOptions.forEach((opt, groupIdx) => {
+    let itemIdx = 0;
+    opt.items.forEach((i) => {
+      if (!i.linkedProductId) return;
+      linked.push({
+        linkedProductId: i.linkedProductId,
+        groupLabel: opt.optionName,
+        // grupo * 1000 + posição na seleção preserva ordem global
+        position: groupIdx * 1000 + itemIdx,
+      });
+      itemIdx++;
+    });
+  });
   if (linked.length === 0) return [];
 
   // Busca nome + printer_station de cada produto vinculado em lote
-  const ids = Array.from(new Set(linked.map((i) => i.linkedProductId as string)));
+  const ids = Array.from(new Set(linked.map((i) => i.linkedProductId)));
   const { data: products, error } = await supabase
     .from("pdv_products")
     .select("id, name, printer_station")
@@ -54,7 +73,7 @@ export async function expandSelectedOptions(
 
   const children: ExpandedChild[] = [];
   for (const item of linked) {
-    const prod: any = byId.get(item.linkedProductId as string);
+    const prod: any = byId.get(item.linkedProductId);
     if (!prod) continue;
     const station: string | null = prod.printer_station ?? null;
     const centerId = station ? stationToCenter.get(station) ?? null : null;
@@ -64,6 +83,8 @@ export async function expandSelectedOptions(
       quantity: parentQuantity,
       production_center_id: centerId,
       printer_station: station,
+      composition_group_label: item.groupLabel,
+      composition_position: item.position,
     });
   }
   return children;
