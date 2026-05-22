@@ -320,19 +320,25 @@ export default function GarcomAdicionarItem() {
 
               {/* Action buttons */}
               <div className="flex gap-2">
-                {hasOptions && (
+                {(hasOptions || hasComposition) && (
                   <Button
                     type="button"
                     variant="outline"
                     className="flex-1 h-12"
                     onClick={() => {
-                      setSelectedOptions([]);
-                      setStep("options");
+                      if (hasOptions) {
+                        setOptionSelections([]);
+                        setStep("options");
+                      } else {
+                        setCompositionSelections([]);
+                        setStep("composition");
+                      }
                     }}
                   >
                     Voltar
                   </Button>
                 )}
+
                 <Button
                   className="flex-1 h-12 text-base active:scale-[0.98] transition-transform"
                   onClick={handleAdd}
