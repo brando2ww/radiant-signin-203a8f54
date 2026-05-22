@@ -693,7 +693,7 @@ export function PaymentDialog({
         cashReceived: selectedMethod === "dinheiro" ? cashReceivedNum : undefined,
         changeAmount: selectedMethod === "dinheiro" ? changeAmount : undefined,
         installments: resolvedMethod === "credito" ? parseInt(installments) : undefined,
-        discountAmount: appliedDiscount ? appliedDiscount.amount : undefined,
+        discountAmount: appliedDiscount ? discountAmount : undefined,
         discountReason: appliedDiscount ? appliedDiscount.reason : undefined,
         discountAuthorizedBy: appliedDiscount ? appliedDiscount.authorizedBy : undefined,
         couponCode: appliedDiscount?.couponCode,
