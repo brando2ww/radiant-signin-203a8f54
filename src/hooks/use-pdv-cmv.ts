@@ -100,11 +100,11 @@ export function usePDVCmv(selectedMonth?: Date) {
 
       let totalCmv = 0;
       (orderItems || []).forEach((item: any) => {
-        if (recipeCostMap[item.product_id]) {
-          const itemCost = recipeCostMap[item.product_id] * Number(item.quantity);
-          totalCmv += itemCost;
+        const unitCost = computeCost(item.product_id, new Set());
+        if (unitCost > 0) {
+          totalCmv += unitCost * Number(item.quantity);
 
-          // Track by ingredient category
+          // Track by ingredient category (apenas parcela de receita direta deste produto)
           const recipe = (recipes || []).filter((r: any) => r.product_id === item.product_id);
           recipe.forEach((r: any) => {
             const cat = r.pdv_ingredients?.category || "Outros";
@@ -113,6 +113,7 @@ export function usePDVCmv(selectedMonth?: Date) {
           });
         }
       });
+
 
       const cmvPercent = totalRevenue > 0 ? (totalCmv / totalRevenue) * 100 : 0;
       const grossMargin = 100 - cmvPercent;
