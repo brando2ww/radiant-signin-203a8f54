@@ -37,78 +37,91 @@ export default function MonthlyReport() {
   const [metric, setMetric] = useState<"revenue" | "orders" | "ticket">("revenue");
 
   const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["report-monthly-v2", visibleUserId, year],
+    queryKey: ["report-monthly-v3", visibleUserId, year],
     enabled: !!visibleUserId,
     queryFn: async (): Promise<MonthRow[]> => {
-      const start = new Date(year - 1, 0, 1).toISOString();
-      const end = new Date(year + 1, 0, 1).toISOString();
+      const startISO = new Date(year - 1, 0, 1).toISOString();
+      const endISO = new Date(year + 1, 0, 1).toISOString();
 
-      // Revenue from pdv_payments (processed_at), items from pdv_comanda_items via orders
-      const [paymentsRes, ordersRes] = await Promise.all([
-        supabase
-          .from("pdv_payments")
-          .select("amount, processed_at, order_id, order:pdv_orders!inner(user_id)")
-          .eq("order.user_id", visibleUserId!)
-          .gte("processed_at", start)
-          .lt("processed_at", end)
-          .not("processed_at", "is", null),
+      // 1) Receita REAL do sistema = pdv_cashier_movements (type=venda)
+      const { fetchCashierSalesByPeriod } = await import("@/lib/reports-data-source");
+      const movements = await fetchCashierSalesByPeriod(visibleUserId!, startISO, endISO);
+
+      // 2) Itens (apenas para "Itens vendidos") — comanda items + delivery items
+      const [pdvOrdersRes, delItemsRes] = await Promise.all([
         supabase
           .from("pdv_orders")
           .select("id, opened_at")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
-          .gte("opened_at", start)
-          .lt("opened_at", end),
+          .gte("opened_at", startISO)
+          .lt("opened_at", endISO),
+        supabase
+          .from("delivery_order_items")
+          .select("quantity, order:delivery_orders!inner(user_id, status, delivered_at, created_at)")
+          .eq("order.user_id", visibleUserId!)
+          .in("order.status", ["entregue", "delivered", "completed"])
+          .gte("order.created_at", startISO)
+          .lt("order.created_at", endISO),
       ]);
-      if (paymentsRes.error) throw paymentsRes.error;
-      const payments = paymentsRes.data || [];
-      const orders = ordersRes.data || [];
-
-      // Items via comandas → orders in window
-      const orderIds = orders.map((o: any) => o.id);
-      const items = orderIds.length
-        ? (await import("@/lib/reports-data-source")).fetchItemsByOrderIds
-          ? await (await import("@/lib/reports-data-source")).fetchItemsByOrderIds(orderIds)
-          : []
+      const pdvOrderIds = (pdvOrdersRes.data || []).map((o: any) => o.id);
+      const orderTime = new Map<string, string>(
+        (pdvOrdersRes.data || []).map((o: any) => [o.id, o.opened_at]),
+      );
+      const pdvItems = pdvOrderIds.length
+        ? await (await import("@/lib/reports-data-source")).fetchItemsByOrderIds(pdvOrderIds)
         : [];
-      const orderTime = new Map<string, string>(orders.map((o: any) => [o.id, o.opened_at]));
 
-      const buckets: Record<string, { revenue: number; orders: Set<string>; items: number }> = {};
-      payments.forEach((p: any) => {
-        const d = new Date(p.processed_at);
+      // Buckets por mês (year-month index)
+      type Bucket = { revenue: number; salesCount: number; items: number };
+      const buckets: Record<string, Bucket> = {};
+      const ensure = (key: string): Bucket => {
+        if (!buckets[key]) buckets[key] = { revenue: 0, salesCount: 0, items: 0 };
+        return buckets[key];
+      };
+
+      movements.forEach((m) => {
+        const d = new Date(m.created_at);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (!buckets[key]) buckets[key] = { revenue: 0, orders: new Set(), items: 0 };
-        buckets[key].revenue += Number(p.amount || 0);
-        if (p.order_id) buckets[key].orders.add(p.order_id);
+        const b = ensure(key);
+        b.revenue += m.amount;
+        b.salesCount += 1;
       });
-      items.forEach((it: any) => {
+
+      pdvItems.forEach((it: any) => {
         const t = orderTime.get(it.order_id);
         if (!t) return;
         const d = new Date(t);
         const key = `${d.getFullYear()}-${d.getMonth()}`;
-        if (!buckets[key]) buckets[key] = { revenue: 0, orders: new Set(), items: 0 };
-        buckets[key].items += it.quantity;
+        ensure(key).items += Number(it.quantity || 0);
+      });
+
+      (delItemsRes.data || []).forEach((it: any) => {
+        const t = it.order?.delivered_at || it.order?.created_at;
+        if (!t) return;
+        const d = new Date(t);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        ensure(key).items += Number(it.quantity || 0);
       });
 
       const list: MonthRow[] = MONTHS.map((label, m) => {
-        const cur = buckets[`${year}-${m}`] || { revenue: 0, orders: 0, items: 0 };
-        const prev = buckets[`${year - 1}-${m}`] || { revenue: 0, orders: 0, items: 0 };
+        const cur = buckets[`${year}-${m}`] || { revenue: 0, salesCount: 0, items: 0 };
+        const prev = buckets[`${year - 1}-${m}`] || { revenue: 0, salesCount: 0, items: 0 };
         return {
           month: m,
           label,
           currentRevenue: cur.revenue,
-          currentOrders: cur.orders,
+          currentOrders: cur.salesCount,
           currentItems: cur.items,
-          currentTicket: cur.orders > 0 ? cur.revenue / cur.orders : 0,
+          currentTicket: cur.salesCount > 0 ? cur.revenue / cur.salesCount : 0,
           prevRevenue: prev.revenue,
-          prevOrders: prev.orders,
+          prevOrders: prev.salesCount,
           yoyRevenue: prev.revenue > 0 ? (cur.revenue - prev.revenue) / prev.revenue : 0,
-          yoyOrders: prev.orders > 0 ? (cur.orders - prev.orders) / prev.orders : 0,
+          yoyOrders: prev.salesCount > 0 ? (cur.salesCount - prev.salesCount) / prev.salesCount : 0,
           ytdCurrent: 0, ytdPrev: 0, ma3: 0,
         };
       });
 
-      // YTD acumulado e média móvel 3
       let accCur = 0, accPrev = 0;
       list.forEach((r, i) => {
         accCur += r.currentRevenue; accPrev += r.prevRevenue;
@@ -120,6 +133,7 @@ export default function MonthlyReport() {
       return list;
     },
   });
+
 
   const totals = useMemo(() => {
     const cur = rows.reduce((s, r) => s + r.currentRevenue, 0);
