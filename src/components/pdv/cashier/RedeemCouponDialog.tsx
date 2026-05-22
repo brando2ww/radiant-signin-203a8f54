@@ -18,10 +18,15 @@ import {
   useLookupCouponForPDV,
   useRedeemCouponForPDV,
   useSearchCouponsForPDV,
+  useLaunchCouponOnComanda,
   type CouponLookupResult,
   type CouponRewardType,
 } from "@/hooks/use-coupon-redemption";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
 
 export interface AppliedCouponReward {
