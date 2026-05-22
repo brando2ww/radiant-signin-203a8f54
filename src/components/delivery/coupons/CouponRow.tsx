@@ -36,6 +36,7 @@ interface Props {
   onCopyLink: () => void;
   onShareQR: () => void;
   onDelete: () => void;
+  onOpenAnalytics: () => void;
 }
 
 export function CouponRow({
@@ -48,6 +49,7 @@ export function CouponRow({
   onCopyLink,
   onShareQR,
   onDelete,
+  onOpenAnalytics,
 }: Props) {
   const now = new Date();
   const validUntil = new Date(coupon.valid_until);
