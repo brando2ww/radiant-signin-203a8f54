@@ -19,6 +19,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContaine
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { previousPeriod, pctDelta, fmtDelta } from "@/lib/report-period";
+import { fetchPaymentsByOrderIds, fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
