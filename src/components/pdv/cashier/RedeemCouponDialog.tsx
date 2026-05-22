@@ -63,12 +63,47 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
   const [searchResults, setSearchResults] = useState<CouponLookupResult[]>([]);
   const [result, setResult] = useState<CouponLookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showLaunch, setShowLaunch] = useState(false);
+  const [selectedComandaId, setSelectedComandaId] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const customerInputRef = useRef<HTMLInputElement>(null);
+  const { visibleUserId } = useEstablishmentId();
 
   const lookup = useLookupCouponForPDV();
   const redeem = useRedeemCouponForPDV();
   const search = useSearchCouponsForPDV();
+  const launch = useLaunchCouponOnComanda();
+
+  const openComandasQ = useQuery({
+    queryKey: ["open-comandas-for-coupon", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return [] as { id: string; label: string }[];
+      const { data, error } = await supabase
+        .from("pdv_comandas")
+        .select("id, comanda_number, customer_name, table_id")
+        .eq("user_id", visibleUserId)
+        .in("status", ["aberta", "aguardando_pagamento", "em_cobranca"])
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      const tableIds = Array.from(new Set((data ?? []).map((c) => c.table_id).filter(Boolean))) as string[];
+      const tableMap = new Map<string, string>();
+      if (tableIds.length) {
+        const { data: tables } = await supabase
+          .from("pdv_tables")
+          .select("id, table_number")
+          .in("id", tableIds);
+        (tables ?? []).forEach((t: any) => tableMap.set(t.id, String(t.table_number)));
+      }
+      return (data ?? []).map((c) => {
+        const tbl = c.table_id ? tableMap.get(c.table_id) : null;
+        const who = c.customer_name?.trim() || `Comanda ${c.comanda_number}`;
+        const where = tbl ? `Mesa ${tbl}` : "Balcão";
+        return { id: c.id, label: `${where} · ${who}` };
+      });
+    },
+    enabled: open && showLaunch && !!visibleUserId,
+  });
 
   useEffect(() => {
     if (open) {
