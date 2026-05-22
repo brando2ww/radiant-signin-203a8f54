@@ -585,8 +585,33 @@ export function usePDVComandas() {
         groups.set(groupKey, arr);
       });
 
+      const sortParentsThenChildren = (rows: any[]): any[] => {
+        const parents = rows.filter((r) => !r.is_composite_child);
+        const children = rows.filter((r) => r.is_composite_child);
+        const childrenByParent = new Map<string, any[]>();
+        for (const c of children) {
+          const key = c.parent_item_id ?? "__orphan__";
+          const arr = childrenByParent.get(key) || [];
+          arr.push(c);
+          childrenByParent.set(key, arr);
+        }
+        const out: any[] = [];
+        for (const p of parents) {
+          out.push(p);
+          const kids = childrenByParent.get(p.id);
+          if (kids) {
+            out.push(...kids);
+            childrenByParent.delete(p.id);
+          }
+        }
+        // orphan children (parent not in this group)
+        for (const kids of childrenByParent.values()) out.push(...kids);
+        return out;
+      };
+
       const jobs = Array.from(groups.values()).map((rows) => {
-        const first = rows[0];
+        const orderedRows = sortParentsThenChildren(rows);
+        const first = orderedRows[0];
         const hasPrinter = !!first.printer_ip;
         return {
           tenant_user_id: ownerId,
@@ -611,7 +636,7 @@ export function usePDVComandas() {
               waiter_name: waiterName,
               ticket_number: first.ticket_number,
               order_number: first.order_number,
-            items: rows.map((r: any) => ({
+            items: orderedRows.map((r: any) => ({
               product_name: r.product_name,
               quantity: r.quantity,
               notes: r.notes,
@@ -624,6 +649,7 @@ export function usePDVComandas() {
           error_message: hasPrinter ? null : "sem impressora configurada",
         };
       });
+
 
       if (jobs.length > 0) {
         const { error: jobsError } = await supabase
