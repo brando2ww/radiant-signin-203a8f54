@@ -14,6 +14,7 @@ import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { eachDay } from "@/lib/report-period";
+import { fetchPaymentsByOrderIds, fetchItemsByOrderIds, aggregateItemsByOrder } from "@/lib/reports-data-source";
 
 interface CancelOrder {
   id: string;
@@ -44,7 +45,7 @@ export default function CancellationsReport() {
       const [cancelledRes, closedRes] = await Promise.all([
         supabase
           .from("pdv_orders")
-          .select("id, order_number, customer_name, total, cancellation_reason, cancelled_at, opened_at, closed_by_user_id, opened_by")
+          .select("id, order_number, customer_name, cancellation_reason, cancelled_at, opened_at, closed_by_user_id, opened_by")
           .eq("user_id", visibleUserId!)
           .eq("status", "cancelada")
           .gte("opened_at", start.toISOString())
@@ -52,17 +53,26 @@ export default function CancellationsReport() {
           .order("cancelled_at", { ascending: false }),
         supabase
           .from("pdv_orders")
-          .select("total")
+          .select("id")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
-          .gte("closed_at", start.toISOString())
-          .lte("closed_at", end.toISOString()),
+          .gte("opened_at", start.toISOString())
+          .lte("opened_at", end.toISOString()),
       ]);
       if (cancelledRes.error) throw cancelledRes.error;
       const cancelled = cancelledRes.data || [];
       const closed = closedRes.data || [];
-      const totalSales = closed.reduce((s, o: any) => s + Number(o.total || 0), 0);
-      const totalClosedOrders = closed.length;
+
+      // Revenue base = closed payments
+      const closedPayments = await fetchPaymentsByOrderIds(closed.map((o: any) => o.id));
+      let totalSales = 0;
+      let totalClosedOrders = 0;
+      closedPayments.forEach((r) => { totalSales += r.total; if (r.total > 0) totalClosedOrders += 1; });
+
+      // Cancelled order value = sum of comanda items (no payments expected)
+      const cancelIds = cancelled.map((o: any) => o.id);
+      const cancelItems = await fetchItemsByOrderIds(cancelIds);
+      const cancelValByOrder = aggregateItemsByOrder(cancelItems);
 
       const userIds = Array.from(new Set(cancelled.map((o: any) => o.closed_by_user_id || o.opened_by).filter(Boolean))) as string[];
       const { data: profiles } = userIds.length
@@ -79,7 +89,7 @@ export default function CancellationsReport() {
           id: o.id,
           order_number: o.order_number,
           customer_name: o.customer_name,
-          total: Number(o.total || 0),
+          total: cancelValByOrder.get(o.id)?.revenue || 0,
           reason: o.cancellation_reason || "Sem motivo",
           cancelled_at: o.cancelled_at,
           opened_at: o.opened_at,
@@ -118,17 +128,13 @@ export default function CancellationsReport() {
       });
 
       // Items in cancelled orders
-      const ids = orders.map((o) => o.id);
-      const { data: items } = ids.length
-        ? await supabase.from("pdv_order_items").select("product_name, quantity, subtotal").in("order_id", ids)
-        : { data: [] as any[] };
       const byItem = new Map<string, { name: string; qty: number; value: number }>();
-      (items || []).forEach((it: any) => {
+      cancelItems.forEach((it) => {
         const k = it.product_name || "—";
         if (!byItem.has(k)) byItem.set(k, { name: k, qty: 0, value: 0 });
         const r = byItem.get(k)!;
-        r.qty += Number(it.quantity || 0);
-        r.value += Number(it.subtotal || 0);
+        r.qty += it.quantity;
+        r.value += it.subtotal;
       });
 
       return {

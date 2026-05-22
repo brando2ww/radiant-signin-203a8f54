@@ -15,6 +15,7 @@ import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { previousPeriod, pctDelta, eachDay } from "@/lib/report-period";
+import { fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted-foreground))", "hsl(var(--destructive))"];
 
@@ -45,16 +46,21 @@ export default function ByCategoryReport() {
       const end = new Date(endDate); end.setHours(23, 59, 59, 999);
       const { prevStart, prevEnd } = previousPeriod(start, end);
 
+      // Fetch closed orders in the period, then aggregate items from pdv_comanda_items
       const fetchItems = async (s: Date, e: Date) => {
-        const { data, error } = await supabase
-          .from("pdv_order_items")
-          .select("order_id, product_id, product_name, quantity, subtotal, order:pdv_orders!inner(user_id, status, closed_at)")
-          .eq("order.user_id", visibleUserId!)
-          .eq("order.status", "fechada")
-          .gte("order.closed_at", s.toISOString())
-          .lte("order.closed_at", e.toISOString());
-        if (error) throw error;
-        return data || [];
+        const { data: orders } = await supabase
+          .from("pdv_orders")
+          .select("id, closed_at, opened_at")
+          .eq("user_id", visibleUserId!)
+          .eq("status", "fechada")
+          .gte("opened_at", s.toISOString())
+          .lte("opened_at", e.toISOString());
+        const orderIds = (orders || []).map((o: any) => o.id);
+        const orderTime = new Map<string, string>(
+          (orders || []).map((o: any) => [o.id, o.closed_at || o.opened_at])
+        );
+        const items = await fetchItemsByOrderIds(orderIds);
+        return items.map((it) => ({ ...it, _time: orderTime.get(it.order_id) || null }));
       };
 
       const [curItems, prevItems] = await Promise.all([fetchItems(start, end), fetchItems(prevStart, prevEnd)]);
@@ -122,8 +128,8 @@ export default function ByCategoryReport() {
       curItems.forEach((it: any) => {
         const cat = catMap.get(it.product_id) || "Sem categoria";
         if (!top5.includes(cat)) return;
-        const closed = (it.order?.closed_at || "").slice(0, 10);
-        const idx = dayIndex.get(closed);
+        const day = (it._time || "").slice(0, 10);
+        const idx = dayIndex.get(day);
         if (idx !== undefined) dailyRows[idx][cat] += Number(it.subtotal || 0);
       });
 

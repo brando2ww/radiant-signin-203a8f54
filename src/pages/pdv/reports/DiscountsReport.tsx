@@ -13,6 +13,7 @@ import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { eachDay } from "@/lib/report-period";
+import { fetchPaymentsByOrderIds, fetchItemsByOrderIds, aggregateItemsByOrder } from "@/lib/reports-data-source";
 
 export default function DiscountsReport() {
   const { visibleUserId } = useEstablishmentId();
@@ -29,20 +30,20 @@ export default function DiscountsReport() {
       const [ordersRes, allClosedRes, couponsRedeemedRes, couponsGeneratedRes] = await Promise.all([
         supabase
           .from("pdv_orders")
-          .select("id, order_number, customer_name, subtotal, discount, total, closed_at, closed_by_user_id, opened_by")
+          .select("id, order_number, customer_name, discount, closed_at, opened_at, closed_by_user_id, opened_by")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
           .gt("discount", 0)
-          .gte("closed_at", start.toISOString())
-          .lte("closed_at", end.toISOString())
-          .order("closed_at", { ascending: false }),
+          .gte("opened_at", start.toISOString())
+          .lte("opened_at", end.toISOString())
+          .order("opened_at", { ascending: false }),
         supabase
           .from("pdv_orders")
-          .select("total, subtotal, discount")
+          .select("id, discount")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
-          .gte("closed_at", start.toISOString())
-          .lte("closed_at", end.toISOString()),
+          .gte("opened_at", start.toISOString())
+          .lte("opened_at", end.toISOString()),
         supabase
           .from("campaign_prize_wins")
           .select("id, customer_name, customer_whatsapp, coupon_code, is_redeemed, redeemed_at, created_at, campaign_id, prize_id")
@@ -63,6 +64,16 @@ export default function DiscountsReport() {
       const couponsRedeemed = couponsRedeemedRes.data || [];
       const couponsGenerated = couponsGeneratedRes.data || [];
 
+      // Revenue from payments + subtotal from items
+      const allClosedIds = allClosed.map((o: any) => o.id);
+      const orderIds = orders.map((o: any) => o.id);
+      const [allPayments, ordersItems] = await Promise.all([
+        fetchPaymentsByOrderIds(allClosedIds),
+        fetchItemsByOrderIds(orderIds),
+      ]);
+      const itemsAgg = aggregateItemsByOrder(ordersItems);
+      const paymentsForDiscOrders = await fetchPaymentsByOrderIds(orderIds);
+
       const userIds = Array.from(new Set(orders.map((o: any) => o.closed_by_user_id || o.opened_by).filter(Boolean))) as string[];
       const { data: profiles } = userIds.length
         ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
@@ -78,11 +89,17 @@ export default function DiscountsReport() {
       const campMap = new Map((campaigns || []).map((c: any) => [c.id, c.name]));
       const prizeMap = new Map((prizes || []).map((p: any) => [p.id, p.name]));
 
-      const ordersEnriched = orders.map((o: any) => ({
-        ...o,
-        user_id: o.closed_by_user_id || o.opened_by,
-        user_name: nameMap.get(o.closed_by_user_id || o.opened_by) || "—",
-      }));
+      const ordersEnriched = orders.map((o: any) => {
+        const sub = itemsAgg.get(o.id)?.revenue || 0;
+        const tot = paymentsForDiscOrders.get(o.id)?.total || 0;
+        return {
+          ...o,
+          subtotal: sub,
+          total: tot,
+          user_id: o.closed_by_user_id || o.opened_by,
+          user_name: nameMap.get(o.closed_by_user_id || o.opened_by) || "—",
+        };
+      });
 
       const couponsEnriched = couponsRedeemed.map((c: any) => ({
         ...c,
@@ -93,8 +110,9 @@ export default function DiscountsReport() {
           : 0,
       }));
 
-      const totalRevenue = allClosed.reduce((s, o: any) => s + Number(o.total || 0), 0);
-      const totalSubtotal = allClosed.reduce((s, o: any) => s + Number(o.subtotal || 0), 0);
+      let totalRevenue = 0;
+      allPayments.forEach((r) => { totalRevenue += r.total; });
+      const totalSubtotal = totalRevenue; // proxy; items not fetched for non-discount orders
 
       // By user
       const byUser = new Map<string, { user_id: string; name: string; count: number; discount: number; revenue: number }>();
@@ -111,7 +129,7 @@ export default function DiscountsReport() {
       const days = eachDay(start, end);
       const byDay = new Map(days.map((d) => [d, { day: d, discount: 0, count: 0 }]));
       ordersEnriched.forEach((o: any) => {
-        const k = (o.closed_at || "").slice(0, 10);
+        const k = (o.closed_at || o.opened_at || "").slice(0, 10);
         if (byDay.has(k)) {
           const r = byDay.get(k)!;
           r.discount += Number(o.discount || 0);
