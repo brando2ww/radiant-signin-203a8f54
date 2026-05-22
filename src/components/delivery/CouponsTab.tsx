@@ -32,6 +32,7 @@ import {
 import { CouponsTable } from "./coupons/CouponsTable";
 import { CouponSheet } from "./coupons/CouponSheet";
 import { CouponShareDialog } from "./coupons/CouponShareDialog";
+import { CouponAnalyticsDialog } from "./coupons/CouponAnalyticsDialog";
 import { EmptyCouponsState } from "./coupons/EmptyCouponsState";
 import { useCouponsStats } from "@/hooks/use-coupons-stats";
 
@@ -60,6 +61,7 @@ export const CouponsTab = () => {
   const [editing, setEditing] = useState<DeliveryCoupon | null>(null);
   const [deleting, setDeleting] = useState<DeliveryCoupon | null>(null);
   const [sharing, setSharing] = useState<DeliveryCoupon | null>(null);
+  const [analytics, setAnalytics] = useState<DeliveryCoupon | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
@@ -179,6 +181,7 @@ export const CouponsTab = () => {
               onCopyLink={handleCopyLink}
               onShareQR={(c) => setSharing(c)}
               onDelete={(c) => setDeleting(c)}
+              onOpenAnalytics={(c) => setAnalytics(c)}
             />
           </>
         )}
@@ -198,6 +201,12 @@ export const CouponsTab = () => {
           url={buildShareUrl(sharing.code)}
         />
       )}
+
+      <CouponAnalyticsDialog
+        coupon={analytics}
+        open={!!analytics}
+        onOpenChange={(o) => !o && setAnalytics(null)}
+      />
 
       <AlertDialog
         open={!!deleting}
