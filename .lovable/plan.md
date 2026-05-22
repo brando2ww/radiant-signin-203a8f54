@@ -1,17 +1,21 @@
-Plano para o modal de análise de uso de cupons:
+Plano para a seção "Relatórios de Entregadores" abaixo da grade existente em `/pdv/delivery/entregadores`:
 
-1. Tornar a célula "Uso" do `CouponRow.tsx` clicável (sem expansão inline) — abre um novo dialog `CouponAnalyticsDialog`. Mantém o resto da linha como hoje, mas remove (ou desativa) a expansão para evitar redundância.
+1. Criar `src/hooks/use-driver-reports.ts` — busca em `delivery_orders` os pedidos com `driver_id` no período selecionado (padrão últimos 30 dias) e devolve agregações por entregador:
+   - entregas concluídas, em rota e canceladas
+   - faturamento gerado (R$), soma de taxas de entrega (R$)
+   - ticket médio
+   - tempo médio de rota (de `driver_assigned_at` → `delivered_at`)
+   - distribuição de entregas por dia (timeline)
+   - distribuição por dia da semana e por faixa de horário (Madrugada/Manhã/Tarde/Noite)
+   - ranking de melhor entregador (por volume e por tempo)
 
-2. Criar `src/components/delivery/coupons/CouponAnalyticsDialog.tsx` — modal grande com visão de gestor sobre o cupom selecionado:
-   - Cabeçalho: código, % / valor de desconto, validade, status.
-   - KPIs: usos totais, % do limite, economia gerada (R$), ticket médio dos pedidos com cupom, faturamento gerado, primeiro/último uso.
-   - Gráfico de uso por dia (últimos 30 dias) — usa `recharts` (BarChart).
-   - Distribuição por dia da semana e por faixa de horário (manhã/tarde/noite/madrugada).
-   - Top 5 clientes que mais usaram.
-   - Tabela com o histórico recente (reutilizando dados de `useCouponUsageHistory`).
+2. Criar `src/components/delivery/drivers/DriverReports.tsx` com:
+   - Filtro de período (7/30/90 dias) e seletor opcional de entregador.
+   - KPIs globais: total de entregas, taxa de cancelamento, faturamento, taxas de entrega arrecadadas, tempo médio de rota, melhor entregador.
+   - Gráfico de barras "Entregas por dia" (recharts).
+   - Gráfico "Entregas por dia da semana" e barras horizontais "Por faixa de horário".
+   - Tabela "Desempenho por entregador" com: nome, entregas, em rota, canceladas, faturamento, taxas, ticket médio, tempo médio.
 
-3. Estender o hook ou criar `use-coupon-analytics.ts` que reaproveita a query existente em `delivery_orders` (filtrando por `coupon_code` + `user_id`) e devolve as séries agregadas no client (datas, dia da semana, faixa horária, clientes).
+3. Renderizar `<DriverReports />` em `Drivers.tsx` abaixo do grid de cards (com `mt-10` e um título de seção).
 
-4. Garantir uso de `formatBRL`, locale `ptBR` para datas e cores semânticas do design system (sem cores customizadas).
-
-Resultado: clicar na coluna "Uso" do cupom abre um modal de análise rico, sem alterar lógica de negócio.
+4. Tudo usando tokens do design system, `formatBRL`, `date-fns` com `ptBR`, sem cores customizadas.
