@@ -684,6 +684,7 @@ export function PaymentDialog({
         discountAmount: appliedDiscount ? appliedDiscount.amount : undefined,
         discountReason: appliedDiscount ? appliedDiscount.reason : undefined,
         discountAuthorizedBy: appliedDiscount ? appliedDiscount.authorizedBy : undefined,
+        couponCode: appliedDiscount?.couponCode,
       };
 
       // Modo "Por produto": pagamento parcial dos itens selecionados
@@ -1268,6 +1269,20 @@ export function PaymentDialog({
                         Remover
                       </Button>
                     </div>
+                  )}
+
+                  {/* Botão Resgatar cupom — sempre visível (exceto quando já tem desconto aplicado) */}
+                  {discountStage !== "applied" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-center gap-2 border-primary/40 hover:bg-primary/5"
+                      onClick={() => setCouponsDialogOpen(true)}
+                    >
+                      <Ticket className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Resgatar cupom de avaliação</span>
+                      <kbd className="text-[10px] opacity-60 bg-muted px-1.5 py-0.5 rounded ml-1">F7</kbd>
+                    </Button>
                   )}
 
                   {/* === ETAPA: idle / typing — escolha de tipo + campo === */}
