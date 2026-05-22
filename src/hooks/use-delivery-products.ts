@@ -134,12 +134,40 @@ export const useReorderProducts = () => {
       const firstError = results.find((r) => r.error);
       if (firstError?.error) throw firstError.error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delivery-products"] });
-      queryClient.invalidateQueries({ queryKey: ["public-menu"] });
+    onMutate: async (items) => {
+      // Optimistic: apply new order_position to every cached delivery-products list.
+      await queryClient.cancelQueries({ queryKey: ["delivery-products"] });
+      const orderMap = new Map(items.map((i) => [i.id, i.order_position]));
+      const snapshots: Array<[readonly unknown[], unknown]> = [];
+      const caches = queryClient.getQueriesData<DeliveryProduct[]>({
+        queryKey: ["delivery-products"],
+      });
+      for (const [key, list] of caches) {
+        if (!list) continue;
+        snapshots.push([key, list]);
+        const next = list
+          .map((p) =>
+            orderMap.has(p.id)
+              ? { ...p, order_position: orderMap.get(p.id)! }
+              : p
+          )
+          .sort((a, b) => (a.order_position ?? 0) - (b.order_position ?? 0));
+        queryClient.setQueryData(key, next);
+      }
+      return { snapshots };
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _items, ctx) => {
+      if (ctx?.snapshots) {
+        for (const [key, data] of ctx.snapshots) {
+          queryClient.setQueryData(key, data);
+        }
+      }
       toast.error("Erro ao reordenar produtos: " + error.message);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["delivery-products"] });
+      queryClient.invalidateQueries({ queryKey: ["public-products"] });
+      queryClient.invalidateQueries({ queryKey: ["public-menu"] });
     },
   });
 };
