@@ -1,17 +1,20 @@
-## Plano
+## Problema identificado
+A rota `/pdv/caixa` existe e não apresentou erro JavaScript no preview. O replay mostra o layout carregando, mas a área do caixa fica presa nos skeletons enquanto o indicador do caixa alterna entre `Fechado` e `...`. Isso indica que a tela está bloqueada por estado de carregamento/refetch, não por rota inexistente.
 
-1. **Eliminar loops de renderização na página de Caixa**
-   - Ajustar o painel `SalonQueuePanel` para não depender de arrays instáveis em `useEffect`.
-   - Usar uma assinatura estável do primeiro pedido de delivery em vez de `delivery.all` inteiro.
+## Plano de correção
+1. **Ajustar o loading do caixa**
+   - Em `use-pdv-cashier`, incluir o carregamento de `useEstablishmentId` no `isLoading` principal.
+   - Evitar que a tela fique travada quando não há sessão ativa de caixa; nesse caso, a tela deve renderizar normalmente com `Caixa fechado` e botão `Abrir Caixa`.
 
-2. **Estabilizar callbacks usados no atalho F5 da Frente de Caixa**
-   - Evitar que o `useEffect` de teclado em `Cashier.tsx` seja reinstalado desnecessariamente a cada render por causa de funções/sets recriados.
-   - Manter o comportamento atual dos atalhos, sem alterar regras de negócio.
+2. **Separar loading de sessão e movimentos**
+   - Tratar `movements` como carregando somente quando existe `activeSession`.
+   - Se o caixa estiver fechado, não esperar movimentos de uma sessão inexistente.
 
-3. **Corrigir dependência incompleta no `PaymentDialog`**
-   - Incluir `pendingSubtotal` nas dependências do efeito que fecha o pagamento sem itens, evitando estado stale e avisos/fechamentos incorretos.
-   - Não mexer novamente no cálculo de desconto já corrigido.
+3. **Reduzir refetch visual no cabeçalho**
+   - Ajustar `CashierStatus` para não causar percepção de tela “sumindo” durante refetchs curtos.
+   - Manter o último estado útil ou mostrar `Fechado` quando não houver sessão, em vez de alternar agressivamente para `...`.
 
-4. **Validar após implementação**
-   - Verificar os logs/runtime errors.
-   - Abrir `/pdv/caixa` na prévia; se a sessão do navegador cair no login, confirmar que a rota está redirecionando por autenticação e orientar login na prévia.
+4. **Validar no preview**
+   - Abrir `/pdv/caixa` novamente.
+   - Confirmar se aparece a tela completa com `Movimentações`, painel de ações, fila do salão e botão `Abrir Caixa` quando não houver sessão ativa.
+   - Se a sessão do preview estiver expirada, confirmar apenas o redirecionamento correto para login.

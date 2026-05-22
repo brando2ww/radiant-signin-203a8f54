@@ -12,7 +12,7 @@ export function CashierStatus() {
     ? activeSession.opening_balance + activeSession.total_cash - activeSession.total_withdrawals
     : 0;
 
-  if (isLoading) {
+  if (isLoading && activeSession === undefined) {
     return (
       <Button variant="ghost" size="sm" className="flex items-center gap-2 h-10 px-3">
         <span className="text-sm font-medium animate-pulse">...</span>

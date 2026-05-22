@@ -443,7 +443,10 @@ export function usePDVCashier() {
     },
   });
 
-  const isLoading = isLoadingSession || isLoadingMovements;
+  const isLoading =
+    isLoadingEstablishment ||
+    isLoadingSession ||
+    (!!activeSession?.id && isLoadingMovements);
 
   return {
     activeSession,
