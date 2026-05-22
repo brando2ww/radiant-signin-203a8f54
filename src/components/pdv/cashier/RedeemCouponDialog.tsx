@@ -67,7 +67,10 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
 
   useEffect(() => {
     if (open) {
+      setTab("code");
       setCode("");
+      setCustomerTerm("");
+      setSearchResults([]);
       setResult(null);
       setError(null);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -79,6 +82,19 @@ export function RedeemCouponDialog({ open, onOpenChange, mode, onApply }: Redeem
     setResult(null);
     lookup.mutate(code, {
       onSuccess: (r) => setResult(r),
+      onError: (e: Error) => setError(e.message),
+    });
+  };
+
+  const handleSearchCustomer = () => {
+    setError(null);
+    setResult(null);
+    setSearchResults([]);
+    search.mutate(customerTerm, {
+      onSuccess: (list) => {
+        setSearchResults(list);
+        if (list.length === 0) setError("Nenhum cupom encontrado para este cliente");
+      },
       onError: (e: Error) => setError(e.message),
     });
   };
