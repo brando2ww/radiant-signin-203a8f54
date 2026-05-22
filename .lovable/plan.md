@@ -1,29 +1,50 @@
-## Problema
+## Objetivo
 
-Em `/pdv/relatorios?tab=monthly`, na tabela "Detalhe por mês", as colunas **YoY Receita** e **YoY Pedidos** ficam todas com `—` (e o card "vs 2025" mostra `0.0%`). 
+Em `/pdv/financeiro/demonstrativo-caixa` (aba Mensal), ao clicar numa linha do "Resumo Diário", abrir uma página dedicada do dia com KPIs e análises detalhadas para o gestor.
 
-## Causa
+## Mudanças
 
-O cálculo de YoY divide pelo valor do ano anterior:
-- `yoyRevenue = (cur - prev) / prev` (só calcula se `prev > 0`)
-- A UI exibe `—` sempre que `prevRevenue === 0` ou `prevOrders === 0`.
+### 1. Nova rota e página `DayStatement`
 
-Como o estabelecimento só tem dados a partir de 2026, **2025 não tem nenhum movimento** — daí todas as linhas caem no fallback "—". Não há bug de query, é falta de base comparativa.
+Criar `src/pages/pdv/financial/DayStatement.tsx`, rota `"/pdv/financeiro/demonstrativo-caixa/dia/:date"` (parâmetro `date` no formato `yyyy-MM-dd`). Registrar em `src/pages/PDV.tsx` no mesmo padrão de `CashierStatement` (`RoleRoute` com `canAccess={canAccess}`).
 
-## Correção (UX)
+A página reutiliza `usePDVCashierStatement("daily", parsedDate)` — sem mudar o hook — e mostra:
 
-Editar apenas `src/pages/pdv/reports/MonthlyReport.tsx` para mostrar informação útil em vez de `—` quando não há ano-anterior:
+**Cabeçalho**
+- Botão "Voltar" → `navigate(-1)`.
+- Título `Demonstrativo do dia DD/MM/YYYY` (`date-fns` + `ptBR`).
+- Botão "Exportar CSV" do dia.
 
-1. Nas células de YoY Receita / YoY Pedidos da tabela:
-   - Se `prev > 0` → manter `+12.3%` / `-4.5%` como hoje.
-   - Se `prev === 0` e `cur > 0` → exibir `Novo` (badge sutil em `text-muted-foreground`), indicando que é mês inédito sem comparativo.
-   - Se `prev === 0` e `cur === 0` → manter `—`.
-2. No KPI "vs {year-1}" (topo): se `totalPrev === 0`, trocar o valor de `0.0%` por `Sem dados de {year - 1}` em `text-sm text-muted-foreground` (mesmo card).
-3. Adicionar uma nota discreta abaixo do cabeçalho da tabela quando **todo** o ano anterior estiver zerado:
-   `Sem histórico de {year - 1} para comparação.` (texto pequeno, `text-xs text-muted-foreground`).
+**KPIs principais (grid md:grid-cols-4 lg:grid-cols-6)**
+- Total Vendido, Dinheiro, Cartão (Crédito+Débito), PIX, Voucher (se `total_voucher`), Sangrias.
+- Linha extra: Nº de pedidos (= contagem de movements com `type='venda'`), Ticket médio (`totalSales / nº pedidos`), Diferença total (`Σ balance_difference`), Sessões (abertas/fechadas count), % Dinheiro / % Cartão / % PIX sobre total.
 
-Sem mudanças em query, exportação XLSX, gráficos ou outros relatórios.
+**Vendas por hora** (Card)
+- BarChart `recharts` agrupando movements `type='venda'` por hora (`new Date(m.created_at).getHours()`), eixo X 0–23.
+
+**Composição por método** (Card)
+- BarChart horizontal somando Dinheiro, Crédito, Débito, PIX, Voucher, Delivery Online; mostra valor e % do total.
+
+**Sessões do dia** (Card)
+- Reutilizar a `SessionsTable` existente (exportar do `CashierStatement.tsx` ou copiar uma versão equivalente local — para evitar acoplamento, **mover** `SessionsTable` para `src/components/pdv/financial/SessionsTable.tsx` e importar nos dois lugares).
+
+**Sangrias e suprimentos** (Card)
+- Tabela com hora, tipo (sangria/suprimento/despesa), valor, descrição, operador (`profiles.full_name` via lookup pelos `processed_by` distintos).
+
+**Diferenças de fechamento** (Card, só se houver sessões com `balance_difference != null` e |diff| > 0)
+- Lista sessões com diferença, status (sem diferença / sobra / falta), justificativa completa, risco (`riskBadge`).
+
+### 2. Tornar a linha do "Resumo Diário" clicável
+
+Em `src/pages/pdv/financial/CashierStatement.tsx`, na tabela `Resumo Diário`:
+- Adicionar `className="cursor-pointer hover:bg-muted/50"` na `TableRow`.
+- `onClick={() => navigate(\`/pdv/financeiro/demonstrativo-caixa/dia/${day.date}\`)}` (importar `useNavigate`).
+
+Sem alterações em hooks, queries, schema ou outros relatórios.
 
 ## Validação
 
-Recarregar `/pdv/relatorios?tab=monthly` no ano 2026: meses com receita (Abr, Mai) passam a mostrar `Novo` nas colunas YoY; meses zerados continuam com `—`; o KPI no topo passa a mostrar "Sem dados de 2025". Trocar para 2025 ou anos com base histórica volta a exibir percentuais reais.
+1. Abrir Mensal, clicar numa linha do Resumo Diário → navega para `/pdv/financeiro/demonstrativo-caixa/dia/2026-05-05` (ou data clicada).
+2. Conferir KPIs, vendas por hora, composição por método, sessões, sangrias, diferenças com justificativas.
+3. Botão Voltar retorna ao mensal mantendo o mês selecionado (o estado é do histórico do browser).
+4. Botão Exportar gera CSV do dia.
