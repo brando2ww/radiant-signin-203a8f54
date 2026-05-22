@@ -51,7 +51,7 @@ export default function ByUserReport() {
       const end = new Date(endDate); end.setHours(23, 59, 59, 999);
       const { data: orders, error } = await supabase
         .from("pdv_orders")
-        .select("id, status, total, discount, opened_by, closed_by_user_id, opened_at, closed_at")
+        .select("id, status, discount, opened_by, closed_by_user_id, opened_at, closed_at")
         .eq("user_id", visibleUserId!)
         .gte("opened_at", start.toISOString())
         .lte("opened_at", end.toISOString());
@@ -67,14 +67,14 @@ export default function ByUserReport() {
       const nameMap = new Map((profiles || []).map((p: any) => [p.id, p.full_name || "—"]));
 
       const orderIds = (orders || []).map((o: any) => o.id);
-      const [{ data: items }, { data: payments }] = await Promise.all([
-        orderIds.length ? supabase.from("pdv_order_items").select("order_id, quantity").in("order_id", orderIds) : Promise.resolve({ data: [] as any[] }),
-        orderIds.length ? supabase.from("pdv_payments").select("order_id, payment_method, amount, processed_by").in("order_id", orderIds) : Promise.resolve({ data: [] as any[] }),
+      const [items, paymentsByOrder] = await Promise.all([
+        fetchItemsByOrderIds(orderIds),
+        fetchPaymentsByOrderIds(orderIds),
       ]);
 
       const itemsByOrder = new Map<string, number>();
-      (items || []).forEach((it: any) => {
-        itemsByOrder.set(it.order_id, (itemsByOrder.get(it.order_id) || 0) + Number(it.quantity || 0));
+      items.forEach((it) => {
+        itemsByOrder.set(it.order_id, (itemsByOrder.get(it.order_id) || 0) + it.quantity);
       });
 
       const orderToUser = new Map<string, string>();
@@ -83,13 +83,16 @@ export default function ByUserReport() {
         if (uid) orderToUser.set(o.id, uid);
       });
 
+      // Pagamentos por usuário (forma de pagamento)
       const paymentsByUser = new Map<string, Map<string, number>>();
-      (payments || []).forEach((p: any) => {
-        const uid = orderToUser.get(p.order_id);
+      paymentsByOrder.forEach((rev, orderId) => {
+        const uid = orderToUser.get(orderId);
         if (!uid) return;
         if (!paymentsByUser.has(uid)) paymentsByUser.set(uid, new Map());
         const m = paymentsByUser.get(uid)!;
-        m.set(p.payment_method, (m.get(p.payment_method) || 0) + Number(p.amount || 0));
+        Object.entries(rev.byMethod).forEach(([method, amt]) => {
+          m.set(method, (m.get(method) || 0) + amt);
+        });
       });
 
       const grouped = new Map<string, UserRow>();
@@ -108,19 +111,21 @@ export default function ByUserReport() {
         const closedUid = o.closed_by_user_id || o.opened_by;
         if (!closedUid) return;
         const row = ensure(closedUid);
+        const payRev = paymentsByOrder.get(o.id);
+        const rev = payRev?.total || 0;
         if (o.status === "fechada") {
-          row.ordersClosed += 1;
-          row.revenue += Number(o.total || 0);
+          if (rev > 0) row.ordersClosed += 1;
+          row.revenue += rev;
           row.discount += Number(o.discount || 0);
           row.items += itemsByOrder.get(o.id) || 0;
-          const t = o.closed_at || o.opened_at;
+          const t = payRev?.paidAt || o.closed_at || o.opened_at;
           if (t) {
             if (!row.firstSale || t < row.firstSale) row.firstSale = t;
             if (!row.lastSale || t > row.lastSale) row.lastSale = t;
           }
         } else if (o.status === "cancelada") {
           row.cancelled += 1;
-          row.cancelledValue += Number(o.total || 0);
+          row.cancelledValue += rev;
         }
       });
 
