@@ -194,6 +194,8 @@ export const useUpdateOrderStatus = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-delivery-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-order-stats"] });
       toast.success("Status do pedido atualizado!");
     },
     onError: (error: Error) => {
