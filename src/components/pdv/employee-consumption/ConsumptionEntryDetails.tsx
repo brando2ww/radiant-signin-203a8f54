@@ -17,11 +17,15 @@ export function ConsumptionEntryDetails({ entry }: Props) {
   }, [users, entry.operator_id]);
 
   const items = Array.isArray(entry.items) ? entry.items : [];
-  const subtotal = Number(entry.subtotal || 0) || items.reduce(
+  const itemsSum = items.reduce(
     (s, i: any) => s + Number(i.unit_price || 0) * Number(i.quantity || 0),
     0,
   );
+  const subtotal = Number(entry.subtotal || 0) || itemsSum;
   const discount = Number(entry.discount || 0);
+  const historicalAdjustment = itemsSum - subtotal;
+  const hasHistoricalAdjustment =
+    discount === 0 && itemsSum > 0 && Math.abs(historicalAdjustment) > 0.01;
 
   return (
     <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-3 text-sm">
