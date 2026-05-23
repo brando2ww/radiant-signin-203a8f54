@@ -43,6 +43,7 @@ import {
 export default function EmployeeConsumptionAdmin() {
   const { employees, isLoading, remove } = useAuthorizedEmployees();
   const { entries, payments } = useEmployeeConsumption();
+  const { users } = usePDVUsers();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -51,6 +52,7 @@ export default function EmployeeConsumptionAdmin() {
   const [editing, setEditing] = useState<AuthorizedEmployee | null>(null);
   const [statementEmp, setStatementEmp] = useState<AuthorizedEmployee | null>(null);
   const [toDelete, setToDelete] = useState<AuthorizedEmployee | null>(null);
+  const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({});
 
   const filtered = useMemo(() => {
     return employees.filter((e) => {
