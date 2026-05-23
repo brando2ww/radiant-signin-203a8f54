@@ -1380,25 +1380,27 @@ export function PaymentDialog({
                           </span>
                         </span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                        onClick={() => {
-                          setAppliedDiscount(null);
-                          setDiscountStage("idle");
-                          setDiscountTypeChosen(null);
-                          setDiscountValue("");
-                          setDiscountPassword("");
-                          setDiscountAuthorized(false);
-                          setDiscountAuthorizedBy("");
-                          setDiscountReason("");
-                          setDiscountTypeChangedWarning(false);
-                        }}
-                      >
-                        Remover
-                      </Button>
+                      {!isDelivery && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            setAppliedDiscount(null);
+                            setDiscountStage("idle");
+                            setDiscountTypeChosen(null);
+                            setDiscountValue("");
+                            setDiscountPassword("");
+                            setDiscountAuthorized(false);
+                            setDiscountAuthorizedBy("");
+                            setDiscountReason("");
+                            setDiscountTypeChangedWarning(false);
+                          }}
+                        >
+                          Remover
+                        </Button>
+                      )}
                     </div>
                   )}
 
