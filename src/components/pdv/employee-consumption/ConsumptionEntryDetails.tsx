@@ -17,11 +17,15 @@ export function ConsumptionEntryDetails({ entry }: Props) {
   }, [users, entry.operator_id]);
 
   const items = Array.isArray(entry.items) ? entry.items : [];
-  const subtotal = Number(entry.subtotal || 0) || items.reduce(
+  const itemsSum = items.reduce(
     (s, i: any) => s + Number(i.unit_price || 0) * Number(i.quantity || 0),
     0,
   );
+  const subtotal = Number(entry.subtotal || 0) || itemsSum;
   const discount = Number(entry.discount || 0);
+  const historicalAdjustment = itemsSum - subtotal;
+  const hasHistoricalAdjustment =
+    discount === 0 && itemsSum > 0 && Math.abs(historicalAdjustment) > 0.01;
 
   return (
     <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-3 text-sm">
@@ -64,6 +68,15 @@ export function ConsumptionEntryDetails({ entry }: Props) {
               {entry.coupon_code ? ` (cupom ${entry.coupon_code})` : ""}
             </span>
             <span>− {formatBRL(discount)}</span>
+          </div>
+        )}
+        {hasHistoricalAdjustment && (
+          <div className="flex justify-between text-xs text-muted-foreground italic">
+            <span>Ajuste (preço histórico)</span>
+            <span>
+              {historicalAdjustment > 0 ? "− " : "+ "}
+              {formatBRL(Math.abs(historicalAdjustment))}
+            </span>
           </div>
         )}
         <div className="flex justify-between font-semibold">

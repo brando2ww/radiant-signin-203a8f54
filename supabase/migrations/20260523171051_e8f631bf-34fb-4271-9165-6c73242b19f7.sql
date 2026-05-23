@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.pdv_register_employee_consumption(uuid, jsonb, text);
