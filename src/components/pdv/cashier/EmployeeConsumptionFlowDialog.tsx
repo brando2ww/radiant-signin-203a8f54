@@ -137,11 +137,16 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
   const handleConfirmConsume = () => {
     if (!employee || cart.length === 0) return;
     if (overLimit && justification.trim().length < 5) return;
+    if (discountReasonInvalid) return;
     registerConsumption(
       {
         employee_id: employee.id,
         items: cart,
         justification: overLimit ? justification.trim() : undefined,
+        discount: effectiveDiscount,
+        discount_reason: effectiveDiscount > 0 ? discountReason.trim() : undefined,
+        coupon_code: couponCode.trim() || undefined,
+        notes: notes.trim() || undefined,
       },
       { onSuccess: () => onOpenChange(false) },
     );
