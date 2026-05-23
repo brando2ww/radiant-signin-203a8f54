@@ -1,33 +1,31 @@
-## Problema
+## Causa
 
-No `PaymentDialog`, ao cobrar um pedido de delivery, o `subtotal` é montado a partir de `deliveryOrder.subtotal` (soma dos itens), mas o **desconto** (`deliveryOrder.discount`) e o **cupom** (`deliveryOrder.coupon_code`) aplicados pelo cliente no checkout do delivery são ignorados. Resultado: o total cobrado no caixa fica maior do que o total real do pedido (ex.: subtotal R$ 59,00 sem refletir o cupom, enquanto o pedido vale R$ 51,92).
+Ao cobrar um delivery em "Várias formas", o caixa registra apenas a primeira linha (R$ 30 em dinheiro) e silenciosamente perde as demais (R$ 21,92 em PIX). O Postgres rejeita o INSERT da segunda linha com:
+
+```
+duplicate key value violates unique constraint "uq_pdv_cashier_movements_delivery_order"
+```
+
+Existe um índice único parcial em `pdv_cashier_movements(delivery_order_id) WHERE delivery_order_id IS NOT NULL` que limita a 1 movimento por pedido — incompatível com pagamento em múltiplas formas. A primeira chamada (`registerDeliveryPayment`) também marca `cashier_confirmed_at`, então a proteção contra cobrança duplicada já existe no `delivery_orders`; o índice único no movimento é redundante e prejudicial.
 
 ## Solução
 
-Pré-aplicar automaticamente o desconto do pedido (incluindo o `coupon_code`, quando houver) como um `appliedDiscount` no `PaymentDialog`, exatamente como se o operador tivesse resgatado o cupom manualmente. Assim o resumo, a barra de desconto, o total e o registro no caixa (`couponCode`, `discountAmount`, `discountReason`) ficam consistentes com o pedido.
+1. **Migration** — remover o índice único e manter apenas o índice não-único para performance.
+   ```sql
+   DROP INDEX IF EXISTS public.uq_pdv_cashier_movements_delivery_order;
+   ```
+   O índice `idx_pdv_cashier_movements_delivery_order` permanece.
 
-### Mudanças (apenas `src/components/pdv/cashier/PaymentDialog.tsx`)
+2. **Tornar o erro visível no front** — `registerDeliveryExtraPaymentLine` hoje não tem `onError`, então qualquer falha (RLS, FK, constraint) some no console e a UI segue para a tela de sucesso. Adicionar `onError` com `toast.error` ao `registerExtra` em `src/hooks/use-pdv-delivery-checkout.ts`, igual ao `register`.
 
-1. **Pré-aplicar desconto do delivery ao abrir**
-   - No `useEffect` que reage a `open + isDelivery`, se `deliveryOrder.discount > 0`:
-     - Setar `appliedDiscount = { type: "value", amount: deliveryOrder.discount, rawValue: String(deliveryOrder.discount), authorizedBy: "Pedido delivery", reason: deliveryOrder.coupon_code ? "Cupom aplicado no pedido" : "Desconto do pedido", couponCode: deliveryOrder.coupon_code ?? undefined }`.
-     - `setDiscountStage("applied")`.
-   - Limpar esse estado ao fechar (já existe reset geral; garantir que cobre esse caso).
+3. **Validação** — após a migration, refazer um pagamento split (dinheiro + PIX) em um pedido de delivery e conferir no console do banco que ambos os movimentos foram inseridos e somam o total do pedido.
 
-2. **Bloquear edição do desconto em delivery**
-   - Quando `isDelivery && appliedDiscount?.couponCode` (ou `discount > 0` vindo do pedido), esconder os botões "Resgatar cupom", "Desconto em %", "Desconto em R$" e o botão de remover desconto — o desconto do pedido é imutável no caixa. Mostrar apenas a linha "Desconto aplicado: -R$ X,XX (cupom XYZ)".
+### Sem mudanças
 
-3. **Garantir taxa de serviço desligada por padrão**
-   - Já está coberto via `serviceFeeAllowed`; manter como está (delivery não cobra 10%).
+- Lógica de UI do `PaymentDialog` (split funciona corretamente).
+- `SalonQueuePanel`, hooks de relatório, fluxo de cupom.
 
-4. **Telemetria/registro**
-   - O `handleSubmit` já envia `discountAmount`, `discountReason`, `couponCode` quando `appliedDiscount` existe — nenhuma mudança extra necessária.
+### Arquivos
 
-### Fora do escopo
-
-- Não mexer em `delivery_fee` (já está embutido no `deliveryOrder.total` exibido em outras telas; aqui o caixa cobra subtotal − desconto e a taxa de entrega é tratada à parte no fluxo do entregador). Se você quiser também incluir `delivery_fee` no total cobrado, me avise que ajusto o plano.
-- Sem mudanças no hook `use-pdv-delivery-checkout` nem no `SalonQueuePanel`.
-
-### Arquivos afetados
-
-- `src/components/pdv/cashier/PaymentDialog.tsx`
+- nova migration SQL drop do índice único
+- `src/hooks/use-pdv-delivery-checkout.ts` (adicionar `onError` em `registerExtra`)
