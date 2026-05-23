@@ -324,12 +324,16 @@ export const useDeleteProduct = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("delivery_products")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Sem permissão para excluir este produto");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-products"] });
@@ -340,3 +344,4 @@ export const useDeleteProduct = () => {
     },
   });
 };
+
