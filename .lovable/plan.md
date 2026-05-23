@@ -1,50 +1,39 @@
-## Objetivo
+## Diagnóstico
 
-Na coluna **Concluídos** de `/pdv/delivery/pedidos`, além do seletor de data, exibir a **sessão de caixa** correspondente (aberta ou histórica) com o **operador** que a abriu, e filtrar os pedidos concluídos pela sessão selecionada — não apenas pela data.
+Mesa 03 está travada como **ocupada** com 2 comandas mostrando R$ 118 mesmo após o caixa ser fechado:
 
-## Mudanças
+- Order `1db3b38d…` continua `aberto`
+- Ambas as comandas (`db1149f8…`, `fd520408…`) já estão `cancelada`
+- Itens não têm `paid_quantity` (foram canceladas, não pagas)
+- `pdv_tables.current_order_id` ainda aponta para o pedido
 
-### 1. Banco — rastrear operador na sessão (migration)
+**Causa raiz**: a função `cancelComandaMutation` em `src/hooks/use-pdv-comandas.ts` (linhas 283–302) apenas marca uma comanda como `cancelada` via UPDATE direto. Ela **não** verifica se sobraram outras comandas abertas no mesmo pedido. Quando a última é cancelada, o `pdv_orders.status` continua `aberto` e a mesa nunca é liberada.
 
-Hoje `pdv_cashier_sessions` só guarda `user_id` (dono do estabelecimento). Adicionar:
+(O fluxo de transferência já trata isso corretamente — veja o final de `pdv_transfer_items` no banco. Cancelamento direto e fechamento por pagamento não tratam.)
 
-- `opened_by_user_id uuid` — quem abriu (auth.uid no momento da abertura)
-- `closed_by_user_id uuid` — quem fechou
-- Default backfill: `opened_by_user_id = user_id` para sessões existentes
+## Plano
 
-### 2. Hook `usePDVCashier`
+### 1. Migration — trigger de auto-liberação + cleanup
 
-- No `openCashier.mutate`, gravar `opened_by_user_id: user.id`
-- No `closeCashier.mutate`, gravar `closed_by_user_id: user.id`
+Criar um trigger `AFTER UPDATE` em `pdv_comandas` que, quando o status muda para um terminal (`cancelada` ou `fechada`):
+- Verifica se ainda há comandas no mesmo `order_id` com status em (`aberta`, `aguardando_pagamento`, `em_cobranca`)
+- Se não houver:
+  - `pdv_orders.status = 'fechado'`, `closed_at = now()`
+  - Libera a mesa: `pdv_tables.current_order_id = NULL`, `status = 'livre'` quando `current_order_id = order_id`
 
-### 3. Novo hook `useCashierSessions(date)`
+E um **cleanup one-shot** no mesmo migration: roda a mesma lógica sobre todos os pedidos hoje órfãos (todas as comandas terminais mas order/mesa ainda abertas), resolvendo a Mesa 03 imediatamente.
 
-Retorna todas as sessões (abertas + fechadas) do `visibleUserId` cujo intervalo `[opened_at, closed_at ?? now]` intersecta o dia selecionado, com join no `profiles` para pegar `full_name` do operador.
+### 2. Frontend — invalidar queries no cancel
 
-### 4. Componente `OrdersKanban` — coluna Concluídos
-
-- Trocar o input de data por um bloco compacto com:
-  - `Input type="date"` (mantém o seletor)
-  - `Select` listando sessões daquele dia: rótulo `"Caixa #N — Operador (HH:mm → HH:mm | aberto)"`
-  - Linha informativa abaixo: "Operador: Fulano · Abertura R$ X · Status: aberto/fechado"
-- Filtro `completed`:
-  - Se uma sessão estiver selecionada → `o.cashier_session_id === selectedSessionId`
-  - Senão → comportamento atual (por data)
-- Em cada card concluído, mostrar badge pequeno com o operador da sessão do pedido
-
-### 5. Sem mudanças visuais nas demais colunas
-
-Apenas a card lateral "Concluídos" muda. Manter cores e tokens do design system.
+Em `cancelComandaMutation.onSuccess`, invalidar também `["pdv-orders"]` e `["pdv-tables"]` para refletir a liberação imediatamente.
 
 ## Arquivos
 
-- `supabase/migrations/<timestamp>_cashier_session_operator.sql` (novo)
-- `src/hooks/use-pdv-cashier.ts` (gravar opened_by/closed_by)
-- `src/hooks/use-cashier-sessions-by-day.ts` (novo)
-- `src/components/delivery/OrdersKanban.tsx` (UI da coluna + filtro)
+- `supabase/migrations/<timestamp>_auto_release_table_on_comanda_terminal.sql` (novo)
+- `src/hooks/use-pdv-comandas.ts` (invalidações extras)
 
 ## Detalhes técnicos
 
-- O FK lógico já existe: `delivery_orders.cashier_session_id` é setado por `delivery_assign_order_ticket` quando o pedido entra em `preparing`.
-- `profiles.id = auth.users.id`, então `profiles.full_name` resolve o nome do operador via `opened_by_user_id`.
-- O Select de sessões usa `'none'` internamente para "Todas (por data)", convertido para `null` no estado.
+- Trigger nomeado `pdv_comandas_auto_close_order` em `AFTER UPDATE OF status`, executando função `SECURITY DEFINER` com `search_path = public`.
+- Considera terminais: `cancelada`, `fechada`. Considera abertas (mantém ordem aberta): `aberta`, `aguardando_pagamento`, `em_cobranca`.
+- Cleanup escrito de forma idempotente (não toca pedidos já fechados).
