@@ -141,6 +141,7 @@ export function usePDVCashier() {
         .from("pdv_cashier_sessions")
         .insert({
           user_id: visibleUserId,
+          opened_by_user_id: user.id,
           opening_balance: openingBalance,
           total_sales: 0,
           total_cash: 0,
