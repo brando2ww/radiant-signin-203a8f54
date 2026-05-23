@@ -498,7 +498,27 @@ export function PaymentDialog({
       setDiscountAuthorizedBy("");
       setDiscountReason("");
       setDiscountTypeChangedWarning(false);
-      setAppliedDiscount(null);
+      // Para delivery, pré-aplicar o desconto/cupom já registrado no pedido,
+      // para que reflita no subtotal e no total cobrado no caixa.
+      if (isDelivery && deliveryOrder && Number(deliveryOrder.discount || 0) > 0) {
+        const amt = Number(deliveryOrder.discount || 0);
+        const sub = Number(deliveryOrder.subtotal || 0);
+        const pct = sub > 0 ? (amt / sub) * 100 : 0;
+        setAppliedDiscount({
+          type: "value",
+          rawValue: amt.toFixed(2),
+          amount: amt,
+          percent: pct,
+          reason: deliveryOrder.coupon_code
+            ? `Cupom aplicado no pedido (${deliveryOrder.coupon_code})`
+            : "Desconto do pedido de delivery",
+          authorizedBy: "Pedido delivery",
+          couponCode: deliveryOrder.coupon_code ?? undefined,
+        });
+        setDiscountStage("applied");
+      } else {
+        setAppliedDiscount(null);
+      }
       setServiceFeeEnabled(true);
       setShowSuccess(false);
       setSuccessData(null);
