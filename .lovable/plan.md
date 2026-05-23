@@ -1,19 +1,50 @@
-## Problema
+## Objetivo
 
-No `PaymentDialog`, o conteúdo está sendo cortado em duas situações:
-1. A coluna direita do resumo do pedido corta valores (ex.: "R$ 59,00" aparece como "R").
-2. O `border`/focus ring de inputs encostados na borda esquerda dos painéis de scroll fica cortado pelo container `overflow-y-auto pr-1` (não tem padding à esquerda).
+Na coluna **Concluídos** de `/pdv/delivery/pedidos`, além do seletor de data, exibir a **sessão de caixa** correspondente (aberta ou histórica) com o **operador** que a abriu, e filtrar os pedidos concluídos pela sessão selecionada — não apenas pela data.
 
-## Solução (apenas `src/components/pdv/cashier/PaymentDialog.tsx`)
+## Mudanças
 
-1. Trocar a largura máxima do `DialogContent` principal (linha 1189) de `sm:max-w-3xl` para `sm:max-w-5xl`, dando ~256px a mais para acomodar as duas colunas sem corte.
-2. Trocar `pr-1` por `px-1` nos dois containers `overflow-y-auto` (linhas 1206 e 1795) para que o focus ring/border dos inputs nas extremidades não seja clipado.
+### 1. Banco — rastrear operador na sessão (migration)
 
-### Fora do escopo
+Hoje `pdv_cashier_sessions` só guarda `user_id` (dono do estabelecimento). Adicionar:
 
-- Sem mudanças no `DialogContent` de sucesso (`sm:max-w-md` na linha 1052) — ele é mais simples e não tem o problema.
-- Sem mudanças nos dialogs aninhados (cupom, cartão, cancelar).
+- `opened_by_user_id uuid` — quem abriu (auth.uid no momento da abertura)
+- `closed_by_user_id uuid` — quem fechou
+- Default backfill: `opened_by_user_id = user_id` para sessões existentes
 
-### Arquivos
+### 2. Hook `usePDVCashier`
 
-- `src/components/pdv/cashier/PaymentDialog.tsx`
+- No `openCashier.mutate`, gravar `opened_by_user_id: user.id`
+- No `closeCashier.mutate`, gravar `closed_by_user_id: user.id`
+
+### 3. Novo hook `useCashierSessions(date)`
+
+Retorna todas as sessões (abertas + fechadas) do `visibleUserId` cujo intervalo `[opened_at, closed_at ?? now]` intersecta o dia selecionado, com join no `profiles` para pegar `full_name` do operador.
+
+### 4. Componente `OrdersKanban` — coluna Concluídos
+
+- Trocar o input de data por um bloco compacto com:
+  - `Input type="date"` (mantém o seletor)
+  - `Select` listando sessões daquele dia: rótulo `"Caixa #N — Operador (HH:mm → HH:mm | aberto)"`
+  - Linha informativa abaixo: "Operador: Fulano · Abertura R$ X · Status: aberto/fechado"
+- Filtro `completed`:
+  - Se uma sessão estiver selecionada → `o.cashier_session_id === selectedSessionId`
+  - Senão → comportamento atual (por data)
+- Em cada card concluído, mostrar badge pequeno com o operador da sessão do pedido
+
+### 5. Sem mudanças visuais nas demais colunas
+
+Apenas a card lateral "Concluídos" muda. Manter cores e tokens do design system.
+
+## Arquivos
+
+- `supabase/migrations/<timestamp>_cashier_session_operator.sql` (novo)
+- `src/hooks/use-pdv-cashier.ts` (gravar opened_by/closed_by)
+- `src/hooks/use-cashier-sessions-by-day.ts` (novo)
+- `src/components/delivery/OrdersKanban.tsx` (UI da coluna + filtro)
+
+## Detalhes técnicos
+
+- O FK lógico já existe: `delivery_orders.cashier_session_id` é setado por `delivery_assign_order_ticket` quando o pedido entra em `preparing`.
+- `profiles.id = auth.users.id`, então `profiles.full_name` resolve o nome do operador via `opened_by_user_id`.
+- O Select de sessões usa `'none'` internamente para "Todas (por data)", convertido para `null` no estado.
