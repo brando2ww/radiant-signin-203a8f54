@@ -580,11 +580,13 @@ export function SalonQueuePanel({
         </div>
       )}
 
-      <DeliveryPaymentDialog
-        order={paymentOrder}
+      <PaymentDialog
+        deliveryOrder={paymentOrder}
         open={!!paymentOrder}
         onOpenChange={(o) => !o && setPaymentOrder(null)}
+        drawerBalance={drawerBalance}
       />
+
     </div>
   );
 }
