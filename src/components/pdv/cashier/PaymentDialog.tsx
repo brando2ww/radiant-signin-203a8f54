@@ -376,9 +376,13 @@ export function PaymentDialog({
   // Subtotal efetivo usado para descontos/taxas/total
   const subtotal = isByProduct ? selectedSubtotal : allSubtotal;
 
-  const title = isTablePayment
-    ? formatTableLabel(table?.table_number)
-    : `Comanda #${comanda?.comanda_number}`;
+  const title = isDelivery
+    ? `${isPickupDelivery ? "Retirada" : "Delivery"} #${deliveryOrder!.order_number}${
+        deliveryOrder!.customer_name ? ` · ${deliveryOrder!.customer_name}` : ""
+      }`
+    : isTablePayment
+      ? formatTableLabel(table?.table_number)
+      : `Comanda #${comanda?.comanda_number}`;
 
   // Calculate discount — só conta no total quando confirmado/aplicado
   // Durante "typing"/"confirming" o operador ainda não decidiu, então o total fica intacto.
