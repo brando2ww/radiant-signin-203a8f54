@@ -333,7 +333,38 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
                   ))}
                 </div>
               </ScrollArea>
+              <div className="space-y-2 border rounded-md p-3">
+                <p className="text-xs font-medium text-muted-foreground">Desconto / Cupom (opcional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Cupom"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                  />
+                  <CurrencyInput
+                    value={discount}
+                    onChange={(v) => setDiscount(Number(v) || 0)}
+                  />
+                </div>
+                {effectiveDiscount > 0 && (
+                  <Input
+                    placeholder="Motivo do desconto (mín. 3 caracteres)"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                  />
+                )}
+                <Textarea
+                  placeholder="Observação (opcional)"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                />
+              </div>
               <div className="border rounded-md p-3 space-y-1 text-sm">
+                <div className="flex justify-between text-muted-foreground"><span>Subtotal:</span><span>{formatBRL(cartSubtotal)}</span></div>
+                {effectiveDiscount > 0 && (
+                  <div className="flex justify-between text-muted-foreground"><span>Desconto:</span><span>− {formatBRL(effectiveDiscount)}</span></div>
+                )}
                 <div className="flex justify-between"><span>Total consumo:</span><span className="font-medium">{formatBRL(cartTotal)}</span></div>
                 <div className="flex justify-between text-muted-foreground"><span>Saldo atual:</span><span>{formatBRL(currentDebt)}</span></div>
                 <div className="flex justify-between font-semibold"><span>Novo saldo:</span><span className={overLimit ? "text-destructive" : ""}>{formatBRL(newDebt)}</span></div>
@@ -359,7 +390,7 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
               )}
               <Button
                 onClick={handleConfirmConsume}
-                disabled={cart.length === 0 || isRegistering || (overLimit && justification.trim().length < 5)}
+                disabled={cart.length === 0 || isRegistering || (overLimit && justification.trim().length < 5) || discountReasonInvalid}
               >
                 Confirmar lançamento
               </Button>
