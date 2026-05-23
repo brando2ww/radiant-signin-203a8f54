@@ -283,6 +283,28 @@ export function PaymentDialog({
   // Determine payment context
   const isTablePayment = !!table;
 
+  // Itens sintéticos para um pedido de delivery, mapeados na forma de ComandaItem
+  const deliverySyntheticItems: ComandaItem[] = isDelivery
+    ? (deliveryOrder!.delivery_order_items ?? []).map((it) => ({
+        id: it.id,
+        comanda_id: deliveryOrder!.id,
+        product_id: it.product_id,
+        product_name: it.product_name,
+        quantity: Number(it.quantity || 0),
+        unit_price: Number(it.unit_price || 0),
+        subtotal: Number(it.subtotal || 0),
+        notes: it.notes ?? null,
+        modifiers: null,
+        kitchen_status: "entregue" as any,
+        sent_to_kitchen_at: null,
+        ready_at: null,
+        created_at: deliveryOrder!.created_at,
+        production_center_id: it.production_center_id ?? null,
+        paid_quantity: 0,
+        charging_session_id: null,
+      }))
+    : [];
+
   // Itens vivos via React Query (atualizam em tempo real após add/remove)
   const liveItemsForPayment: ComandaItem[] = isTablePayment
     ? liveComandaItems.filter((it) => tableComandas.some((c) => c.id === it.comanda_id))
@@ -291,9 +313,11 @@ export function PaymentDialog({
       : [];
 
   // Fallback para Balcão (comanda virtual sem registro real em pdv_comandas)
-  const rawDisplayItems: ComandaItem[] = liveItemsForPayment.length > 0
-    ? liveItemsForPayment
-    : (isTablePayment ? tableItems : items);
+  const rawDisplayItems: ComandaItem[] = isDelivery
+    ? deliverySyntheticItems
+    : liveItemsForPayment.length > 0
+      ? liveItemsForPayment
+      : (isTablePayment ? tableItems : items);
   const displayItems: ComandaItem[] = rawDisplayItems.filter(
     (it) => !optimisticallyRemoved.has(it.id),
   );
@@ -302,21 +326,24 @@ export function PaymentDialog({
     (sum, it) => sum + Number(it.subtotal || 0),
     0,
   );
-  const fullSubtotal = liveItemsForPayment.length > 0
-    ? liveSubtotal
-    : (isTablePayment
-        ? tableComandas.reduce((sum, c) => sum + c.subtotal, 0)
-        : (comanda?.subtotal || 0));
+  const fullSubtotal = isDelivery
+    ? Number(deliveryOrder!.subtotal || liveSubtotal || 0)
+    : liveItemsForPayment.length > 0
+      ? liveSubtotal
+      : (isTablePayment
+          ? tableComandas.reduce((sum, c) => sum + c.subtotal, 0)
+          : (comanda?.subtotal || 0));
 
   useEffect(() => {
     if (!open || showSuccess) return;
-    const hasPaymentContext = !!comanda || !!table;
+    const hasPaymentContext = !!comanda || !!table || isDelivery;
     if (!hasPaymentContext || displayItems.length === 0 || (fullSubtotal <= 0 && pendingSubtotal <= 0)) {
       toast.warning("Não há itens pendentes para cobrar.");
       onOpenChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, showSuccess, comanda, table, displayItems.length, fullSubtotal, onOpenChange]);
+  }, [open, showSuccess, comanda, table, isDelivery, displayItems.length, fullSubtotal, onOpenChange]);
+
 
   // Pagamento parcial (modo by-product) é suportado apenas quando temos itens reais persistidos.
   const supportsByProduct = liveItemsForPayment.length > 0 && !isTablePayment;
