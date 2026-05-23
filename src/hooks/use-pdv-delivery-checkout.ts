@@ -121,8 +121,64 @@ export function usePDVDeliveryCheckout() {
     },
   });
 
+  // Linha adicional de pagamento (split de várias formas) — apenas registra
+  // o movimento de caixa, sem reatualizar o pedido (que já foi marcado pela
+  // primeira chamada de `registerDeliveryPayment`).
+  const registerExtra = useMutation({
+    mutationFn: async ({
+      orderId,
+      amount,
+      paymentMethod,
+      source = "delivery",
+    }: {
+      orderId: string;
+      amount: number;
+      paymentMethod: PaymentMethod;
+      source?: "delivery" | "delivery_online";
+    }) => {
+      if (!user?.id) throw new Error("Usuário não autenticado");
+      const ownerId = visibleUserId || user.id;
+      const method = normalize(paymentMethod);
+
+      const { data: session, error: sErr } = await supabase
+        .from("pdv_cashier_sessions")
+        .select("id")
+        .eq("user_id", ownerId)
+        .is("closed_at", null)
+        .maybeSingle();
+      if (sErr) throw sErr;
+      if (!session) throw new Error("Caixa fechado — abra um caixa para registrar pedidos.");
+
+      const { data: existingOrder } = await supabase
+        .from("delivery_orders")
+        .select("order_number, customer_name")
+        .eq("id", orderId)
+        .maybeSingle();
+      const description = existingOrder
+        ? `Delivery #${existingOrder.order_number} — ${existingOrder.customer_name} (forma adicional)`
+        : `Delivery (forma adicional)`;
+
+      const { error: mErr } = await supabase.from("pdv_cashier_movements").insert({
+        cashier_session_id: session.id,
+        type: "venda",
+        amount,
+        payment_method: method,
+        description,
+        source,
+        delivery_order_id: orderId,
+      } as any);
+      if (mErr) throw mErr;
+
+      await supabase.rpc("pdv_recompute_session_totals", { p_session_id: session.id });
+      return { ok: true };
+    },
+    onSuccess: () => invalidate(),
+  });
+
   return {
     registerDeliveryPayment: register.mutateAsync,
-    isRegistering: register.isPending,
+    registerDeliveryExtraPaymentLine: registerExtra.mutateAsync,
+    isRegistering: register.isPending || registerExtra.isPending,
   };
 }
+
