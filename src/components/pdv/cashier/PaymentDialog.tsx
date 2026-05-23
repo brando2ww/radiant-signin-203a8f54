@@ -1307,30 +1307,32 @@ export function PaymentDialog({
                 </ScrollArea>
 
                 {/* Add item / multi-comanda hint */}
-                <div className="mt-3 pt-3 border-t">
-                  {isTablePayment && tableComandas.length > 1 ? (
-                    <p className="text-xs text-muted-foreground italic">
-                      Para adicionar itens, acesse a comanda específica.
-                    </p>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setProductSearch("");
-                        setSelectedProductId(null);
-                        setAddItemQty("1");
-                        setAddItemNotes("");
-                        setAddItemDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar item
-                    </Button>
-                  )}
-                </div>
+                {!isDelivery && (
+                  <div className="mt-3 pt-3 border-t">
+                    {isTablePayment && tableComandas.length > 1 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        Para adicionar itens, acesse a comanda específica.
+                      </p>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setProductSearch("");
+                          setSelectedProductId(null);
+                          setAddItemQty("1");
+                          setAddItemNotes("");
+                          setAddItemDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar item
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
