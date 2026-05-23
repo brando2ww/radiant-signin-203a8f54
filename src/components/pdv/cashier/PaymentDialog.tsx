@@ -136,6 +136,7 @@ export function PaymentDialog({
   table,
   tableComandas = [],
   tableItems = [],
+  deliveryOrder = null,
   splitByComanda = false,
   onSuccess,
   drawerBalance = 0,
