@@ -1186,7 +1186,7 @@ export function PaymentDialog({
       <DialogContent
         ref={paymentContentRef}
         hideOverlay
-        className="sm:max-w-3xl max-h-[90vh] overflow-hidden"
+        className="sm:max-w-5xl max-h-[90vh] overflow-hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
