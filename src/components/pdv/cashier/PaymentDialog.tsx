@@ -54,6 +54,9 @@ import { cn } from "@/lib/utils";
 import { Comanda, ComandaItem, usePDVComandas } from "@/hooks/use-pdv-comandas";
 import { PDVTable } from "@/hooks/use-pdv-tables";
 import { usePDVPayments, PaymentMethod } from "@/hooks/use-pdv-payments";
+import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
+import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
+import { Bike, Store } from "lucide-react";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Textarea } from "@/components/ui/textarea";
@@ -93,6 +96,8 @@ interface PaymentDialogProps {
   table?: PDVTable | null;
   tableComandas?: Comanda[];
   tableItems?: ComandaItem[];
+  /** Pedido de delivery — usa o mesmo modal para registrar pagamento. */
+  deliveryOrder?: DeliveryOrder | null;
   /** Quando true, força split com 1 linha por comanda nominal (cobrar tudo da mesa) */
   splitByComanda?: boolean;
   onSuccess?: () => void;
@@ -131,6 +136,7 @@ export function PaymentDialog({
   table,
   tableComandas = [],
   tableItems = [],
+  deliveryOrder = null,
   splitByComanda = false,
   onSuccess,
   drawerBalance = 0,
@@ -212,6 +218,10 @@ export function PaymentDialog({
   const { settings } = usePDVSettings();
   
   const { registerCreditSale, isRegisteringCreditSale } = useEmployeeConsumption();
+  const { registerDeliveryPayment, registerDeliveryExtraPaymentLine, isRegistering: isRegisteringDelivery } = usePDVDeliveryCheckout();
+
+  const isDelivery = !!deliveryOrder && !comanda && !table;
+  const isPickupDelivery = isDelivery && (deliveryOrder as any)?.order_type === "pickup";
 
   // Configuração global da taxa de serviço (vem das pdv_settings)
   const serviceFeeAllowed = settings?.enable_service_fee ?? true;
@@ -273,6 +283,28 @@ export function PaymentDialog({
   // Determine payment context
   const isTablePayment = !!table;
 
+  // Itens sintéticos para um pedido de delivery, mapeados na forma de ComandaItem
+  const deliverySyntheticItems: ComandaItem[] = isDelivery
+    ? (deliveryOrder!.delivery_order_items ?? []).map((it) => ({
+        id: it.id,
+        comanda_id: deliveryOrder!.id,
+        product_id: it.product_id,
+        product_name: it.product_name,
+        quantity: Number(it.quantity || 0),
+        unit_price: Number(it.unit_price || 0),
+        subtotal: Number(it.subtotal || 0),
+        notes: it.notes ?? null,
+        modifiers: null,
+        kitchen_status: "entregue" as any,
+        sent_to_kitchen_at: null,
+        ready_at: null,
+        created_at: deliveryOrder!.created_at,
+        production_center_id: it.production_center_id ?? null,
+        paid_quantity: 0,
+        charging_session_id: null,
+      }))
+    : [];
+
   // Itens vivos via React Query (atualizam em tempo real após add/remove)
   const liveItemsForPayment: ComandaItem[] = isTablePayment
     ? liveComandaItems.filter((it) => tableComandas.some((c) => c.id === it.comanda_id))
@@ -281,9 +313,11 @@ export function PaymentDialog({
       : [];
 
   // Fallback para Balcão (comanda virtual sem registro real em pdv_comandas)
-  const rawDisplayItems: ComandaItem[] = liveItemsForPayment.length > 0
-    ? liveItemsForPayment
-    : (isTablePayment ? tableItems : items);
+  const rawDisplayItems: ComandaItem[] = isDelivery
+    ? deliverySyntheticItems
+    : liveItemsForPayment.length > 0
+      ? liveItemsForPayment
+      : (isTablePayment ? tableItems : items);
   const displayItems: ComandaItem[] = rawDisplayItems.filter(
     (it) => !optimisticallyRemoved.has(it.id),
   );
@@ -292,21 +326,24 @@ export function PaymentDialog({
     (sum, it) => sum + Number(it.subtotal || 0),
     0,
   );
-  const fullSubtotal = liveItemsForPayment.length > 0
-    ? liveSubtotal
-    : (isTablePayment
-        ? tableComandas.reduce((sum, c) => sum + c.subtotal, 0)
-        : (comanda?.subtotal || 0));
+  const fullSubtotal = isDelivery
+    ? Number(deliveryOrder!.subtotal || liveSubtotal || 0)
+    : liveItemsForPayment.length > 0
+      ? liveSubtotal
+      : (isTablePayment
+          ? tableComandas.reduce((sum, c) => sum + c.subtotal, 0)
+          : (comanda?.subtotal || 0));
 
   useEffect(() => {
     if (!open || showSuccess) return;
-    const hasPaymentContext = !!comanda || !!table;
+    const hasPaymentContext = !!comanda || !!table || isDelivery;
     if (!hasPaymentContext || displayItems.length === 0 || (fullSubtotal <= 0 && pendingSubtotal <= 0)) {
       toast.warning("Não há itens pendentes para cobrar.");
       onOpenChange(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, showSuccess, comanda, table, displayItems.length, fullSubtotal, onOpenChange]);
+  }, [open, showSuccess, comanda, table, isDelivery, displayItems.length, fullSubtotal, onOpenChange]);
+
 
   // Pagamento parcial (modo by-product) é suportado apenas quando temos itens reais persistidos.
   const supportsByProduct = liveItemsForPayment.length > 0 && !isTablePayment;
@@ -339,9 +376,13 @@ export function PaymentDialog({
   // Subtotal efetivo usado para descontos/taxas/total
   const subtotal = isByProduct ? selectedSubtotal : allSubtotal;
 
-  const title = isTablePayment
-    ? formatTableLabel(table?.table_number)
-    : `Comanda #${comanda?.comanda_number}`;
+  const title = isDelivery
+    ? `${isPickupDelivery ? "Retirada" : "Delivery"} #${deliveryOrder!.order_number}${
+        deliveryOrder!.customer_name ? ` · ${deliveryOrder!.customer_name}` : ""
+      }`
+    : isTablePayment
+      ? formatTableLabel(table?.table_number)
+      : `Comanda #${comanda?.comanda_number}`;
 
   // Calculate discount — só conta no total quando confirmado/aplicado
   // Durante "typing"/"confirming" o operador ainda não decidiu, então o total fica intacto.
@@ -432,8 +473,20 @@ export function PaymentDialog({
   // Reset state + adquirir lock em_cobranca quando o dialog abre.
   useEffect(() => {
     if (open) {
-      setSelectedMethod("dinheiro");
-      setCardType("credito");
+      // Pré-seleciona método de pagamento a partir do pedido de delivery
+      let preMethod: PaymentMethod = "dinheiro";
+      let preCardType: CardType = "credito";
+      if (isDelivery && deliveryOrder) {
+        const m = (deliveryOrder.payment_method || "").toLowerCase();
+        if (m === "pix") preMethod = "pix";
+        else if (m === "credit" || m === "credito" || m === "cartao_credito") { preMethod = "cartao"; preCardType = "credito"; }
+        else if (m === "debit" || m === "debito" || m === "cartao_debito") { preMethod = "cartao"; preCardType = "debito"; }
+        else if (m === "vale_refeicao" || m.includes("vale")) preMethod = "vale_refeicao";
+        else preMethod = "dinheiro";
+      }
+      setSelectedMethod(preMethod);
+      setCardType(preCardType);
+      
       setCashReceived("");
       setInstallments("1");
       setCreditAuthOpen(false);
@@ -688,6 +741,49 @@ export function PaymentDialog({
           ? (cardType === "debito" ? "debito" : "credito")
           : (selectedMethod as PaymentMethod);
 
+      // Branch: pagamento de pedido de delivery
+      if (isDelivery && deliveryOrder) {
+        const isSplitForms = splitEnabled && splitPayments.length > 0;
+        if (isSplitForms) {
+          const lines = splitPayments.map((line) => ({
+            method: (line.method === "cartao"
+              ? (line.cardType === "debito" ? "debito" : "credito")
+              : line.method) as PaymentMethod,
+            amount: parseFloat(line.amount) || 0,
+          }));
+          const [first, ...rest] = lines;
+          await registerDeliveryPayment({
+            orderId: deliveryOrder.id,
+            amount: first.amount,
+            paymentMethod: first.method,
+            cashReceived: first.method === "dinheiro" ? first.amount : undefined,
+            source: "delivery",
+          });
+          for (const ln of rest) {
+            await registerDeliveryExtraPaymentLine({
+              orderId: deliveryOrder.id,
+              amount: ln.amount,
+              paymentMethod: ln.method,
+              source: "delivery",
+            });
+          }
+        } else {
+          await registerDeliveryPayment({
+            orderId: deliveryOrder.id,
+            amount: finalAmount,
+            paymentMethod: resolvedMethod,
+            cashReceived: selectedMethod === "dinheiro" ? cashReceivedNum : undefined,
+            changeAmount: selectedMethod === "dinheiro" ? changeAmount : undefined,
+            source: "delivery",
+          });
+        }
+        paymentDoneRef.current = true;
+        setSuccessData({ change: changeAmount });
+        setShowSuccess(true);
+        return;
+      }
+
+
       const paymentData = {
         amount: finalAmount,
         paymentMethod: resolvedMethod,
@@ -926,7 +1022,7 @@ export function PaymentDialog({
     }
   };
 
-  const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine || isRegisteringCreditSale;
+  const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine || isRegisteringCreditSale || isRegisteringDelivery;
 
   if (showSuccess) {
     const nfceEnabled = !!settings?.nfe_enable_nfce;
@@ -1171,7 +1267,7 @@ export function PaymentDialog({
                             <span className="font-medium tabular-nums shrink-0">
                               {formatCurrency(isByProduct && isSelected ? selectedQty * Number(item.unit_price || 0) : item.subtotal)}
                             </span>
-                            {!isByProduct && (canRemove ? (
+                            {!isByProduct && !isDelivery && (canRemove ? (
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -1211,30 +1307,32 @@ export function PaymentDialog({
                 </ScrollArea>
 
                 {/* Add item / multi-comanda hint */}
-                <div className="mt-3 pt-3 border-t">
-                  {isTablePayment && tableComandas.length > 1 ? (
-                    <p className="text-xs text-muted-foreground italic">
-                      Para adicionar itens, acesse a comanda específica.
-                    </p>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        setProductSearch("");
-                        setSelectedProductId(null);
-                        setAddItemQty("1");
-                        setAddItemNotes("");
-                        setAddItemDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar item
-                    </Button>
-                  )}
-                </div>
+                {!isDelivery && (
+                  <div className="mt-3 pt-3 border-t">
+                    {isTablePayment && tableComandas.length > 1 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        Para adicionar itens, acesse a comanda específica.
+                      </p>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setProductSearch("");
+                          setSelectedProductId(null);
+                          setAddItemQty("1");
+                          setAddItemNotes("");
+                          setAddItemDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar item
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

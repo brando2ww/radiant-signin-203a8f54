@@ -30,7 +30,8 @@ import { usePDVComandas, Comanda, ComandaItem } from "@/hooks/use-pdv-comandas";
 import { usePDVTables, PDVTable } from "@/hooks/use-pdv-tables";
 import { SalonQueueCard } from "./SalonQueueCard";
 import { DeliveryQueueCard } from "./DeliveryQueueCard";
-import { DeliveryPaymentDialog } from "./DeliveryPaymentDialog";
+import { PaymentDialog } from "./PaymentDialog";
+import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
 import { type DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
@@ -92,6 +93,7 @@ export function SalonQueuePanel({
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
   const updateOrderStatus = useUpdateOrderStatus();
+  const { drawerBalance } = usePDVCashier();
   const { data: deliverySettings } = useDeliverySettings();
   const overdueMinutes = deliverySettings?.payment_overdue_minutes ?? 30;
 
@@ -579,11 +581,13 @@ export function SalonQueuePanel({
         </div>
       )}
 
-      <DeliveryPaymentDialog
-        order={paymentOrder}
+      <PaymentDialog
+        deliveryOrder={paymentOrder}
         open={!!paymentOrder}
         onOpenChange={(o) => !o && setPaymentOrder(null)}
+        drawerBalance={drawerBalance}
       />
+
     </div>
   );
 }
