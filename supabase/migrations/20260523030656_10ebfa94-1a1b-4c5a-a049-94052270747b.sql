@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS public.uq_pdv_cashier_movements_delivery_order;
