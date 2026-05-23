@@ -3218,6 +3218,7 @@ export type Database = {
           balance_difference: number | null
           cash_difference: number | null
           closed_at: string | null
+          closed_by_user_id: string | null
           closing_balance: number | null
           closing_justification: string | null
           closing_status: string | null
@@ -3249,6 +3250,7 @@ export type Database = {
           notes: string | null
           online_delivery_difference: number | null
           opened_at: string
+          opened_by_user_id: string | null
           opening_balance: number
           other_difference: number | null
           pix_difference: number | null
@@ -3273,6 +3275,7 @@ export type Database = {
           balance_difference?: number | null
           cash_difference?: number | null
           closed_at?: string | null
+          closed_by_user_id?: string | null
           closing_balance?: number | null
           closing_justification?: string | null
           closing_status?: string | null
@@ -3304,6 +3307,7 @@ export type Database = {
           notes?: string | null
           online_delivery_difference?: number | null
           opened_at?: string
+          opened_by_user_id?: string | null
           opening_balance?: number
           other_difference?: number | null
           pix_difference?: number | null
@@ -3328,6 +3332,7 @@ export type Database = {
           balance_difference?: number | null
           cash_difference?: number | null
           closed_at?: string | null
+          closed_by_user_id?: string | null
           closing_balance?: number | null
           closing_justification?: string | null
           closing_status?: string | null
@@ -3359,6 +3364,7 @@ export type Database = {
           notes?: string | null
           online_delivery_difference?: number | null
           opened_at?: string
+          opened_by_user_id?: string | null
           opening_balance?: number
           other_difference?: number | null
           pix_difference?: number | null
