@@ -486,7 +486,7 @@ export function PaymentDialog({
       }
       setSelectedMethod(preMethod);
       setCardType(preCardType);
-      setCardType("credito");
+      
       setCashReceived("");
       setInstallments("1");
       setCreditAuthOpen(false);
