@@ -1186,7 +1186,7 @@ export function PaymentDialog({
       <DialogContent
         ref={paymentContentRef}
         hideOverlay
-        className="sm:max-w-3xl max-h-[90vh] overflow-hidden"
+        className="sm:max-w-5xl max-h-[90vh] overflow-hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
@@ -1203,7 +1203,7 @@ export function PaymentDialog({
         <div className="grid md:grid-cols-2 gap-6">
           {/* Left Column - Order Summary */}
           <div className="flex flex-col gap-4 max-h-[65vh]">
-            <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+            <div className="overflow-y-auto flex-1 space-y-4 px-1">
             {/* Items List */}
             <Card>
               <CardContent className="p-4">
@@ -1792,7 +1792,7 @@ export function PaymentDialog({
           </div>
 
           {/* Right Column - Payment */}
-          <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
+          <div className="space-y-4 overflow-y-auto max-h-[60vh] px-1">
             {/* Charge mode segmented control */}
             <div className="grid grid-cols-3 gap-1 p-1 bg-muted/50 rounded-lg">
               <Button
