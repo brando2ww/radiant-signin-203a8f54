@@ -173,6 +173,10 @@ export function usePDVDeliveryCheckout() {
       return { ok: true };
     },
     onSuccess: () => invalidate(),
+    onError: (e: any) => {
+      console.error(e);
+      toast.error(e?.message || "Erro ao registrar forma adicional de pagamento");
+    },
   });
 
   return {
