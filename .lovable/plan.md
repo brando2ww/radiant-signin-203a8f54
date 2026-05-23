@@ -1,21 +1,24 @@
-**Problema encontrado**
-- A exclusão já chegou no Supabase, então não é mais erro de permissão/RLS.
-- O erro real é no banco: `delivery_order_items.product_id` está como `NOT NULL`, mas a chave estrangeira foi alterada para `ON DELETE SET NULL`.
-- Quando o produto é excluído, o banco tenta preservar o item do pedido antigo com `product_id = NULL`, mas a coluna não permite `NULL`, gerando: `null value in column "product_id" violates not-null constraint`.
+**Objetivo**
+Permitir escolher um intervalo de datas livre (incluindo um único dia) na aba de Relatórios de Desempenho dos entregadores, além dos presets atuais (7/30/90 dias).
 
-**Plano de correção**
-1. Criar uma migration para permitir `NULL` em `delivery_order_items.product_id`.
-   - Isso mantém o histórico dos pedidos antigos usando `product_name`, `quantity`, `unit_price` e `subtotal`.
-   - O produto poderá ser apagado sem apagar pedidos já realizados.
+**Mudanças**
 
-2. Manter a chave estrangeira `ON DELETE SET NULL`.
-   - Ao excluir o produto, apenas a referência técnica some.
-   - O item do pedido continua visível no histórico com o nome congelado do produto.
+1. `src/components/delivery/drivers/DriverReports.tsx`
+   - Adicionar um botão com `Popover` + `Calendar` (range, locale ptBR) ao lado do select de período, usando o padrão já existente do projeto.
+   - Manter os presets "Últimos 7/30/90 dias" e incluir um item "Personalizado".
+   - Quando o usuário escolhe um intervalo no calendário, o select muda para "Personalizado" e o hook é chamado com `from`/`to` reais.
+   - O botão mostra o intervalo selecionado formatado em pt-BR (ex.: "10/05/2026 – 15/05/2026" ou "12/05/2026").
 
-3. Ajustar a mensagem do frontend em `useDeleteProduct`, se necessário.
-   - Se ainda houver erro de banco, mostrar uma mensagem mais clara ao usuário.
-   - Invalidar a lista de produtos após exclusão, como já foi feito.
+2. `src/hooks/use-driver-reports.ts`
+   - Aceitar `{ from: Date; to: Date }` em vez (ou além) de `days`.
+   - Ajustar a query Supabase para usar `gte(created_at, from)` e `lte(created_at, to_end_of_day)`.
+   - Gerar `perDay` iterando entre `from` e `to` em vez de `days`.
+   - Manter compat: se nenhum intervalo customizado for passado, calcula a partir de `days`.
 
-**Resultado esperado**
-- “Produto Teste” e “Sushi Mix 54 Peças” poderão ser excluídos mesmo se já aparecerem em pedidos antigos.
-- O histórico de pedidos não será perdido.
+**Detalhes técnicos**
+- Usar `date-fns` com `ptBR` (`format(date, "dd/MM/yyyy", { locale: ptBR })`) — segue o padrão do projeto.
+- Componente `Calendar` em modo `range` (já usado em outros relatórios do app).
+- Sem mudanças de schema/DB.
+
+**Resultado**
+O usuário pode filtrar por um dia específico ou um intervalo arbitrário, mantendo os atalhos rápidos atuais.

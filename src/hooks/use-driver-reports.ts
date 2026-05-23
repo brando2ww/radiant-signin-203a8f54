@@ -34,24 +34,42 @@ const BUCKETS = [
   { label: "Noite (18-24)", from: 18, to: 24 },
 ];
 
-export function useDriverReports(days = 30, driverId: string | "all" = "all") {
+export interface DriverReportRange {
+  from: Date;
+  to: Date;
+}
+
+export function useDriverReports(
+  range: DriverReportRange,
+  driverId: string | "all" = "all",
+) {
   const { visibleUserId } = useEstablishmentId();
 
+  const fromStart = useMemo(() => {
+    const d = new Date(range.from);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [range.from]);
+
+  const toEnd = useMemo(() => {
+    const d = new Date(range.to);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, [range.to]);
+
   const query = useQuery({
-    queryKey: ["driver-reports", visibleUserId, days],
+    queryKey: ["driver-reports", visibleUserId, fromStart.toISOString(), toEnd.toISOString()],
     queryFn: async (): Promise<DriverOrderRow[]> => {
       if (!visibleUserId) return [];
-      const from = new Date();
-      from.setDate(from.getDate() - days);
-      from.setHours(0, 0, 0, 0);
       const { data, error } = await supabase
         .from("delivery_orders")
         .select(
-          "id, order_number, driver_id, status, total, delivery_fee, created_at, driver_assigned_at, delivered_at"
+          "id, order_number, driver_id, status, total, delivery_fee, created_at, driver_assigned_at, delivered_at",
         )
         .eq("user_id", visibleUserId)
         .not("driver_id", "is", null)
-        .gte("created_at", from.toISOString())
+        .gte("created_at", fromStart.toISOString())
+        .lte("created_at", toEnd.toISOString())
         .limit(5000);
       if (error) throw error;
       return (data || []) as DriverOrderRow[];
@@ -62,7 +80,7 @@ export function useDriverReports(days = 30, driverId: string | "all" = "all") {
 
   return useMemo(() => {
     const rows = (query.data || []).filter(
-      (r) => driverId === "all" || r.driver_id === driverId
+      (r) => driverId === "all" || r.driver_id === driverId,
     );
 
     const totals = {
@@ -77,11 +95,14 @@ export function useDriverReports(days = 30, driverId: string | "all" = "all") {
     };
 
     const perDay = new Map<string, { date: string; label: string; uses: number; revenue: number }>();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const daysSpan = Math.max(
+      1,
+      Math.round((fromStart.getTime() && toEnd.getTime() ? (new Date(toEnd).setHours(0, 0, 0, 0) - fromStart.getTime()) / dayMs : 0)) + 1,
+    );
+    for (let i = 0; i < daysSpan; i++) {
+      const d = new Date(fromStart);
+      d.setDate(d.getDate() + i);
       const key = d.toISOString().slice(0, 10);
       const [, m, day] = key.split("-");
       perDay.set(key, { date: key, label: `${day}/${m}`, uses: 0, revenue: 0 });
@@ -182,5 +203,5 @@ export function useDriverReports(days = 30, driverId: string | "all" = "all") {
       perBucket: BUCKETS.map((b) => ({ bucket: b.label, uses: bucket.get(b.label) ?? 0 })),
       drivers,
     };
-  }, [query.data, query.isLoading, days, driverId]);
+  }, [query.data, query.isLoading, fromStart, toEnd, driverId]);
 }
