@@ -94,12 +94,15 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
       .slice(0, 50);
   }, [products, prodSearch]);
 
-  const cartTotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const cartSubtotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const effectiveDiscount = Math.min(Math.max(discount, 0), cartSubtotal);
+  const cartTotal = Math.max(0, cartSubtotal - effectiveDiscount);
 
   const currentDebt = employee?.balance || 0;
   const newDebt = currentDebt + cartTotal;
   const overLimit =
     employee && employee.credit_limit > 0 && newDebt > employee.credit_limit;
+  const discountReasonInvalid = effectiveDiscount > 0 && discountReason.trim().length < 3;
 
   const addProduct = (p: any) => {
     setCart((prev) => {
