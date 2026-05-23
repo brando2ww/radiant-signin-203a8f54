@@ -473,7 +473,19 @@ export function PaymentDialog({
   // Reset state + adquirir lock em_cobranca quando o dialog abre.
   useEffect(() => {
     if (open) {
-      setSelectedMethod("dinheiro");
+      // Pré-seleciona método de pagamento a partir do pedido de delivery
+      let preMethod: PaymentMethod = "dinheiro";
+      let preCardType: CardType = "credito";
+      if (isDelivery && deliveryOrder) {
+        const m = (deliveryOrder.payment_method || "").toLowerCase();
+        if (m === "pix") preMethod = "pix";
+        else if (m === "credit" || m === "credito" || m === "cartao_credito") { preMethod = "cartao"; preCardType = "credito"; }
+        else if (m === "debit" || m === "debito" || m === "cartao_debito") { preMethod = "cartao"; preCardType = "debito"; }
+        else if (m === "vale_refeicao" || m.includes("vale")) preMethod = "vale_refeicao";
+        else preMethod = "dinheiro";
+      }
+      setSelectedMethod(preMethod);
+      setCardType(preCardType);
       setCardType("credito");
       setCashReceived("");
       setInstallments("1");
