@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,7 +15,8 @@ import { AuthorizedEmployee } from "@/hooks/use-authorized-employees";
 import { formatBRL } from "@/lib/format";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { ConsumptionEntryDetails } from "./ConsumptionEntryDetails";
 
 interface Props {
   open: boolean;
