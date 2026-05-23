@@ -1022,7 +1022,7 @@ export function PaymentDialog({
     }
   };
 
-  const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine || isRegisteringCreditSale;
+  const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine || isRegisteringCreditSale || isRegisteringDelivery;
 
   if (showSuccess) {
     const nfceEnabled = !!settings?.nfe_enable_nfce;
