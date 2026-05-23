@@ -1,75 +1,33 @@
 ## Problema
 
-Hoje, no caixa, ao clicar em **"Registrar pagamento"** num pedido de delivery, abre o `DeliveryPaymentDialog` (modal próprio, mais simples). Já no salão (mesa/comanda), abre o `PaymentDialog` (modal completo, com desconto guiado, taxa de serviço, várias formas de pagamento, NFC-e etc.). O usuário quer **um único modal de cobrança**, igual ao do salão, também para delivery.
+No `PaymentDialog`, ao cobrar um pedido de delivery, o `subtotal` é montado a partir de `deliveryOrder.subtotal` (soma dos itens), mas o **desconto** (`deliveryOrder.discount`) e o **cupom** (`deliveryOrder.coupon_code`) aplicados pelo cliente no checkout do delivery são ignorados. Resultado: o total cobrado no caixa fica maior do que o total real do pedido (ex.: subtotal R$ 59,00 sem refletir o cupom, enquanto o pedido vale R$ 51,92).
 
-## Mudança
+## Solução
 
-Unificar usando o `PaymentDialog` do salão como modal único, adicionando suporte a "pedido de delivery" via uma nova prop, e aposentando o `DeliveryPaymentDialog`.
+Pré-aplicar automaticamente o desconto do pedido (incluindo o `coupon_code`, quando houver) como um `appliedDiscount` no `PaymentDialog`, exatamente como se o operador tivesse resgatado o cupom manualmente. Assim o resumo, a barra de desconto, o total e o registro no caixa (`couponCode`, `discountAmount`, `discountReason`) ficam consistentes com o pedido.
 
-### 1) `PaymentDialog` aceita pedido de delivery
+### Mudanças (apenas `src/components/pdv/cashier/PaymentDialog.tsx`)
 
-Adicionar prop opcional:
+1. **Pré-aplicar desconto do delivery ao abrir**
+   - No `useEffect` que reage a `open + isDelivery`, se `deliveryOrder.discount > 0`:
+     - Setar `appliedDiscount = { type: "value", amount: deliveryOrder.discount, rawValue: String(deliveryOrder.discount), authorizedBy: "Pedido delivery", reason: deliveryOrder.coupon_code ? "Cupom aplicado no pedido" : "Desconto do pedido", couponCode: deliveryOrder.coupon_code ?? undefined }`.
+     - `setDiscountStage("applied")`.
+   - Limpar esse estado ao fechar (já existe reset geral; garantir que cobre esse caso).
 
-```ts
-deliveryOrder?: DeliveryOrder | null;
-```
+2. **Bloquear edição do desconto em delivery**
+   - Quando `isDelivery && appliedDiscount?.couponCode` (ou `discount > 0` vindo do pedido), esconder os botões "Resgatar cupom", "Desconto em %", "Desconto em R$" e o botão de remover desconto — o desconto do pedido é imutável no caixa. Mostrar apenas a linha "Desconto aplicado: -R$ X,XX (cupom XYZ)".
 
-Quando `deliveryOrder` está presente (e `comanda`/`table` não):
+3. **Garantir taxa de serviço desligada por padrão**
+   - Já está coberto via `serviceFeeAllowed`; manter como está (delivery não cobra 10%).
 
-- **Título**: `Pedido #<order_number> · <customer_name>` (com ícone `Bike`/`Store` para retirada).
-- **Itens (Resumo)**: mapear `delivery_order_items` para a mesma estrutura visual usada na lista de itens da comanda (qtd × nome, subtotal). Sem opção de adicionar/remover item.
-- **Totais**: subtotal = `order.subtotal`; usar `order.delivery_fee` como linha extra "Taxa de entrega"; `order.discount` como desconto pré-aplicado (linha informativa, separada do desconto manual do operador).
-- **Modos desabilitados** (delivery não suporta): "Por produto", "Split por comanda", edição de itens, NF-e (mantém apenas geração de recibo não fiscal, se aplicável), cancelamento de comanda. "Várias formas de pagamento" continua disponível.
-- **Forma de pagamento**: mesmas opções do salão (Dinheiro, Cartão crédito/débito, PIX, VR/VA). Pré-seleciona com base em `order.payment_method` (cash→dinheiro, credit/credito→crédito, etc.).
-- **Desconto manual e taxa de serviço**: funcionam normalmente (mesmo fluxo guiado do salão).
-- **Validação de troco vs gaveta**: mantém comportamento atual.
+4. **Telemetria/registro**
+   - O `handleSubmit` já envia `discountAmount`, `discountReason`, `couponCode` quando `appliedDiscount` existe — nenhuma mudança extra necessária.
 
-### 2) Submissão para delivery
+### Fora do escopo
 
-Em `handleSubmit`, quando `deliveryOrder` está presente:
+- Não mexer em `delivery_fee` (já está embutido no `deliveryOrder.total` exibido em outras telas; aqui o caixa cobra subtotal − desconto e a taxa de entrega é tratada à parte no fluxo do entregador). Se você quiser também incluir `delivery_fee` no total cobrado, me avise que ajusto o plano.
+- Sem mudanças no hook `use-pdv-delivery-checkout` nem no `SalonQueuePanel`.
 
-- Substituir as chamadas a `registerPayment`/`registerTablePayment`/`registerExtraPaymentLine` por `registerDeliveryPayment` (de `usePDVDeliveryCheckout`).
-- Modo simples: 1 chamada com método/valor final.
-- Modo "Várias formas" (split-forms): chamar `registerDeliveryPayment` 1ª linha com `source: "delivery"`, demais linhas com `source: "delivery"` também — mas como o hook atual marca `cashier_confirmed_at` na 1ª chamada, precisamos expor uma variação `registerDeliveryExtraPaymentLine` em `use-pdv-delivery-checkout.ts` que **apenas insere o movimento de caixa** (sem reatualizar pedido) para as linhas adicionais. Adicionar essa função no hook.
-- Sem modo "Por produto" nem "Split por comanda".
+### Arquivos afetados
 
-### 3) Tela de sucesso
-
-Reaproveita a mesma tela de sucesso do `PaymentDialog` (mostra troco, etc.). Remove dependências de "imprimir cupom fiscal" quando origem for delivery — mantém apenas botão "Imprimir recibo" (não fiscal) usando os dados do pedido.
-
-### 4) Cabeçalho e contexto
-
-Trocar `isTablePayment` por uma união lógica:
-
-```ts
-const context: "table" | "comanda" | "delivery" =
-  table ? "table" : deliveryOrder ? "delivery" : "comanda";
-```
-
-Usar `context` para gates de UI (esconder add/remove/by-product/NFCe quando `delivery`).
-
-### 5) Integração no caixa
-
-Em `src/components/pdv/cashier/SalonQueuePanel.tsx`:
-
-- Remover `DeliveryPaymentDialog` e o estado `paymentOrder` específico, ou trocá-lo para abrir `PaymentDialog` passando `deliveryOrder={paymentOrder}` e `drawerBalance`.
-- `onRegisterPayment` continua chamando `setPaymentOrder(order)`.
-- `onSuccess` invalida `pdv-delivery-queue` (já feito pelo hook).
-
-### 6) Limpeza
-
-- Deletar `src/components/pdv/cashier/DeliveryPaymentDialog.tsx`.
-- Remover imports órfãos.
-
-## Escopo dos arquivos
-
-- `src/components/pdv/cashier/PaymentDialog.tsx` — adicionar suporte a `deliveryOrder`, gates de UI, branch de submit.
-- `src/hooks/use-pdv-delivery-checkout.ts` — adicionar `registerDeliveryExtraPaymentLine` para suportar split-forms.
-- `src/components/pdv/cashier/SalonQueuePanel.tsx` — trocar dialog usado para delivery.
-- `src/components/pdv/cashier/DeliveryPaymentDialog.tsx` — remover.
-
-## Fora de escopo
-
-- Mudanças no `PaymentDialog` que afetem fluxo do salão.
-- Reescrever o `PaymentDialog` (apenas adicionar branches condicionais).
-- Suporte a "Por produto" / "Split por comanda" para delivery (não fazem sentido).
+- `src/components/pdv/cashier/PaymentDialog.tsx`
