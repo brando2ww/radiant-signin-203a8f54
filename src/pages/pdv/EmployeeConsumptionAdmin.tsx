@@ -79,16 +79,26 @@ export default function EmployeeConsumptionAdmin() {
   const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setTimeout(() => setFormOpen(true), 0); };
 
   const exportEntries = () => {
-    const header = ["Cliente", "Data", "Total", "Pago", "Saldo", "Status"];
+    const header = ["Cliente", "Data", "Subtotal", "Desconto", "Cupom", "Total", "Pago", "Saldo", "Status", "Operador", "Observação", "Itens"];
     const rows = entries.map((e) => {
       const emp = employees.find((x) => x.id === e.employee_id);
+      const op = users.find((u: any) => u.user_id === e.operator_id);
+      const itemsStr = Array.isArray(e.items)
+        ? e.items.map((i: any) => `${Number(i.quantity || 0)}x ${i.product_name || ""}`).join(" | ")
+        : "";
       return [
         emp?.full_name || "",
         format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+        Number(e.subtotal || e.total).toFixed(2),
+        Number(e.discount || 0).toFixed(2),
+        e.coupon_code || "",
         Number(e.total).toFixed(2),
         Number(e.paid_amount).toFixed(2),
         (Number(e.total) - Number(e.paid_amount)).toFixed(2),
         e.status,
+        op?.display_name || op?.email || "",
+        e.notes || "",
+        itemsStr,
       ];
     });
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
