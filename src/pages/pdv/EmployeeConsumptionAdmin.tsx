@@ -18,11 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MoreVertical, Pencil, Trash2, FileText, Users, DollarSign, AlertCircle } from "lucide-react";
+import { Plus, Search, MoreVertical, Pencil, Trash2, FileText, Users, DollarSign, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuthorizedEmployees, AuthorizedEmployee } from "@/hooks/use-authorized-employees";
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
+import { usePDVUsers } from "@/hooks/use-pdv-users";
 import { AuthorizedEmployeeFormSheet } from "@/components/pdv/employee-consumption/AuthorizedEmployeeFormSheet";
 import { EmployeeStatementSheet } from "@/components/pdv/employee-consumption/EmployeeStatementSheet";
+import { ConsumptionEntryDetails } from "@/components/pdv/employee-consumption/ConsumptionEntryDetails";
 import { formatBRL } from "@/lib/format";
 import { format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -41,6 +43,7 @@ import {
 export default function EmployeeConsumptionAdmin() {
   const { employees, isLoading, remove } = useAuthorizedEmployees();
   const { entries, payments } = useEmployeeConsumption();
+  const { users } = usePDVUsers();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -49,6 +52,7 @@ export default function EmployeeConsumptionAdmin() {
   const [editing, setEditing] = useState<AuthorizedEmployee | null>(null);
   const [statementEmp, setStatementEmp] = useState<AuthorizedEmployee | null>(null);
   const [toDelete, setToDelete] = useState<AuthorizedEmployee | null>(null);
+  const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({});
 
   const filtered = useMemo(() => {
     return employees.filter((e) => {
@@ -75,16 +79,26 @@ export default function EmployeeConsumptionAdmin() {
   const handleEdit = (e: AuthorizedEmployee) => { setEditing(e); setTimeout(() => setFormOpen(true), 0); };
 
   const exportEntries = () => {
-    const header = ["Cliente", "Data", "Total", "Pago", "Saldo", "Status"];
+    const header = ["Cliente", "Data", "Subtotal", "Desconto", "Cupom", "Total", "Pago", "Saldo", "Status", "Operador", "Observação", "Itens"];
     const rows = entries.map((e) => {
       const emp = employees.find((x) => x.id === e.employee_id);
+      const op = users.find((u: any) => u.user_id === e.operator_id);
+      const itemsStr = Array.isArray(e.items)
+        ? e.items.map((i: any) => `${Number(i.quantity || 0)}x ${i.product_name || ""}`).join(" | ")
+        : "";
       return [
         emp?.full_name || "",
         format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }),
+        Number(e.subtotal || e.total).toFixed(2),
+        Number(e.discount || 0).toFixed(2),
+        e.coupon_code || "",
         Number(e.total).toFixed(2),
         Number(e.paid_amount).toFixed(2),
         (Number(e.total) - Number(e.paid_amount)).toFixed(2),
         e.status,
+        op?.display_name || op?.email || "",
+        e.notes || "",
+        itemsStr,
       ];
     });
     const csv = [header, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
@@ -281,21 +295,36 @@ export default function EmployeeConsumptionAdmin() {
                 )}
                 {entries.map((e) => {
                   const emp = employees.find((x) => x.id === e.employee_id);
+                  const isOpen = !!expandedEntries[e.id];
                   return (
-                    <div key={e.id} className="p-3 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{emp?.full_name || "—"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })} ·{" "}
-                          {Array.isArray(e.items) ? e.items.length : 0} item(s)
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatBRL(e.total)}</p>
-                        <Badge variant={e.status === "pago" ? "secondary" : "outline"} className="text-xs">
-                          {e.status === "pago" ? "Pago" : e.status === "pago_parcial" ? "Parcial" : "Pendente"}
-                        </Badge>
-                      </div>
+                    <div key={e.id} className="p-3">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between gap-3 text-left"
+                        onClick={() => setExpandedEntries((p) => ({ ...p, [e.id]: !p[e.id] }))}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isOpen
+                            ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                            : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{emp?.full_name || "—"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })} ·{" "}
+                              {Array.isArray(e.items) ? e.items.length : 0} item(s)
+                              {Number(e.discount || 0) > 0 ? " · c/ desconto" : ""}
+                              {e.coupon_code ? ` · ${e.coupon_code}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-semibold">{formatBRL(e.total)}</p>
+                          <Badge variant={e.status === "pago" ? "secondary" : "outline"} className="text-xs">
+                            {e.status === "pago" ? "Pago" : e.status === "pago_parcial" ? "Parcial" : "Pendente"}
+                          </Badge>
+                        </div>
+                      </button>
+                      {isOpen && <ConsumptionEntryDetails entry={e} />}
                     </div>
                   );
                 })}

@@ -51,6 +51,10 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
   const [cart, setCart] = useState<CartItem[]>([]);
   const [settleAmount, setSettleAmount] = useState<number>(0);
   const [justification, setJustification] = useState("");
+  const [discount, setDiscount] = useState<number>(0);
+  const [discountReason, setDiscountReason] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +67,10 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
         setCart([]);
         setSettleAmount(0);
         setJustification("");
+        setDiscount(0);
+        setDiscountReason("");
+        setCouponCode("");
+        setNotes("");
       }, 200);
     }
   }, [open]);
@@ -86,12 +94,15 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
       .slice(0, 50);
   }, [products, prodSearch]);
 
-  const cartTotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const cartSubtotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const effectiveDiscount = Math.min(Math.max(discount, 0), cartSubtotal);
+  const cartTotal = Math.max(0, cartSubtotal - effectiveDiscount);
 
   const currentDebt = employee?.balance || 0;
   const newDebt = currentDebt + cartTotal;
   const overLimit =
     employee && employee.credit_limit > 0 && newDebt > employee.credit_limit;
+  const discountReasonInvalid = effectiveDiscount > 0 && discountReason.trim().length < 3;
 
   const addProduct = (p: any) => {
     setCart((prev) => {
@@ -126,11 +137,16 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
   const handleConfirmConsume = () => {
     if (!employee || cart.length === 0) return;
     if (overLimit && justification.trim().length < 5) return;
+    if (discountReasonInvalid) return;
     registerConsumption(
       {
         employee_id: employee.id,
         items: cart,
         justification: overLimit ? justification.trim() : undefined,
+        discount: effectiveDiscount,
+        discount_reason: effectiveDiscount > 0 ? discountReason.trim() : undefined,
+        coupon_code: couponCode.trim() || undefined,
+        notes: notes.trim() || undefined,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -317,7 +333,38 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
                   ))}
                 </div>
               </ScrollArea>
+              <div className="space-y-2 border rounded-md p-3">
+                <p className="text-xs font-medium text-muted-foreground">Desconto / Cupom (opcional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Cupom"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                  />
+                  <CurrencyInput
+                    value={discount}
+                    onChange={(v) => setDiscount(Number(v) || 0)}
+                  />
+                </div>
+                {effectiveDiscount > 0 && (
+                  <Input
+                    placeholder="Motivo do desconto (mín. 3 caracteres)"
+                    value={discountReason}
+                    onChange={(e) => setDiscountReason(e.target.value)}
+                  />
+                )}
+                <Textarea
+                  placeholder="Observação (opcional)"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                />
+              </div>
               <div className="border rounded-md p-3 space-y-1 text-sm">
+                <div className="flex justify-between text-muted-foreground"><span>Subtotal:</span><span>{formatBRL(cartSubtotal)}</span></div>
+                {effectiveDiscount > 0 && (
+                  <div className="flex justify-between text-muted-foreground"><span>Desconto:</span><span>− {formatBRL(effectiveDiscount)}</span></div>
+                )}
                 <div className="flex justify-between"><span>Total consumo:</span><span className="font-medium">{formatBRL(cartTotal)}</span></div>
                 <div className="flex justify-between text-muted-foreground"><span>Saldo atual:</span><span>{formatBRL(currentDebt)}</span></div>
                 <div className="flex justify-between font-semibold"><span>Novo saldo:</span><span className={overLimit ? "text-destructive" : ""}>{formatBRL(newDebt)}</span></div>
@@ -343,7 +390,7 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
               )}
               <Button
                 onClick={handleConfirmConsume}
-                disabled={cart.length === 0 || isRegistering || (overLimit && justification.trim().length < 5)}
+                disabled={cart.length === 0 || isRegistering || (overLimit && justification.trim().length < 5) || discountReasonInvalid}
               >
                 Confirmar lançamento
               </Button>

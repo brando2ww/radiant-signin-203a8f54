@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -15,7 +15,8 @@ import { AuthorizedEmployee } from "@/hooks/use-authorized-employees";
 import { formatBRL } from "@/lib/format";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { ConsumptionEntryDetails } from "./ConsumptionEntryDetails";
 
 interface Props {
   open: boolean;
@@ -25,6 +26,7 @@ interface Props {
 
 export function EmployeeStatementSheet({ open, onOpenChange, employee }: Props) {
   const { entries, payments } = useEmployeeConsumption(employee?.id);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const timeline = useMemo(() => {
     const items: any[] = [];
@@ -76,44 +78,71 @@ export function EmployeeStatementSheet({ open, onOpenChange, employee }: Props) 
                 Nenhuma movimentação ainda.
               </p>
             )}
-            {timeline.map((it, idx) => (
-              <Card key={idx}>
-                <CardContent className="p-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    {it.type === "consumo" ? (
-                      <ArrowUpCircle className="h-5 w-5 text-destructive" />
-                    ) : (
-                      <ArrowDownCircle className="h-5 w-5 text-primary" />
+            {timeline.map((it, idx) => {
+              const isConsumo = it.type === "consumo";
+              const entryId = isConsumo ? it.data.id : null;
+              const isOpen = entryId ? !!expanded[entryId] : false;
+              return (
+                <Card key={idx}>
+                  <CardContent className="p-3">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between gap-3 text-left"
+                      onClick={() => {
+                        if (entryId) {
+                          setExpanded((p) => ({ ...p, [entryId]: !p[entryId] }));
+                        }
+                      }}
+                      disabled={!isConsumo}
+                    >
+                      <div className="flex items-center gap-3">
+                        {isConsumo ? (
+                          <ArrowUpCircle className="h-5 w-5 text-destructive" />
+                        ) : (
+                          <ArrowDownCircle className="h-5 w-5 text-primary" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium">
+                            {isConsumo ? "Consumo" : "Quitação"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(it.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                          {isConsumo && Array.isArray(it.data.items) && (
+                            <p className="text-xs text-muted-foreground">
+                              {it.data.items.length} item(s)
+                              {Number(it.data.discount || 0) > 0 ? " · c/ desconto" : ""}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p className="font-semibold">{formatBRL(it.amount)}</p>
+                          {isConsumo && (
+                            <Badge variant={it.data.status === "pago" ? "secondary" : "outline"} className="text-xs">
+                              {it.data.status === "pago"
+                                ? "Pago"
+                                : it.data.status === "pago_parcial"
+                                  ? "Parcial"
+                                  : "Pendente"}
+                            </Badge>
+                          )}
+                        </div>
+                        {isConsumo && (
+                          isOpen
+                            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
+                    {isConsumo && isOpen && (
+                      <ConsumptionEntryDetails entry={it.data} />
                     )}
-                    <div>
-                      <p className="text-sm font-medium">
-                        {it.type === "consumo" ? "Consumo" : "Quitação"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(it.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                      </p>
-                      {it.type === "consumo" && Array.isArray(it.data.items) && (
-                        <p className="text-xs text-muted-foreground">
-                          {it.data.items.length} item(s)
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{formatBRL(it.amount)}</p>
-                    {it.type === "consumo" && (
-                      <Badge variant={it.data.status === "pago" ? "secondary" : "outline"} className="text-xs">
-                        {it.data.status === "pago"
-                          ? "Pago"
-                          : it.data.status === "pago_parcial"
-                            ? "Parcial"
-                            : "Pendente"}
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </ScrollArea>
       </SheetContent>

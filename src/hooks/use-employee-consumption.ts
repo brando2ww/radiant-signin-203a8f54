@@ -10,6 +10,11 @@ export interface ConsumptionEntry {
   employee_id: string;
   operator_id: string | null;
   total: number;
+  subtotal: number;
+  discount: number;
+  discount_reason: string | null;
+  coupon_code: string | null;
+  notes: string | null;
   paid_amount: number;
   status: "pendente" | "pago_parcial" | "pago";
   items: any[];
@@ -80,6 +85,10 @@ export function useEmployeeConsumption(employeeId?: string) {
       employee_id: string;
       items: ConsumptionItemInput[];
       justification?: string;
+      discount?: number;
+      discount_reason?: string;
+      coupon_code?: string;
+      notes?: string;
     }) => {
       const { data, error } = await supabase.rpc(
         "pdv_register_employee_consumption" as any,
@@ -87,6 +96,10 @@ export function useEmployeeConsumption(employeeId?: string) {
           p_employee_id: params.employee_id,
           p_items: params.items as any,
           p_justification: params.justification || null,
+          p_discount: params.discount || 0,
+          p_discount_reason: params.discount_reason || null,
+          p_coupon_code: params.coupon_code || null,
+          p_notes: params.notes || null,
         },
       );
       if (error) throw error;
