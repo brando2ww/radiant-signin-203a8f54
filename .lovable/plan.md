@@ -1,63 +1,46 @@
-## Objetivo
+# Corrigir registro de desconto/cupom e divergência item vs total
 
-Hoje a Venda a Prazo mostra apenas "X item(s)" e o total. Vamos:
-1. Mostrar a lista detalhada dos produtos consumidos em cada lançamento.
-2. Permitir registrar **desconto / cupom** no momento do lançamento e exibi-lo no extrato.
-3. Mostrar **quem lançou** (operador) e **observações**.
+## Problema 1 — Bug crítico no banco
 
-## Banco (1 migração)
+Existem duas versões da função `pdv_register_employee_consumption`:
 
-Tabela `pdv_employee_consumption_entries`:
-- Adicionar colunas:
-  - `subtotal numeric NOT NULL DEFAULT 0` (soma dos itens antes do desconto)
-  - `discount numeric NOT NULL DEFAULT 0`
-  - `discount_reason text` (motivo do desconto)
-  - `coupon_code text` (código do cupom usado, opcional)
-  - `notes text` (observação livre do operador)
-- Backfill: `UPDATE ... SET subtotal = total` nas linhas existentes.
+- Antiga: `(p_employee_id, p_items, p_justification)` — sem suporte a desconto/cupom
+- Nova: `(p_employee_id, p_items, p_justification, p_discount, p_discount_reason, p_coupon_code, p_notes)`
 
-Atualizar a função `pdv_register_employee_consumption(p_employee_id, p_items, p_justification, p_discount, p_discount_reason, p_coupon_code, p_notes)`:
-- Calcular `v_subtotal` a partir dos itens.
-- `v_total = GREATEST(0, v_subtotal - COALESCE(p_discount, 0))`.
-- Validar limite usando o `v_total` final (pós-desconto).
-- Persistir os novos campos no INSERT.
-- Manter compatibilidade: parâmetros novos com `DEFAULT NULL/0`.
+O PostgREST/Supabase resolve a sobrecarga pelo conjunto de argumentos enviados. Mesmo quando o frontend manda `p_discount`, `p_coupon_code`, etc., o roteamento pode acabar caindo na antiga em alguns clientes — e qualquer chamada legada continua persistindo `subtotal=0`, `discount=0`, `coupon_code=NULL`. Por isso desconto/cupom nunca aparecem no detalhe.
 
-## Frontend
+## Problema 2 — Divergência itens × total exibido
 
-### `EmployeeConsumptionFlowDialog.tsx` (step "products")
-- Acima do botão Confirmar, adicionar bloco "Desconto / Cupom":
-  - Input `Cupom (opcional)` — texto livre (vai como `coupon_code`).
-  - `CurrencyInput` "Desconto (R$)" — limitado ao `cartTotal`.
-  - Input `Motivo do desconto` (obrigatório se desconto > 0, mín. 3 chars).
-  - Textarea `Observação` (opcional).
-- Painel de totais: mostrar Subtotal, Desconto, Total final, Saldo atual, Novo saldo (recalculado com o desconto).
-- `handleConfirmConsume` envia `discount`, `discount_reason`, `coupon_code`, `notes` para a RPC.
+Entradas antigas (ex.: Isabeli 21/05) têm `total = 164,88` mas o JSON `items` soma R$ 229,00. Como `ConsumptionEntryDetails` calcula o subtotal a partir de `items` quando `subtotal = 0` e mostra `unit_price * quantity` por linha, o cliente vê uma "diferença" inexplicada de R$ 64,12 que não é desconto — é apenas o preço atual do combo diferindo do valor cobrado na época.
 
-### `use-employee-consumption.ts`
-- Estender `ConsumptionEntry` com `subtotal`, `discount`, `discount_reason`, `coupon_code`, `notes`, `operator_id`.
-- `registerConsumption` aceita os novos campos opcionais e os envia na RPC.
+## Mudanças
 
-### `EmployeeStatementSheet.tsx` (Extrato)
-- Cada card de "Consumo" passa a ser expansível (acordeão simples com chevron):
-  - Lista de itens: `Produto — qtd x unit = subtotal` (usando `formatBRL`).
-  - Linha "Subtotal", "Desconto −R$ …" (se `discount > 0`), "Cupom: CÓDIGO" (se houver), "Total".
-  - Linha "Lançado por: Nome" — buscar do hook `usePDVUsers` pelo `operator_id` (fallback "—").
-  - Linha "Motivo do desconto" e "Observação" quando preenchidos.
-  - Linha "Justificativa de limite" quando `over_limit_justification` existir.
-- Quitação continua compacta.
+### 1. Migração: remover a função antiga
 
-### `EmployeeConsumptionAdmin.tsx` (aba Lançamentos)
-- Cada linha vira expansível mostrando o mesmo bloco de detalhes (produtos, descontos, cupom, operador, observação).
-- Exportação CSV: adicionar colunas `Subtotal`, `Desconto`, `Cupom`, `Operador`, `Observação`, e uma coluna `Itens` concatenando `qtd x nome` separado por `|`.
+```sql
+DROP FUNCTION IF EXISTS public.pdv_register_employee_consumption(uuid, jsonb, text);
+```
 
-### `SettlementEntries` (dentro do flow dialog)
-- Continua compacto, mas exibe o `formatBRL(total)` original e, se houve desconto, um pequeno texto `c/ desconto`.
+A nova versão (7 args, todos com DEFAULT) continua acessível para qualquer chamada — inclusive as que só passam os 3 primeiros argumentos.
 
-## Pontos de atenção
+### 2. `ConsumptionEntryDetails.tsx` — Honrar o subtotal salvo
 
-- Manter as cores semânticas do design system (sem cores customizadas).
-- Datas com `format(..., { locale: ptBR })`.
-- Valores sempre via `formatBRL`.
-- A migração precisa preservar lançamentos antigos (backfill `subtotal = total`, `discount = 0`).
-- Não alterar nenhum outro fluxo (PDV normal, comandas, delivery).
+Quando há divergência entre a soma dos `items` e o `subtotal` armazenado (caso típico de entradas antigas), exibir um aviso discreto e usar **sempre** o `subtotal/total` do banco como verdade financeira:
+
+- Calcular `itemsSum = soma de unit_price * quantity`
+- Se `Math.abs(itemsSum - subtotal) > 0.01` e não houver `discount`, renderizar uma linha extra abaixo do Subtotal:
+  > `Ajuste (preço histórico)  − R$ 64,12`
+  
+  Texto curto explicando que o valor cobrado na época difere da soma atual dos itens. Sem cor de destaque, apenas `text-muted-foreground` e `text-xs`.
+- Manter Total = `entry.total` (já vem do banco).
+
+Isso elimina a impressão de "desconto fantasma" e mantém o histórico fiel.
+
+### 3. Sem mudanças no fluxo de novo lançamento
+
+O `EmployeeConsumptionFlowDialog` já envia corretamente `discount`, `coupon_code`, `discount_reason`, `notes`. Depois do DROP da função antiga, qualquer novo lançamento com desconto/cupom passará a persistir e aparecer no detalhe automaticamente.
+
+## Validação
+
+1. Após a migração, criar um lançamento de teste com cupom + desconto e abrir o card expandido — deve mostrar Cupom, Desconto, Motivo e Observação.
+2. Abrir a entrada da Isabeli (21/05) — deve mostrar a linha "Ajuste (preço histórico)" em vez de causar dúvida sobre desconto.
