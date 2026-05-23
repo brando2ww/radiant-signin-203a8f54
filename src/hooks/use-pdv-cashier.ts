@@ -141,6 +141,7 @@ export function usePDVCashier() {
         .from("pdv_cashier_sessions")
         .insert({
           user_id: visibleUserId,
+          opened_by_user_id: user.id,
           opening_balance: openingBalance,
           total_sales: 0,
           total_cash: 0,
@@ -246,6 +247,7 @@ export function usePDVCashier() {
 
       const updateData: any = {
         closed_at: new Date().toISOString(),
+        closed_by_user_id: user?.id ?? null,
         closing_balance: declaredCash,
         notes,
         expected_balance: expectedCash,
