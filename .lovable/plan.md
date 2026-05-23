@@ -1,19 +1,75 @@
 ## Problema
 
-Ao clicar em "Marcar pronto" (e demais ações de avançar status) no card de delivery do caixa (`SalonQueuePanel` → `DeliveryQueueCard`), o status no banco é atualizado, mas o card visível só reflete a mudança após recarregar a página.
-
-Causa: `useUpdateOrderStatus` (em `src/hooks/use-delivery-orders.ts`) só invalida a query `["delivery-orders"]`. A fila do caixa usa outra query — `["pdv-delivery-queue", visibleUserId]` (em `src/hooks/use-pdv-delivery-queue.ts`) — que não é invalidada. O realtime existe mas é instável (depende de canal/filtro ativo e da Replication estar habilitada), por isso o usuário precisa recarregar.
+Hoje, no caixa, ao clicar em **"Registrar pagamento"** num pedido de delivery, abre o `DeliveryPaymentDialog` (modal próprio, mais simples). Já no salão (mesa/comanda), abre o `PaymentDialog` (modal completo, com desconto guiado, taxa de serviço, várias formas de pagamento, NFC-e etc.). O usuário quer **um único modal de cobrança**, igual ao do salão, também para delivery.
 
 ## Mudança
 
-Em `src/hooks/use-delivery-orders.ts`, no `onSuccess` de `useUpdateOrderStatus`, também invalidar:
+Unificar usando o `PaymentDialog` do salão como modal único, adicionando suporte a "pedido de delivery" via uma nova prop, e aposentando o `DeliveryPaymentDialog`.
 
-- `["pdv-delivery-queue"]` (fila do caixa — sem `visibleUserId` para invalidar todas as variantes)
-- `["delivery-order-stats"]` (contadores)
+### 1) `PaymentDialog` aceita pedido de delivery
 
-Isso garante que ao clicar em "Marcar pronto"/"Saiu p/ entrega"/etc, o card no caixa atualiza imediatamente, sem depender de realtime nem reload.
+Adicionar prop opcional:
 
-## Escopo
+```ts
+deliveryOrder?: DeliveryOrder | null;
+```
 
-- Arquivo único: `src/hooks/use-delivery-orders.ts` (mutation `useUpdateOrderStatus`, bloco `onSuccess`).
-- Sem mudanças de UI, sem mudanças de banco, sem mudanças em `DeliveryQueueCard.tsx` ou `SalonQueuePanel.tsx`.
+Quando `deliveryOrder` está presente (e `comanda`/`table` não):
+
+- **Título**: `Pedido #<order_number> · <customer_name>` (com ícone `Bike`/`Store` para retirada).
+- **Itens (Resumo)**: mapear `delivery_order_items` para a mesma estrutura visual usada na lista de itens da comanda (qtd × nome, subtotal). Sem opção de adicionar/remover item.
+- **Totais**: subtotal = `order.subtotal`; usar `order.delivery_fee` como linha extra "Taxa de entrega"; `order.discount` como desconto pré-aplicado (linha informativa, separada do desconto manual do operador).
+- **Modos desabilitados** (delivery não suporta): "Por produto", "Split por comanda", edição de itens, NF-e (mantém apenas geração de recibo não fiscal, se aplicável), cancelamento de comanda. "Várias formas de pagamento" continua disponível.
+- **Forma de pagamento**: mesmas opções do salão (Dinheiro, Cartão crédito/débito, PIX, VR/VA). Pré-seleciona com base em `order.payment_method` (cash→dinheiro, credit/credito→crédito, etc.).
+- **Desconto manual e taxa de serviço**: funcionam normalmente (mesmo fluxo guiado do salão).
+- **Validação de troco vs gaveta**: mantém comportamento atual.
+
+### 2) Submissão para delivery
+
+Em `handleSubmit`, quando `deliveryOrder` está presente:
+
+- Substituir as chamadas a `registerPayment`/`registerTablePayment`/`registerExtraPaymentLine` por `registerDeliveryPayment` (de `usePDVDeliveryCheckout`).
+- Modo simples: 1 chamada com método/valor final.
+- Modo "Várias formas" (split-forms): chamar `registerDeliveryPayment` 1ª linha com `source: "delivery"`, demais linhas com `source: "delivery"` também — mas como o hook atual marca `cashier_confirmed_at` na 1ª chamada, precisamos expor uma variação `registerDeliveryExtraPaymentLine` em `use-pdv-delivery-checkout.ts` que **apenas insere o movimento de caixa** (sem reatualizar pedido) para as linhas adicionais. Adicionar essa função no hook.
+- Sem modo "Por produto" nem "Split por comanda".
+
+### 3) Tela de sucesso
+
+Reaproveita a mesma tela de sucesso do `PaymentDialog` (mostra troco, etc.). Remove dependências de "imprimir cupom fiscal" quando origem for delivery — mantém apenas botão "Imprimir recibo" (não fiscal) usando os dados do pedido.
+
+### 4) Cabeçalho e contexto
+
+Trocar `isTablePayment` por uma união lógica:
+
+```ts
+const context: "table" | "comanda" | "delivery" =
+  table ? "table" : deliveryOrder ? "delivery" : "comanda";
+```
+
+Usar `context` para gates de UI (esconder add/remove/by-product/NFCe quando `delivery`).
+
+### 5) Integração no caixa
+
+Em `src/components/pdv/cashier/SalonQueuePanel.tsx`:
+
+- Remover `DeliveryPaymentDialog` e o estado `paymentOrder` específico, ou trocá-lo para abrir `PaymentDialog` passando `deliveryOrder={paymentOrder}` e `drawerBalance`.
+- `onRegisterPayment` continua chamando `setPaymentOrder(order)`.
+- `onSuccess` invalida `pdv-delivery-queue` (já feito pelo hook).
+
+### 6) Limpeza
+
+- Deletar `src/components/pdv/cashier/DeliveryPaymentDialog.tsx`.
+- Remover imports órfãos.
+
+## Escopo dos arquivos
+
+- `src/components/pdv/cashier/PaymentDialog.tsx` — adicionar suporte a `deliveryOrder`, gates de UI, branch de submit.
+- `src/hooks/use-pdv-delivery-checkout.ts` — adicionar `registerDeliveryExtraPaymentLine` para suportar split-forms.
+- `src/components/pdv/cashier/SalonQueuePanel.tsx` — trocar dialog usado para delivery.
+- `src/components/pdv/cashier/DeliveryPaymentDialog.tsx` — remover.
+
+## Fora de escopo
+
+- Mudanças no `PaymentDialog` que afetem fluxo do salão.
+- Reescrever o `PaymentDialog` (apenas adicionar branches condicionais).
+- Suporte a "Por produto" / "Split por comanda" para delivery (não fazem sentido).
