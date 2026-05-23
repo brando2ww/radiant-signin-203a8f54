@@ -741,6 +741,49 @@ export function PaymentDialog({
           ? (cardType === "debito" ? "debito" : "credito")
           : (selectedMethod as PaymentMethod);
 
+      // Branch: pagamento de pedido de delivery
+      if (isDelivery && deliveryOrder) {
+        const isSplitForms = splitEnabled && splitPayments.length > 0;
+        if (isSplitForms) {
+          const lines = splitPayments.map((line) => ({
+            method: (line.method === "cartao"
+              ? (line.cardType === "debito" ? "debito" : "credito")
+              : line.method) as PaymentMethod,
+            amount: parseFloat(line.amount) || 0,
+          }));
+          const [first, ...rest] = lines;
+          await registerDeliveryPayment({
+            orderId: deliveryOrder.id,
+            amount: first.amount,
+            paymentMethod: first.method,
+            cashReceived: first.method === "dinheiro" ? first.amount : undefined,
+            source: "delivery",
+          });
+          for (const ln of rest) {
+            await registerDeliveryExtraPaymentLine({
+              orderId: deliveryOrder.id,
+              amount: ln.amount,
+              paymentMethod: ln.method,
+              source: "delivery",
+            });
+          }
+        } else {
+          await registerDeliveryPayment({
+            orderId: deliveryOrder.id,
+            amount: finalAmount,
+            paymentMethod: resolvedMethod,
+            cashReceived: selectedMethod === "dinheiro" ? cashReceivedNum : undefined,
+            changeAmount: selectedMethod === "dinheiro" ? changeAmount : undefined,
+            source: "delivery",
+          });
+        }
+        paymentDoneRef.current = true;
+        setSuccessData({ change: changeAmount });
+        setShowSuccess(true);
+        return;
+      }
+
+
       const paymentData = {
         amount: finalAmount,
         paymentMethod: resolvedMethod,
