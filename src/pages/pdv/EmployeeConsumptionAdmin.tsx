@@ -295,21 +295,36 @@ export default function EmployeeConsumptionAdmin() {
                 )}
                 {entries.map((e) => {
                   const emp = employees.find((x) => x.id === e.employee_id);
+                  const isOpen = !!expandedEntries[e.id];
                   return (
-                    <div key={e.id} className="p-3 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{emp?.full_name || "—"}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })} ·{" "}
-                          {Array.isArray(e.items) ? e.items.length : 0} item(s)
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatBRL(e.total)}</p>
-                        <Badge variant={e.status === "pago" ? "secondary" : "outline"} className="text-xs">
-                          {e.status === "pago" ? "Pago" : e.status === "pago_parcial" ? "Parcial" : "Pendente"}
-                        </Badge>
-                      </div>
+                    <div key={e.id} className="p-3">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-between gap-3 text-left"
+                        onClick={() => setExpandedEntries((p) => ({ ...p, [e.id]: !p[e.id] }))}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isOpen
+                            ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                            : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{emp?.full_name || "—"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })} ·{" "}
+                              {Array.isArray(e.items) ? e.items.length : 0} item(s)
+                              {Number(e.discount || 0) > 0 ? " · c/ desconto" : ""}
+                              {e.coupon_code ? ` · ${e.coupon_code}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-semibold">{formatBRL(e.total)}</p>
+                          <Badge variant={e.status === "pago" ? "secondary" : "outline"} className="text-xs">
+                            {e.status === "pago" ? "Pago" : e.status === "pago_parcial" ? "Parcial" : "Pendente"}
+                          </Badge>
+                        </div>
+                      </button>
+                      {isOpen && <ConsumptionEntryDetails entry={e} />}
                     </div>
                   );
                 })}
