@@ -1267,7 +1267,7 @@ export function PaymentDialog({
                             <span className="font-medium tabular-nums shrink-0">
                               {formatCurrency(isByProduct && isSelected ? selectedQty * Number(item.unit_price || 0) : item.subtotal)}
                             </span>
-                            {!isByProduct && (canRemove ? (
+                            {!isByProduct && !isDelivery && (canRemove ? (
                               <Button
                                 type="button"
                                 variant="ghost"
