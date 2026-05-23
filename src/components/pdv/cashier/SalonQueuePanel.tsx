@@ -93,6 +93,7 @@ export function SalonQueuePanel({
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
   const updateOrderStatus = useUpdateOrderStatus();
+  const { drawerBalance } = usePDVCashier();
   const { data: deliverySettings } = useDeliverySettings();
   const overdueMinutes = deliverySettings?.payment_overdue_minutes ?? 30;
 
