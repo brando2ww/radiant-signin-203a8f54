@@ -70,6 +70,15 @@ export function ConsumptionEntryDetails({ entry }: Props) {
             <span>− {formatBRL(discount)}</span>
           </div>
         )}
+        {hasHistoricalAdjustment && (
+          <div className="flex justify-between text-xs text-muted-foreground italic">
+            <span>Ajuste (preço histórico)</span>
+            <span>
+              {historicalAdjustment > 0 ? "− " : "+ "}
+              {formatBRL(Math.abs(historicalAdjustment))}
+            </span>
+          </div>
+        )}
         <div className="flex justify-between font-semibold">
           <span>Total</span>
           <span>{formatBRL(entry.total)}</span>
