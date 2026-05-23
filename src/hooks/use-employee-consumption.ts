@@ -10,6 +10,11 @@ export interface ConsumptionEntry {
   employee_id: string;
   operator_id: string | null;
   total: number;
+  subtotal: number;
+  discount: number;
+  discount_reason: string | null;
+  coupon_code: string | null;
+  notes: string | null;
   paid_amount: number;
   status: "pendente" | "pago_parcial" | "pago";
   items: any[];
