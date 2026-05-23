@@ -294,6 +294,8 @@ export function usePDVComandas() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
       toast.success("Comanda cancelada!");
     },
     onError: (error) => {
