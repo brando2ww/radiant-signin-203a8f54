@@ -96,6 +96,8 @@ interface PaymentDialogProps {
   table?: PDVTable | null;
   tableComandas?: Comanda[];
   tableItems?: ComandaItem[];
+  /** Pedido de delivery — usa o mesmo modal para registrar pagamento. */
+  deliveryOrder?: DeliveryOrder | null;
   /** Quando true, força split com 1 linha por comanda nominal (cobrar tudo da mesa) */
   splitByComanda?: boolean;
   onSuccess?: () => void;
