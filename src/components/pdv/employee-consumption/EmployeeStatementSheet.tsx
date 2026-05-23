@@ -26,6 +26,7 @@ interface Props {
 
 export function EmployeeStatementSheet({ open, onOpenChange, employee }: Props) {
   const { entries, payments } = useEmployeeConsumption(employee?.id);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const timeline = useMemo(() => {
     const items: any[] = [];
