@@ -51,6 +51,10 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
   const [cart, setCart] = useState<CartItem[]>([]);
   const [settleAmount, setSettleAmount] = useState<number>(0);
   const [justification, setJustification] = useState("");
+  const [discount, setDiscount] = useState<number>(0);
+  const [discountReason, setDiscountReason] = useState("");
+  const [couponCode, setCouponCode] = useState("");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     if (!open) {
@@ -63,6 +67,10 @@ export function EmployeeConsumptionFlowDialog({ open, onOpenChange, cashierSessi
         setCart([]);
         setSettleAmount(0);
         setJustification("");
+        setDiscount(0);
+        setDiscountReason("");
+        setCouponCode("");
+        setNotes("");
       }, 200);
     }
   }, [open]);
