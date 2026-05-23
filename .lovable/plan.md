@@ -1,24 +1,63 @@
-**Objetivo**
-Permitir escolher um intervalo de datas livre (incluindo um único dia) na aba de Relatórios de Desempenho dos entregadores, além dos presets atuais (7/30/90 dias).
+## Objetivo
 
-**Mudanças**
+Hoje a Venda a Prazo mostra apenas "X item(s)" e o total. Vamos:
+1. Mostrar a lista detalhada dos produtos consumidos em cada lançamento.
+2. Permitir registrar **desconto / cupom** no momento do lançamento e exibi-lo no extrato.
+3. Mostrar **quem lançou** (operador) e **observações**.
 
-1. `src/components/delivery/drivers/DriverReports.tsx`
-   - Adicionar um botão com `Popover` + `Calendar` (range, locale ptBR) ao lado do select de período, usando o padrão já existente do projeto.
-   - Manter os presets "Últimos 7/30/90 dias" e incluir um item "Personalizado".
-   - Quando o usuário escolhe um intervalo no calendário, o select muda para "Personalizado" e o hook é chamado com `from`/`to` reais.
-   - O botão mostra o intervalo selecionado formatado em pt-BR (ex.: "10/05/2026 – 15/05/2026" ou "12/05/2026").
+## Banco (1 migração)
 
-2. `src/hooks/use-driver-reports.ts`
-   - Aceitar `{ from: Date; to: Date }` em vez (ou além) de `days`.
-   - Ajustar a query Supabase para usar `gte(created_at, from)` e `lte(created_at, to_end_of_day)`.
-   - Gerar `perDay` iterando entre `from` e `to` em vez de `days`.
-   - Manter compat: se nenhum intervalo customizado for passado, calcula a partir de `days`.
+Tabela `pdv_employee_consumption_entries`:
+- Adicionar colunas:
+  - `subtotal numeric NOT NULL DEFAULT 0` (soma dos itens antes do desconto)
+  - `discount numeric NOT NULL DEFAULT 0`
+  - `discount_reason text` (motivo do desconto)
+  - `coupon_code text` (código do cupom usado, opcional)
+  - `notes text` (observação livre do operador)
+- Backfill: `UPDATE ... SET subtotal = total` nas linhas existentes.
 
-**Detalhes técnicos**
-- Usar `date-fns` com `ptBR` (`format(date, "dd/MM/yyyy", { locale: ptBR })`) — segue o padrão do projeto.
-- Componente `Calendar` em modo `range` (já usado em outros relatórios do app).
-- Sem mudanças de schema/DB.
+Atualizar a função `pdv_register_employee_consumption(p_employee_id, p_items, p_justification, p_discount, p_discount_reason, p_coupon_code, p_notes)`:
+- Calcular `v_subtotal` a partir dos itens.
+- `v_total = GREATEST(0, v_subtotal - COALESCE(p_discount, 0))`.
+- Validar limite usando o `v_total` final (pós-desconto).
+- Persistir os novos campos no INSERT.
+- Manter compatibilidade: parâmetros novos com `DEFAULT NULL/0`.
 
-**Resultado**
-O usuário pode filtrar por um dia específico ou um intervalo arbitrário, mantendo os atalhos rápidos atuais.
+## Frontend
+
+### `EmployeeConsumptionFlowDialog.tsx` (step "products")
+- Acima do botão Confirmar, adicionar bloco "Desconto / Cupom":
+  - Input `Cupom (opcional)` — texto livre (vai como `coupon_code`).
+  - `CurrencyInput` "Desconto (R$)" — limitado ao `cartTotal`.
+  - Input `Motivo do desconto` (obrigatório se desconto > 0, mín. 3 chars).
+  - Textarea `Observação` (opcional).
+- Painel de totais: mostrar Subtotal, Desconto, Total final, Saldo atual, Novo saldo (recalculado com o desconto).
+- `handleConfirmConsume` envia `discount`, `discount_reason`, `coupon_code`, `notes` para a RPC.
+
+### `use-employee-consumption.ts`
+- Estender `ConsumptionEntry` com `subtotal`, `discount`, `discount_reason`, `coupon_code`, `notes`, `operator_id`.
+- `registerConsumption` aceita os novos campos opcionais e os envia na RPC.
+
+### `EmployeeStatementSheet.tsx` (Extrato)
+- Cada card de "Consumo" passa a ser expansível (acordeão simples com chevron):
+  - Lista de itens: `Produto — qtd x unit = subtotal` (usando `formatBRL`).
+  - Linha "Subtotal", "Desconto −R$ …" (se `discount > 0`), "Cupom: CÓDIGO" (se houver), "Total".
+  - Linha "Lançado por: Nome" — buscar do hook `usePDVUsers` pelo `operator_id` (fallback "—").
+  - Linha "Motivo do desconto" e "Observação" quando preenchidos.
+  - Linha "Justificativa de limite" quando `over_limit_justification` existir.
+- Quitação continua compacta.
+
+### `EmployeeConsumptionAdmin.tsx` (aba Lançamentos)
+- Cada linha vira expansível mostrando o mesmo bloco de detalhes (produtos, descontos, cupom, operador, observação).
+- Exportação CSV: adicionar colunas `Subtotal`, `Desconto`, `Cupom`, `Operador`, `Observação`, e uma coluna `Itens` concatenando `qtd x nome` separado por `|`.
+
+### `SettlementEntries` (dentro do flow dialog)
+- Continua compacto, mas exibe o `formatBRL(total)` original e, se houve desconto, um pequeno texto `c/ desconto`.
+
+## Pontos de atenção
+
+- Manter as cores semânticas do design system (sem cores customizadas).
+- Datas com `format(..., { locale: ptBR })`.
+- Valores sempre via `formatBRL`.
+- A migração precisa preservar lançamentos antigos (backfill `subtotal = total`, `discount = 0`).
+- Não alterar nenhum outro fluxo (PDV normal, comandas, delivery).
