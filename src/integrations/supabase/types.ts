@@ -3808,42 +3808,57 @@ export type Database = {
       pdv_employee_consumption_entries: {
         Row: {
           comanda_id: string | null
+          coupon_code: string | null
           created_at: string
+          discount: number
+          discount_reason: string | null
           employee_id: string
           id: string
           items: Json
+          notes: string | null
           operator_id: string | null
           over_limit_justification: string | null
           paid_amount: number
           status: string
+          subtotal: number
           total: number
           updated_at: string
           user_id: string
         }
         Insert: {
           comanda_id?: string | null
+          coupon_code?: string | null
           created_at?: string
+          discount?: number
+          discount_reason?: string | null
           employee_id: string
           id?: string
           items?: Json
+          notes?: string | null
           operator_id?: string | null
           over_limit_justification?: string | null
           paid_amount?: number
           status?: string
+          subtotal?: number
           total?: number
           updated_at?: string
           user_id: string
         }
         Update: {
           comanda_id?: string | null
+          coupon_code?: string | null
           created_at?: string
+          discount?: number
+          discount_reason?: string | null
           employee_id?: string
           id?: string
           items?: Json
+          notes?: string | null
           operator_id?: string | null
           over_limit_justification?: string | null
           paid_amount?: number
           status?: string
+          subtotal?: number
           total?: number
           updated_at?: string
           user_id?: string
@@ -7714,10 +7729,27 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: undefined
       }
-      pdv_register_employee_consumption: {
-        Args: { p_employee_id: string; p_items: Json; p_justification?: string }
-        Returns: Json
-      }
+      pdv_register_employee_consumption:
+        | {
+            Args: {
+              p_employee_id: string
+              p_items: Json
+              p_justification?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_coupon_code?: string
+              p_discount?: number
+              p_discount_reason?: string
+              p_employee_id: string
+              p_items: Json
+              p_justification?: string
+              p_notes?: string
+            }
+            Returns: Json
+          }
       pdv_resolve_owner: { Args: { _user_id: string }; Returns: string }
       pdv_settle_employee_consumption: {
         Args: { p_amount: number; p_employee_id: string; p_session_id?: string }
