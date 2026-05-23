@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { CalendarIcon } from "lucide-react";
+import { DateRange } from "react-day-picker";
 import {
   Select,
   SelectContent,
@@ -16,6 +20,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   BarChart,
   Bar,
@@ -44,16 +52,42 @@ function formatMinutes(min: number | null): string {
   return `${h}h${m.toString().padStart(2, "0")}`;
 }
 
+type Preset = "7" | "30" | "90" | "custom";
+
+function presetRange(preset: Exclude<Preset, "custom">): DateRange {
+  const days = Number(preset);
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - (days - 1));
+  return { from, to };
+}
+
 export function DriverReports({ drivers }: Props) {
-  const [days, setDays] = useState<7 | 30 | 90>(30);
+  const [preset, setPreset] = useState<Preset>("30");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>();
   const [driverFilter, setDriverFilter] = useState<string>("all");
 
-  const report = useDriverReports(days, driverFilter as any);
+  const range = useMemo<{ from: Date; to: Date }>(() => {
+    if (preset === "custom" && customRange?.from) {
+      return { from: customRange.from, to: customRange.to ?? customRange.from };
+    }
+    const r = presetRange((preset === "custom" ? "30" : preset) as Exclude<Preset, "custom">);
+    return { from: r.from!, to: r.to! };
+  }, [preset, customRange]);
+
+  const report = useDriverReports(range, driverFilter as any);
   const driverById = new Map(drivers.map((d) => [d.id, d]));
 
   const sortedDrivers = [...report.drivers].sort((a, b) => b.deliveries - a.deliveries);
   const top = sortedDrivers[0];
   const topDriver = top ? driverById.get(top.driver_id) : null;
+
+  const rangeLabel =
+    preset === "custom" && customRange?.from
+      ? customRange.to && customRange.to.getTime() !== customRange.from.getTime()
+        ? `${format(customRange.from, "dd/MM/yyyy", { locale: ptBR })} – ${format(customRange.to, "dd/MM/yyyy", { locale: ptBR })}`
+        : format(customRange.from, "dd/MM/yyyy", { locale: ptBR })
+      : "Escolher data";
 
   return (
     <section className="mt-10">
@@ -64,17 +98,46 @@ export function DriverReports({ drivers }: Props) {
             Análise de entregas, horários e faturamento por entregador
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v) as any)}>
-            <SelectTrigger className="w-[140px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={preset} onValueChange={(v) => setPreset(v as Preset)}>
+            <SelectTrigger className="w-[160px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="7">Últimos 7 dias</SelectItem>
               <SelectItem value="30">Últimos 30 dias</SelectItem>
               <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
             </SelectContent>
           </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "justify-start text-left font-normal gap-2",
+                  preset !== "custom" && "text-muted-foreground",
+                )}
+              >
+                <CalendarIcon className="h-4 w-4" />
+                {rangeLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                locale={ptBR}
+                selected={customRange}
+                onSelect={(r) => {
+                  setCustomRange(r);
+                  if (r?.from) setPreset("custom");
+                }}
+                numberOfMonths={2}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
           <Select value={driverFilter} onValueChange={setDriverFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue />
