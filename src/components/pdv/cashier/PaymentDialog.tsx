@@ -218,6 +218,10 @@ export function PaymentDialog({
   const { settings } = usePDVSettings();
   
   const { registerCreditSale, isRegisteringCreditSale } = useEmployeeConsumption();
+  const { registerDeliveryPayment, registerDeliveryExtraPaymentLine, isRegistering: isRegisteringDelivery } = usePDVDeliveryCheckout();
+
+  const isDelivery = !!deliveryOrder && !comanda && !table;
+  const isPickupDelivery = isDelivery && (deliveryOrder as any)?.order_type === "pickup";
 
   // Configuração global da taxa de serviço (vem das pdv_settings)
   const serviceFeeAllowed = settings?.enable_service_fee ?? true;
