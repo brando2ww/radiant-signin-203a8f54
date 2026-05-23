@@ -1792,7 +1792,7 @@ export function PaymentDialog({
           </div>
 
           {/* Right Column - Payment */}
-          <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
+          <div className="space-y-4 overflow-y-auto max-h-[60vh] px-1">
             {/* Charge mode segmented control */}
             <div className="grid grid-cols-3 gap-1 p-1 bg-muted/50 rounded-lg">
               <Button
