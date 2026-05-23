@@ -18,11 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MoreVertical, Pencil, Trash2, FileText, Users, DollarSign, AlertCircle } from "lucide-react";
+import { Plus, Search, MoreVertical, Pencil, Trash2, FileText, Users, DollarSign, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuthorizedEmployees, AuthorizedEmployee } from "@/hooks/use-authorized-employees";
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
+import { usePDVUsers } from "@/hooks/use-pdv-users";
 import { AuthorizedEmployeeFormSheet } from "@/components/pdv/employee-consumption/AuthorizedEmployeeFormSheet";
 import { EmployeeStatementSheet } from "@/components/pdv/employee-consumption/EmployeeStatementSheet";
+import { ConsumptionEntryDetails } from "@/components/pdv/employee-consumption/ConsumptionEntryDetails";
 import { formatBRL } from "@/lib/format";
 import { format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
