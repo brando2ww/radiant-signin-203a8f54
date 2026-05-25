@@ -90,6 +90,21 @@ export default function TenantDetail() {
   const [editDiscountPw, setEditDiscountPw] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const [deletingTenant, setDeletingTenant] = useState(false);
+
+  const handleDeleteTenant = async () => {
+    if (!id) return;
+    setDeletingTenant(true);
+    try {
+      await deleteTenant(id);
+      toast.success("Tenant excluído");
+      navigate("/admin/tenants");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao excluir tenant");
+    } finally {
+      setDeletingTenant(false);
+    }
+  };
 
   const tenant = tenants.find((t) => t.id === id);
   const parentTenant = tenant?.parent_tenant_id
