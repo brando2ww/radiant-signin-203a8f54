@@ -19,6 +19,7 @@ import {
 import { ArrowLeft, Pencil, Save, Eye, EyeOff } from "lucide-react";
 import { useTenants, TenantModule, TenantIntegration } from "@/hooks/use-tenants";
 import { FranchiseSection } from "@/components/super-admin/FranchiseSection";
+import { availableModules } from "@/components/super-admin/ModuleSelector";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
