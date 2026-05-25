@@ -3,6 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/ui/logo";
+import velaraSymbol from "@/assets/velara-symbol.png";
 import {
   Sidebar,
   SidebarContent,
@@ -39,15 +40,19 @@ export function AdminSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-3 py-4 overflow-hidden">
-        <Logo
-          size="sm"
-          className={
-            collapsed
-              ? "h-6 w-6 object-contain"
-              : "max-w-full w-auto object-contain"
-          }
-        />
+      <SidebarHeader className="px-3 py-3 overflow-hidden">
+        {collapsed ? (
+          <img
+            src={velaraSymbol}
+            alt="Velara"
+            className="h-8 w-8 object-contain dark:invert"
+          />
+        ) : (
+          <Logo
+            size="sm"
+            className="h-16 w-auto max-w-full object-contain"
+          />
+        )}
       </SidebarHeader>
 
       <SidebarSeparator />
