@@ -39,8 +39,15 @@ export function AdminSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-4 py-5">
-        <Logo size="sm" className={collapsed ? "h-8 object-contain" : ""} />
+      <SidebarHeader className="px-3 py-4 overflow-hidden">
+        <Logo
+          size="sm"
+          className={
+            collapsed
+              ? "h-6 w-6 object-contain"
+              : "max-w-full w-auto object-contain"
+          }
+        />
       </SidebarHeader>
 
       <SidebarSeparator />
