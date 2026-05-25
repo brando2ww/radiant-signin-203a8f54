@@ -71,6 +71,7 @@ export default function TenantDetail() {
     updateTenantUser,
     upsertTenantModule,
     saveTenantIntegrations,
+    deleteTenant,
   } = useTenants();
 
   const [modules, setModules] = useState<TenantModule[]>([]);
