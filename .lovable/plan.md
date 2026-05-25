@@ -1,20 +1,12 @@
-## Problema
+## Mudança no logo da AdminSidebar
 
-No `AdminSidebar`, o `<Logo size="sm" />` renderiza um `<img>` sem limite de largura. Como o logo "velara" tem proporção horizontal larga, ele estoura/desalinha dentro do `SidebarHeader` (especialmente quando a sidebar está em modo `collapsed`, onde a largura cai para ~3rem mas a imagem mantém ~`h-8` com largura natural maior).
+1. Copiar `user-uploads://simbolo_velara_preto_1.png` para `src/assets/velara-symbol.png`.
 
-Hoje:
-- `src/components/ui/logo.tsx` aplica só `h-8` + `dark:invert`, sem `w-auto max-w-full object-contain`.
-- `src/components/super-admin/AdminSidebar.tsx` no estado collapsed passa `h-8 object-contain` mas sem limitar largura, então o logo "vaza" do container colapsado.
-
-## Correção (apenas visual, escopo restrito ao logo da AdminSidebar)
-
-1. `src/components/super-admin/AdminSidebar.tsx`
-   - `SidebarHeader`: trocar `px-4 py-5` por `px-3 py-4` e adicionar `overflow-hidden` para conter o logo.
-   - Logo expandido: `<Logo size="sm" className="max-w-full w-auto object-contain" />`.
-   - Logo colapsado: renderizar variante reduzida `<Logo size="sm" className="h-6 w-6 object-contain" />` (quadrado, cabe nos 3rem do sidebar colapsado).
-
-2. Sem mexer em `logo.tsx` (mantém comportamento global para outras telas).
+2. `src/components/super-admin/AdminSidebar.tsx`:
+   - Importar o novo símbolo: `import velaraSymbol from "@/assets/velara-symbol.png"`.
+   - Estado **colapsado**: renderizar `<img src={velaraSymbol} alt="Velara" className="h-8 w-8 object-contain dark:invert" />` (em vez do `<Logo>`).
+   - Estado **expandido**: manter `<Logo>` atual, porém 2x maior — usar `className="h-16 w-auto max-w-full object-contain"` (sobrescrevendo o `h-8` padrão do size `sm`).
+   - Ajustar `SidebarHeader` para `py-3` para acomodar o logo maior sem cortar.
 
 ## Fora de escopo
-- Não alterar logos de `GarcomHeader`, headers públicos ou qualquer outra tela.
-- Não criar variante "icon" do logo agora (o asset atual é único).
+- Não mexer no `Logo` global nem em outras telas.
