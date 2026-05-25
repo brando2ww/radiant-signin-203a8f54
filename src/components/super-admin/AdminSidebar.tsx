@@ -39,11 +39,8 @@ function InterfacesLogoSquare({ size = 28 }: { size?: number }) {
 
 function BrandBadge() {
   return (
-    <div className="flex items-center gap-2.5 px-4 pt-4">
-      <InterfacesLogoSquare size={24} />
-      <span className="font-['Lexend:Regular',_sans-serif] text-[15px] font-medium text-neutral-900">
-        Interfaces
-      </span>
+    <div className="flex items-center px-4 pt-4">
+      <img src={velaraLogo} alt="Velara" className="h-6 w-auto object-contain" />
     </div>
   );
 }
