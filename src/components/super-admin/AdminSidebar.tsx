@@ -392,11 +392,13 @@ function MenuSection({
   section,
   expandedItems,
   onToggleExpanded,
+  onNavigate,
   isCollapsed,
 }: {
   section: MenuSectionT;
   expandedItems: Set<string>;
   onToggleExpanded: (itemKey: string) => void;
+  onNavigate: (path: string) => void;
   isCollapsed?: boolean;
 }) {
   return (
@@ -414,7 +416,7 @@ function MenuSection({
               item={item}
               isExpanded={isExpanded}
               onToggle={() => onToggleExpanded(itemKey)}
-              onItemClick={() => console.log(`Clicked ${item.label}`)}
+              onItemClick={() => item.path && onNavigate(item.path)}
               isCollapsed={isCollapsed}
             />
             {isExpanded && item.children && !isCollapsed && (
@@ -423,7 +425,7 @@ function MenuSection({
                   <SubMenuItem
                     key={childIndex}
                     item={child}
-                    onItemClick={() => console.log(`Clicked ${child.label}`)}
+                    onItemClick={() => child.path && onNavigate(child.path)}
                   />
                 ))}
               </div>
