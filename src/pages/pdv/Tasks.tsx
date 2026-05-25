@@ -17,6 +17,7 @@ import { TeamScorePanel } from "@/components/pdv/checklists/TeamScorePanel";
 import { EvidenceGallery } from "@/components/pdv/checklists/EvidenceGallery";
 import { ExpiryTrackingPanel } from "@/components/pdv/checklists/ExpiryTrackingPanel";
 import { AccessLogsPanel } from "@/components/pdv/checklists/AccessLogsPanel";
+import { AttentionPanel } from "@/components/pdv/checklists/AttentionPanel";
 import { useOperationalTasks } from "@/hooks/use-operational-tasks";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
