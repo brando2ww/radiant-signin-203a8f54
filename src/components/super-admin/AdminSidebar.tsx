@@ -23,13 +23,13 @@ const softSpringEasing = "cubic-bezier(0.25, 1.1, 0.4, 1)";
 function InterfacesLogoSquare({ size = 28 }: { size?: number }) {
   return (
     <div
-      className="flex items-center justify-center rounded-md bg-neutral-50"
+      className="flex items-center justify-center rounded-md bg-neutral-900"
       style={{ width: size, height: size }}
     >
       <svg width={size * 0.6} height={size * 0.45} viewBox="0 0 33 22" fill="none">
-        <rect x="0" y="0" width="33" height="5.5" rx="0.5" fill="#0a0a0a" />
-        <rect x="6" y="8.25" width="21" height="5.5" rx="0.5" fill="#0a0a0a" />
-        <rect x="0" y="16.5" width="33" height="5.5" rx="0.5" fill="#0a0a0a" />
+        <rect x="0" y="0" width="33" height="5.5" rx="0.5" fill="#ffffff" />
+        <rect x="6" y="8.25" width="21" height="5.5" rx="0.5" fill="#ffffff" />
+        <rect x="0" y="16.5" width="33" height="5.5" rx="0.5" fill="#ffffff" />
       </svg>
     </div>
   );
