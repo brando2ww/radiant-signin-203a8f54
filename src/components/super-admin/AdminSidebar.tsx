@@ -14,6 +14,7 @@ import {
   User as UserIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
+  ChevronUp as ChevronUpIcon,
   AddLarge,
   Filter,
   Time,
