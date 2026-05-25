@@ -309,6 +309,7 @@ export function useTenants() {
     updateTenantUser,
     toggleTenantModule,
     upsertTenantModule,
+    deleteTenant,
     saveTenantIntegrations,
     fetchChildTenants,
     linkChildTenant,
