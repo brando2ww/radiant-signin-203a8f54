@@ -543,21 +543,6 @@ function DetailSidebar({
               />
             ))}
           </div>
-          <div className="border-t border-neutral-200 p-3">
-            <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-              <AvatarCircle size={36} />
-              <span className="flex-1 font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-900 leading-[20px]">
-                Text content
-              </span>
-              <button
-                type="button"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-200"
-                aria-label="More"
-              >
-                <OverflowMenuVertical size={16} />
-              </button>
-            </div>
-          </div>
         </>
       )}
     </div>
