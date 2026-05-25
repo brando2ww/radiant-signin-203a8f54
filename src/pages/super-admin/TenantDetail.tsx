@@ -236,22 +236,25 @@ export default function TenantDetail() {
               <CardTitle className="text-lg">Módulos Habilitados</CardTitle>
             </CardHeader>
             <CardContent>
-              {modules.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum módulo cadastrado.</p>
-              ) : (
-                <div className="space-y-3">
-                  {modules.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between">
-                      <span className="font-medium capitalize">{m.module}</span>
+              <div className="space-y-3">
+                {availableModules.map((mod) => {
+                  const current = modules.find((m) => m.module === mod.value);
+                  const isActive = !!current?.is_active;
+                  return (
+                    <div key={mod.value} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{mod.label}</p>
+                        <p className="text-xs text-muted-foreground">{mod.description}</p>
+                      </div>
                       <Switch
-                        checked={m.is_active}
+                        checked={isActive}
                         disabled={savingModules}
-                        onCheckedChange={() => handleToggleModule(m)}
+                        onCheckedChange={(checked) => handleToggleModule(mod.value, checked)}
                       />
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
 
