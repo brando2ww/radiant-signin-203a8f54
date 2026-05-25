@@ -14,7 +14,6 @@ import {
   User as UserIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
-  ChevronUp as ChevronUpIcon,
   AddLarge,
   Filter,
   Time,
@@ -776,14 +775,14 @@ function CollapsedRail({
 }) {
   const allItems = content.sections.flatMap((s) => s.items);
   return (
-    <div className="flex h-full w-full flex-col items-center gap-2 py-4">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2">
       <button
         type="button"
         onClick={onExpand}
         aria-label="Expand panel"
         className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-900 hover:text-neutral-50"
       >
-        <ChevronUpIcon size={16} />
+        <ChevronRightIcon size={16} />
       </button>
 
       <button
