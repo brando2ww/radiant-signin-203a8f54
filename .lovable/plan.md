@@ -1,59 +1,39 @@
-# Reescrita da exibição da Galeria de Evidências
+# Refinos na Galeria de Evidências
 
-Reescrever apenas a camada visual de agrupamento e os cards. Filtros, busca, aprovação, reprovação, comentários, exportação, overview e seção de atenção permanecem inalterados.
+## 1. Colapsado por padrão
+- `EvidenceDayGroup` e `EvidenceShiftGroup`: estado inicial `open = false`.
+- Usuário abre manualmente o dia/turno que quer inspecionar.
 
-## Agrupamento em 2 níveis
+## 2. Cabeçalho do dia melhorado
+Reescrever o header de `EvidenceDayGroup` com layout em duas linhas:
+- **Linha principal:** chevron + data formatada (capitalizada) + ícone de calendário pequeno.
+- **Linha secundária / lado direito:** mini-indicadores compactos em pills com ícones:
+  - 📷 total de fotos
+  - 🟡 pendentes (só aparece se > 0)
+  - ✅ aprovadas (só aparece se > 0)
+  - ❌ reprovadas (só aparece se > 0)
+- Hover sutil; quando aberto, fundo levemente diferenciado.
+- Header do turno também ganha contadores por status no canto direito.
 
-**Nível 1 — Dia** (rótulo via `date-fns` ptBR):
-- "Hoje" / "Ontem" / "Segunda-feira, 19 de maio de 2026"
-- Cabeçalho com: data + total de fotos + nº de pendentes
-- Colapsável (todos abertos por padrão)
+## 3. Página dedicada "Atenção"
+- Adicionar novo item de nav em `src/pages/pdv/Tasks.tsx`: `{ key: "atencao", label: "Atenção", icon: AlertTriangle }` posicionado logo após "Evidências".
+- Criar `src/components/pdv/checklists/AttentionPanel.tsx`:
+  - Usa o mesmo `useEvidenceGallery` + filtros (reaproveita `EvidenceFiltersBar` com filtros de período/operador/checklist/setor — sem o filtro de status, que é forçado).
+  - **Critério de inclusão:** `(isCritical || isCompliant === false) && reviewStatus !== "aprovado" && reviewStatus !== "reprovado"`. Ou seja, só itens críticos/não-conformes ainda **pendentes**. Reprovadas saem (já tratadas) e aprovadas também.
+  - Renderiza com a **mesma lógica dia → turno colapsável** (reusa `EvidenceDayGroup`/`EvidenceShiftGroup`), com a mesma ordenação.
+  - Lightbox, aprovar/reprovar/comentários funcionam igual.
+  - Estado vazio próprio: "Nenhuma evidência precisa de atenção no período. 🎉".
+- Remover `EvidenceAttentionSection` da `EvidenceGallery` (a galeria principal não duplica mais essa lista).
 
-**Nível 2 — Turno**, derivado de `completedAt` (fallback: meio-dia se nulo):
-- Manhã: 05:00–11:59
-- Tarde: 12:00–17:59
-- Noite: 18:00–04:59
-- Cabeçalho com: nome do turno + faixa de horário + contagem de fotos
-- Colapsável independente
-
-Apenas turnos com fotos aparecem. Mensagem contextual no grupo de dia se algum turno típico ficar vazio após filtros ativos (ex.: "Sem evidências para o turno da Tarde com os filtros atuais").
-
-## Ordenação dentro de cada turno
-1. Pendentes (`reviewStatus == null` ou `"pendente"`)
-2. Aprovadas
-3. Reprovadas
-
-Dentro de cada bucket: `completedAt` decrescente.
-
-## Novo card de foto
-Reescrever `EvidenceGridCard`:
-- Imagem ocupa ~80% da altura (aspect-[4/5])
-- Badge de status no canto superior direito com cores fortes:
-  - Pendente: amarelo (`bg-yellow-500 text-yellow-950`)
-  - Aprovada: verde (`bg-green-600 text-white`)
-  - Reprovada: vermelho (`bg-destructive text-destructive-foreground`)
-- Badge "Crítico" no canto superior esquerdo (quando aplicável)
-- Ícone de balão (`MessageSquare`) no canto inferior direito quando `reviewComment` existir
-- Rodapé compacto (text-xs/text-[11px]):
-  - Linha 1: nome do item (line-clamp-2, font-medium)
-  - Linha 2: colaborador • horário (HH:mm)
-  - Linha 3: checklist (truncate, text-muted-foreground)
-- Hover overlay com botões Ver/Aprovar/Reprovar mantido
-
-## Componentes a criar/alterar
-**Reescrever:**
-- `src/components/pdv/checklists/EvidenceGallery.tsx` — substituir `groupedByDate` por estrutura aninhada `dia → turno → itens[]`; render dos accordions; ordenação por status.
-- `src/components/pdv/checklists/evidence/EvidenceGridCard.tsx` — novo layout descrito acima.
+## Arquivos
+**Editar:**
+- `src/components/pdv/checklists/evidence/EvidenceDayGroup.tsx` — colapsado por padrão; novo header.
+- `src/components/pdv/checklists/evidence/EvidenceShiftGroup.tsx` — colapsado por padrão; contadores por status no header.
+- `src/components/pdv/checklists/EvidenceGallery.tsx` — remover `<EvidenceAttentionSection />`.
+- `src/pages/pdv/Tasks.tsx` — novo item de nav "Atenção" e roteamento para `AttentionPanel`.
 
 **Criar:**
-- `src/components/pdv/checklists/evidence/EvidenceDayGroup.tsx` — bloco de dia colapsável com header + lista de turnos.
-- `src/components/pdv/checklists/evidence/EvidenceShiftGroup.tsx` — bloco de turno colapsável com grid de cards.
-- `src/components/pdv/checklists/evidence/shift-utils.ts` — `getShift(completedAt)` e constantes `SHIFTS`.
+- `src/components/pdv/checklists/AttentionPanel.tsx` — painel dedicado.
 
 **Sem alteração:**
-- `use-checklist-evidence.ts`, filtros, lightbox, overview, attention section, modo lista, exportação ZIP/CSV.
-
-## Detalhes técnicos
-- Usar componente `Collapsible` do shadcn já presente no projeto.
-- Cores via tokens semânticos quando possível; exceção apenas para o trio amarelo/verde/vermelho dos status (requisito explícito do usuário).
-- Estado de collapse mantido em memória local (não persistido).
+- Hook `use-checklist-evidence`, filtros, lightbox, exportação, card de foto, overview, modo lista.

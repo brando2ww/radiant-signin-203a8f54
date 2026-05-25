@@ -17,6 +17,7 @@ import { TeamScorePanel } from "@/components/pdv/checklists/TeamScorePanel";
 import { EvidenceGallery } from "@/components/pdv/checklists/EvidenceGallery";
 import { ExpiryTrackingPanel } from "@/components/pdv/checklists/ExpiryTrackingPanel";
 import { AccessLogsPanel } from "@/components/pdv/checklists/AccessLogsPanel";
+import { AttentionPanel } from "@/components/pdv/checklists/AttentionPanel";
 import { useOperationalTasks } from "@/hooks/use-operational-tasks";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { key: "configuracoes", label: "Configurações", icon: Settings },
   { key: "score", label: "Score", icon: Trophy },
   { key: "evidencias", label: "Evidências", icon: Camera },
+  { key: "atencao", label: "Atenção", icon: ShieldAlert },
   { key: "validade", label: "Validade", icon: ShieldAlert },
   { key: "logs", label: "Logs", icon: FileText },
 ] as const;
@@ -80,6 +82,7 @@ export default function Tasks() {
       case "configuracoes": return <TaskSettings onNavigate={setActiveSection} />;
       case "score": return <TeamScorePanel onNavigate={setActiveSection} />;
       case "evidencias": return <EvidenceGallery />;
+      case "atencao": return <AttentionPanel />;
       case "validade": return <ExpiryTrackingPanel />;
       case "logs": return <AccessLogsPanel />;
       default: return <DashboardPanel />;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar, Camera, CircleDot, CheckCircle2, XCircle } from "lucide-react";
 import { format, isToday, isYesterday, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { EvidenceItem } from "@/hooks/use-checklist-evidence";
@@ -28,10 +28,18 @@ function formatDateHeader(dateStr: string): string {
 }
 
 export function EvidenceDayGroup({ date, shifts, hasActiveFilters, onView, onApprove, onReject }: Props) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const totalPhotos = shifts.reduce((acc, s) => acc + s.items.length, 0);
   const totalPending = shifts.reduce(
     (acc, s) => acc + s.items.filter(({ item }) => !item.reviewStatus || item.reviewStatus === "pendente").length,
+    0,
+  );
+  const totalApproved = shifts.reduce(
+    (acc, s) => acc + s.items.filter(({ item }) => item.reviewStatus === "aprovado").length,
+    0,
+  );
+  const totalRejected = shifts.reduce(
+    (acc, s) => acc + s.items.filter(({ item }) => item.reviewStatus === "reprovado").length,
     0,
   );
 
@@ -39,23 +47,35 @@ export function EvidenceDayGroup({ date, shifts, hasActiveFilters, onView, onApp
   const missingShifts = (Object.keys(SHIFTS) as ShiftKey[]).filter((k) => !presentShifts.has(k));
 
   return (
-    <section className="space-y-3 border border-border rounded-lg bg-card overflow-hidden">
+    <section className="border border-border rounded-lg bg-card overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 w-full text-left px-3 py-2.5 bg-muted/40 hover:bg-muted transition-colors border-b border-border"
+        className={`flex items-center gap-3 w-full text-left px-4 py-3 hover:bg-muted transition-colors ${open ? "bg-muted/60 border-b border-border" : ""}`}
       >
-        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <h3 className="text-sm font-semibold text-foreground capitalize">{formatDateHeader(date)}</h3>
-        <span className="ml-auto flex items-center gap-3 text-xs">
+        {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+        <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+        <h3 className="text-sm font-semibold text-foreground capitalize truncate">{formatDateHeader(date)}</h3>
+
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-xs text-foreground">
+            <Camera className="h-3 w-3" /> {totalPhotos}
+          </span>
           {totalPending > 0 && (
-            <span className="text-yellow-700 dark:text-yellow-500 font-medium">
-              {totalPending} pendente{totalPending === 1 ? "" : "s"}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-700 dark:text-yellow-500 text-xs font-medium">
+              <CircleDot className="h-3 w-3" /> {totalPending}
             </span>
           )}
-          <span className="text-muted-foreground">
-            {totalPhotos} {totalPhotos === 1 ? "foto" : "fotos"}
-          </span>
-        </span>
+          {totalApproved > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-600/15 text-green-700 dark:text-green-500 text-xs">
+              <CheckCircle2 className="h-3 w-3" /> {totalApproved}
+            </span>
+          )}
+          {totalRejected > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-destructive/15 text-destructive text-xs">
+              <XCircle className="h-3 w-3" /> {totalRejected}
+            </span>
+          )}
+        </div>
       </button>
 
       {open && (
