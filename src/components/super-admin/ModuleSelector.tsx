@@ -6,6 +6,7 @@ const availableModules = [
   { value: "financeiro", label: "Financeiro", description: "Contas, fluxo de caixa, DRE" },
   { value: "crm", label: "CRM", description: "Gestão de leads e clientes" },
   { value: "avaliacoes", label: "Avaliações", description: "Pesquisa de satisfação NPS" },
+  { value: "tarefas", label: "Tarefas", description: "Checklists operacionais e tarefas diárias" },
 ];
 
 interface ModuleSelectorProps {
