@@ -33,6 +33,7 @@ const NAV_ITEMS = [
   { key: "configuracoes", label: "Configurações", icon: Settings },
   { key: "score", label: "Score", icon: Trophy },
   { key: "evidencias", label: "Evidências", icon: Camera },
+  { key: "atencao", label: "Atenção", icon: ShieldAlert },
   { key: "validade", label: "Validade", icon: ShieldAlert },
   { key: "logs", label: "Logs", icon: FileText },
 ] as const;
