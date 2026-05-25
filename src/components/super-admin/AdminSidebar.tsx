@@ -15,6 +15,8 @@ import {
   View,
   OverflowMenuVertical,
 } from "@carbon/icons-react";
+import velaraLogo from "@/assets/logo_velara_preto.png";
+import velaraSymbol from "@/assets/velara-symbol.png";
 
 const softSpringEasing = "cubic-bezier(0.25, 1.1, 0.4, 1)";
 
@@ -37,11 +39,8 @@ function InterfacesLogoSquare({ size = 28 }: { size?: number }) {
 
 function BrandBadge() {
   return (
-    <div className="flex items-center gap-2.5 px-4 pt-4">
-      <InterfacesLogoSquare size={24} />
-      <span className="font-['Lexend:Regular',_sans-serif] text-[15px] font-medium text-neutral-900">
-        Interfaces
-      </span>
+    <div className="flex items-center px-4 pt-4">
+      <img src={velaraLogo} alt="Velara" className="h-6 w-auto object-contain" />
     </div>
   );
 }
@@ -248,7 +247,7 @@ function IconNavigation({
   return (
     <div className="flex w-[60px] shrink-0 flex-col items-center gap-1 py-4">
       <div className="mb-2 flex h-10 w-10 items-center justify-center">
-        <InterfacesLogoSquare size={28} />
+        <img src={velaraSymbol} alt="Velara" className="h-7 w-7 object-contain" />
       </div>
 
       <div className="flex flex-col items-center gap-1">
