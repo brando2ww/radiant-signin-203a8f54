@@ -15,6 +15,14 @@ import {
   View,
   OverflowMenuVertical,
 } from "@carbon/icons-react";
+import { LogOut } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 import velaraLogo from "@/assets/logo_velara_preto.png";
 import velaraSymbol from "@/assets/velara-symbol.png";
 
