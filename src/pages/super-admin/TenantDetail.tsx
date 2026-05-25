@@ -19,6 +19,7 @@ import {
 import { ArrowLeft, Pencil, Save, Eye, EyeOff } from "lucide-react";
 import { useTenants, TenantModule, TenantIntegration } from "@/hooks/use-tenants";
 import { FranchiseSection } from "@/components/super-admin/FranchiseSection";
+import { availableModules } from "@/components/super-admin/ModuleSelector";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -57,7 +58,7 @@ export default function TenantDetail() {
     fetchTenantUsers,
     fetchTenantIntegrations,
     updateTenantUser,
-    toggleTenantModule,
+    upsertTenantModule,
     saveTenantIntegrations,
   } = useTenants();
 
@@ -107,14 +108,14 @@ export default function TenantDetail() {
     loadData();
   }, [id]);
 
-  const handleToggleModule = async (mod: TenantModule) => {
+  const handleToggleModule = async (moduleSlug: string, nextActive: boolean) => {
+    if (!id) return;
     setSavingModules(true);
     try {
-      await toggleTenantModule(mod.id, !mod.is_active);
-      setModules((prev) =>
-        prev.map((m) => (m.id === mod.id ? { ...m, is_active: !m.is_active } : m))
-      );
-      toast.success(`Módulo ${mod.module} ${!mod.is_active ? "ativado" : "desativado"}`);
+      await upsertTenantModule(id, moduleSlug, nextActive);
+      const mods = await fetchTenantModules(id);
+      setModules(mods);
+      toast.success(`Módulo ${moduleSlug} ${nextActive ? "ativado" : "desativado"}`);
     } catch {
       toast.error("Erro ao atualizar módulo");
     } finally {
@@ -235,22 +236,25 @@ export default function TenantDetail() {
               <CardTitle className="text-lg">Módulos Habilitados</CardTitle>
             </CardHeader>
             <CardContent>
-              {modules.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum módulo cadastrado.</p>
-              ) : (
-                <div className="space-y-3">
-                  {modules.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between">
-                      <span className="font-medium capitalize">{m.module}</span>
+              <div className="space-y-3">
+                {availableModules.map((mod) => {
+                  const current = modules.find((m) => m.module === mod.value);
+                  const isActive = !!current?.is_active;
+                  return (
+                    <div key={mod.value} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{mod.label}</p>
+                        <p className="text-xs text-muted-foreground">{mod.description}</p>
+                      </div>
                       <Switch
-                        checked={m.is_active}
+                        checked={isActive}
                         disabled={savingModules}
-                        onCheckedChange={() => handleToggleModule(m)}
+                        onCheckedChange={(checked) => handleToggleModule(mod.value, checked)}
                       />
                     </div>
-                  ))}
-                </div>
-              )}
+                  );
+                })}
+              </div>
             </CardContent>
           </Card>
 
