@@ -168,7 +168,8 @@ export function EvidenceGallery() {
       ) : (
         <>
           <EvidenceOverview evidence={evidence} />
-          <EvidenceAttentionSection evidence={evidence} onView={openLightboxForItem} />
+
+
 
           {viewMode === "grid" ? (
             <div className="space-y-4">
