@@ -219,38 +219,45 @@ function IconNavButton({
   );
 }
 
+const railItems = [
+  { id: "dashboard", icon: <Dashboard size={18} />, label: "Dashboard", path: "/admin" },
+  { id: "tenants", icon: <UserMultiple size={18} />, label: "Tenants", path: "/admin/tenants" },
+  { id: "planos", icon: <Folder size={18} />, label: "Planos", path: "/admin/planos" },
+  {
+    id: "configuracoes",
+    icon: <SettingsIcon size={18} />,
+    label: "Configurações",
+    path: "/admin/configuracoes",
+  },
+];
+
+function getActiveSectionFromPath(pathname: string): string {
+  if (pathname.startsWith("/admin/tenants")) return "tenants";
+  if (pathname.startsWith("/admin/planos")) return "planos";
+  if (pathname.startsWith("/admin/configuracoes")) return "configuracoes";
+  return "dashboard";
+}
+
 function IconNavigation({
   activeSection,
-  onSectionChange,
+  onNavigate,
 }: {
   activeSection: string;
-  onSectionChange: (section: string) => void;
+  onNavigate: (path: string) => void;
 }) {
-  const navItems = [
-    { id: "dashboard", icon: <Dashboard size={18} />, label: "Dashboard" },
-    { id: "tasks", icon: <Task size={18} />, label: "Tasks" },
-    { id: "projects", icon: <Folder size={18} />, label: "Projects" },
-    { id: "calendar", icon: <CalendarIcon size={18} />, label: "Calendar" },
-    { id: "teams", icon: <UserMultiple size={18} />, label: "Teams" },
-    { id: "analytics", icon: <Analytics size={18} />, label: "Analytics" },
-    { id: "files", icon: <DocumentAdd size={18} />, label: "Files" },
-  ];
-
   return (
     <div className="flex w-[60px] shrink-0 flex-col items-center gap-1 py-4">
-      {/* Logo */}
       <div className="mb-2 flex h-10 w-10 items-center justify-center">
         <InterfacesLogoSquare size={28} />
       </div>
 
-      {/* Navigation Icons */}
       <div className="flex flex-col items-center gap-1">
-        {navItems.map((item) => (
+        {railItems.map((item) => (
           <IconNavButton
             key={item.id}
             title={item.label}
             isActive={activeSection === item.id}
-            onClick={() => onSectionChange(item.id)}
+            onClick={() => onNavigate(item.path)}
           >
             {item.icon}
           </IconNavButton>
@@ -259,15 +266,7 @@ function IconNavigation({
 
       <div className="flex-1" />
 
-      {/* Bottom section */}
       <div className="flex flex-col items-center gap-2 pb-1">
-        <IconNavButton
-          title="Settings"
-          isActive={activeSection === "settings"}
-          onClick={() => onSectionChange("settings")}
-        >
-          <SettingsIcon size={18} />
-        </IconNavButton>
         <AvatarCircle size={32} />
       </div>
     </div>
