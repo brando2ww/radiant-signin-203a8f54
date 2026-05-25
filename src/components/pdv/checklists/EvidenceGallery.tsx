@@ -89,10 +89,6 @@ export function EvidenceGallery() {
   };
 
 
-  const openLightboxForItem = (item: EvidenceItem) => {
-    const idx = evidence?.findIndex(e => e.executionItemId === item.executionItemId) ?? -1;
-    if (idx >= 0) setLightboxIndex(idx);
-  };
 
   const hasActiveFilters = useMemo(() => {
     return !!(
