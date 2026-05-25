@@ -63,7 +63,7 @@ export function BusinessHoursEditor({ value, onChange, onValidityChange }: Busin
     <div className="space-y-6">
       {WEEK_DAYS.map(({ key, label }) => {
         const day = hours[key];
-        const showTrash = day.shifts.length > 1;
+        const canRemove = day.shifts.length > 1;
         const overlap = errors[key];
 
         return (
@@ -104,19 +104,21 @@ export function BusinessHoursEditor({ value, onChange, onValidityChange }: Busin
                         />
                       </div>
                     </div>
-                    {showTrash ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeShift(key, idx)}
-                        aria-label="Remover turno"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    ) : (
-                      <div className="w-10" />
-                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!canRemove}
+                      title={canRemove ? "Remover turno" : "Pelo menos 1 turno é obrigatório"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeShift(key, idx);
+                      }}
+                      aria-label="Remover turno"
+                    >
+                      <Trash2 className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Remover</span>
+                    </Button>
                   </div>
                 ))}
 

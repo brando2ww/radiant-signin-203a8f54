@@ -1,39 +1,21 @@
-# Refinos na Galeria de Evidências
+# Corrigir remoção de turno em "Horários de funcionamento"
 
-## 1. Colapsado por padrão
-- `EvidenceDayGroup` e `EvidenceShiftGroup`: estado inicial `open = false`.
-- Usuário abre manualmente o dia/turno que quer inspecionar.
+## Problema
+Em Admin > Configurações > Horários de funcionamento, dá para adicionar um segundo turno mas a opção de excluir não aparece de forma clara.
 
-## 2. Cabeçalho do dia melhorado
-Reescrever o header de `EvidenceDayGroup` com layout em duas linhas:
-- **Linha principal:** chevron + data formatada (capitalizada) + ícone de calendário pequeno.
-- **Linha secundária / lado direito:** mini-indicadores compactos em pills com ícones:
-  - 📷 total de fotos
-  - 🟡 pendentes (só aparece se > 0)
-  - ✅ aprovadas (só aparece se > 0)
-  - ❌ reprovadas (só aparece se > 0)
-- Hover sutil; quando aberto, fundo levemente diferenciado.
-- Header do turno também ganha contadores por status no canto direito.
+## Causa
+Em `src/components/shared/BusinessHoursEditor.tsx` o botão de remoção:
+- só renderiza quando há > 1 turno (vira um `<div className="w-10" />` invisível caso contrário);
+- é um `Button variant="ghost" size="icon"` apenas com ícone, sem rótulo — visualmente passa despercebido ao lado dos inputs de horário.
 
-## 3. Página dedicada "Atenção"
-- Adicionar novo item de nav em `src/pages/pdv/Tasks.tsx`: `{ key: "atencao", label: "Atenção", icon: AlertTriangle }` posicionado logo após "Evidências".
-- Criar `src/components/pdv/checklists/AttentionPanel.tsx`:
-  - Usa o mesmo `useEvidenceGallery` + filtros (reaproveita `EvidenceFiltersBar` com filtros de período/operador/checklist/setor — sem o filtro de status, que é forçado).
-  - **Critério de inclusão:** `(isCritical || isCompliant === false) && reviewStatus !== "aprovado" && reviewStatus !== "reprovado"`. Ou seja, só itens críticos/não-conformes ainda **pendentes**. Reprovadas saem (já tratadas) e aprovadas também.
-  - Renderiza com a **mesma lógica dia → turno colapsável** (reusa `EvidenceDayGroup`/`EvidenceShiftGroup`), com a mesma ordenação.
-  - Lightbox, aprovar/reprovar/comentários funcionam igual.
-  - Estado vazio próprio: "Nenhuma evidência precisa de atenção no período. 🎉".
-- Remover `EvidenceAttentionSection` da `EvidenceGallery` (a galeria principal não duplica mais essa lista).
+## Solução
+Editar apenas `src/components/shared/BusinessHoursEditor.tsx`:
 
-## Arquivos
-**Editar:**
-- `src/components/pdv/checklists/evidence/EvidenceDayGroup.tsx` — colapsado por padrão; novo header.
-- `src/components/pdv/checklists/evidence/EvidenceShiftGroup.tsx` — colapsado por padrão; contadores por status no header.
-- `src/components/pdv/checklists/EvidenceGallery.tsx` — remover `<EvidenceAttentionSection />`.
-- `src/pages/pdv/Tasks.tsx` — novo item de nav "Atenção" e roteamento para `AttentionPanel`.
+1. Sempre renderizar o botão "Remover" em cada turno (sem placeholder vazio).
+2. Mudar para `variant="outline"` com ícone `Trash2` + texto "Remover" (texto oculto em telas pequenas via `hidden sm:inline`).
+3. Quando só houver 1 turno, manter o botão visível porém `disabled`, com `title`/tooltip "Pelo menos 1 turno é obrigatório".
+4. Manter `type="button"` e a lógica atual de `removeShift` (que já bloqueia remover o último).
 
-**Criar:**
-- `src/components/pdv/checklists/AttentionPanel.tsx` — painel dedicado.
-
-**Sem alteração:**
-- Hook `use-checklist-evidence`, filtros, lightbox, exportação, card de foto, overview, modo lista.
+## Fora de escopo
+- Mudar `MAX_SHIFTS_PER_DAY`, formato persistido, ou estilos dos demais controles.
+- Mexer em `BusinessHoursSettings` do delivery (usa o mesmo componente e herda o fix).
