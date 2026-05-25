@@ -306,9 +306,6 @@ function UserMenu() {
     </DropdownMenu>
   );
 }
-    </div>
-  );
-}
 
 /* ------------------------------ Right Sidebar ----------------------------- */
 
