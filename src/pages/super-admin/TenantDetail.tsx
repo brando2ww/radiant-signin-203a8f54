@@ -58,7 +58,7 @@ export default function TenantDetail() {
     fetchTenantUsers,
     fetchTenantIntegrations,
     updateTenantUser,
-    toggleTenantModule,
+    upsertTenantModule,
     saveTenantIntegrations,
   } = useTenants();
 
