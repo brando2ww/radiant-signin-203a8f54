@@ -35,10 +35,6 @@ type Section = {
   matchPaths: string[];
   groups: { title: string; items: SubItem[] }[];
 };
-  defaultRoute: string;
-  matchPaths: string[];
-  groups: { title: string; items: SubItem[] }[];
-};
 
 const sections: Section[] = [
   {
