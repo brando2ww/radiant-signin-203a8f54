@@ -40,7 +40,7 @@ function InterfacesLogoSquare({ size = 28 }: { size?: number }) {
 function BrandBadge() {
   return (
     <div className="flex items-center px-4 pt-4">
-      <img src={velaraLogo} alt="Velara" className="h-18 w-auto object-contain" />
+      <img src={velaraLogo} alt="Velara" className="h-12 w-auto object-contain" />
     </div>
   );
 }
