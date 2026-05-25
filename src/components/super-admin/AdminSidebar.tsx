@@ -247,7 +247,7 @@ function IconNavigation({
   return (
     <div className="flex w-[60px] shrink-0 flex-col items-center gap-1 py-4">
       <div className="mb-2 flex h-10 w-10 items-center justify-center">
-        <InterfacesLogoSquare size={28} />
+        <img src={velaraSymbol} alt="Velara" className="h-7 w-7 object-contain" />
       </div>
 
       <div className="flex flex-col items-center gap-1">
