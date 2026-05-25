@@ -1,5 +1,10 @@
-## Remover bloco do rodapé do sidebar mobile
+## Adicionar menu "Sair" no avatar do rail lateral
 
-Em `src/components/super-admin/AdminSidebar.tsx`, remover as linhas 546–560 — o `<div className="border-t border-neutral-200 p-3">` que mostra o avatar com "Text content" e o botão de menu (⋮) no rodapé do drawer.
+Em `src/components/super-admin/AdminSidebar.tsx`, transformar o `AvatarCircle` (linha 269) num botão com dropdown:
 
-Nenhuma outra alteração.
+- Envolver o `AvatarCircle` num `DropdownMenu` (`@/components/ui/dropdown-menu`) com trigger sendo o avatar (cursor pointer).
+- Conteúdo do menu: um único item **"Sair"** com ícone `LogOut` (lucide-react).
+- Ao clicar em "Sair": chamar `supabase.auth.signOut()` (import `@/integrations/supabase/client`) e redirecionar para `/auth` via `navigate`.
+- Posicionar o dropdown com `side="right"` e `align="end"` para abrir ao lado do rail.
+
+Sem outras alterações.

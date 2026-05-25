@@ -15,6 +15,14 @@ import {
   View,
   OverflowMenuVertical,
 } from "@carbon/icons-react";
+import { LogOut } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
 import velaraLogo from "@/assets/logo_velara_preto.png";
 import velaraSymbol from "@/assets/velara-symbol.png";
 
@@ -266,9 +274,36 @@ function IconNavigation({
       <div className="flex-1" />
 
       <div className="flex flex-col items-center gap-2 pb-1">
-        <AvatarCircle size={32} />
+        <UserMenu />
       </div>
     </div>
+  );
+}
+
+function UserMenu() {
+  const navigate = useNavigate();
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="Conta"
+          className="rounded-full focus:outline-none focus:ring-2 focus:ring-neutral-300"
+        >
+          <AvatarCircle size={32} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="end">
+        <DropdownMenuItem onClick={handleSignOut}>
+          <LogOut className="mr-2 h-4 w-4" />
+          Sair
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
