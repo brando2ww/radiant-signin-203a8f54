@@ -19,16 +19,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import velaraSymbol from "@/assets/velara-symbol.png";
 
+type IconCmp = React.ComponentType<{ size?: number | string }>;
+
 type SubItem = {
   label: string;
   to?: string;
-  icon?: React.ComponentType<{ size?: number }>;
+  icon?: IconCmp;
 };
 
 type Section = {
   id: string;
   title: string;
-  icon: React.ComponentType<{ size?: number }>;
+  icon: IconCmp;
+  defaultRoute: string;
+  matchPaths: string[];
+  groups: { title: string; items: SubItem[] }[];
+};
   defaultRoute: string;
   matchPaths: string[];
   groups: { title: string; items: SubItem[] }[];
