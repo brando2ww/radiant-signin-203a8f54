@@ -147,7 +147,7 @@ function DiffBadge({ diff }: { diff: number }) {
   );
 }
 
-export function printCashierReport(params: PrintCashierReportParams) {
+export async function printCashierReport(params: PrintCashierReportParams) {
   const { session, movements, closingBalance: finalBalance, notes: finalNotes, riskLevel: finalRisk } = params;
 
   const openedAt = session?.opened_at
@@ -198,10 +198,74 @@ export function printCashierReport(params: PrintCashierReportParams) {
       const status = d == null ? "—" : Math.abs(d) <= 0.5 ? "✓" : (d > 0 ? `+${formatBRL(d)}` : formatBRL(d));
       return `<div class="row">
         <span>${label}:</span>
-        <span>Esp ${formatBRL(expected)} | Decl ${declared != null ? formatBRL(declared) : "—"} | ${status}</span>
+        <span><b>Esp ${formatBRL(expected)} | Decl ${declared != null ? formatBRL(declared) : "—"} | ${status}</b></span>
       </div>`;
     })
     .join("");
+
+  // Busca cancelamentos e descontos vinculados a esta sessão.
+  let cancellations: Array<{ order_number: any; total: number; cancellation_reason: string | null }> = [];
+  let discounts: Array<{ order_number: any; discount: number; total: number }> = [];
+  if (session?.id) {
+    try {
+      const [{ data: cancs }, { data: discs }] = await Promise.all([
+        supabase
+          .from("pdv_orders")
+          .select("order_number,total,cancellation_reason,cancelled_at")
+          .eq("cashier_session_id", session.id)
+          .eq("status", "cancelled")
+          .order("cancelled_at", { ascending: true }),
+        supabase
+          .from("pdv_orders")
+          .select("order_number,discount,total,closed_at")
+          .eq("cashier_session_id", session.id)
+          .neq("status", "cancelled")
+          .gt("discount", 0)
+          .order("closed_at", { ascending: true }),
+      ]);
+      cancellations = (cancs || []).map((r: any) => ({
+        order_number: r.order_number,
+        total: Number(r.total) || 0,
+        cancellation_reason: r.cancellation_reason,
+      }));
+      discounts = (discs || []).map((r: any) => ({
+        order_number: r.order_number,
+        discount: Number(r.discount) || 0,
+        total: Number(r.total) || 0,
+      }));
+    } catch {
+      // segue impressão sem essas seções
+    }
+  }
+
+  const cancellationsTotal = cancellations.reduce((a, c) => a + c.total, 0);
+  const discountsTotal = discounts.reduce((a, d) => a + d.discount, 0);
+
+  const cancellationsHtml = cancellations.length
+    ? `<div class="divider"></div>
+<div class="section">
+  <div class="section-title">CANCELAMENTOS</div>
+  <div class="row total"><span>${cancellations.length} pedido${cancellations.length > 1 ? "s" : ""}</span><span>- ${formatBRL(cancellationsTotal)}</span></div>
+  ${cancellations
+    .map(
+      (c) => `<div class="row"><span>#${c.order_number ?? "—"}${c.cancellation_reason ? ` — ${String(c.cancellation_reason).slice(0, 40)}` : ""}</span><span>${formatBRL(c.total)}</span></div>`,
+    )
+    .join("")}
+</div>`
+    : "";
+
+  const discountsHtml = discounts.length
+    ? `<div class="divider"></div>
+<div class="section">
+  <div class="section-title">DESCONTOS CONCEDIDOS</div>
+  <div class="row total"><span>${discounts.length} pedido${discounts.length > 1 ? "s" : ""}</span><span>- ${formatBRL(discountsTotal)}</span></div>
+  ${discounts
+    .map(
+      (d) => `<div class="row"><span>#${d.order_number ?? "—"}</span><span>${formatBRL(d.discount)} (de ${formatBRL(d.total + d.discount)})</span></div>`,
+    )
+    .join("")}
+</div>`
+    : "";
 
   const riskLabels: Record<RiskLevel, string> = {
     ok: "OK", low: "Baixo", medium: "Médio", high: "Alto", critical: "Crítico",
@@ -221,27 +285,29 @@ export function printCashierReport(params: PrintCashierReportParams) {
     };
     const method = m.payment_method ? methodMap[m.payment_method] || m.payment_method : "";
     return `<tr>
-      <td style="padding:2px 6px;font-size:11px">${time}</td>
-      <td style="padding:2px 6px;font-size:11px">${typeLabel}</td>
-      <td style="padding:2px 6px;font-size:11px">${method}</td>
-      <td style="padding:2px 6px;font-size:11px;text-align:right">${formatBRL(m.amount)}</td>
+      <td style="padding:3px 6px;font-size:12px">${time}</td>
+      <td style="padding:3px 6px;font-size:12px"><b>${typeLabel}</b></td>
+      <td style="padding:3px 6px;font-size:12px">${method}</td>
+      <td style="padding:3px 6px;font-size:12px;text-align:right"><b>${formatBRL(m.amount)}</b></td>
     </tr>`;
   }).join("");
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Demonstrativo de Caixa</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
-  body { font-family: 'Courier New', monospace; font-size: 12px; color: #000; margin: 0; padding: 8px; }
-  h1 { font-size: 14px; text-align: center; margin: 0 0 4px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; }
+  * { color: #000 !important; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #000; margin: 0; padding: 8px; line-height: 1.35; -webkit-print-color-adjust: exact; }
+  h1 { font-size: 16px; font-weight: 800; text-align: center; margin: 0 0 6px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; letter-spacing: 0.3px; }
   .section { margin: 8px 0; }
-  .section-title { font-weight: bold; font-size: 12px; border-bottom: 1px dashed #000; padding-bottom: 2px; margin-bottom: 4px; }
-  .row { display: flex; justify-content: space-between; font-size: 11px; padding: 1px 0; }
-  .row.total { font-weight: bold; font-size: 12px; border-top: 1px solid #000; padding-top: 4px; margin-top: 4px; }
-  .divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .section-title { font-weight: 800; font-size: 13px; border-bottom: 1.5px solid #000; padding-bottom: 3px; margin-bottom: 5px; text-transform: uppercase; }
+  .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 2px 0; }
+  .row > span:last-child { font-weight: 700; text-align: right; }
+  .row.total { font-weight: 800; font-size: 14px; border-top: 1.5px solid #000; padding-top: 5px; margin-top: 5px; }
+  .divider { border-top: 2px solid #000; margin: 7px 0; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: left; font-size: 10px; border-bottom: 1px solid #000; padding: 2px 6px; }
-  .footer { text-align: center; font-size: 10px; margin-top: 12px; border-top: 2px solid #000; padding-top: 6px; }
-  .risk-badge { display: inline-block; padding: 2px 8px; font-weight: bold; font-size: 11px; border: 1px solid #000; margin-top: 4px; }
+  th { text-align: left; font-size: 11px; font-weight: 800; border-bottom: 1.5px solid #000; padding: 3px 6px; text-transform: uppercase; }
+  .footer { text-align: center; font-size: 11px; margin-top: 12px; border-top: 2px solid #000; padding-top: 6px; font-weight: 600; }
+  .risk-badge { display: inline-block; padding: 3px 10px; font-weight: 800; font-size: 12px; border: 2px solid #000; margin-top: 4px; text-transform: uppercase; }
 </style></head><body>
 <h1>DEMONSTRATIVO DE CAIXA</h1>
 <div class="section">
@@ -268,6 +334,8 @@ ${conferenceHtml ? `<div class="divider"></div>
 <div class="section">
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
+${cancellationsHtml}
+${discountsHtml}
 ${movements.length > 0 ? `
 <div class="divider"></div>
 <div class="section">
@@ -279,7 +347,7 @@ ${finalNotes ? `
 <div class="divider"></div>
 <div class="section">
   <div class="section-title">OBSERVAÇÕES / JUSTIFICATIVA</div>
-  <p style="font-size:11px;margin:4px 0">${finalNotes}</p>
+  <p style="font-size:12px;margin:4px 0;font-weight:600">${finalNotes}</p>
 </div>` : ""}
 <div class="section" style="text-align:center;margin-top:8px">
   <span class="risk-badge">Risco: ${riskLabels[finalRisk]}</span>
@@ -306,6 +374,7 @@ ${finalNotes ? `
     }, 300);
   }
 }
+
 
 interface MethodConferenceProps {
   icon: typeof CreditCard;
