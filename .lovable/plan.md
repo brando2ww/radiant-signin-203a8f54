@@ -1,73 +1,29 @@
-## Reescrever AdminSidebar com o layout exato do componente de referência
+## Reconstruir o componente exatamente como o original
 
-Vou reconstruir `src/components/super-admin/AdminSidebar.tsx` reproduzindo fielmente a estrutura visual do componente colado (rail de ícones à esquerda + painel de detalhe à direita com cabeçalho colapsável, busca, seções, sub-itens dropdown e card de rodapé), mas usando o logo Velara, conteúdo do projeto em pt-BR e tokens do design system.
+Vou reescrever `src/components/super-admin/AdminSidebar.tsx` reproduzindo fielmente o componente colado e a captura de tela enviada — mesmas cores escuras, mesma marca "Interfaces", mesmos textos em inglês, mesmos 8 conteúdos (Dashboard, Tasks, Projects, Calendar, Teams, Analytics, Files, Settings) com todos os sub-itens decorativos, mesmo card "Text content" no rodapé, mesmo easing `cubic-bezier(0.25, 1.1, 0.4, 1)`.
 
-### Estrutura visual (igual ao código de referência)
+O código colado tem o JSX corrompido pelo paste, então vou reconstruir o markup a partir da captura de tela:
 
-```text
-┌──────┬────────────────────────────┐
-│ logo │ Título da seção      [<]   │
-│      │ ────────────────────────── │
-│ [D]  │ 🔍 Buscar...               │
-│ [T]  │                            │
-│ [P]  │ AÇÕES RÁPIDAS              │
-│ [C]  │  + Novo item               │
-│ [⚙]  │  ⌕ Filtrar                 │
-│      │                            │
-│ ──── │ MEUS REGISTROS             │
-│ [u]  │  ▸ Item com dropdown       │
-│ [⚙]  │     · Sub-item                │
-│      │     · Sub-item             │
-│      │                            │
-│      │ ┌────────────────────────┐ │
-│      │ │ Card de rodapé         │ │
-│      │ └────────────────────────┘ │
-└──────┴────────────────────────────┘
-```
+- Rail `w-[60px]` preto puro, com logo "Interfaces" quadrado em SVG inline (paths `p15853b70` / `p35081d00` / `p1a3cd600`), 7 ícones de navegação (`Dashboard`, `Task`, `Folder`, `CalendarIcon`, `UserMultiple`, `Analytics`, `DocumentAdd`), divisor, ícone de `SettingsIcon` e avatar circular no fim.
+- Painel direito `w-[280px]` com cantos arredondados (`rounded-2xl`), fundo `bg-neutral-950`, header "Interfaces" + ícone, título da seção (ex. "Dashboard") com chevron de colapso à direita, campo de busca com borda fina, seções com label cinza em caps, itens com ícone + chevron quando têm dropdown, item "Overview" destacado com fundo `bg-neutral-800`.
+- Card de rodapé com avatar circular, texto "Text content" e botão `⋯` (três pontinhos verticais via SVG).
+- Animação de colapso do painel via `style={{ width, transition }}` com o easing exato.
+- Estado interno: `activeSection` (default `"dashboard"`), `expandedItems: Set<string>`, `isCollapsed: boolean`. Cliques em sub-itens só fazem `console.log` (igual ao original).
 
-### Rail (60px) — ordem fixa
-1. Logo Velara (substitui o quadrado "Interfaces")
-2. Dashboard → `/admin`
-3. Tenants → `/admin/tenants`
-4. Planos → `/admin/planos`
-5. Checklists → `/admin/checklists` (placeholder)
-6. Divisor
-7. Avatar do usuário (decorativo)
-8. Configurações → `/admin/configuracoes`
+### Decisões
 
-Cada botão usa ícone do `@carbon/icons-react`, ring/destaque quando `activeSection` bate com a rota atual, transição suave (`cubic-bezier(0.25, 1.1, 0.4, 1)`).
-
-### Painel de detalhe (260px → 0 quando colapsado)
-
-- **Header**: título da seção + botão chevron que colapsa/expande o painel (largura anima para 0; rail permanece visível). Quando colapsado, mostra só o botão para reabrir.
-- **Search**: input decorativo "Buscar..." (sem lógica).
-- **Sections**: cada seção tem um rótulo em caps + lista de itens. Itens com `hasDropdown` abrem/fecham filhos (animação de altura), itens sem dropdown navegam para a rota correspondente.
-- **Footer card**: card simples no fim do painel com título + descrição (placeholder textual, sem ações reais).
-
-### Conteúdo das seções (pt-BR, mapeado para o projeto)
-
-- **Dashboard**: Visão geral · Métricas rápidas (dropdown decorativo com 3 linhas) · Atividade recente (dropdown decorativo)
-- **Tenants**: Todos os tenants · Novo tenant · Filtrar (dropdown com Ativos/Inativos/Pendentes)
-- **Planos**: Gerenciar planos · Novo plano
-- **Checklists**: Todos os checklists · Novo checklist (placeholders — sem rota nova; sub-itens decorativos)
-- **Configurações**: Perfil · Segurança · Notificações · Preferências (dropdown decorativo)
-
-> Itens decorativos (sub-itens dentro de dropdown) só fazem `console.log` no clique, replicando o comportamento do código de referência. Apenas itens de primeiro nível com rota definida navegam.
-
-### Design system
-
-- Todas as cores via tokens (`bg-card`, `bg-muted`, `text-foreground`, `text-muted-foreground`, `border-border`, `ring-primary`). Sem `neutral-50`/`neutral-400` hardcoded.
-- Fontes: stack padrão do projeto (não `Lexend`).
-- Animações: easing `cubic-bezier(0.25, 1.1, 0.4, 1)` em 200–250ms para colapsar painel e expandir dropdowns.
+- **Sem wireing com rotas reais**: o componente fica 100% como o original, decorativo. O rail muda só o `activeSection` interno; nenhum `useNavigate`/`useLocation`.
+- **Sem `useAuth`/`signOut`**: o original não tem.
+- **Sem tokens do design system**: o original usa cores `neutral-*` hardcoded e fonte `Lexend` — vou manter exatamente assim, pois o usuário pediu "EXATAMENTE ISSO". Isso conflita com a memória global de design, mas a instrução explícita do usuário tem prioridade.
+- **Logo "Interfaces"**: mantido literal (não Velara), como na captura.
+- **Idioma**: inglês, como no código original.
 
 ### Arquivos
 
-- **Editar** `src/components/super-admin/AdminSidebar.tsx` — reescrita completa seguindo a estrutura acima.
-- Nenhum outro arquivo precisa mudar. `SuperAdmin.tsx` já renderiza `<AdminSidebar />` + `<main className="flex-1">`, então o layout flex continua funcionando com o painel colapsando para 0.
+- **Editar** `src/components/super-admin/AdminSidebar.tsx` — reescrita completa reconstruindo o JSX do componente colado, incluindo o objeto `svgPaths`, `InterfacesLogoSquare`, `BrandBadge`, `AvatarCircle`, `SearchContainer`, `IconNavButton`, `IconNavigation`, `SectionTitle`, `DetailSidebar`, `MenuItem`, `SubMenuItem`, `MenuSection`, `TwoLevelSidebar` e o export `Frame760` (mantido para preservar a API original) + um `export const AdminSidebar = Frame760` para não quebrar o import em `SuperAdmin.tsx`.
 
 ### Fora de escopo
 
-- Não criar página `/admin/checklists` (já planejado anteriormente como placeholder, mas o usuário não pediu agora — os itens de checklist no sidebar ficam decorativos por enquanto).
-- Não implementar lógica de busca.
-- Não mexer em `SuperAdminGuard`, rotas, ou outros sidebars.
-- Sem novas dependências (`@carbon/icons-react` já está instalado).
+- Não mexer em `SuperAdmin.tsx`, `SuperAdminGuard`, rotas ou outros componentes.
+- Não criar páginas para os itens decorativos.
+- Não conectar busca, dropdowns de filhos ou navegação — fica 100% decorativo, igual ao original.
