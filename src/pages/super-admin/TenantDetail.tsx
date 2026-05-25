@@ -16,7 +16,18 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Pencil, Save, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Pencil, Save, Eye, EyeOff, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useTenants, TenantModule, TenantIntegration } from "@/hooks/use-tenants";
 import { FranchiseSection } from "@/components/super-admin/FranchiseSection";
 import { availableModules } from "@/components/super-admin/ModuleSelector";
@@ -60,6 +71,7 @@ export default function TenantDetail() {
     updateTenantUser,
     upsertTenantModule,
     saveTenantIntegrations,
+    deleteTenant,
   } = useTenants();
 
   const [modules, setModules] = useState<TenantModule[]>([]);
@@ -78,6 +90,21 @@ export default function TenantDetail() {
   const [editDiscountPw, setEditDiscountPw] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const [deletingTenant, setDeletingTenant] = useState(false);
+
+  const handleDeleteTenant = async () => {
+    if (!id) return;
+    setDeletingTenant(true);
+    try {
+      await deleteTenant(id);
+      toast.success("Tenant excluído");
+      navigate("/admin/tenants");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao excluir tenant");
+    } finally {
+      setDeletingTenant(false);
+    }
+  };
 
   const tenant = tenants.find((t) => t.id === id);
   const parentTenant = tenant?.parent_tenant_id
@@ -201,7 +228,7 @@ export default function TenantDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/admin/tenants")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">{tenant.name}</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{tenant.document || "Sem documento"}</span>
@@ -222,6 +249,32 @@ export default function TenantDetail() {
             )}
           </div>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" disabled={deletingTenant}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir tenant
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir "{tenant.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação é irreversível. Todos os usuários, módulos e integrações
+                vinculados a este tenant serão removidos.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteTenant}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {loading ? (
