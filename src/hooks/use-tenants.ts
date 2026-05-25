@@ -131,6 +131,33 @@ export function useTenants() {
     if (error) throw error;
   };
 
+  const upsertTenantModule = async (
+    tenantId: string,
+    module: string,
+    isActive: boolean
+  ) => {
+    const { data: existing, error: selError } = await supabase
+      .from("tenant_modules")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("module", module as any)
+      .maybeSingle();
+    if (selError) throw selError;
+
+    if (existing) {
+      const { error } = await supabase
+        .from("tenant_modules")
+        .update({ is_active: isActive })
+        .eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .from("tenant_modules")
+        .insert({ tenant_id: tenantId, module: module as any, is_active: isActive });
+      if (error) throw error;
+    }
+  };
+
   const saveTenantIntegrations = async (
     tenantId: string,
     slugs: string[]
