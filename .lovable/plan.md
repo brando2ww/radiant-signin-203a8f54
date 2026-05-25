@@ -1,18 +1,14 @@
-## Mostrar todos os módulos do sistema na edição do tenant
+## Adicionar exclusão do tenant + clarificação sobre estado dos módulos
 
-Hoje a seção **Módulos Habilitados** lista só linhas existentes em `tenant_modules`. Quero exibir a lista completa de módulos do sistema (a mesma do `ModuleSelector`) com toggle por módulo.
+### Sobre "os já habilitados"
+Os toggles já refletem o estado real do banco. Conferi: este tenant só tem 1 linha em `tenant_modules` (PDV) e ela está com `is_active = false`. Por isso aparece desligado. A inserção em `create-tenant` já cria com `is_active = true`, então algum toggle anterior desligou o PDV. Para reativar, basta clicar o switch — ele já faz upsert. Sem mudança necessária aqui.
 
-### Mudanças
+### Excluir tenant
+1. **`src/hooks/use-tenants.ts`**: adicionar `deleteTenant(tenantId)` que faz `DELETE` em `tenants` (cascade já remove `tenant_modules`, `tenant_integrations`, `establishment_users`). Invalida `["tenants"]` no sucesso.
 
-1. **`src/components/super-admin/ModuleSelector.tsx`**
-   - Exportar a constante `availableModules` para reuso.
+2. **`src/pages/super-admin/TenantDetail.tsx`**:
+   - Adicionar botão **"Excluir tenant"** (variant `destructive`, ícone `Trash2`) no header, ao lado do título.
+   - Usar `AlertDialog` (shadcn) para confirmação, mostrando o nome do tenant e avisando que a ação é irreversível e remove usuários/módulos/integrações.
+   - Ao confirmar, chamar `deleteTenant(id)`, exibir toast e navegar para `/admin/tenants`.
 
-2. **`src/hooks/use-tenants.ts`**
-   - Adicionar `upsertTenantModule(tenantId, module, isActive)` que faz `upsert` em `tenant_modules` por `(tenant_id, module)`, ativando/desativando a linha. Se não existir, cria.
-
-3. **`src/pages/super-admin/TenantDetail.tsx`**
-   - Importar `availableModules` e o novo `upsertTenantModule`.
-   - Renderizar todos os itens de `availableModules` (label + descrição), buscando o estado atual no array `modules` (ativo somente se existir linha com `is_active = true`).
-   - Trocar `handleToggleModule` para usar `upsertTenantModule` e recarregar/atualizar `modules` localmente após o sucesso.
-
-Sem migração de banco; o upsert depende de uma unique constraint em `(tenant_id, module)` — se não existir, fallback: select → update OR insert.
+Sem migração de banco.

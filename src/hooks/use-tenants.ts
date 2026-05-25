@@ -158,6 +158,12 @@ export function useTenants() {
     }
   };
 
+  const deleteTenant = async (tenantId: string) => {
+    const { error } = await supabase.from("tenants").delete().eq("id", tenantId);
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ["tenants"] });
+  };
+
   const saveTenantIntegrations = async (
     tenantId: string,
     slugs: string[]
