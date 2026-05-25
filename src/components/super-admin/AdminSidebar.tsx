@@ -486,10 +486,17 @@ function CollapsedRail({
   );
 }
 
-function DetailSidebar({ activeSection }: { activeSection: string }) {
+function DetailSidebar({
+  activeSection,
+  onNavigate,
+}: {
+  activeSection: string;
+  onNavigate: (path: string) => void;
+}) {
+  const { pathname } = useLocation();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const content = getSidebarContent(activeSection);
+  const content = getSidebarContent(activeSection, pathname);
 
   const toggleExpanded = (itemKey: string) => {
     setExpandedItems((prev) => {
@@ -530,6 +537,7 @@ function DetailSidebar({ activeSection }: { activeSection: string }) {
                 section={section}
                 expandedItems={expandedItems}
                 onToggleExpanded={toggleExpanded}
+                onNavigate={onNavigate}
                 isCollapsed={false}
               />
             ))}
@@ -558,12 +566,14 @@ function DetailSidebar({ activeSection }: { activeSection: string }) {
 /* --------------------------------- Layout -------------------------------- */
 
 function TwoLevelSidebar() {
-  const [activeSection, setActiveSection] = useState("dashboard");
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const activeSection = getActiveSectionFromPath(pathname);
 
   return (
     <div className="flex h-full overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950">
-      <IconNavigation activeSection={activeSection} onSectionChange={setActiveSection} />
-      <DetailSidebar activeSection={activeSection} />
+      <IconNavigation activeSection={activeSection} onNavigate={(p) => navigate(p)} />
+      <DetailSidebar activeSection={activeSection} onNavigate={(p) => navigate(p)} />
     </div>
   );
 }
