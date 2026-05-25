@@ -88,6 +88,7 @@ function SearchContainer({ isCollapsed = false }: { isCollapsed?: boolean }) {
 interface MenuItemT {
   icon?: React.ReactNode;
   label: string;
+  path?: string;
   hasDropdown?: boolean;
   isActive?: boolean;
   children?: MenuItemT[];
@@ -101,398 +102,86 @@ interface SidebarContent {
   sections: MenuSectionT[];
 }
 
-const subIconSize = 14;
 const itemIconSize = 16;
 
-function getSidebarContent(activeSection: string): SidebarContent {
+function getSidebarContent(activeSection: string, pathname: string): SidebarContent {
+  const isActive = (path: string) =>
+    path === "/admin" ? pathname === "/admin" : pathname.startsWith(path);
+
   const contentMap: Record<string, SidebarContent> = {
     dashboard: {
       title: "Dashboard",
       sections: [
         {
-          title: "Dashboard Types",
+          title: "Visão geral",
           items: [
-            { icon: <View size={itemIconSize} />, label: "Overview", isActive: true },
-            {
-              icon: <Dashboard size={itemIconSize} />,
-              label: "Executive Summary",
-              hasDropdown: true,
-              children: [
-                { label: "Revenue Overview" },
-                { label: "Key Performance Indicators" },
-                { label: "Strategic Goals Progress" },
-                { label: "Department Highlights" },
-              ],
-            },
-            {
-              icon: <Report size={itemIconSize} />,
-              label: "Operations Dashboard",
-              hasDropdown: true,
-              children: [
-                { label: "Project Timeline" },
-                { label: "Resource Allocation" },
-                { label: "Team Performance" },
-                { label: "Capacity Planning" },
-              ],
-            },
-            {
-              icon: <Analytics size={itemIconSize} />,
-              label: "Financial Dashboard",
-              hasDropdown: true,
-              children: [
-                { label: "Budget vs Actual" },
-                { label: "Cash Flow Analysis" },
-                { label: "Expense Breakdown" },
-                { label: "Profit & Loss Summary" },
-              ],
-            },
-          ],
-        },
-        {
-          title: "Report Summaries",
-          items: [
-            {
-              icon: <Report size={itemIconSize} />,
-              label: "Weekly Reports",
-              hasDropdown: true,
-              children: [
-                { label: "Team Productivity: 87% ↑" },
-                { label: "Project Completion: 12/15" },
-                { label: "Budget Utilization: 73%" },
-                { label: "Client Satisfaction: 4.6/5" },
-              ],
-            },
-            {
-              icon: <StarFilled size={itemIconSize} />,
-              label: "Monthly Insights",
-              hasDropdown: true,
-              children: [
-                { label: "Revenue Growth: +15.3%" },
-                { label: "New Clients: 24" },
-                { label: "Team Expansion: 8 hires" },
-                { label: "Cost Reduction: 7.2%" },
-              ],
-            },
             {
               icon: <View size={itemIconSize} />,
-              label: "Quarterly Analysis",
-              hasDropdown: true,
-              children: [
-                { label: "Market Position: Improved" },
-                { label: "ROI: 23.4%" },
-                { label: "Customer Retention: 92%" },
-                { label: "Innovation Index: 8.7/10" },
-              ],
-            },
-          ],
-        },
-        {
-          title: "Business Intelligence",
-          items: [
-            {
-              icon: <ChartBar size={itemIconSize} />,
-              label: "Performance Metrics",
-              hasDropdown: true,
-              children: [
-                { label: "Sales Conversion: 34.2%" },
-                { label: "Lead Response Time: 2.3h" },
-                { label: "Customer Lifetime Value: $4,280" },
-                { label: "Churn Rate: 3.1%" },
-              ],
-            },
-            {
-              icon: <Analytics size={itemIconSize} />,
-              label: "Predictive Analytics",
-              hasDropdown: true,
-              children: [
-                { label: "Q4 Revenue Forecast: $2.4M" },
-                { label: "Resource Demand: High" },
-                { label: "Market Trends: Positive" },
-                { label: "Risk Assessment: Low" },
-              ],
+              label: "Resumo",
+              path: "/admin",
+              isActive: isActive("/admin") && pathname === "/admin",
             },
           ],
         },
       ],
     },
-
-    tasks: {
-      title: "Tasks",
+    tenants: {
+      title: "Tenants",
       sections: [
         {
-          title: "Quick Actions",
-          items: [
-            { icon: <AddLarge size={itemIconSize} />, label: "New task" },
-            { icon: <Filter size={itemIconSize} />, label: "Filter tasks" },
-          ],
-        },
-        {
-          title: "My Tasks",
+          title: "Gestão",
           items: [
             {
-              icon: <Time size={itemIconSize} />,
-              label: "Due today",
-              hasDropdown: true,
-              children: [
-                { icon: <Task size={subIconSize} />, label: "Review design mockups" },
-                { icon: <Task size={subIconSize} />, label: "Update documentation" },
-                { icon: <Task size={subIconSize} />, label: "Test new feature" },
-              ],
+              icon: <UserMultiple size={itemIconSize} />,
+              label: "Todos os tenants",
+              path: "/admin/tenants",
+              isActive: pathname === "/admin/tenants",
             },
             {
-              icon: <InProgress size={itemIconSize} />,
-              label: "In progress",
-              hasDropdown: true,
-              children: [
-                { icon: <Task size={subIconSize} />, label: "Implement user auth" },
-                { icon: <Task size={subIconSize} />, label: "Database migration" },
-              ],
+              icon: <AddLarge size={itemIconSize} />,
+              label: "Novo tenant",
+              path: "/admin/tenants/novo",
+              isActive: pathname === "/admin/tenants/novo",
             },
-            {
-              icon: <CheckmarkOutline size={itemIconSize} />,
-              label: "Completed",
-              hasDropdown: true,
-              children: [
-                { icon: <CheckmarkOutline size={subIconSize} />, label: "Fixed login bug" },
-                { icon: <CheckmarkOutline size={subIconSize} />, label: "Updated dependencies" },
-                { icon: <CheckmarkOutline size={subIconSize} />, label: "Code review completed" },
-              ],
-            },
-          ],
-        },
-        {
-          title: "Other",
-          items: [
-            {
-              icon: <Flag size={itemIconSize} />,
-              label: "Priority tasks",
-              hasDropdown: true,
-              children: [
-                { icon: <Flag size={subIconSize} />, label: "Security update" },
-                { icon: <Flag size={subIconSize} />, label: "Client presentation" },
-              ],
-            },
-            { icon: <Archive size={itemIconSize} />, label: "Archived" },
           ],
         },
       ],
     },
-
-    projects: {
-      title: "Projects",
+    planos: {
+      title: "Planos",
       sections: [
         {
-          title: "Quick Actions",
-          items: [
-            { icon: <AddLarge size={itemIconSize} />, label: "New project" },
-            { icon: <Filter size={itemIconSize} />, label: "Filter projects" },
-          ],
-        },
-        {
-          title: "Active Projects",
+          title: "Gestão",
           items: [
             {
               icon: <Folder size={itemIconSize} />,
-              label: "Web Application",
-              hasDropdown: true,
-              children: [
-                { icon: <Task size={subIconSize} />, label: "Frontend development" },
-                { icon: <Task size={subIconSize} />, label: "API integration" },
-                { icon: <Task size={subIconSize} />, label: "Testing & QA" },
-              ],
-            },
-            {
-              icon: <Folder size={itemIconSize} />,
-              label: "Mobile App",
-              hasDropdown: true,
-              children: [
-                { icon: <Task size={subIconSize} />, label: "UI/UX design" },
-                { icon: <Task size={subIconSize} />, label: "Native development" },
-              ],
-            },
-          ],
-        },
-        {
-          title: "Other",
-          items: [
-            { icon: <CheckmarkOutline size={itemIconSize} />, label: "Completed" },
-            { icon: <Archive size={itemIconSize} />, label: "Archived" },
-          ],
-        },
-      ],
-    },
-
-    calendar: {
-      title: "Calendar",
-      sections: [
-        {
-          title: "Views",
-          items: [
-            { icon: <CalendarIcon size={itemIconSize} />, label: "Month view" },
-            { icon: <CalendarIcon size={itemIconSize} />, label: "Week view" },
-            { icon: <CalendarIcon size={itemIconSize} />, label: "Day view" },
-          ],
-        },
-        {
-          title: "Events",
-          items: [
-            {
-              icon: <Time size={itemIconSize} />,
-              label: "Today's events",
-              hasDropdown: true,
-              children: [
-                { icon: <Time size={subIconSize} />, label: "Team standup (9:00 AM)" },
-                { icon: <Time size={subIconSize} />, label: "Client call (2:00 PM)" },
-                { icon: <Time size={subIconSize} />, label: "Project review (4:00 PM)" },
-              ],
-            },
-            { icon: <CalendarIcon size={itemIconSize} />, label: "Upcoming events" },
-          ],
-        },
-        {
-          title: "Quick Actions",
-          items: [
-            { icon: <AddLarge size={itemIconSize} />, label: "New event" },
-            { icon: <Share size={itemIconSize} />, label: "Share calendar" },
-          ],
-        },
-      ],
-    },
-
-    teams: {
-      title: "Teams",
-      sections: [
-        {
-          title: "My Teams",
-          items: [
-            {
-              icon: <Group size={itemIconSize} />,
-              label: "Development Team",
-              hasDropdown: true,
-              children: [
-                { icon: <UserIcon size={subIconSize} />, label: "John Doe (Lead)" },
-                { icon: <UserIcon size={subIconSize} />, label: "Jane Smith" },
-                { icon: <UserIcon size={subIconSize} />, label: "Mike Johnson" },
-              ],
-            },
-            {
-              icon: <Group size={itemIconSize} />,
-              label: "Design Team",
-              hasDropdown: true,
-              children: [
-                { icon: <UserIcon size={subIconSize} />, label: "Sarah Wilson" },
-                { icon: <UserIcon size={subIconSize} />, label: "Tom Brown" },
-              ],
-            },
-          ],
-        },
-        {
-          title: "Quick Actions",
-          items: [
-            { icon: <AddLarge size={itemIconSize} />, label: "Invite member" },
-            { icon: <UserMultiple size={itemIconSize} />, label: "Manage teams" },
-          ],
-        },
-      ],
-    },
-
-    analytics: {
-      title: "Analytics",
-      sections: [
-        {
-          title: "Reports",
-          items: [
-            { icon: <Report size={itemIconSize} />, label: "Performance report" },
-            { icon: <CheckmarkOutline size={itemIconSize} />, label: "Task completion" },
-            { icon: <ChartBar size={itemIconSize} />, label: "Team productivity" },
-          ],
-        },
-        {
-          title: "Insights",
-          items: [
-            {
-              icon: <Analytics size={itemIconSize} />,
-              label: "Key metrics",
-              hasDropdown: true,
-              children: [
-                { icon: <CheckmarkOutline size={subIconSize} />, label: "Tasks completed: 24" },
-                { icon: <Time size={subIconSize} />, label: "Avg. completion time: 2.5d" },
-                { icon: <ChartBar size={subIconSize} />, label: "Team efficiency: 87%" },
-              ],
+              label: "Listar planos",
+              path: "/admin/planos",
+              isActive: pathname.startsWith("/admin/planos"),
             },
           ],
         },
       ],
     },
-
-    files: {
-      title: "Files",
+    configuracoes: {
+      title: "Configurações",
       sections: [
         {
-          title: "Quick Actions",
-          items: [
-            { icon: <CloudUpload size={itemIconSize} />, label: "Upload file" },
-            { icon: <FolderOpen size={itemIconSize} />, label: "New folder" },
-          ],
-        },
-        {
-          title: "Recent Files",
-          items: [
-            {
-              icon: <Folder size={itemIconSize} />,
-              label: "Recent documents",
-              hasDropdown: true,
-              children: [
-                { icon: <DocumentAdd size={subIconSize} />, label: "Project proposal.pdf" },
-                { icon: <DocumentAdd size={subIconSize} />, label: "Meeting notes.docx" },
-                { icon: <DocumentAdd size={subIconSize} />, label: "Design specs.figma" },
-              ],
-            },
-            { icon: <Share size={itemIconSize} />, label: "Shared with me" },
-          ],
-        },
-        {
-          title: "Organization",
-          items: [
-            { icon: <FolderOpen size={itemIconSize} />, label: "All folders" },
-            { icon: <Archive size={itemIconSize} />, label: "Archived files" },
-          ],
-        },
-      ],
-    },
-
-    settings: {
-      title: "Settings",
-      sections: [
-        {
-          title: "Account",
-          items: [
-            { icon: <UserIcon size={itemIconSize} />, label: "Profile settings" },
-            { icon: <Security size={itemIconSize} />, label: "Security" },
-            { icon: <Notification size={itemIconSize} />, label: "Notifications" },
-          ],
-        },
-        {
-          title: "Workspace",
+          title: "Conta",
           items: [
             {
               icon: <SettingsIcon size={itemIconSize} />,
-              label: "Preferences",
-              hasDropdown: true,
-              children: [
-                { icon: <SettingsIcon size={subIconSize} />, label: "Theme settings" },
-                { icon: <Time size={subIconSize} />, label: "Time zone" },
-                { icon: <Notification size={subIconSize} />, label: "Default notifications" },
-              ],
+              label: "Configurações gerais",
+              path: "/admin/configuracoes",
+              isActive: pathname.startsWith("/admin/configuracoes"),
             },
-            { icon: <Integration size={itemIconSize} />, label: "Integrations" },
           ],
         },
       ],
     },
   };
 
-  return contentMap[activeSection] || contentMap.tasks;
+  return contentMap[activeSection] || contentMap.dashboard;
 }
 
 /* ---------------------------- Left Icon Nav Rail -------------------------- */
