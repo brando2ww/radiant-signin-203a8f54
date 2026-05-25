@@ -108,14 +108,14 @@ export default function TenantDetail() {
     loadData();
   }, [id]);
 
-  const handleToggleModule = async (mod: TenantModule) => {
+  const handleToggleModule = async (moduleSlug: string, nextActive: boolean) => {
+    if (!id) return;
     setSavingModules(true);
     try {
-      await toggleTenantModule(mod.id, !mod.is_active);
-      setModules((prev) =>
-        prev.map((m) => (m.id === mod.id ? { ...m, is_active: !m.is_active } : m))
-      );
-      toast.success(`Módulo ${mod.module} ${!mod.is_active ? "ativado" : "desativado"}`);
+      await upsertTenantModule(id, moduleSlug, nextActive);
+      const mods = await fetchTenantModules(id);
+      setModules(mods);
+      toast.success(`Módulo ${moduleSlug} ${nextActive ? "ativado" : "desativado"}`);
     } catch {
       toast.error("Erro ao atualizar módulo");
     } finally {
