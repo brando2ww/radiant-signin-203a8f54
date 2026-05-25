@@ -1,29 +1,35 @@
-## Reconstruir o componente exatamente como o original
+## Estado colapsado do AdminSidebar
 
-Vou reescrever `src/components/super-admin/AdminSidebar.tsx` reproduzindo fielmente o componente colado e a captura de tela enviada — mesmas cores escuras, mesma marca "Interfaces", mesmos textos em inglês, mesmos 8 conteúdos (Dashboard, Tasks, Projects, Calendar, Teams, Analytics, Files, Settings) com todos os sub-itens decorativos, mesmo card "Text content" no rodapé, mesmo easing `cubic-bezier(0.25, 1.1, 0.4, 1)`.
+Atualmente, quando `isCollapsed = true`, o painel de detalhes (`w-[300px]`) anima para `w-0` e desaparece. A imagem de referência mostra que o painel colapsado deve permanecer visível como um **segundo rail estreito de ícones**, ao lado do rail principal.
 
-O código colado tem o JSX corrompido pelo paste, então vou reconstruir o markup a partir da captura de tela:
+### Mudanças em `src/components/super-admin/AdminSidebar.tsx`
 
-- Rail `w-[60px]` preto puro, com logo "Interfaces" quadrado em SVG inline (paths `p15853b70` / `p35081d00` / `p1a3cd600`), 7 ícones de navegação (`Dashboard`, `Task`, `Folder`, `CalendarIcon`, `UserMultiple`, `Analytics`, `DocumentAdd`), divisor, ícone de `SettingsIcon` e avatar circular no fim.
-- Painel direito `w-[280px]` com cantos arredondados (`rounded-2xl`), fundo `bg-neutral-950`, header "Interfaces" + ícone, título da seção (ex. "Dashboard") com chevron de colapso à direita, campo de busca com borda fina, seções com label cinza em caps, itens com ícone + chevron quando têm dropdown, item "Overview" destacado com fundo `bg-neutral-800`.
-- Card de rodapé com avatar circular, texto "Text content" e botão `⋯` (três pontinhos verticais via SVG).
-- Animação de colapso do painel via `style={{ width, transition }}` com o easing exato.
-- Estado interno: `activeSection` (default `"dashboard"`), `expandedItems: Set<string>`, `isCollapsed: boolean`. Cliques em sub-itens só fazem `console.log` (igual ao original).
+1. **Largura colapsada**: trocar `w-0` por `w-[60px]` (mesma largura do rail principal) quando `isCollapsed = true`. Manter a transição com `cubic-bezier(0.25, 1.1, 0.4, 1)`.
 
-### Decisões
+2. **Conteúdo no estado colapsado**: ao invés de esconder tudo, renderizar uma coluna vertical de ícones:
+   - **Topo**: botão chevron (apontando para cima/`ChevronUp`) que reexpande o painel ao clicar.
+   - **Busca**: ícone `SearchIcon` dentro de um quadrado com borda arredondada (`rounded-lg border border-neutral-800`).
+   - **Item ativo**: ícone `View` (olho) destacado com `bg-neutral-800 rounded-lg` — representa o "Overview" selecionado da seção atual.
+   - **Lista de ícones**: extrair os ícones de cada `MenuItemT` da seção ativa (`getSidebarContent(activeSection)`) e renderizá-los empilhados verticalmente, centralizados, com cor `text-neutral-500` e hover `text-neutral-200`.
+   - Cada ícone vira um botão clicável que, ao ser pressionado, expande o painel (`setIsCollapsed(false)`) e mantém o item correspondente em foco.
 
-- **Sem wireing com rotas reais**: o componente fica 100% como o original, decorativo. O rail muda só o `activeSection` interno; nenhum `useNavigate`/`useLocation`.
-- **Sem `useAuth`/`signOut`**: o original não tem.
-- **Sem tokens do design system**: o original usa cores `neutral-*` hardcoded e fonte `Lexend` — vou manter exatamente assim, pois o usuário pediu "EXATAMENTE ISSO". Isso conflita com a memória global de design, mas a instrução explícita do usuário tem prioridade.
-- **Logo "Interfaces"**: mantido literal (não Velara), como na captura.
-- **Idioma**: inglês, como no código original.
+3. **Estado expandido**: nenhum comportamento muda — continua mostrando o painel completo de 300px com header, busca, seções e footer.
 
-### Arquivos
+4. **Renderização condicional**: usar dois blocos JSX dentro do mesmo container animado:
+   - `{isCollapsed ? <CollapsedRail /> : <ExpandedPanel />}`
+   - O container externo controla apenas a largura via `style={{ width }}`.
 
-- **Editar** `src/components/super-admin/AdminSidebar.tsx` — reescrita completa reconstruindo o JSX do componente colado, incluindo o objeto `svgPaths`, `InterfacesLogoSquare`, `BrandBadge`, `AvatarCircle`, `SearchContainer`, `IconNavButton`, `IconNavigation`, `SectionTitle`, `DetailSidebar`, `MenuItem`, `SubMenuItem`, `MenuSection`, `TwoLevelSidebar` e o export `Frame760` (mantido para preservar a API original) + um `export const AdminSidebar = Frame760` para não quebrar o import em `SuperAdmin.tsx`.
+### Detalhes visuais (baseado na referência)
 
-### Fora de escopo
+- Espaçamento vertical entre ícones: `gap-4` aproximadamente.
+- Chevron do topo: mesma área clicável do header expandido (toggle).
+- Ícones renderizados em ~20px (`size={20}`).
+- Sem labels de texto, sem chevrons de dropdown, sem footer card no modo colapsado.
+- Borda/fundo do painel: mantém `rounded-2xl bg-neutral-950` e a borda externa do wrapper.
 
-- Não mexer em `SuperAdmin.tsx`, `SuperAdminGuard`, rotas ou outros componentes.
-- Não criar páginas para os itens decorativos.
-- Não conectar busca, dropdowns de filhos ou navegação — fica 100% decorativo, igual ao original.
+### Não muda
+
+- Rail principal de 60px (logo + 7 ícones + settings + avatar).
+- Lógica de `activeSection` e `expandedItems`.
+- Tipos `MenuItemT`, `MenuSectionT`, `SidebarContent`.
+- Nenhum outro arquivo (rotas, guard, layout).

@@ -14,6 +14,7 @@ import {
   User as UserIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
+  ChevronUp as ChevronUpIcon,
   AddLarge,
   Filter,
   Time,
@@ -766,6 +767,57 @@ function MenuSection({
   );
 }
 
+function CollapsedRail({
+  content,
+  onExpand,
+}: {
+  content: SidebarContent;
+  onExpand: () => void;
+}) {
+  const allItems = content.sections.flatMap((s) => s.items);
+  return (
+    <div className="flex h-full w-full flex-col items-center gap-2 py-4">
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-label="Expand panel"
+        className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-900 hover:text-neutral-50"
+      >
+        <ChevronUpIcon size={16} />
+      </button>
+
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-label="Search"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-800 text-neutral-400 hover:text-neutral-200"
+      >
+        <SearchIcon size={16} />
+      </button>
+
+      <div className="mt-1 flex flex-col items-center gap-2">
+        {allItems.map((item, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={onExpand}
+            aria-label={item.label}
+            title={item.label}
+            className={
+              "flex h-9 w-9 items-center justify-center rounded-lg transition-colors " +
+              (item.isActive
+                ? "bg-neutral-800 text-neutral-50"
+                : "text-neutral-500 hover:bg-neutral-900 hover:text-neutral-200")
+            }
+          >
+            {item.icon}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DetailSidebar({ activeSection }: { activeSection: string }) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -786,51 +838,50 @@ function DetailSidebar({ activeSection }: { activeSection: string }) {
     <div
       className="flex h-full shrink-0 flex-col overflow-hidden border-l border-neutral-800"
       style={{
-        width: isCollapsed ? 0 : 300,
+        width: isCollapsed ? 60 : 300,
         transitionProperty: "width",
         transitionDuration: "280ms",
         transitionTimingFunction: softSpringEasing,
       }}
     >
-      {!isCollapsed && <BrandBadge />}
-
-      <SectionTitle
-        title={content.title}
-        isCollapsed={isCollapsed}
-        onToggleCollapse={toggleCollapse}
-      />
-
-      {!isCollapsed && <SearchContainer isCollapsed={isCollapsed} />}
-
-      <div className="flex-1 overflow-y-auto">
-        {!isCollapsed &&
-          content.sections.map((section, index) => (
-            <MenuSection
-              key={`${activeSection}-${index}`}
-              section={section}
-              expandedItems={expandedItems}
-              onToggleExpanded={toggleExpanded}
-              isCollapsed={isCollapsed}
-            />
-          ))}
-      </div>
-
-      {!isCollapsed && (
-        <div className="border-t border-neutral-800 p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-            <AvatarCircle size={36} />
-            <span className="flex-1 font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-50 leading-[20px]">
-              Text content
-            </span>
-            <button
-              type="button"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
-              aria-label="More"
-            >
-              <OverflowMenuVertical size={16} />
-            </button>
+      {isCollapsed ? (
+        <CollapsedRail content={content} onExpand={() => setIsCollapsed(false)} />
+      ) : (
+        <>
+          <BrandBadge />
+          <SectionTitle
+            title={content.title}
+            isCollapsed={false}
+            onToggleCollapse={toggleCollapse}
+          />
+          <SearchContainer isCollapsed={false} />
+          <div className="flex-1 overflow-y-auto">
+            {content.sections.map((section, index) => (
+              <MenuSection
+                key={`${activeSection}-${index}`}
+                section={section}
+                expandedItems={expandedItems}
+                onToggleExpanded={toggleExpanded}
+                isCollapsed={false}
+              />
+            ))}
           </div>
-        </div>
+          <div className="border-t border-neutral-800 p-3">
+            <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+              <AvatarCircle size={36} />
+              <span className="flex-1 font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-50 leading-[20px]">
+                Text content
+              </span>
+              <button
+                type="button"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-900 hover:text-neutral-200"
+                aria-label="More"
+              >
+                <OverflowMenuVertical size={16} />
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
