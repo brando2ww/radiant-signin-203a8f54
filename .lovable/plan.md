@@ -1,39 +1,16 @@
-## Substituir conteúdo fake por opções reais do admin
+## Inverter cores do AdminSidebar (tema branco)
 
-Em `src/components/super-admin/AdminSidebar.tsx`:
+Em `src/components/super-admin/AdminSidebar.tsx`, trocar todos os tons escuros por claros equivalentes, mantendo a hierarquia visual:
 
-### Rail (lateral 60px)
-Trocar `navItems` por 4 itens reais com rotas:
-- Dashboard → `/admin` (ícone `Dashboard`)
-- Tenants → `/admin/tenants` (ícone `UserMultiple`)
-- Planos → `/admin/planos` (ícone `Folder`)
-- Configurações → `/admin/configuracoes` (ícone `SettingsIcon`)
+- `bg-neutral-950` → `bg-white`
+- `bg-neutral-900` (hover) → `bg-neutral-100`
+- `bg-neutral-800` (ativo) → `bg-neutral-200`
+- `border-neutral-800`/`border-neutral-700` → `border-neutral-200`
+- `text-neutral-50` → `text-neutral-900`
+- `text-neutral-300` → `text-neutral-700`
+- `text-neutral-400` → `text-neutral-500`
+- `text-neutral-500` → `text-neutral-400`
+- Logo `InterfacesLogoSquare`: trocar `bg-neutral-50` por `bg-neutral-900` e preencher os retângulos SVG com `#ffffff` para inverter o quadrado.
+- Frame raiz (`Frame760`): trocar `bg-black` por `bg-neutral-100` para contrastar com o sidebar branco.
 
-Usar `useNavigate` + `useLocation` (react-router-dom) para navegar e marcar ativo. Remover o botão Settings duplicado de baixo (vira item normal). Manter logo + avatar.
-
-### Painel de detalhes (`getSidebarContent`)
-Substituir as 8 seções fake (dashboard/tasks/projects/calendar/teams/analytics/files/settings) por 4 mapeadas às seções reais, todas em pt-BR. Todos os subitens navegam via `onItemClick`.
-
-- **dashboard** — título "Dashboard"
-  - Visão geral → Resumo (`/admin`)
-  
-- **tenants** — título "Tenants"
-  - Gestão → Todos os tenants (`/admin/tenants`), Novo tenant (`/admin/tenants/novo`)
-  
-- **planos** — título "Planos"
-  - Gestão → Listar planos (`/admin/planos`)
-  
-- **configuracoes** — título "Configurações"
-  - Conta → Configurações gerais (`/admin/configuracoes`)
-
-Remover todos os `hasDropdown`/`children` decorativos e ícones de seção que não correspondem a rotas reais. Manter os tipos `MenuItemT`/`MenuSectionT` mas adicionar `path?: string` opcional para navegação.
-
-### Conexão de navegação
-- `MenuItem.onItemClick` passa `item.path` para `navigate(path)`.
-- `item.isActive` calculado por `location.pathname === item.path` (ou `startsWith` para subrotas).
-- `activeSection` derivado de `location.pathname` (não mais state).
-
-### Rail colapsado
-`CollapsedRail` continua mostrando os ícones dos `items` da seção ativa (que agora são poucos e reais), mantém chevron-right e centralização vertical.
-
-Sem outras mudanças (footer "Text content", logo Interfaces, busca decorativa permanecem como estão).
+Sem mudanças estruturais — apenas substituição de classes Tailwind.
