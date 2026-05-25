@@ -95,17 +95,51 @@ export function EvidenceGallery() {
     if (idx >= 0) setLightboxIndex(idx);
   };
 
-  const groupedByDate = useMemo(() => {
-    if (!evidence?.length) return [] as { date: string; items: { item: EvidenceItem; index: number }[] }[];
-    const map = new Map<string, { item: EvidenceItem; index: number }[]>();
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      filters.search ||
+      (filters.sector && filters.sector !== "all") ||
+      filters.operatorId ||
+      filters.checklistId ||
+      (filters.status && filters.status !== "all") ||
+      (filters.itemType && filters.itemType !== "all")
+    );
+  }, [filters]);
+
+  const groupedByDayShift = useMemo(() => {
+    if (!evidence?.length) return [] as {
+      date: string;
+      shifts: { key: ShiftKey; items: { item: EvidenceItem; index: number }[] }[];
+    }[];
+
+    const byDate = new Map<string, Map<ShiftKey, { item: EvidenceItem; index: number }[]>>();
     evidence.forEach((item, index) => {
-      const key = item.executionDate || "";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push({ item, index });
+      const date = item.executionDate || "";
+      const shift = getShift(item.completedAt);
+      if (!byDate.has(date)) byDate.set(date, new Map());
+      const shiftMap = byDate.get(date)!;
+      if (!shiftMap.has(shift)) shiftMap.set(shift, []);
+      shiftMap.get(shift)!.push({ item, index });
     });
-    return Array.from(map.entries())
+
+    const sortItems = (arr: { item: EvidenceItem; index: number }[]) =>
+      arr.sort((a, b) => {
+        const ra = statusRank(a.item.reviewStatus);
+        const rb = statusRank(b.item.reviewStatus);
+        if (ra !== rb) return ra - rb;
+        const at = a.item.completedAt || "";
+        const bt = b.item.completedAt || "";
+        return at < bt ? 1 : at > bt ? -1 : 0;
+      });
+
+    return Array.from(byDate.entries())
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([date, items]) => ({ date, items }));
+      .map(([date, shiftMap]) => ({
+        date,
+        shifts: Array.from(shiftMap.entries())
+          .map(([key, items]) => ({ key, items: sortItems(items) }))
+          .sort((a, b) => SHIFTS[a.key].order - SHIFTS[b.key].order),
+      }));
   }, [evidence]);
 
 
@@ -138,27 +172,17 @@ export function EvidenceGallery() {
           <EvidenceAttentionSection evidence={evidence} onView={openLightboxForItem} />
 
           {viewMode === "grid" ? (
-            <div className="space-y-6">
-              {groupedByDate.map(group => (
-                <section key={group.date || "sem-data"} className="space-y-2">
-                  <div className="flex items-center gap-2 sticky top-0 z-10 bg-background/95 backdrop-blur py-1.5 border-b">
-                    <h3 className="text-sm font-semibold text-foreground">{formatDateHeader(group.date)}</h3>
-                    <span className="text-xs text-muted-foreground">
-                      {group.items.length} {group.items.length === 1 ? "foto" : "fotos"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {group.items.map(({ item, index }) => (
-                      <EvidenceGridCard
-                        key={item.executionItemId}
-                        item={item}
-                        onView={() => setLightboxIndex(index)}
-                        onApprove={() => handleReview(item.executionItemId, "aprovado")}
-                        onReject={() => handleReview(item.executionItemId, "reprovado")}
-                      />
-                    ))}
-                  </div>
-                </section>
+            <div className="space-y-4">
+              {groupedByDayShift.map((group) => (
+                <EvidenceDayGroup
+                  key={group.date || "sem-data"}
+                  date={group.date}
+                  shifts={group.shifts}
+                  hasActiveFilters={hasActiveFilters}
+                  onView={(idx) => setLightboxIndex(idx)}
+                  onApprove={(id) => handleReview(id, "aprovado")}
+                  onReject={(id) => handleReview(id, "reprovado")}
+                />
               ))}
             </div>
           ) : (
