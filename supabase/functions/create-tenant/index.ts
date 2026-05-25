@@ -81,7 +81,13 @@ Deno.serve(async (req) => {
       });
 
     if (createUserError) {
-      return new Response(JSON.stringify({ error: createUserError.message }), {
+      const isDup =
+        (createUserError as any).code === "email_exists" ||
+        /already been registered|already registered|already exists/i.test(createUserError.message);
+      const msg = isDup
+        ? `O e-mail "${admin_email}" já está cadastrado. Use outro e-mail para o administrador deste tenant.`
+        : createUserError.message;
+      return new Response(JSON.stringify({ error: msg }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
