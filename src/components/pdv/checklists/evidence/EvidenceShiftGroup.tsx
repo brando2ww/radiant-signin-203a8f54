@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Camera, CircleDot, CheckCircle2, XCircle } from "lucide-react";
 import type { EvidenceItem } from "@/hooks/use-checklist-evidence";
 import { EvidenceGridCard } from "./EvidenceGridCard";
 import { SHIFTS, type ShiftKey } from "./shift-utils";
