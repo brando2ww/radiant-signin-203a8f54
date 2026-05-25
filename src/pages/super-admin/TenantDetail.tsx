@@ -228,7 +228,7 @@ export default function TenantDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/admin/tenants")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">{tenant.name}</h1>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>{tenant.document || "Sem documento"}</span>
@@ -249,6 +249,32 @@ export default function TenantDetail() {
             )}
           </div>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="destructive" size="sm" disabled={deletingTenant}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir tenant
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir "{tenant.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação é irreversível. Todos os usuários, módulos e integrações
+                vinculados a este tenant serão removidos.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteTenant}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {loading ? (
