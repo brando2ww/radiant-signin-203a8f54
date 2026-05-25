@@ -3,6 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Logo } from "@/components/ui/logo";
+import velaraSymbol from "@/assets/velara-symbol.png";
 import {
   Sidebar,
   SidebarContent,
