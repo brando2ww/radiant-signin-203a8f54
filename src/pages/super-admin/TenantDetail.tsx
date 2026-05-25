@@ -16,7 +16,18 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Pencil, Save, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Pencil, Save, Eye, EyeOff, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useTenants, TenantModule, TenantIntegration } from "@/hooks/use-tenants";
 import { FranchiseSection } from "@/components/super-admin/FranchiseSection";
 import { availableModules } from "@/components/super-admin/ModuleSelector";
