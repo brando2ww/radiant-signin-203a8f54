@@ -15,6 +15,8 @@ import {
   View,
   OverflowMenuVertical,
 } from "@carbon/icons-react";
+import velaraLogo from "@/assets/logo_velara_preto.png";
+import velaraSymbol from "@/assets/velara-symbol.png";
 
 const softSpringEasing = "cubic-bezier(0.25, 1.1, 0.4, 1)";
 
