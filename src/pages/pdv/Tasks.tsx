@@ -82,6 +82,7 @@ export default function Tasks() {
       case "configuracoes": return <TaskSettings onNavigate={setActiveSection} />;
       case "score": return <TeamScorePanel onNavigate={setActiveSection} />;
       case "evidencias": return <EvidenceGallery />;
+      case "atencao": return <AttentionPanel />;
       case "validade": return <ExpiryTrackingPanel />;
       case "logs": return <AccessLogsPanel />;
       default: return <DashboardPanel />;
