@@ -10,7 +10,6 @@ import { EvidenceOverview } from "./evidence/EvidenceOverview";
 import { EvidenceFiltersBar } from "./evidence/EvidenceFilters";
 import { EvidenceLightbox } from "./evidence/EvidenceLightbox";
 import { EvidenceListView } from "./evidence/EvidenceListView";
-import { EvidenceAttentionSection } from "./evidence/EvidenceAttentionSection";
 import { EvidenceDayGroup } from "./evidence/EvidenceDayGroup";
 import { getShift, SHIFTS, statusRank, type ShiftKey } from "./evidence/shift-utils";
 
