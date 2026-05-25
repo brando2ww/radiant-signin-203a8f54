@@ -1,37 +1,18 @@
 "use client";
 
 import React, { useState, type ReactNode } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Search as SearchIcon,
   Dashboard,
-  Task,
   Folder,
-  Calendar as CalendarIcon,
   UserMultiple,
-  Analytics,
-  DocumentAdd,
   Settings as SettingsIcon,
   User as UserIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
   AddLarge,
-  Filter,
-  Time,
-  InProgress,
-  CheckmarkOutline,
-  Flag,
-  Archive,
   View,
-  Report,
-  StarFilled,
-  Group,
-  ChartBar,
-  FolderOpen,
-  Share,
-  CloudUpload,
-  Security,
-  Notification,
-  Integration,
   OverflowMenuVertical,
 } from "@carbon/icons-react";
 
