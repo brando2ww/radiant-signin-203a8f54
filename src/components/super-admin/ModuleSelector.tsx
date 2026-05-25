@@ -1,6 +1,6 @@
 import { Check } from "lucide-react";
 
-const availableModules = [
+export const availableModules = [
   { value: "pdv", label: "PDV", description: "Ponto de venda, caixa, salão, comandas" },
   { value: "delivery", label: "Delivery", description: "Pedidos online, cardápio digital" },
   { value: "financeiro", label: "Financeiro", description: "Contas, fluxo de caixa, DRE" },
