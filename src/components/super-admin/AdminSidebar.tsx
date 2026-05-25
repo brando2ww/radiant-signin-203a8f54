@@ -40,19 +40,34 @@ export function AdminSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-3 py-3 overflow-hidden">
-        {collapsed ? (
-          <img
-            src={velaraSymbol}
-            alt="Velara"
-            className="h-8 w-8 object-contain dark:invert"
-          />
-        ) : (
-          <Logo
-            size="sm"
-            className="h-16 w-auto max-w-full object-contain"
-          />
-        )}
+      <SidebarHeader className="px-3 py-3 overflow-hidden transition-[padding] duration-200">
+        <div className="relative h-16 w-full">
+          <div
+            className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out ${
+              collapsed
+                ? "opacity-100 scale-100"
+                : "opacity-0 scale-90 pointer-events-none"
+            }`}
+          >
+            <img
+              src={velaraSymbol}
+              alt="Velara"
+              className="h-10 w-10 object-contain dark:invert"
+            />
+          </div>
+          <div
+            className={`absolute inset-0 flex items-center transition-all duration-200 ease-out ${
+              collapsed
+                ? "opacity-0 scale-90 pointer-events-none"
+                : "opacity-100 scale-100"
+            }`}
+          >
+            <Logo
+              size="sm"
+              className="h-16 w-auto max-w-full object-contain"
+            />
+          </div>
+        </div>
       </SidebarHeader>
 
       <SidebarSeparator />

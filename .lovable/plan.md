@@ -1,12 +1,16 @@
-## Mudança no logo da AdminSidebar
+## Transição suave entre os logos da AdminSidebar
 
-1. Copiar `user-uploads://simbolo_velara_preto_1.png` para `src/assets/velara-symbol.png`.
+Hoje a troca entre `<Logo>` (expandido) e símbolo (colapsado) é instantânea e parece travada porque o sidebar leva ~200ms para animar a largura, enquanto o logo já trocou.
 
-2. `src/components/super-admin/AdminSidebar.tsx`:
-   - Importar o novo símbolo: `import velaraSymbol from "@/assets/velara-symbol.png"`.
-   - Estado **colapsado**: renderizar `<img src={velaraSymbol} alt="Velara" className="h-8 w-8 object-contain dark:invert" />` (em vez do `<Logo>`).
-   - Estado **expandido**: manter `<Logo>` atual, porém 2x maior — usar `className="h-16 w-auto max-w-full object-contain"` (sobrescrevendo o `h-8` padrão do size `sm`).
-   - Ajustar `SidebarHeader` para `py-3` para acomodar o logo maior sem cortar.
+### Mudança em `src/components/super-admin/AdminSidebar.tsx`
 
-## Fora de escopo
-- Não mexer no `Logo` global nem em outras telas.
+1. Renderizar **ambos** os logos sempre montados, sobrepostos via wrapper `relative` com `min-h-16`.
+2. Controlar visibilidade por `opacity` + `scale` com `transition-all duration-200 ease-out`:
+   - Expandido: símbolo `opacity-0 scale-90 pointer-events-none`, logo cheio `opacity-100 scale-100`.
+   - Colapsado: inverso.
+3. O símbolo fica posicionado `absolute inset-0 m-auto` (centralizado no header colapsado), logo cheio também `absolute inset-0` no estado expandido.
+4. Adicionar `transition-[padding] duration-200` no `SidebarHeader` para acompanhar a animação do sidebar.
+
+### Fora de escopo
+- Não alterar `Logo` global nem outras sidebars.
+- Sem novas keyframes — usar utilitários Tailwind existentes (`transition-all`, `opacity`, `scale`).
