@@ -11,7 +11,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { CustomerIdentification } from "./checkout/CustomerIdentification";
+import { LoginChoice } from "./checkout/LoginChoice";
+import { GuestCheckoutForm } from "./checkout/GuestCheckoutForm";
+import { CustomerLogin } from "./checkout/CustomerLogin";
+import { CustomerSignUp } from "./checkout/CustomerSignUp";
 import { CustomerData } from "./checkout/CustomerData";
 import { DeliveryAddress } from "./checkout/DeliveryAddress";
 import { PaymentMethod } from "./checkout/PaymentMethod";
