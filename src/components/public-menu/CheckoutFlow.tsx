@@ -52,7 +52,7 @@ export const CheckoutFlow = ({
   userId,
   onOrderComplete,
 }: CheckoutFlowProps) => {
-  const [currentStep, setCurrentStep] = useState<CheckoutStep>("phone");
+  const [currentStep, setCurrentStep] = useState<CheckoutStep>("login");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<DeliveryCustomer | null>(null);
   const [orderType, setOrderType] = useState<"delivery" | "pickup">("delivery");
@@ -119,7 +119,7 @@ export const CheckoutFlow = ({
     onOrderComplete();
     onOpenChange(false);
     setTrackingOrderId(null);
-    setCurrentStep("phone");
+    setCurrentStep("login");
     setCustomer(null);
     setOrderType("delivery");
     setSelectedAddressId(null);
@@ -132,8 +132,14 @@ export const CheckoutFlow = ({
 
   const getStepTitle = () => {
     switch (currentStep) {
-      case "phone":
+      case "login":
         return "Identificação";
+      case "guest":
+        return "Comprar sem cadastro";
+      case "signin":
+        return "Entrar";
+      case "signup":
+        return "Criar conta";
       case "customer-data":
         return "Seus Dados";
       case "address":
@@ -157,15 +163,40 @@ export const CheckoutFlow = ({
             <DialogTitle>{getStepTitle()}</DialogTitle>
           </DialogHeader>
 
-          {currentStep === "phone" && (
-            <CustomerIdentification onConfirm={handlePhoneConfirmed} />
+          {currentStep === "login" && (
+            <LoginChoice
+              onGuest={() => setCurrentStep("guest")}
+              onLogin={() => setCurrentStep("signin")}
+              onSignUp={() => setCurrentStep("signup")}
+            />
+          )}
+
+          {currentStep === "guest" && (
+            <GuestCheckoutForm
+              onConfirm={handlePhoneConfirmed}
+              onBack={() => setCurrentStep("login")}
+            />
+          )}
+
+          {currentStep === "signin" && (
+            <CustomerLogin
+              onConfirm={handlePhoneConfirmed}
+              onBack={() => setCurrentStep("login")}
+            />
+          )}
+
+          {currentStep === "signup" && (
+            <CustomerSignUp
+              onConfirm={handlePhoneConfirmed}
+              onBack={() => setCurrentStep("login")}
+            />
           )}
 
           {currentStep === "customer-data" && customer && (
             <CustomerData
               customer={customer}
               onConfirm={handleCustomerDataConfirmed}
-              onBack={() => setCurrentStep("phone")}
+              onBack={() => setCurrentStep("login")}
             />
           )}
 
@@ -174,7 +205,7 @@ export const CheckoutFlow = ({
               customerId={customer.id}
               userId={userId}
               onConfirm={handleAddressConfirmed}
-              onBack={() => setCurrentStep(customer.name ? "phone" : "customer-data")}
+              onBack={() => setCurrentStep(customer.name ? "login" : "customer-data")}
             />
           )}
 
