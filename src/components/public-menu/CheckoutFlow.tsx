@@ -38,7 +38,7 @@ interface CheckoutFlowProps {
   onOrderComplete: () => void;
 }
 
-export type CheckoutStep = "phone" | "customer-data" | "address" | "payment" | "confirmation" | "tracking";
+export type CheckoutStep = "login" | "guest" | "signin" | "signup" | "customer-data" | "address" | "payment" | "confirmation" | "tracking";
 
 export const CheckoutFlow = ({
   open,
