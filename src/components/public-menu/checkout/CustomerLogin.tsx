@@ -34,10 +34,10 @@ export const CustomerLogin = ({ onConfirm, onBack }: CustomerLoginProps) => {
       if (error) throw error;
       if (!auth.user) throw new Error("Falha ao autenticar");
 
-      const { data: customer, error: cErr } = await supabase
-        .from("delivery_customers")
+      const { data: customer, error: cErr } = await (supabase
+        .from("delivery_customers") as any)
         .select("*")
-        .eq("auth_user_id" as any, auth.user.id)
+        .eq("auth_user_id", auth.user.id)
         .maybeSingle();
       if (cErr) throw cErr;
       if (!customer) {
