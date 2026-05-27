@@ -52,7 +52,7 @@ export const CheckoutFlow = ({
   userId,
   onOrderComplete,
 }: CheckoutFlowProps) => {
-  const [currentStep, setCurrentStep] = useState<CheckoutStep>("phone");
+  const [currentStep, setCurrentStep] = useState<CheckoutStep>("login");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<DeliveryCustomer | null>(null);
   const [orderType, setOrderType] = useState<"delivery" | "pickup">("delivery");
