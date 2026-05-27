@@ -1334,9 +1334,11 @@ export type Database = {
       }
       delivery_customers: {
         Row: {
+          auth_user_id: string | null
           birth_date: string | null
           cpf: string | null
           created_at: string
+          document_type: string | null
           email: string | null
           id: string
           name: string
@@ -1344,9 +1346,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auth_user_id?: string | null
           birth_date?: string | null
           cpf?: string | null
           created_at?: string
+          document_type?: string | null
           email?: string | null
           id?: string
           name: string
@@ -1354,9 +1358,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auth_user_id?: string | null
           birth_date?: string | null
           cpf?: string | null
           created_at?: string
+          document_type?: string | null
           email?: string | null
           id?: string
           name?: string
