@@ -7635,6 +7635,10 @@ export type Database = {
         Args: { p_order_id: string }
         Returns: number
       }
+      delivery_assign_pending_tickets: {
+        Args: { p_session_id: string }
+        Returns: number
+      }
       delivery_clone_options_from_pdv: {
         Args: { p_pdv_product_id: string }
         Returns: Json
