@@ -1,75 +1,49 @@
-# Novo fluxo de identificação do cliente (cardápio público)
+# Corrigir numeração TMP- nos pedidos de delivery
 
-Substitui o atual `CustomerIdentification` (só telefone) por um fluxo de Login com três caminhos, espelhando o Bitbar, e cria autenticação dedicada de clientes (separada do usuário do PDV) para suportar fidelidade, histórico de pedidos e área "Minha conta".
+## Causa
 
-## 1. Banco de dados (migração única)
+Os dois pedidos exibidos no caixa (`TMP-1780002109374-170` e `TMP-1780002101443-990`) foram criados às 21:01, mas o caixa só foi aberto às 21:08. Hoje a numeração sequencial (`#001`, `#002`, …) depende exclusivamente da RPC `delivery_assign_order_ticket`, chamada pelo cliente logo após o INSERT. Se naquele instante não há `pdv_cashier_sessions` aberto, a RPC retorna `NULL` e o pedido fica **permanentemente** com o `order_number` provisório `TMP-…`.
 
-Estender `delivery_customers` e amarrar a auth de cliente:
+Além disso, o comentário do código (`src/hooks/use-delivery-customers.ts:242`) afirma que existe um trigger `BEFORE INSERT` que faz essa atribuição no servidor — esse trigger **não existe** em `public.delivery_orders` (confirmado em `pg_trigger`).
 
-- Adicionar coluna `auth_user_id uuid` (nullable, UNIQUE) em `public.delivery_customers` — referência lógica a `auth.users.id` (sem FK).
-- Adicionar `document_type text` (default `'CPF'`) e índice em `email` e `auth_user_id`.
-- Trigger `handle_new_customer_user`: ao criar usuário em `auth.users` com `raw_user_meta_data.role = 'delivery_customer'`, faz upsert em `delivery_customers` (matching por telefone ou e-mail) e grava `auth_user_id`, `name`, `cpf`, `phone`, `birth_date`, `email`.
-- Política RLS adicional em `delivery_customers`:
-  - `SELECT/UPDATE` quando `auth_user_id = auth.uid()` (cliente vê e edita o próprio cadastro).
-  - Mantém políticas existentes do dono do restaurante.
-- Política em `delivery_orders` permitindo `SELECT` quando `customer_id IN (SELECT id FROM delivery_customers WHERE auth_user_id = auth.uid())` — habilita "Meus pedidos".
+## Solução (banco de dados, sem mexer no frontend)
 
-## 2. Componentes novos (cardápio público)
+Duas mudanças complementares numa única migração:
 
-Diretório `src/components/public-menu/checkout/`:
+### 1. Trigger `BEFORE INSERT` em `delivery_orders`
 
-- `LoginChoice.tsx` — tela inicial do dialog (foto 2): título "Login", botões **Comprar sem cadastro**, **Já sou cadastrado**, link **Cadastre-se**.
-- `GuestCheckoutForm.tsx` — formulário "Comprar sem cadastro" (foto 3): Nome, Telefone, Documento + Tipo (CPF/CNPJ). Faz upsert em `delivery_customers` por telefone (sem criar conta).
-- `CustomerLogin.tsx` — e-mail + senha (foto 4) via `supabase.auth.signInWithPassword`. Link "Esqueci minha senha" usa `resetPasswordForEmail` apontando para `/cardapio/<slug>/reset-password`.
-- `CustomerSignUp.tsx` — cadastro completo (foto 5): Nome, CPF, Telefone, Data nasc., E-mail, Senha, Repetir senha. Chama `supabase.auth.signUp` com `options.data = { role: 'delivery_customer', name, cpf, phone, birth_date }` para o trigger popular `delivery_customers`. `emailRedirectTo = window.location.origin + '/cardapio/<slug>'`.
+Cria `public.delivery_orders_assign_number()` (`SECURITY DEFINER`, `search_path=public`) que, quando `NEW.order_number` vem nulo **ou** começa com `TMP-`:
 
-Validação com `zod` em `src/lib/validations/customer-auth.ts` (CPF, telefone BR, e-mail, senha mín. 8).
+- procura sessão de caixa aberta do `NEW.user_id`;
+- se existir, calcula `MAX(ticket_number)+1` para aquela sessão e preenche `cashier_session_id`, `ticket_number` e `order_number = lpad(ticket, 3, '0')`;
+- se não existir caixa aberto, mantém o `TMP-…` (compatibilidade com a lógica atual).
 
-## 3. Integração no CheckoutFlow
+Cria o trigger `trg_delivery_orders_assign_number BEFORE INSERT`.
 
-Substituir o passo `phone` em `src/components/public-menu/CheckoutFlow.tsx`:
+### 2. Atribuição retroativa ao abrir o caixa
 
-```text
-phone (atual) → login (novo)
-   ├─ Guest    → GuestCheckoutForm → confirma cliente
-   ├─ Sign-in  → CustomerLogin     → carrega delivery_customers via auth_user_id
-   └─ Sign-up  → CustomerSignUp    → cria auth + delivery_customers
-```
+Cria `public.delivery_assign_pending_tickets(p_session_id uuid)` e um trigger `AFTER INSERT` em `pdv_cashier_sessions` que, para a sessão recém-aberta:
 
-Se já há sessão de cliente (`supabase.auth.getUser()` com `role=delivery_customer`), pula o passo `login` e vai direto para `address`.
+- seleciona todos os `delivery_orders` do mesmo `user_id` com `cashier_session_id IS NULL` **e** `status <> 'cancelled'`, ordenados por `created_at`;
+- atribui `ticket_number` sequencial a partir de `MAX(ticket_number)+1` da sessão (que começa em 1);
+- atualiza `cashier_session_id` e `order_number = lpad(..., 3, '0')`.
 
-`use-public-customer.ts` passa a ler também `supabase.auth.getSession()` antes do fallback em `localStorage`.
+Isso resolve os dois pedidos atuais (eles ganham `#001` e `#002` da sessão atual assim que a migração rodar — o trigger só dispara em novas aberturas, então para os atuais a própria migração faz um `UPDATE` único usando a sessão `9ffc5817-…` já aberta).
 
-## 4. Área "Minha conta" do cliente
+### 3. Limpeza de comentário
 
-Rota nova `src/pages/public-menu/CustomerAccount.tsx` exposta dentro do cardápio (`/cardapio/<slug>/minha-conta`) com abas:
-
-- **Perfil** — editar nome, CPF, telefone, data nasc., e-mail.
-- **Meus pedidos** — lista `delivery_orders` do `customer_id` (status + total).
-- **Fidelidade** — pontos e histórico de `delivery_loyalty_*` (já existente) filtrados por `customer_id`.
-
-Header do cardápio público ganha botão **Minha conta** (avatar) quando há sessão; **Entrar** quando não há, abrindo o mesmo `LoginChoice` em modal.
-
-Rota pública `/cardapio/<slug>/reset-password` reaproveita padrão padrão Supabase (`updateUser({ password })`).
-
-## 5. Limpeza
-
-- `CustomerIdentification.tsx` (telefone-only) é removido.
-- Tipo `CheckoutStep` troca `"phone"` por `"login"`.
-- Título do passo passa a ser "Login".
+Após a migração aplicada, removo do `src/hooks/use-delivery-customers.ts` a menção a "trigger BEFORE INSERT" para refletir que agora ele realmente existe (sem mudar comportamento).
 
 ## Detalhes técnicos
 
-- Sessão do cliente usa o mesmo `supabase` client; diferenciamos pelo `user_metadata.role = 'delivery_customer'` para que o restante do app (PDV) ignore essa sessão e o cliente não consiga acessar telas autenticadas do restaurante.
-- `AuthContext` continua intacto — área do cliente usa um hook próprio `use-customer-auth.ts` para evitar acoplamento.
-- Trigger `handle_new_customer_user` é `SECURITY DEFINER` com `search_path = public`, faz `UPSERT` em `delivery_customers` priorizando match por `phone`, depois por `email`.
-- Não há mudança nos pedidos legados — `delivery_orders.customer_id` continua sendo `delivery_customers.id`; agora opcionalmente vinculado a um `auth_user_id`.
+- `delivery_assign_order_ticket(uuid)` continua existindo como fallback (a chamada do client permanece — agora vira no-op na maioria dos casos porque o trigger já preencheu).
+- Garante idempotência: o trigger só age quando `order_number IS NULL OR LIKE 'TMP-%'`.
+- A atualização retroativa única (one-shot) dentro da migração corrige os pedidos `TMP-` já em fila do `user_id` `d9087102-…` na sessão `9ffc5817-…`.
+- Nenhuma mudança em RLS, GRANTs ou tipos.
 
 ```text
-┌─────────────────────────────────────────────┐
-│                   LOGIN                     │
-│  [ Comprar sem cadastro ]  ── GuestForm     │
-│  [ Já sou cadastrado    ]  ── SignIn        │
-│   Cadastre-se              ── SignUp        │
-└─────────────────────────────────────────────┘
+INSERT delivery_orders ─► trigger BEFORE INSERT ─► tem caixa aberto?
+                                                   ├─ sim → #001, #002…
+                                                   └─ não → TMP-…
+abrir caixa ──────────► trigger AFTER INSERT ─► TMP- pendentes viram #001…
 ```
