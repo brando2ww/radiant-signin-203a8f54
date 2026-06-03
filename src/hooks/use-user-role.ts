@@ -123,7 +123,13 @@ export function useUserRole() {
     return true;
   };
 
-  const defaultRoute = roleDefaultRoute[role] || "/pdv/dashboard";
+  const roleDefault = roleDefaultRoute[role] || "/pdv/dashboard";
+  // Se o default do papel está em um módulo inativo no tenant, usa
+  // a primeira rota do primeiro módulo ativo.
+  const defaultRoute = canAccess(roleDefault)
+    ? roleDefault
+    : (activeModules()[0] === "avaliacoes" ? "/avaliacoes" : roleDefault);
+
 
   return {
     role,
