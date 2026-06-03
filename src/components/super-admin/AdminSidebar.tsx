@@ -13,7 +13,6 @@ import {
   ChevronRight as ChevronRightIcon,
   AddLarge,
   View,
-  OverflowMenuVertical,
 } from "@carbon/icons-react";
 import { LogOut } from "lucide-react";
 import {
@@ -24,26 +23,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import velaraLogo from "@/assets/logo_velara_preto.png";
-import velaraSymbol from "@/assets/velara-symbol.png";
 
 const softSpringEasing = "cubic-bezier(0.25, 1.1, 0.4, 1)";
 
 /* ----------------------------- Brand / Logos ----------------------------- */
-
-function InterfacesLogoSquare({ size = 28 }: { size?: number }) {
-  return (
-    <div
-      className="flex items-center justify-center rounded-md bg-neutral-900"
-      style={{ width: size, height: size }}
-    >
-      <svg width={size * 0.6} height={size * 0.45} viewBox="0 0 33 22" fill="none">
-        <rect x="0" y="0" width="33" height="5.5" rx="0.5" fill="#ffffff" />
-        <rect x="6" y="8.25" width="21" height="5.5" rx="0.5" fill="#ffffff" />
-        <rect x="0" y="16.5" width="33" height="5.5" rx="0.5" fill="#ffffff" />
-      </svg>
-    </div>
-  );
-}
 
 function BrandBadge() {
   return (
@@ -111,176 +94,69 @@ interface SidebarContent {
 
 const itemIconSize = 16;
 
-function getSidebarContent(activeSection: string, pathname: string): SidebarContent {
-  const isActive = (path: string) =>
-    path === "/admin" ? pathname === "/admin" : pathname.startsWith(path);
-
-  const contentMap: Record<string, SidebarContent> = {
-    dashboard: {
-      title: "Dashboard",
-      sections: [
-        {
-          title: "Visão geral",
-          items: [
-            {
-              icon: <View size={itemIconSize} />,
-              label: "Resumo",
-              path: "/admin",
-              isActive: isActive("/admin") && pathname === "/admin",
-            },
-          ],
-        },
-      ],
-    },
-    tenants: {
-      title: "Tenants",
-      sections: [
-        {
-          title: "Gestão",
-          items: [
-            {
-              icon: <UserMultiple size={itemIconSize} />,
-              label: "Todos os tenants",
-              path: "/admin/tenants",
-              isActive: pathname === "/admin/tenants",
-            },
-            {
-              icon: <AddLarge size={itemIconSize} />,
-              label: "Novo tenant",
-              path: "/admin/tenants/novo",
-              isActive: pathname === "/admin/tenants/novo",
-            },
-          ],
-        },
-      ],
-    },
-    planos: {
-      title: "Planos",
-      sections: [
-        {
-          title: "Gestão",
-          items: [
-            {
-              icon: <Folder size={itemIconSize} />,
-              label: "Listar planos",
-              path: "/admin/planos",
-              isActive: pathname.startsWith("/admin/planos"),
-            },
-          ],
-        },
-      ],
-    },
-    configuracoes: {
-      title: "Configurações",
-      sections: [
-        {
-          title: "Conta",
-          items: [
-            {
-              icon: <SettingsIcon size={itemIconSize} />,
-              label: "Configurações gerais",
-              path: "/admin/configuracoes",
-              isActive: pathname.startsWith("/admin/configuracoes"),
-            },
-          ],
-        },
-      ],
-    },
+function getSidebarContent(pathname: string): SidebarContent {
+  return {
+    title: "Administração",
+    sections: [
+      {
+        title: "Visão geral",
+        items: [
+          {
+            icon: <View size={itemIconSize} />,
+            label: "Resumo",
+            path: "/admin",
+            isActive: pathname === "/admin",
+          },
+        ],
+      },
+      {
+        title: "Tenants",
+        items: [
+          {
+            icon: <UserMultiple size={itemIconSize} />,
+            label: "Todos os tenants",
+            path: "/admin/tenants",
+            isActive:
+              pathname === "/admin/tenants" ||
+              (pathname.startsWith("/admin/tenants/") && pathname !== "/admin/tenants/novo"),
+          },
+          {
+            icon: <AddLarge size={itemIconSize} />,
+            label: "Novo tenant",
+            path: "/admin/tenants/novo",
+            isActive: pathname === "/admin/tenants/novo",
+          },
+        ],
+      },
+      {
+        title: "Planos",
+        items: [
+          {
+            icon: <Folder size={itemIconSize} />,
+            label: "Listar planos",
+            path: "/admin/planos",
+            isActive: pathname.startsWith("/admin/planos"),
+          },
+        ],
+      },
+      {
+        title: "Configurações",
+        items: [
+          {
+            icon: <SettingsIcon size={itemIconSize} />,
+            label: "Configurações gerais",
+            path: "/admin/configuracoes",
+            isActive: pathname.startsWith("/admin/configuracoes"),
+          },
+        ],
+      },
+    ],
   };
-
-  return contentMap[activeSection] || contentMap.dashboard;
 }
 
-/* ---------------------------- Left Icon Nav Rail -------------------------- */
+/* ------------------------------- User Menu ------------------------------ */
 
-function IconNavButton({
-  children,
-  isActive = false,
-  onClick,
-  title,
-}: {
-  children: ReactNode;
-  isActive?: boolean;
-  onClick?: () => void;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={
-        "flex h-10 w-10 items-center justify-center rounded-md text-neutral-9000 transition-colors " +
-        (isActive
-          ? "bg-neutral-200 text-neutral-900"
-          : "hover:bg-neutral-100 hover:text-neutral-200")
-      }
-      style={{
-        transitionTimingFunction: softSpringEasing,
-        transitionDuration: "200ms",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-const railItems = [
-  { id: "dashboard", icon: <Dashboard size={18} />, label: "Dashboard", path: "/admin" },
-  { id: "tenants", icon: <UserMultiple size={18} />, label: "Tenants", path: "/admin/tenants" },
-  { id: "planos", icon: <Folder size={18} />, label: "Planos", path: "/admin/planos" },
-  {
-    id: "configuracoes",
-    icon: <SettingsIcon size={18} />,
-    label: "Configurações",
-    path: "/admin/configuracoes",
-  },
-];
-
-function getActiveSectionFromPath(pathname: string): string {
-  if (pathname.startsWith("/admin/tenants")) return "tenants";
-  if (pathname.startsWith("/admin/planos")) return "planos";
-  if (pathname.startsWith("/admin/configuracoes")) return "configuracoes";
-  return "dashboard";
-}
-
-function IconNavigation({
-  activeSection,
-  onNavigate,
-}: {
-  activeSection: string;
-  onNavigate: (path: string) => void;
-}) {
-  return (
-    <div className="flex w-[60px] shrink-0 flex-col items-center gap-1 py-4">
-      <div className="mb-2 flex h-10 w-10 items-center justify-center">
-        <img src={velaraSymbol} alt="Velara" className="h-7 w-7 object-contain" />
-      </div>
-
-      <div className="flex flex-col items-center gap-1">
-        {railItems.map((item) => (
-          <IconNavButton
-            key={item.id}
-            title={item.label}
-            isActive={activeSection === item.id}
-            onClick={() => onNavigate(item.path)}
-          >
-            {item.icon}
-          </IconNavButton>
-        ))}
-      </div>
-
-      <div className="flex-1" />
-
-      <div className="flex flex-col items-center gap-2 pb-1">
-        <UserMenu />
-      </div>
-    </div>
-  );
-}
-
-function UserMenu() {
+function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate();
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -292,9 +168,17 @@ function UserMenu() {
         <button
           type="button"
           aria-label="Conta"
-          className="rounded-full focus:outline-none focus:ring-2 focus:ring-neutral-300"
+          className={
+            "flex items-center gap-2 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-300 " +
+            (collapsed ? "justify-center" : "w-full px-2 py-1.5 hover:bg-neutral-100")
+          }
         >
           <AvatarCircle size={32} />
+          {!collapsed && (
+            <span className="flex-1 text-left font-['Lexend:Regular',_sans-serif] text-[14px] text-neutral-900 leading-[20px]">
+              Super Admin
+            </span>
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="right" align="end">
@@ -474,13 +358,15 @@ function MenuSection({
 function CollapsedRail({
   content,
   onExpand,
+  onNavigate,
 }: {
   content: SidebarContent;
   onExpand: () => void;
+  onNavigate: (path: string) => void;
 }) {
   const allItems = content.sections.flatMap((s) => s.items);
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+    <div className="flex h-full w-full flex-col items-center gap-2 py-3">
       <button
         type="button"
         onClick={onExpand}
@@ -504,35 +390,33 @@ function CollapsedRail({
           <button
             key={idx}
             type="button"
-            onClick={onExpand}
+            onClick={() => item.path && onNavigate(item.path)}
             aria-label={item.label}
             title={item.label}
             className={
               "flex h-9 w-9 items-center justify-center rounded-lg transition-colors " +
               (item.isActive
                 ? "bg-neutral-200 text-neutral-900"
-                : "text-neutral-9000 hover:bg-neutral-100 hover:text-neutral-200")
+                : "text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900")
             }
           >
             {item.icon}
           </button>
         ))}
       </div>
+
+      <div className="flex-1" />
+      <UserMenu collapsed />
     </div>
   );
 }
 
-function DetailSidebar({
-  activeSection,
-  onNavigate,
-}: {
-  activeSection: string;
-  onNavigate: (path: string) => void;
-}) {
+function SingleSidebar() {
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const content = getSidebarContent(activeSection, pathname);
+  const content = getSidebarContent(pathname);
 
   const toggleExpanded = (itemKey: string) => {
     setExpandedItems((prev) => {
@@ -543,11 +427,12 @@ function DetailSidebar({
     });
   };
 
+  const onNavigate = (p: string) => navigate(p);
   const toggleCollapse = () => setIsCollapsed((s) => !s);
 
   return (
     <div
-      className="flex h-full shrink-0 flex-col overflow-hidden border-l border-neutral-200"
+      className="flex h-full shrink-0 flex-col overflow-hidden"
       style={{
         width: isCollapsed ? 60 : 300,
         transitionProperty: "width",
@@ -556,7 +441,11 @@ function DetailSidebar({
       }}
     >
       {isCollapsed ? (
-        <CollapsedRail content={content} onExpand={() => setIsCollapsed(false)} />
+        <CollapsedRail
+          content={content}
+          onExpand={() => setIsCollapsed(false)}
+          onNavigate={onNavigate}
+        />
       ) : (
         <>
           <BrandBadge />
@@ -569,7 +458,7 @@ function DetailSidebar({
           <div className="flex-1 overflow-y-auto">
             {content.sections.map((section, index) => (
               <MenuSection
-                key={`${activeSection}-${index}`}
+                key={index}
                 section={section}
                 expandedItems={expandedItems}
                 onToggleExpanded={toggleExpanded}
@@ -578,23 +467,11 @@ function DetailSidebar({
               />
             ))}
           </div>
+          <div className="border-t border-neutral-200 p-3">
+            <UserMenu />
+          </div>
         </>
       )}
-    </div>
-  );
-}
-
-/* --------------------------------- Layout -------------------------------- */
-
-function TwoLevelSidebar() {
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const activeSection = getActiveSectionFromPath(pathname);
-
-  return (
-    <div className="flex h-full overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-      <IconNavigation activeSection={activeSection} onNavigate={(p) => navigate(p)} />
-      <DetailSidebar activeSection={activeSection} onNavigate={(p) => navigate(p)} />
     </div>
   );
 }
@@ -604,7 +481,9 @@ function TwoLevelSidebar() {
 export function Frame760() {
   return (
     <div className="flex h-screen items-stretch bg-neutral-100 p-3">
-      <TwoLevelSidebar />
+      <div className="flex h-full overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+        <SingleSidebar />
+      </div>
     </div>
   );
 }
