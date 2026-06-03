@@ -139,10 +139,14 @@ export default function TenantDetail() {
     if (!id) return;
     setSavingModules(true);
     try {
-      await upsertTenantModule(id, moduleSlug, nextActive);
+      const entry = availableModules.find((m) => m.value === moduleSlug);
+      const slugs = entry ? moduleSlugsFor(entry) : [moduleSlug];
+      for (const slug of slugs) {
+        await upsertTenantModule(id, slug, nextActive);
+      }
       const mods = await fetchTenantModules(id);
       setModules(mods);
-      toast.success(`Módulo ${moduleSlug} ${nextActive ? "ativado" : "desativado"}`);
+      toast.success(`Módulo ${entry?.label ?? moduleSlug} ${nextActive ? "ativado" : "desativado"}`);
     } catch {
       toast.error("Erro ao atualizar módulo");
     } finally {
