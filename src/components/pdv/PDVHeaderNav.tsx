@@ -224,6 +224,30 @@ export function PDVHeaderNav() {
           const isAdminSection = section.title === "Administrador";
           const isRightAligned = index >= filteredSections.length - 2;
 
+          // Se a seção tem só 1 item após filtro de módulos, renderiza como link direto
+          if (section.items.length === 1) {
+            const only = section.items[0];
+            const OnlyIcon = only.icon;
+            const isActive = pathname === only.url || pathname.startsWith(only.url + "/");
+            return (
+              <NavigationMenuItem key={section.title} className="relative">
+                <NavigationMenuLink asChild>
+                  <NavLink
+                    to={only.url}
+                    className={cn(
+                      "inline-flex h-10 w-max items-center justify-center gap-2 rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors",
+                      "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+                      isActive && "bg-accent text-accent-foreground"
+                    )}
+                  >
+                    <OnlyIcon className="h-4 w-4" />
+                    <span className="hidden lg:inline">{only.title}</span>
+                  </NavLink>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            );
+          }
+
           return (
             <NavigationMenuItem key={section.title} className="relative">
               <NavigationMenuTrigger
