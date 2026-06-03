@@ -1,32 +1,24 @@
-## Sidebar Super Admin — coluna única
+## Acelerar logout
 
-Remover o rail de ícones da esquerda (`IconNavigation`) e consolidar tudo em uma única coluna (a atual da direita) com todas as opções de navegação.
+O `await supabase.auth.signOut()` faz uma requisição de rede para revogar o token globalmente — em redes lentas trava o botão por alguns segundos antes de redirecionar.
 
-**Arquivo:** `src/components/super-admin/AdminSidebar.tsx`
+### Estratégia
+Usar `signOut({ scope: "local" })` (instantâneo, só limpa storage local) + navegar imediatamente. Disparar a revogação global em background (fire-and-forget) para invalidar refresh tokens no servidor sem bloquear a UI.
 
 ### Mudanças
 
-1. **`TwoLevelSidebar`**: remover `<IconNavigation />`, deixar apenas `<DetailSidebar />` ocupando toda a largura. Renomear opcionalmente para `SingleSidebar` (sem quebrar o export `AdminSidebar`).
+1. **`src/contexts/AuthContext.tsx`** (`signOut`):
+   - Limpar `user/session/profile` imediatamente.
+   - `await supabase.auth.signOut({ scope: "local" })` (rápido, apenas storage).
+   - Disparar `supabase.auth.signOut({ scope: "global" }).catch(() => {})` sem await.
 
-2. **`getSidebarContent`**: deixar de depender de `activeSection`. Retornar uma única estrutura com todas as seções navegáveis em uma só lista:
-   - **Visão geral**: Resumo (`/admin`)
-   - **Tenants**: Todos os tenants (`/admin/tenants`), Novo tenant (`/admin/tenants/novo`)
-   - **Planos**: Listar planos (`/admin/planos`)
-   - **Configurações**: Configurações gerais (`/admin/configuracoes`)
-   
-   Cada item mantém seu ícone (Dashboard, UserMultiple, AddLarge, Folder, SettingsIcon) e flag `isActive` calculado por `pathname`.
+2. **`src/components/super-admin/AdminSidebar.tsx`** (`UserMenu.handleSignOut`):
+   - Trocar `await supabase.auth.signOut()` por `supabase.auth.signOut({ scope: "local" })` com `await` curto, navegar logo em seguida, e disparar global em background.
+   - Como alternativa mais simples: chamar o `signOut` do `useAuth()` em vez de duplicar a lógica.
 
-3. **`DetailSidebar`**: 
-   - Mover o `UserMenu` (botão de logout/avatar) para o rodapé da coluna, já que ele estava só no rail removido. Adicionar bloco fixo no fim com avatar + nome/sair.
-   - Manter `BrandBadge`, `SectionTitle` (título "Administração"), `SearchContainer` e o scroll de seções.
-   - Remover/limpar `activeSection` prop (não é mais necessária).
-
-4. **Remover código morto**: `IconNavigation`, `IconNavButton`, `railItems`, `getActiveSectionFromPath`, `velaraSymbol` import.
-
-5. **Manter colapsável**: o botão de colapsar continua funcionando (vira rail estreito com ícones de todos os itens). Sem mudanças no `CollapsedRail`.
+3. **`src/components/pdv/PDVUserMenu.tsx`** e **`src/pages/evaluations/EvaluationsSettings.tsx`**: trocar a chamada direta por `useAuth().signOut()` para reaproveitar o comportamento rápido.
 
 ### Não muda
-
-- Comportamento de roteamento, rotas, guards.
-- Layout fora do sidebar (`SuperAdmin.tsx`).
-- Componentes do dashboard.
+- Comportamento de redirecionamento.
+- Fluxo de auth state change listener.
+- Outras telas que já usam `useAuth().signOut()` (ModuleGuard, ModuleUnavailable, GarcomActionFab) ganham a melhoria automaticamente.

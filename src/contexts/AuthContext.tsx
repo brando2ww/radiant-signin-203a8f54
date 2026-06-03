@@ -129,10 +129,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Limpa estado local imediatamente para UX instantânea
     setUser(null);
     setSession(null);
     setProfile(null);
+    // Limpa storage local rapidamente (sem chamada de rede)
+    await supabase.auth.signOut({ scope: "local" });
+    // Revoga refresh tokens no servidor em background
+    supabase.auth.signOut({ scope: "global" }).catch(() => {});
   };
 
   const resetPassword = async (email: string) => {
