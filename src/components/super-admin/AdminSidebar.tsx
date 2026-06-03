@@ -158,9 +158,11 @@ function getSidebarContent(pathname: string): SidebarContent {
 
 function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate();
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
+  const handleSignOut = () => {
+    // Navega imediatamente; revoga sessão em background
     navigate("/", { replace: true });
+    supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    supabase.auth.signOut({ scope: "global" }).catch(() => {});
   };
   return (
     <DropdownMenu>
