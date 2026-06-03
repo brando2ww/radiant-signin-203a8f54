@@ -284,7 +284,7 @@ function UserMenu() {
   const navigate = useNavigate();
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigate("/auth");
+    navigate("/", { replace: true });
   };
   return (
     <DropdownMenu>
