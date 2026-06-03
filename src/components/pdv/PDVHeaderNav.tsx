@@ -159,13 +159,14 @@ export function PDVHeaderNav() {
   const pathname = location.pathname;
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
   const { canAccess } = useUserRole();
-  const { hasModule } = useUserModules();
+  const { hasModule, tenantId } = useUserModules();
 
   const itemAllowed = (url: string) => {
     if (!canAccess(url)) return false;
     if (isAlwaysAllowed(url)) return true;
     const mod = moduleForRoute(url);
-    if (!mod) return true;
+    // Allowlist estrita: rotas sem módulo mapeado ficam ocultas
+    if (!mod) return false;
     return hasModule(mod);
   };
 
@@ -177,7 +178,7 @@ export function PDVHeaderNav() {
       }))
       .filter((section) => section.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, hasModule]);
+  }, [canAccess, hasModule, tenantId]);
 
   const visibleAnnouncements = announcements.filter(
     (a) => !dismissedAnnouncements.includes(a.id)

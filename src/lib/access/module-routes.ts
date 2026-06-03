@@ -4,27 +4,22 @@ import type { UserModule } from "@/hooks/use-user-modules";
  * Rotas sempre liberadas (infraestrutura básica do app).
  * Não dependem de módulo do tenant.
  */
-export const ALWAYS_ALLOWED_ROUTES: string[] = [
-  "/pdv/dashboard",
-  "/pdv/produtos",
-  "/pdv/configuracoes",
-  "/pdv/usuarios",
-  "/pdv/integracoes",
-  "/pdv/clientes",
-];
+export const ALWAYS_ALLOWED_ROUTES: string[] = [];
 
 /**
  * Mapeia rotas → módulo do tenant. Fonte única da verdade.
  * Rotas são prefixos: `/pdv/financeiro` cobre `/pdv/financeiro/qualquer-coisa`.
  *
- * Observação: enquanto não houver enum DB para "fiscal" e "franquia",
- * essas rotas continuam atreladas ao módulo "pdv".
+ * Política: allowlist estrita. Rotas não mapeadas são bloqueadas pelo
+ * `PDVHeaderNav` para evitar vazamento de itens entre tenants.
  */
 export const MODULE_ROUTES: Record<UserModule, string[]> = {
   pdv: [
+    "/pdv/dashboard",
     "/pdv/salao",
     "/pdv/caixa",
     "/pdv/comandas",
+    "/pdv/produtos",
     "/pdv/centros-producao",
     "/pdv/estoque",
     "/pdv/fornecedores",
@@ -35,6 +30,10 @@ export const MODULE_ROUTES: Record<UserModule, string[]> = {
     "/pdv/venda-a-prazo",
     "/pdv/funcionarios-consumo",
     "/pdv/compras",
+    "/pdv/configuracoes",
+    "/pdv/usuarios",
+    "/pdv/integracoes",
+    "/pdv/clientes",
     "/garcom",
   ],
   financeiro: ["/pdv/financeiro"],
@@ -43,6 +42,7 @@ export const MODULE_ROUTES: Record<UserModule, string[]> = {
   tarefas: ["/pdv/tarefas"],
   crm: ["/pdv/crm"],
 };
+
 
 function matches(path: string, prefix: string): boolean {
   return path === prefix || path.startsWith(prefix + "/");

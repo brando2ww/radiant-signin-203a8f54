@@ -1,16 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 
 export function useDashboardCoupons(startDate?: string, endDate?: string) {
+  const { visibleUserId } = useEstablishmentId();
+
   return useQuery({
-    queryKey: ["dashboard-coupons", startDate, endDate],
+    queryKey: ["dashboard-coupons", visibleUserId, startDate, endDate],
+    enabled: !!visibleUserId,
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
+      if (!visibleUserId) return { totalCoupons: 0, redeemedCoupons: 0 };
 
       let query = supabase
         .from("campaign_prize_wins")
-        .select("id, is_redeemed, created_at, campaign_id");
+        .select("id, is_redeemed, created_at, campaign_id, evaluation_campaigns!inner(user_id)")
+        .eq("evaluation_campaigns.user_id", visibleUserId);
 
       if (startDate) query = query.gte("created_at", `${startDate}T00:00:00-03:00`);
       if (endDate) query = query.lte("created_at", `${endDate}T23:59:59.999-03:00`);
@@ -19,7 +23,7 @@ export function useDashboardCoupons(startDate?: string, endDate?: string) {
       if (error) throw error;
 
       const total = data?.length || 0;
-      const redeemed = data?.filter(c => c.is_redeemed).length || 0;
+      const redeemed = data?.filter((c) => c.is_redeemed).length || 0;
 
       return { totalCoupons: total, redeemedCoupons: redeemed };
     },
@@ -33,14 +37,14 @@ export function useBirthdayCount(evaluationsData?: Array<{ customer_whatsapp: st
   if (!evaluationsData) return 0;
 
   const uniqueCustomers = new Map<string, string>();
-  evaluationsData.forEach(e => {
+  evaluationsData.forEach((e) => {
     if (!uniqueCustomers.has(e.customer_whatsapp)) {
       uniqueCustomers.set(e.customer_whatsapp, e.customer_birth_date);
     }
   });
 
   let count = 0;
-  uniqueCustomers.forEach(birthDate => {
+  uniqueCustomers.forEach((birthDate) => {
     const d = new Date(birthDate);
     if (!isNaN(d.getTime()) && d.getMonth() + 1 === currentMonth) {
       count++;

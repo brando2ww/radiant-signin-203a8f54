@@ -126,9 +126,16 @@ export function useUserRole() {
   const roleDefault = roleDefaultRoute[role] || "/pdv/dashboard";
   // Se o default do papel está em um módulo inativo no tenant, usa
   // a primeira rota do primeiro módulo ativo.
+  const active = activeModules();
   const defaultRoute = canAccess(roleDefault)
     ? roleDefault
-    : (activeModules()[0] === "avaliacoes" ? "/avaliacoes" : roleDefault);
+    : active.includes("avaliacoes")
+    ? "/avaliacoes"
+    : active.includes("delivery")
+    ? "/pdv/delivery/pedidos"
+    : active.includes("financeiro")
+    ? "/pdv/financeiro/lancamentos"
+    : roleDefault;
 
 
   return {
