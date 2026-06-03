@@ -72,6 +72,9 @@ Deno.serve(async (req) => {
     }
 
     // 1. Create auth user for the tenant owner
+    let ownerUserId: string;
+    let reusedExistingUser = false;
+
     const { data: authData, error: createUserError } =
       await adminClient.auth.admin.createUser({
         email: admin_email,
@@ -84,16 +87,56 @@ Deno.serve(async (req) => {
       const isDup =
         (createUserError as any).code === "email_exists" ||
         /already been registered|already registered|already exists/i.test(createUserError.message);
-      const msg = isDup
-        ? `O e-mail "${admin_email}" já está cadastrado. Use outro e-mail para o administrador deste tenant.`
-        : createUserError.message;
-      return new Response(JSON.stringify({ error: msg }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+      if (!isDup) {
+        return new Response(JSON.stringify({ error: createUserError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // E-mail já existe: tenta reaproveitar o usuário se ele ainda não é dono de outro tenant.
+      const { data: existingList, error: listErr } =
+        await adminClient.auth.admin.listUsers({ page: 1, perPage: 200 });
+      if (listErr) {
+        return new Response(JSON.stringify({ error: listErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const existing = existingList?.users?.find(
+        (u: any) => u.email?.toLowerCase() === admin_email.toLowerCase(),
+      );
+      if (!existing) {
+        return new Response(
+          JSON.stringify({
+            error: `O e-mail "${admin_email}" já está cadastrado. Use outro e-mail para o administrador deste tenant.`,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      const { data: ownedTenant } = await adminClient
+        .from("tenants")
+        .select("id, name")
+        .eq("owner_user_id", existing.id)
+        .maybeSingle();
+
+      if (ownedTenant) {
+        return new Response(
+          JSON.stringify({
+            error: `O e-mail "${admin_email}" já é administrador do tenant "${ownedTenant.name}". Use outro e-mail.`,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      ownerUserId = existing.id;
+      reusedExistingUser = true;
+    } else {
+      ownerUserId = authData.user.id;
     }
 
-    const ownerUserId = authData.user.id;
 
     // 2. Create tenant
     const { data: tenant, error: tenantError } = await adminClient
