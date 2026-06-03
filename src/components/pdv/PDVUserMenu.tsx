@@ -16,16 +16,15 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function PDVUserMenu() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignOut = async () => {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       navigate("/");
+      await signOut();
     } catch (error: any) {
       toast.error("Erro ao sair: " + error.message);
     } finally {
