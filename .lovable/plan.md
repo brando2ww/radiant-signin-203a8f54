@@ -1,30 +1,145 @@
-## Diagnóstico
+# Isolamento por Tenant e Controle de Acesso por Módulo
 
-Edu Venzor cadastrou um tenant que tem apenas o módulo `avaliacoes`. Pelo painel `/avaliacoes`, ele clicou em um card do dashboard que aponta para `/pdv/avaliacoes/clientes/gestao` (definido em `DashboardKPICards.tsx`). Resultado: tela "Módulo não disponível — pdv".
+## Objetivo
+Garantir que cada tenant cadastrado no Super Admin seja um estabelecimento totalmente isolado (dados + acesso), com módulos liberados individualmente refletindo no menu e nas rotas.
 
-**Causa raiz:** `src/pages/PDV.tsx` envolve toda a shell `/pdv/*` em `<ModuleGuard module="pdv">` (linha 86). Assim, mesmo `/pdv/avaliacoes`, `/pdv/tarefas` e `/pdv/financeiro` — que pertencem a outros módulos — exigem o módulo `pdv` ativo no tenant.
+---
 
-Já temos o sistema certo (`canAccess` em `useUserRole` + `moduleForRoute` em `module-routes.ts`) cuidando de cada rota individualmente. O guard externo é redundante e quebra o caso multi-módulo.
+## 1. Mapeamento de rotas → módulos (fonte única da verdade)
 
-Efeito colateral: se removermos o guard, um `proprietario` cujo tenant não tem `pdv` cairá no redirect `<Navigate to={defaultRoute}/>` apontando para `/pdv/dashboard` (default fixo do papel), que será negado por `canAccess` → loop. Precisamos derivar a rota inicial do **primeiro módulo ativo do tenant** quando o default do papel não estiver acessível.
+Atualizar `src/lib/access/module-routes.ts`:
 
-## Mudanças
+- **Sempre liberadas** (infra básica, não dependem de módulo):
+  `/pdv/dashboard`, `/pdv/produtos`, `/pdv/configuracoes`, `/pdv/usuarios`, `/pdv/integracoes`, `/pdv/clientes` (CRM básico)
+- **pdv**: `/pdv/salao`, `/pdv/caixa`, `/pdv/comandas`, `/pdv/estoque`, `/pdv/fornecedores`, `/pdv/centros-producao`, `/pdv/compras`, `/pdv/relatorios`, `/pdv/venda-a-prazo`, `/pdv/funcionarios-consumo`, `/garcom`
+- **delivery**: `/pdv/delivery`
+- **financeiro**: `/pdv/financeiro`
+- **avaliacoes**: `/pdv/avaliacoes`, `/avaliacoes`
+- **tarefas**: `/pdv/tarefas`
+- **fiscal** (novo módulo): `/pdv/notas-fiscais`, `/pdv/cupons-fiscais`
+- **franquia** (novo módulo): `/pdv/franquia`
+- **crm**: `/pdv/crm`
 
-### 1. `src/pages/PDV.tsx`
-- Remover `<ModuleGuard module="pdv">` ao redor da shell. Manter `RoleRoute` por rota — já valida módulo via `canAccess`.
-- Importar `useUserModules` e calcular `effectiveDefault`: se `canAccess(defaultRoute)` for falso, usar `getDefaultModuleRoute()`. Aplicar nesse `<Route index>` e nos redirects do `RoleRoute`.
+Adicionar `'fiscal'` e `'franquia'` ao enum `UserModule` e ao `app_module` no banco (migration).
 
-### 2. `src/hooks/use-user-role.ts`
-- Em `defaultRoute`, devolver `getDefaultModuleRoute()` (via `useUserModules`) quando a rota default do papel não estiver entre os módulos ativos do tenant. Isso evita que `Index.tsx` mande o usuário para uma rota proibida ao logar.
+Criar helper `isAlwaysAllowed(path)` separado de `moduleForRoute(path)`.
 
-### 3. `src/components/evaluations/dashboard/DashboardKPICards.tsx` (sem mudança)
-- Os links `to="/pdv/avaliacoes/..."` continuam funcionando após (1), porque `moduleForRoute("/pdv/avaliacoes")` resolve para `avaliacoes` e o tenant tem esse módulo.
+---
 
-## Fora do escopo
-- Reformular `DashboardKPICards` para usar rotas relativas (`/avaliacoes/...`) no painel standalone — funcional, mas exigiria duplicar todas as sub-rotas em `EvaluationsPanel.tsx`. Evitamos por ora.
-- Filtragem de itens da `PDVHeaderNav` por módulo — já usa `canAccess`, herdará o comportamento correto automaticamente.
+## 2. Página "Módulo não disponível"
 
-## Verificação
-- Login como tenant só com `avaliacoes`: clicar nos cards do dashboard deve abrir `/pdv/avaliacoes/clientes/gestao`, `/pdv/avaliacoes/cupons/gestao` etc., sem ver "Módulo não disponível".
-- Login como tenant com `pdv` completo: nada muda.
-- Login como tenant sem `pdv`: redirect inicial vai para a primeira rota do módulo ativo, sem loop.
+Criar `src/pages/ModuleUnavailable.tsx`:
+- Ícone de cadeado, título, descrição
+- Mostra nome do módulo bloqueado e plano atual (via `useUserModules`)
+- Botão "Falar com suporte" → WhatsApp/e-mail configurável
+- Usada pelo `ModuleGuard` em vez do toast/redirect atual
+
+Atualizar `src/components/ModuleGuard.tsx` para renderizar essa página em vez de redirecionar silenciosamente.
+
+---
+
+## 3. Guard global de rotas
+
+Criar `src/components/RouteModuleGuard.tsx` que envolve todo conteúdo `/pdv/*`:
+- Lê pathname atual
+- Se `isAlwaysAllowed(path)` → libera
+- Se `moduleForRoute(path)` → checa `hasModule(mod)` → libera ou mostra `ModuleUnavailable`
+- Se rota desconhecida → redireciona para `getDefaultModuleRoute()`
+
+Aplicar em `src/pages/PDV.tsx` envolvendo o `<Routes>` (substituindo o `ModuleGuard` outer removido anteriormente, mas agora dinâmico por rota). Aplicar lógica equivalente em `EvaluationsPanel` e `Garcom`.
+
+---
+
+## 4. Menu dinâmico
+
+Refatorar `src/components/pdv/PDVHeaderNav.tsx`:
+- Cada item de menu declara seu módulo (`module: UserModule | 'always'`)
+- Filtrar itens e seções inteiras com base em `hasModule()` antes de renderizar
+- Esconder dropdowns sem nenhum item visível (Delivery, Financeiro, etc.)
+- Reavaliar reativamente quando `useUserModules` invalidar (já é React Query)
+
+---
+
+## 5. Logout do Super Admin → tela de login
+
+Confirmar no `AdminSidebar` que logout chama `supabase.auth.signOut()` e navega para `/` (ou `/auth`). Verificar que `Index.tsx` exibe tela de login quando não autenticado.
+
+---
+
+## 6. Auditoria de isolamento de dados (backend)
+
+### 6.1 RLS coverage
+Rodar `supabase--linter` e listar tabelas operacionais sem RLS ou sem políticas por `user_id` / `establishment_owner_id`. Para cada gap, criar migration:
+- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- Políticas usando `auth.uid() = user_id OR public.is_establishment_member(user_id)`
+
+Tabelas a auditar (prioridade):
+`pdv_products, pdv_orders, pdv_comandas, pdv_comanda_items, pdv_customers, pdv_ingredients, pdv_suppliers, pdv_financial_transactions, pdv_cashier_sessions, pdv_cashier_movements, delivery_orders, delivery_products, delivery_customers, delivery_drivers, delivery_coupons, evaluation_campaigns, evaluation_responses, checklists, daily_tasks, fiscal_invoices, fiscal_coupons, tenant_modules, establishment_users` e demais.
+
+### 6.2 GRANTs
+Verificar GRANTs para `authenticated` / `service_role` em todas as tabelas do `public` schema (não conceder a `anon` exceto rotas públicas).
+
+### 6.3 Edge Functions
+Auditar todas em `supabase/functions/*`:
+- Confirmar uso de `auth.getUser(token)` para resolver chamador
+- Toda operação cross-tenant exige checagem `is_super_admin()` (apenas no Super Admin)
+- Funções de tenant filtram explicitamente por `user_id` do chamador
+- Nunca expor `service_role` ao frontend
+
+### 6.4 Queries do frontend
+Buscar `supabase.from(` sem `.eq('user_id', ...)` em hooks. Padrão: usar `useEstablishmentId()` para obter o `visibleUserId` (dono do estabelecimento) e filtrar todas as queries por ele. Listar e corrigir gaps.
+
+---
+
+## 7. Rotas públicas — confirmar isolamento por parâmetro
+
+Revisar:
+- `/cardapio/:userId` e `/cardapio/:userId/meus-pontos` → queries filtram por `userId` da URL
+- `/avaliacao/:campaignId` → resolve apenas a campanha e seu tenant
+- `/tarefas/:userId`, `/c/:checklistId` → mesmo princípio
+
+RLS dessas tabelas com leitura pública precisa exigir match com o parâmetro (ex.: `is_public = true` + filtro por id). Auditar e ajustar policies.
+
+---
+
+## 8. App do garçom
+
+Garantir que `Garcom` usa `useEstablishmentId()` → `establishment_owner_id` em todas as queries de mesas/comandas/produtos, e que rotas dentro de `/garcom` também passam por `RouteModuleGuard` (módulo `pdv`).
+
+---
+
+## 9. Super Admin isolado
+
+- `SuperAdminGuard` já checa via `is_super_admin()`. Confirmar que nenhuma rota `/admin/*` é alcançável sem essa role
+- Queries de listagem cross-tenant devem rodar em Edge Functions com service role (já é o padrão para `create-tenant` etc.); auditar `useTenants` e similares para garantir que selects diretos no front respeitam RLS de super admin (policy `is_super_admin()` nas tabelas globais)
+
+---
+
+## 10. Plano de execução (ordem)
+
+1. Migration: adicionar módulos `fiscal` e `franquia` ao enum
+2. Atualizar `module-routes.ts` com mapeamento completo + always-allowed
+3. Criar `ModuleUnavailable.tsx` e refatorar `ModuleGuard.tsx`
+4. Criar `RouteModuleGuard.tsx` e aplicar em `PDV.tsx` / `Garcom.tsx` / `EvaluationsPanel.tsx`
+5. Refatorar `PDVHeaderNav.tsx` para menu dinâmico
+6. Auditoria RLS via linter → migrations corretivas (lote único)
+7. Auditoria de hooks/queries no frontend → correções
+8. Auditoria de Edge Functions → correções
+9. QA manual: login com tenants diferentes confirma isolamento e menu correto
+
+---
+
+## Detalhes técnicos
+
+- `UserModule` type: adicionar `'fiscal' | 'franquia'`
+- Enum DB `app_module`: `ALTER TYPE app_module ADD VALUE 'fiscal'; ADD VALUE 'franquia';`
+- `RouteModuleGuard` usa `useLocation()` + `useUserModules()`; mostra skeleton enquanto `isLoading`
+- `ModuleUnavailable` aceita prop `module?: UserModule` para mensagem contextual
+- Menu: cada `NavItem` ganha campo `requiredModule?: UserModule`; seções (dropdowns) filtradas — se vazias, escondidas
+- Suporte: número de WhatsApp em env var `VITE_SUPPORT_WHATSAPP`
+
+## Riscos
+
+- Mudanças de RLS podem quebrar telas existentes → testar por role após cada migration
+- Adicionar valores ao enum `app_module` requer rodar em transação separada antes de uso
+- Esconder itens de menu pode confundir usuários atuais sem comunicação prévia
