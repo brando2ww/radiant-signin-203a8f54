@@ -55,9 +55,8 @@ export default function EvaluationsSettings() {
   const handleSignOut = async () => {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       navigate("/");
+      await signOut();
     } catch (error: any) {
       toast.error("Erro ao sair: " + error.message);
     } finally {
