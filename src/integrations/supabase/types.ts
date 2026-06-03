@@ -7643,6 +7643,10 @@ export type Database = {
         Args: { p_pdv_product_id: string }
         Returns: Json
       }
+      get_admin_dashboard_stats: {
+        Args: { p_end: string; p_start: string }
+        Returns: Json
+      }
       get_user_child_tenant_ids: { Args: never; Returns: string[] }
       get_user_parent_tenant_ids: { Args: never; Returns: string[] }
       has_module_access: {
