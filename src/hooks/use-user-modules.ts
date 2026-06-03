@@ -16,31 +16,42 @@ interface TenantModuleRow {
 export function useUserModules() {
   const { user } = useAuth();
 
-  // First get the tenant_id for this user
+  // Resolve tenant_id do usuário: owner → establishment_users.tenant_id →
+  // tenant do dono do estabelecimento (para staff sem tenant_id direto).
   const { data: tenantId, isLoading: isLoadingTenantId } = useQuery({
     queryKey: ['user-tenant-id', user?.id],
     queryFn: async () => {
       if (!user) return null;
 
-      // Check if user is a tenant owner
+      // 1. usuário é dono de um tenant?
       const { data: tenant } = await supabase
         .from('tenants')
         .select('id')
         .eq('owner_user_id', user.id)
         .maybeSingle();
-
       if (tenant) return tenant.id;
 
-      // Check establishment_users for tenant_id
+      // 2. vínculo em establishment_users
       const { data: eu } = await supabase
         .from('establishment_users')
-        .select('tenant_id')
+        .select('tenant_id, establishment_owner_id')
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .not('tenant_id', 'is', null)
         .maybeSingle();
 
-      return eu?.tenant_id || null;
+      if (eu?.tenant_id) return eu.tenant_id;
+
+      // 3. staff sem tenant_id direto: resolver via tenant do dono do estabelecimento
+      if (eu?.establishment_owner_id) {
+        const { data: ownerTenant } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('owner_user_id', eu.establishment_owner_id)
+          .maybeSingle();
+        if (ownerTenant) return ownerTenant.id;
+      }
+
+      return null;
     },
     enabled: !!user,
   });
@@ -64,17 +75,23 @@ export function useUserModules() {
 
   const hasModule = (module: UserModule): boolean => {
     if (!user) return false;
-    // If no tenant_id found (legacy/no tenant setup), allow all
+    // Sem tenant vinculado (legado): libera tudo
     if (!tenantId) return true;
 
     const mod = modules.find((m) => m.module === module);
     if (!mod) return false;
 
-    if (mod.expires_at) {
-      if (new Date(mod.expires_at) < new Date()) return false;
-    }
+    if (mod.expires_at && new Date(mod.expires_at) < new Date()) return false;
 
     return true;
+  };
+
+  const activeModules = (): UserModule[] => {
+    if (!tenantId) return ['pdv', 'financeiro', 'delivery', 'avaliacoes', 'tarefas', 'crm'];
+    const now = new Date();
+    return modules
+      .filter((m) => !m.expires_at || new Date(m.expires_at) >= now)
+      .map((m) => m.module as UserModule);
   };
 
   const getDefaultModuleRoute = (): string => {
@@ -88,6 +105,7 @@ export function useUserModules() {
     modules,
     isLoading: isLoadingTenantId || isLoadingModules,
     hasModule,
+    activeModules,
     getDefaultModuleRoute,
     tenantId,
   };
