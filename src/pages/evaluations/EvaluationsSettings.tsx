@@ -14,7 +14,7 @@ import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { useSupabaseUpload } from "@/hooks/use-supabase-upload";
 
 export default function EvaluationsSettings() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const { settings, loading: loadingSettings, saving, saveSettings } = useBusinessSettings();
