@@ -123,8 +123,20 @@ const sectionItems: Section[] = [
       { title: "Clientes", url: "/pdv/clientes", icon: UserCheck },
       { title: "Usuários", url: "/pdv/usuarios", icon: Users },
       { title: "Venda a Prazo", url: "/pdv/venda-a-prazo", icon: UserCheck },
-      { title: "Avaliações", url: "/pdv/avaliacoes", icon: Star },
       { title: "Franquia", url: "/pdv/franquia", icon: GitBranch },
+    ],
+  },
+  {
+    title: "Avaliações",
+    icon: Star,
+    items: [
+      { title: "Avaliações", url: "/pdv/avaliacoes", icon: Star },
+    ],
+  },
+  {
+    title: "Tarefas",
+    icon: ClipboardCheck,
+    items: [
       { title: "Tarefas", url: "/pdv/tarefas", icon: ClipboardCheck },
     ],
   },
