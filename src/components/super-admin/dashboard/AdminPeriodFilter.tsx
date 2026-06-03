@@ -64,7 +64,7 @@ export function AdminPeriodFilter({ value, onChange }: Props) {
             {value.key === "custom" ? customLabel : "Personalizado"}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
+        <PopoverContent className="w-auto p-0 min-w-[680px]" align="end">
           <Calendar
             mode="range"
             locale={ptBR}
@@ -82,6 +82,7 @@ export function AdminPeriodFilter({ value, onChange }: Props) {
             }}
             numberOfMonths={2}
             className="p-3 pointer-events-auto"
+            classNames={{ months: "flex flex-col sm:flex-row gap-6" }}
           />
         </PopoverContent>
       </Popover>
