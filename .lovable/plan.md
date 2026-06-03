@@ -1,49 +1,78 @@
-# Corrigir numeração TMP- nos pedidos de delivery
 
-## Causa
+## Problema
 
-Os dois pedidos exibidos no caixa (`TMP-1780002109374-170` e `TMP-1780002101443-990`) foram criados às 21:01, mas o caixa só foi aberto às 21:08. Hoje a numeração sequencial (`#001`, `#002`, …) depende exclusivamente da RPC `delivery_assign_order_ticket`, chamada pelo cliente logo após o INSERT. Se naquele instante não há `pdv_cashier_sessions` aberto, a RPC retorna `NULL` e o pedido fica **permanentemente** com o `order_number` provisório `TMP-…`.
+Hoje existem **dois sistemas de acesso desacoplados** que se atropelam:
 
-Além disso, o comentário do código (`src/hooks/use-delivery-customers.ts:242`) afirma que existe um trigger `BEFORE INSERT` que faz essa atribuição no servidor — esse trigger **não existe** em `public.delivery_orders` (confirmado em `pg_trigger`).
+1. **`tenant_modules`** (organizacional) — define quais módulos a empresa contratou (`pdv`, `avaliacoes`, `delivery`, `tarefas`, `crm`, `financeiro`). Verificado pelo `ModuleGuard`.
+2. **`roleRouteAccess`** em `src/hooks/use-user-role.ts` — allow-list **hardcoded** de rotas por papel (proprietário, gerente, caixa, garçom, etc.). Verificado pelo `RoleRoute`.
 
-## Solução (banco de dados, sem mexer no frontend)
+Consequências observadas:
 
-Duas mudanças complementares numa única migração:
+- Um `gerente` não tem `/pdv/avaliacoes` nem `/pdv/tarefas` no allow-list → clica no card e é redirecionado.
+- Um usuário com `establishment_users.tenant_id` definido cujo tenant não tem `avaliacoes` em `tenant_modules` recebe a tela **"Módulo não disponível"** mesmo quando o papel permite.
+- A mensagem "usuário não tem acesso ao PDV" também ocorre porque o `ModuleGuard module="pdv"` envolve **toda** a `/pdv/*`: se o tenant não tem `pdv` ativo, qualquer card explode.
+- Há tenants com módulos parciais (11 `avaliacoes`, 9 `pdv`, etc.) e 14 dos 25 staff users têm `tenant_id` preenchido, então o problema atinge contas reais.
 
-### 1. Trigger `BEFORE INSERT` em `delivery_orders`
+A regra que o cliente pediu: **"liberou o módulo X → libera tudo que pertence a X"**. O papel deve refinar *dentro* do módulo, não esconder páginas que o módulo já liberou.
 
-Cria `public.delivery_orders_assign_number()` (`SECURITY DEFINER`, `search_path=public`) que, quando `NEW.order_number` vem nulo **ou** começa com `TMP-`:
+## O que vou fazer
 
-- procura sessão de caixa aberta do `NEW.user_id`;
-- se existir, calcula `MAX(ticket_number)+1` para aquela sessão e preenche `cashier_session_id`, `ticket_number` e `order_number = lpad(ticket, 3, '0')`;
-- se não existir caixa aberto, mantém o `TMP-…` (compatibilidade com a lógica atual).
+### 1. Mapear rotas → módulo (fonte única da verdade)
 
-Cria o trigger `trg_delivery_orders_assign_number BEFORE INSERT`.
+Criar `src/lib/access/module-routes.ts` com um mapa estático:
 
-### 2. Atribuição retroativa ao abrir o caixa
+```text
+pdv         → /pdv/dashboard, /pdv/salao, /pdv/caixa, /pdv/comandas,
+              /pdv/produtos, /pdv/centros-producao, /pdv/estoque,
+              /pdv/fornecedores, /pdv/notas-fiscais, /pdv/cupons-fiscais,
+              /pdv/relatorios, /pdv/configuracoes, /pdv/usuarios,
+              /pdv/integracoes, /pdv/franquia, /pdv/clientes,
+              /pdv/venda-a-prazo, /pdv/compras/*, /garcom
+financeiro  → /pdv/financeiro/*
+delivery    → /pdv/delivery/*
+avaliacoes  → /pdv/avaliacoes, /avaliacoes
+tarefas     → /pdv/tarefas
+crm         → (reservado)
+```
 
-Cria `public.delivery_assign_pending_tickets(p_session_id uuid)` e um trigger `AFTER INSERT` em `pdv_cashier_sessions` que, para a sessão recém-aberta:
+### 2. Reescrever `useUserRole.canAccess` para combinar módulo + papel
 
-- seleciona todos os `delivery_orders` do mesmo `user_id` com `cashier_session_id IS NULL` **e** `status <> 'cancelled'`, ordenados por `created_at`;
-- atribui `ticket_number` sequencial a partir de `MAX(ticket_number)+1` da sessão (que começa em 1);
-- atualiza `cashier_session_id` e `order_number = lpad(..., 3, '0')`.
+- A rota é permitida quando **(módulo do tenant está ativo) E (papel tem permissão estrutural)**.
+- "Permissão estrutural" do papel passa a ser **inclusiva por módulo**: se `gerente` tem o módulo, vê todas as rotas daquele módulo. Papéis restritos (`caixa`, `garcom`, `cozinheiro`, `estoquista`, `financeiro`, `atendente_delivery`) mantêm sub-allow-list mas a lista é construída a partir do mapa de módulos, sem nomes de rota soltos.
+- Adicionar `/pdv/avaliacoes` e `/pdv/tarefas` ao escopo de `gerente`.
 
-Isso resolve os dois pedidos atuais (eles ganham `#001` e `#002` da sessão atual assim que a migração rodar — o trigger só dispara em novas aberturas, então para os atuais a própria migração faz um `UPDATE` único usando a sessão `9ffc5817-…` já aberta).
+### 3. Corrigir `useUserModules` para staff
 
-### 3. Limpeza de comentário
+- Quando `establishment_users.tenant_id` é nulo, resolver o tenant pelo **dono** do estabelecimento (`establishment_owner_id` → `tenants.owner_user_id`) antes de cair no fallback "libera tudo".
+- Manter o fallback "sem tenant = libera tudo" só para contas legadas sem nenhum vínculo.
 
-Após a migração aplicada, removo do `src/hooks/use-delivery-customers.ts` a menção a "trigger BEFORE INSERT" para refletir que agora ele realmente existe (sem mudar comportamento).
+### 4. Remover `ModuleGuard` redundante por rota
+
+- Manter `ModuleGuard module="pdv"` no shell `/pdv/*` (única checagem de módulo nesse nível).
+- Remover os `ModuleGuard module="tarefas"` aninhados em `PDV.tsx` (a checagem fica em `canAccess`, que agora consulta `hasModule`).
+- `EvaluationsPanel.tsx` (`/avaliacoes/*`) mantém `ModuleGuard module="avaliacoes"`.
+
+### 5. Fluxo público de avaliação — varredura
+
+Como você marcou também "Fluxo público de avaliação", vou abrir uma segunda passada nos arquivos:
+
+- `src/hooks/use-public-evaluation.ts` (submissão, NPS opcional, perguntas ativas)
+- `src/components/public-evaluation/SpinWheel.tsx` e `PrizeResult.tsx` (roleta e prêmio)
+- Páginas públicas que consomem esses hooks
+
+Foco em: RLS (a tabela `customer_evaluations` precisa permitir `INSERT` anônimo), validação de WhatsApp/aniversário, e o erro `refresh_token_not_found` que aparece no console em rotas públicas (sessão fantasma do Supabase).
+
+Eventuais bugs encontrados aqui serão corrigidos no mesmo lote; se aparecer algo grande que mude o escopo, eu paro e te aviso antes.
+
+### 6. Validação manual
+
+- Logar como `gerente` com tenant que tem `avaliacoes` e `tarefas` → cards abrem.
+- Logar como `caixa` → continua só com `/pdv/caixa` (papel restringe dentro do módulo).
+- Logar como staff sem `tenant_id` direto → resolve via owner e respeita módulos do tenant.
+- Tenant sem `pdv` no `tenant_modules` → bloqueio único e claro no shell, sem cascata de erros nos cards.
 
 ## Detalhes técnicos
 
-- `delivery_assign_order_ticket(uuid)` continua existindo como fallback (a chamada do client permanece — agora vira no-op na maioria dos casos porque o trigger já preencheu).
-- Garante idempotência: o trigger só age quando `order_number IS NULL OR LIKE 'TMP-%'`.
-- A atualização retroativa única (one-shot) dentro da migração corrige os pedidos `TMP-` já em fila do `user_id` `d9087102-…` na sessão `9ffc5817-…`.
-- Nenhuma mudança em RLS, GRANTs ou tipos.
-
-```text
-INSERT delivery_orders ─► trigger BEFORE INSERT ─► tem caixa aberto?
-                                                   ├─ sim → #001, #002…
-                                                   └─ não → TMP-…
-abrir caixa ──────────► trigger AFTER INSERT ─► TMP- pendentes viram #001…
-```
+- Não mexer em `src/integrations/supabase/types.ts`.
+- Sem migração de schema nesta etapa — só código. Se a varredura do fluxo público revelar policy/`GRANT` faltando em `customer_evaluations` / `evaluation_answers`, abro migração específica com aprovação.
+- Manter a memória do projeto: tokens semânticos, sem cores customizadas, sem alterar a estrutura de header `h-14`.

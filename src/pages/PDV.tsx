@@ -165,9 +165,9 @@ export default function PDV() {
               <Route path="franquia" element={<RoleRoute path="/pdv/franquia" canAccess={canAccess} defaultRoute={defaultRoute}><FranchiseImport /></RoleRoute>} />
               
               {/* Tarefas */}
-              <Route path="tarefas" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ModuleGuard module="tarefas"><Tasks /></ModuleGuard></RoleRoute>} />
-              <Route path="tarefas/checklists/novo" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ModuleGuard module="tarefas"><ChecklistEditor /></ModuleGuard></RoleRoute>} />
-              <Route path="tarefas/checklists/:id" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ModuleGuard module="tarefas"><ChecklistEditor /></ModuleGuard></RoleRoute>} />
+              <Route path="tarefas" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><Tasks /></RoleRoute>} />
+              <Route path="tarefas/checklists/novo" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ChecklistEditor /></RoleRoute>} />
+              <Route path="tarefas/checklists/:id" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ChecklistEditor /></RoleRoute>} />
               
               {/* Clientes */}
               <Route path="clientes" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><Customers /></RoleRoute>} />

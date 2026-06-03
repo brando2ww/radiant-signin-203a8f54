@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserModules, type UserModule } from "@/hooks/use-user-modules";
+import { MODULE_ROUTES, moduleForRoute } from "@/lib/access/module-routes";
 
 export type AppRole =
   | "proprietario"
@@ -12,76 +14,57 @@ export type AppRole =
   | "financeiro"
   | "atendente_delivery";
 
-const roleRouteAccess: Record<AppRole, string[]> = {
-  proprietario: ["*"],
-  gerente: [
-    "/pdv/dashboard",
-    "/pdv/salao",
-    
-    "/pdv/caixa",
-    "/pdv/comandas",
-    "/pdv/produtos",
-    "/pdv/centros-producao",
-    "/pdv/estoque",
-    "/pdv/fornecedores",
-    "/pdv/notas-fiscais",
-    "/pdv/cupons-fiscais",
-    "/pdv/relatorios",
-    "/pdv/configuracoes",
-    "/pdv/compras/cotacoes",
-    "/pdv/compras/pedidos",
-    "/pdv/compras/lista",
-    "/pdv/financeiro/lancamentos",
-    "/pdv/financeiro/contas-pagar",
-    "/pdv/financeiro/contas-receber",
-    "/pdv/financeiro/fluxo-caixa",
-    "/pdv/financeiro/plano-contas",
-    "/pdv/financeiro/centros-custo",
-    "/pdv/financeiro/dre",
-    "/pdv/financeiro/cmv-produtos",
-    "/pdv/financeiro/cmv-geral",
-    "/pdv/delivery/pedidos",
-    "/pdv/delivery/cardapio",
-    "/pdv/delivery/personalizacao",
-    "/pdv/delivery/cupons",
-    "/pdv/delivery/configuracoes",
-    "/pdv/delivery/relatorios",
-    "/pdv/delivery/entregadores",
-    "/pdv/integracoes",
-    "/pdv/franquia",
-    "/pdv/clientes",
-    "/pdv/venda-a-prazo",
-  ],
-  caixa: ["/pdv/caixa"],
-  garcom: ["/garcom", "/pdv/salao", "/pdv/comandas"],
-  cozinheiro: ["/pdv/comandas"],
-  estoquista: [
-    "/pdv/estoque",
-    "/pdv/fornecedores",
-    "/pdv/notas-fiscais",
-    "/pdv/cupons-fiscais",
-    "/pdv/compras/cotacoes",
-    "/pdv/compras/pedidos",
-    "/pdv/compras/lista",
-  ],
-  financeiro: [
-    "/pdv/financeiro/lancamentos",
-    "/pdv/financeiro/contas-pagar",
-    "/pdv/financeiro/contas-receber",
-    "/pdv/financeiro/fluxo-caixa",
-    "/pdv/financeiro/plano-contas",
-    "/pdv/financeiro/centros-custo",
-    "/pdv/financeiro/dre",
-    "/pdv/financeiro/cmv-produtos",
-    "/pdv/financeiro/cmv-geral",
-    "/pdv/relatorios",
-  ],
-  atendente_delivery: [
-    "/pdv/delivery/pedidos",
-    "/pdv/delivery/cardapio",
-    "/pdv/delivery/cupons",
-    "/pdv/delivery/entregadores",
-  ],
+/**
+ * Escopo estrutural de cada papel: quais MÓDULOS o papel pode usar.
+ * Dentro do módulo, todas as rotas ficam liberadas (regra do cliente).
+ * Papéis com sub-allow-list usam `subRoutes` para restringir páginas específicas.
+ */
+interface RoleScope {
+  modules: UserModule[] | "*";
+  /** Quando definido, restringe a apenas estas rotas-prefixo (interseção com modules). */
+  subRoutes?: string[];
+}
+
+const ROLE_SCOPE: Record<AppRole, RoleScope> = {
+  proprietario: { modules: "*" },
+  gerente: {
+    modules: ["pdv", "financeiro", "delivery", "avaliacoes", "tarefas", "crm"],
+  },
+  caixa: {
+    modules: ["pdv"],
+    subRoutes: ["/pdv/caixa"],
+  },
+  garcom: {
+    modules: ["pdv"],
+    subRoutes: ["/garcom", "/pdv/salao", "/pdv/comandas"],
+  },
+  cozinheiro: {
+    modules: ["pdv"],
+    subRoutes: ["/pdv/comandas"],
+  },
+  estoquista: {
+    modules: ["pdv"],
+    subRoutes: [
+      "/pdv/estoque",
+      "/pdv/fornecedores",
+      "/pdv/notas-fiscais",
+      "/pdv/cupons-fiscais",
+      "/pdv/compras",
+    ],
+  },
+  financeiro: {
+    modules: ["financeiro"],
+    subRoutes: ["/pdv/financeiro", "/pdv/relatorios"],
+  },
+  atendente_delivery: {
+    modules: ["delivery"],
+    subRoutes: [
+      "/pdv/delivery/pedidos",
+      "/pdv/delivery/cardapio",
+      "/pdv/delivery/cupons",
+      "/pdv/delivery/entregadores",
+    ],
+  },
 };
 
 const roleDefaultRoute: Record<AppRole, string> = {
@@ -97,8 +80,9 @@ const roleDefaultRoute: Record<AppRole, string> = {
 
 export function useUserRole() {
   const { user } = useAuth();
+  const { hasModule, activeModules, isLoading: isLoadingModules } = useUserModules();
 
-  const { data: role = "proprietario" as AppRole, isLoading } = useQuery({
+  const { data: role = "proprietario" as AppRole, isLoading: isLoadingRole } = useQuery({
     queryKey: ["user-role", user?.id],
     queryFn: async (): Promise<AppRole> => {
       if (!user?.id) return "proprietario";
@@ -114,18 +98,41 @@ export function useUserRole() {
     enabled: !!user?.id,
   });
 
-  const allowedRoutes = roleRouteAccess[role] || ["*"];
+  const scope = ROLE_SCOPE[role] ?? ROLE_SCOPE.proprietario;
+
+  /** Rotas-prefixo derivadas do papel (módulos × subRoutes). */
+  const allowedRoutes: string[] = (() => {
+    if (scope.modules === "*") return ["*"];
+    const moduleRoutes = scope.modules.flatMap((m) => MODULE_ROUTES[m] || []);
+    if (!scope.subRoutes) return moduleRoutes;
+    // subRoutes filtram dentro dos módulos do papel
+    return scope.subRoutes;
+  })();
 
   const canAccess = (path: string): boolean => {
-    if (allowedRoutes.includes("*")) return true;
-    return allowedRoutes.some(
-      (route) => path === route || path.startsWith(route + "/")
-    );
+    // 1. Papel autoriza?
+    const roleOk =
+      allowedRoutes.includes("*") ||
+      allowedRoutes.some((r) => path === r || path.startsWith(r + "/"));
+    if (!roleOk) return false;
+
+    // 2. Módulo do tenant está ativo?
+    const mod = moduleForRoute(path);
+    if (mod && !hasModule(mod)) return false;
+
+    return true;
   };
 
   const defaultRoute = roleDefaultRoute[role] || "/pdv/dashboard";
 
-  return { role, isLoading, canAccess, allowedRoutes, defaultRoute };
+  return {
+    role,
+    isLoading: isLoadingRole || isLoadingModules,
+    canAccess,
+    allowedRoutes,
+    defaultRoute,
+    activeModules,
+  };
 }
 
-export { roleRouteAccess, roleDefaultRoute };
+export { ROLE_SCOPE, roleDefaultRoute };
