@@ -151,7 +151,9 @@ Deno.serve(async (req) => {
       .single();
 
     if (tenantError) {
-      await adminClient.auth.admin.deleteUser(ownerUserId);
+      if (!reusedExistingUser) {
+        await adminClient.auth.admin.deleteUser(ownerUserId);
+      }
       return new Response(JSON.stringify({ error: tenantError.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
