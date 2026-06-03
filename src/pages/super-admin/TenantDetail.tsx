@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useTenants, TenantModule, TenantIntegration } from "@/hooks/use-tenants";
 import { FranchiseSection } from "@/components/super-admin/FranchiseSection";
-import { availableModules } from "@/components/super-admin/ModuleSelector";
+import { availableModules, moduleSlugsFor } from "@/components/super-admin/ModuleSelector";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -139,10 +139,14 @@ export default function TenantDetail() {
     if (!id) return;
     setSavingModules(true);
     try {
-      await upsertTenantModule(id, moduleSlug, nextActive);
+      const entry = availableModules.find((m) => m.value === moduleSlug);
+      const slugs = entry ? moduleSlugsFor(entry) : [moduleSlug];
+      for (const slug of slugs) {
+        await upsertTenantModule(id, slug, nextActive);
+      }
       const mods = await fetchTenantModules(id);
       setModules(mods);
-      toast.success(`Módulo ${moduleSlug} ${nextActive ? "ativado" : "desativado"}`);
+      toast.success(`Módulo ${entry?.label ?? moduleSlug} ${nextActive ? "ativado" : "desativado"}`);
     } catch {
       toast.error("Erro ao atualizar módulo");
     } finally {
@@ -291,8 +295,10 @@ export default function TenantDetail() {
             <CardContent>
               <div className="space-y-3">
                 {availableModules.map((mod) => {
-                  const current = modules.find((m) => m.module === mod.value);
-                  const isActive = !!current?.is_active;
+                  const slugs = moduleSlugsFor(mod);
+                  const isActive = slugs.every(
+                    (s) => modules.find((m) => m.module === s)?.is_active
+                  );
                   return (
                     <div key={mod.value} className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
