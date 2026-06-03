@@ -67,6 +67,7 @@ function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; 
 
 export default function PDV() {
   const { canAccess, defaultRoute, isLoading } = useUserRole();
+  const { getDefaultModuleRoute, isLoading: isLoadingModules } = useUserModules();
   useDeliveryOrdersWatcher();
   const { pathname } = useLocation();
   const isFixedHeight =
@@ -74,7 +75,7 @@ export default function PDV() {
     pathname === "/pdv/tarefas" ||
     pathname === "/pdv/tarefas/";
 
-  if (isLoading) {
+  if (isLoading || isLoadingModules) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -82,8 +83,12 @@ export default function PDV() {
     );
   }
 
+  // Se o default do papel não está acessível (módulo do tenant inativo),
+  // cai para a rota inicial do primeiro módulo ativo.
+  const effectiveDefault = canAccess(defaultRoute) ? defaultRoute : getDefaultModuleRoute();
+
   return (
-    <ModuleGuard module="pdv">
+    <>
       <PDVCatalogRealtime />
       <DeliveryCatalogRealtime />
       <div className="flex flex-col min-h-screen w-full">
@@ -102,7 +107,8 @@ export default function PDV() {
 
         <main className={isFixedHeight ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
           <Routes>
-              <Route index element={<Navigate to={defaultRoute} replace />} />
+              <Route index element={<Navigate to={effectiveDefault} replace />} />
+
               
               {/* Financeiro */}
               <Route path="financeiro/lancamentos" element={<RoleRoute path="/pdv/financeiro/lancamentos" canAccess={canAccess} defaultRoute={defaultRoute}><FinancialTransactions /></RoleRoute>} />
