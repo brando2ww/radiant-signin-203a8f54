@@ -185,6 +185,6 @@ export default function PDV() {
             </Routes>
           </main>
       </div>
-    </ModuleGuard>
+    </>
   );
 }
