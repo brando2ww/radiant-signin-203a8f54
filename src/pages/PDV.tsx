@@ -1,11 +1,11 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { ModuleGuard } from "@/components/ModuleGuard";
 import { PDVHeaderNav } from "@/components/pdv/PDVHeaderNav";
 import { PDVUserMenu } from "@/components/pdv/PDVUserMenu";
 import { PDVNotifications } from "@/components/pdv/PDVNotifications";
 import { CashierStatus } from "@/components/pdv/CashierStatus";
 import { Logo } from "@/components/ui/logo";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useUserModules } from "@/hooks/use-user-modules";
 import { useDeliveryOrdersWatcher } from "@/hooks/use-delivery-orders-watcher";
 import { PDVCatalogRealtime } from "@/components/pdv/PDVCatalogRealtime";
 import { DeliveryCatalogRealtime } from "@/components/delivery/DeliveryCatalogRealtime";
