@@ -295,8 +295,10 @@ export default function TenantDetail() {
             <CardContent>
               <div className="space-y-3">
                 {availableModules.map((mod) => {
-                  const current = modules.find((m) => m.module === mod.value);
-                  const isActive = !!current?.is_active;
+                  const slugs = moduleSlugsFor(mod);
+                  const isActive = slugs.every(
+                    (s) => modules.find((m) => m.module === s)?.is_active
+                  );
                   return (
                     <div key={mod.value} className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
