@@ -97,11 +97,14 @@ export function useUserModules() {
   const getDefaultModuleRoute = (): string => {
     // Sem tenant (legado): mantém PDV
     if (!tenantId) return '/pdv/dashboard';
+    const active = activeModules();
+    // Standalone só quando avaliações é o ÚNICO módulo
+    if (active.length === 1 && active[0] === 'avaliacoes') return '/avaliacoes';
     if (hasModule('pdv')) return '/pdv/dashboard';
-    if (hasModule('avaliacoes')) return '/avaliacoes';
+    if (hasModule('avaliacoes')) return '/pdv/avaliacoes';
+    if (hasModule('tarefas')) return '/pdv/tarefas';
     if (hasModule('delivery')) return '/pdv/delivery/pedidos';
     if (hasModule('financeiro')) return '/pdv/financeiro/lancamentos';
-    if (hasModule('tarefas')) return '/pdv/tarefas';
     if (hasModule('crm')) return '/pdv/crm';
     return '/pdv/dashboard';
   };
