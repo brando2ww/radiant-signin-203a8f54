@@ -9,6 +9,7 @@ import { useUserModules } from "@/hooks/use-user-modules";
 import { useDeliveryOrdersWatcher } from "@/hooks/use-delivery-orders-watcher";
 import { PDVCatalogRealtime } from "@/components/pdv/PDVCatalogRealtime";
 import { DeliveryCatalogRealtime } from "@/components/delivery/DeliveryCatalogRealtime";
+import { RouteModuleGuard } from "@/components/RouteModuleGuard";
 import PDVDashboard from "./pdv/Dashboard";
 import PDVSalon from "./pdv/Salon";
 
@@ -106,6 +107,7 @@ export default function PDV() {
         </header>
 
         <main className={isFixedHeight ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
+          <RouteModuleGuard>
           <Routes>
               <Route index element={<Navigate to={effectiveDefault} replace />} />
 
@@ -183,6 +185,7 @@ export default function PDV() {
               <Route path="venda-a-prazo" element={<RoleRoute path="/pdv/venda-a-prazo" canAccess={canAccess} defaultRoute={defaultRoute}><EmployeeConsumptionAdmin /></RoleRoute>} />
               <Route path="funcionarios-consumo" element={<Navigate to="/pdv/venda-a-prazo" replace />} />
             </Routes>
+          </RouteModuleGuard>
           </main>
       </div>
     </>

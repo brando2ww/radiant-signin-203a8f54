@@ -47,6 +47,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useUserModules } from "@/hooks/use-user-modules";
+import { isAlwaysAllowed, moduleForRoute } from "@/lib/access/module-routes";
 
 interface Announcement {
   id: string;
@@ -157,15 +159,25 @@ export function PDVHeaderNav() {
   const pathname = location.pathname;
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
   const { canAccess } = useUserRole();
+  const { hasModule } = useUserModules();
+
+  const itemAllowed = (url: string) => {
+    if (!canAccess(url)) return false;
+    if (isAlwaysAllowed(url)) return true;
+    const mod = moduleForRoute(url);
+    if (!mod) return true;
+    return hasModule(mod);
+  };
 
   const filteredSections = useMemo(() => {
     return sectionItems
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => canAccess(item.url)),
+        items: section.items.filter((item) => itemAllowed(item.url)),
       }))
       .filter((section) => section.items.length > 0);
-  }, [canAccess]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, hasModule]);
 
   const visibleAnnouncements = announcements.filter(
     (a) => !dismissedAnnouncements.includes(a.id)
