@@ -416,6 +416,34 @@ export default function DiscountsReport() {
       </div>
 
       <Card>
+        <CardHeader><CardTitle>Descontos por origem</CardTitle></CardHeader>
+        <CardContent>
+          {isLoading ? <Skeleton className="h-32 w-full" /> : (
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Origem</TableHead>
+                <TableHead className="text-right">Pedidos</TableHead>
+                <TableHead className="text-right">Desconto total</TableHead>
+                <TableHead className="text-right">Receita</TableHead>
+                <TableHead className="text-right">% s/ receita</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {byOrigin.map((o) => (
+                  <TableRow key={o.origin}>
+                    <TableCell className="font-medium">{o.origin}</TableCell>
+                    <TableCell className="text-right">{o.count}</TableCell>
+                    <TableCell className="text-right">{formatBRL(o.discount)}</TableCell>
+                    <TableCell className="text-right">{formatBRL(o.revenue)}</TableCell>
+                    <TableCell className="text-right">{o.revenue > 0 ? `${((o.discount / o.revenue) * 100).toFixed(1)}%` : "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>Descontos por cupom</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? <Skeleton className="h-48 w-full" /> : (
