@@ -190,6 +190,43 @@ export const useUpdateOrderStatus = () => {
         // `useReprintOrder`.
       }
 
+      // Auto-emissão NFC-e quando pedido é concluído e pago
+      if (status === "completed" && data?.payment_status === "paid") {
+        try {
+          const { data: settings } = await supabase
+            .from("delivery_settings" as any)
+            .select("nfce_auto_emit")
+            .eq("user_id", data.user_id)
+            .maybeSingle();
+          if ((settings as any)?.nfce_auto_emit) {
+            const { data: items } = await supabase
+              .from("delivery_order_items")
+              .select("product_name, quantity, unit_price")
+              .eq("order_id", id);
+            if (items && items.length > 0) {
+              await supabase.functions.invoke("focusnfe-emitir-nfce", {
+                body: {
+                  items: items.map((i: any) => ({
+                    product_name: i.product_name,
+                    quantity: Number(i.quantity),
+                    unit_price: Number(i.unit_price),
+                  })),
+                  forma_pagamento:
+                    data.payment_method === "pix" ? "17"
+                    : data.payment_method === "credit" || data.payment_method === "credito" ? "03"
+                    : data.payment_method === "debit" || data.payment_method === "debito" ? "04"
+                    : "01",
+                  origem_tipo: "delivery_order",
+                  origem_id: id,
+                },
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Auto-emissão NFC-e falhou:", e);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
