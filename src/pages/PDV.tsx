@@ -58,6 +58,7 @@ import Customers from "./pdv/Customers";
 import CustomerDetail from "./pdv/CustomerDetail";
 import ProductionCenters from "./pdv/ProductionCenters";
 import EmployeeConsumptionAdmin from "./pdv/EmployeeConsumptionAdmin";
+import Fiscal from "./pdv/Fiscal";
 
 function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; children: React.ReactNode; canAccess: (p: string) => boolean; defaultRoute: string }) {
   if (!canAccess(path)) {
