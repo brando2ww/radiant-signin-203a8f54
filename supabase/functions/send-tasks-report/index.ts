@@ -16,6 +16,14 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const evoUrl = Deno.env.get("EVOLUTION_API_URL")!;
     const evoKey = Deno.env.get("EVOLUTION_API_KEY")!;
+
+    if (!evoUrl || !evoKey) {
+      console.error("Evolution não configurado");
+      return new Response(
+        JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const { user_id, date } = await req.json();
