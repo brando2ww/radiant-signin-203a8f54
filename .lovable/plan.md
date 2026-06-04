@@ -1,8 +1,4 @@
-Mover "Gerenciar Integrações" (`/pdv/integracoes`) de uma seção própria para dentro da seção **Administrador** no header.
+Os menus do header não abrem porque o wrapper `<div className="flex-1 min-w-0 overflow-hidden">` em `src/pages/PDV.tsx` recorta o `NavigationMenuContent` (que é absoluto). Como o cluster da direita já é `shrink-0` e os labels só aparecem em ≥xl, basta remover o `overflow-hidden`.
 
 ## Mudança
-**`src/components/pdv/PDVHeaderNav.tsx`**
-- Remover o bloco da seção `Integrações` em `sectionItems`.
-- Adicionar `{ title: "Integrações", url: "/pdv/integracoes", icon: Plug }` ao final da lista de items da seção `Administrador`.
-
-Sem mudanças de rotas, permissões ou backend.
+**`src/pages/PDV.tsx`**: trocar `<div className="flex-1 min-w-0 overflow-hidden">` por `<div className="flex-1 min-w-0">`.
