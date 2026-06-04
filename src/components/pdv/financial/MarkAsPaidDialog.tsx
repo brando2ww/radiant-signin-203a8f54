@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,17 +25,28 @@ export function MarkAsPaidDialog({ open, onOpenChange, transaction, onSubmit }: 
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [bankAccountId, setBankAccountId] = useState<string>('');
 
+  useEffect(() => {
+    if (open) {
+      setPaymentDate(new Date());
+      setPaymentMethod('');
+      setBankAccountId('');
+    }
+  }, [open]);
+
   const handleSubmit = async () => {
     if (!transaction) return;
-    
-    await onSubmit({
-      id: transaction.id,
-      payment_date: paymentDate,
-      payment_method: paymentMethod || undefined,
-      bank_account_id: bankAccountId || undefined,
-    });
-    
-    onOpenChange(false);
+
+    try {
+      await onSubmit({
+        id: transaction.id,
+        payment_date: paymentDate,
+        payment_method: paymentMethod || undefined,
+        bank_account_id: bankAccountId || undefined,
+      });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Falha ao registrar pagamento');
+    }
   };
 
   const formatCurrency = (value: number) => {

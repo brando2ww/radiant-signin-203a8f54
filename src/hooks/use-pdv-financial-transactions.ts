@@ -49,6 +49,8 @@ export interface TransactionFilters {
   supplier_id?: string;
   customer_id?: string;
   payment_method?: string;
+  /** Inclui status='overdue' OU (status='pending' AND due_date < hoje). */
+  overdue_only?: boolean;
 }
 
 export function usePDVFinancialTransactions(filters?: TransactionFilters) {
@@ -82,6 +84,11 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
 
       if (filters?.status && filters.status.length > 0) {
         query = query.in("status", filters.status);
+      }
+
+      if (filters?.overdue_only) {
+        const today = format(new Date(), "yyyy-MM-dd");
+        query = query.or(`status.eq.overdue,and(status.eq.pending,due_date.lt.${today})`);
       }
 
       if (filters?.due_date_from) {

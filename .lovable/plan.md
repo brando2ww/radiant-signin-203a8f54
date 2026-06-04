@@ -1,57 +1,106 @@
-# Endurecimento de rotas — role + módulo + tokens públicos
+# Bugs do módulo financeiro — correções
 
-A boa notícia: a infraestrutura existe (`useUserRole.canAccess`, `RouteModuleGuard`, `MODULE_ROUTES`). Falta plugar no `ProtectedRoute` e validar tokens nas rotas públicas.
+## 1. `PDVTransactionDialog.tsx` — form não reseta
 
-## 1. `ProtectedRoute` — checar role + módulo
+Substituir `defaultValues` por uma factory + `useEffect` que faz `form.reset(getDefaults(transaction))` sempre que `transaction?.id` ou `open` mudarem. Manter `defaultValues` no `useForm` apenas como valor inicial.
 
-Arquivo: `src/components/ProtectedRoute.tsx`.
+```ts
+const getDefaults = (t?: PDVFinancialTransaction): PDVFinancialTransactionFormData =>
+  t ? { /* mapeia t */ } : { transaction_type: 'payable', status: 'pending', amount: 0, description: '', due_date: new Date() };
 
-- Manter checagem de `user` e redirecionamento de super admin.
-- Adicionar:
-  - `const { canAccess, defaultRoute, isLoading: roleLoading } = useUserRole();`
-  - Enquanto `roleLoading`, exibir o mesmo loader.
-  - `const path = useLocation().pathname;`
-  - Se `!canAccess(path)` → `<Navigate to={defaultRoute} replace />`.
-- Envolver `children` em `<RouteModuleGuard>` para também bloquear módulo desabilitado pelo tenant (mostra `ModuleUnavailable`).
+useEffect(() => {
+  if (open) form.reset(getDefaults(transaction));
+}, [open, transaction?.id]);
+```
 
-Resultado: garçom navegando para `/pdv/financeiro/...` é redirecionado para `/garcom`; tenant sem módulo "tarefas" abrindo `/pdv/tarefas` vê a tela "Módulo não disponível".
+Também remover o efeito colateral fora de hook (`if (paymentDate && status === 'pending') form.setValue(...)`) — mover para um `useEffect` com dependências `[paymentDate, status]` para evitar render loops.
 
-Sub-rotas já refinadas em `ROLE_SCOPE` cobrem o pedido do usuário:
-- `garcom` → `/garcom`, `/pdv/salao`, `/pdv/comandas` (não acessa financeiro/relatórios/configurações).
-- `caixa` → `/pdv/caixa` (atua como "operador").
-- `gerente` → todos os módulos do tenant, exceto `/admin` (super_admin).
-- `proprietario` → tudo do tenant.
-- `super_admin` → permanece tratado por `SuperAdminGuard` em `/admin/*`.
+## 2. `PDVTransactionDialog.tsx` — dialog fecha com erro
 
-Pequeno ajuste em `ROLE_SCOPE` (`src/hooks/use-user-role.ts`):
-- Renomear semanticamente sem quebrar dados: manter `caixa` como o "operador" do pedido (Frente de Caixa + delivery pedidos). Adicionar `/pdv/delivery/pedidos` a `caixa.subRoutes`.
-- `gerente` ganha `subRoutes` opcional `undefined` (já cobre tudo dos módulos) — sem mudança.
-- Documentar via comentário que “admin” do pedido = `proprietario`/`gerente` nesta base.
+```ts
+const handleSubmit = async (data) => {
+  try {
+    await onSubmit(transaction ? { id: transaction.id, ...data } : data);
+    onOpenChange(false);
+    form.reset(getDefaults());
+  } catch (err: any) {
+    toast.error(err?.message || 'Falha ao salvar lançamento');
+  }
+};
+```
 
-## 2. Rotas públicas `/tarefas/:userId` e `/c/:checklistId`
+Import `toast` de `sonner`. Não fecha em caso de erro.
 
-Continuam sem `ProtectedRoute` (acesso por QR). A defesa fica na página + servidor:
+## 3. `DiscountsReport.tsx` — relatório incompleto
 
-- `src/pages/PublicTasks.tsx`: já recebe `userId` da URL. Adicionar checagem inicial que valida se o `userId` corresponde a um establishment público válido via RPC `security definer` (a criar). Se inválido → tela de "Link inválido".
-- `src/pages/PublicChecklistAccess.tsx`: já lida com token do checklist; adicionar validação explícita do `checklistId` via RPC antes de permitir marcar tasks.
-- Toda mutação de tarefas/itens deve passar por **edge functions service-role** que recebem `(userId|checklistId, token, payload)` e validam antes de gravar. Esses endpoints serão criados na sequência (fora desta migration de policies):
-  - `public-tasks-load`, `public-tasks-toggle`
-  - `public-checklist-load`, `public-checklist-toggle`
+Adicionar fetch paralelo de `pdv_orders` com `discount > 0`:
 
-Com a migration RLS aplicada anteriormente (operational_task_instances já fechado a `authenticated`), o acesso anônimo direto do supabase-js para de funcionar — as páginas públicas passarão a chamar essas edge functions. Esta etapa apenas garante o **bloqueio no frontend** + roteia chamadas para as edge functions.
+```ts
+supabase.from('pdv_orders')
+  .select('id, order_number, customer_name, subtotal, discount, total, source, closed_at, created_at, status')
+  .eq('user_id', visibleUserId!)
+  .gt('discount', 0)
+  .not('status','in','(cancelled,cancelado,aberta,open)')
+  .gte('created_at', startISO)
+  .lte('created_at', endISO)
+```
 
-## 3. Loader/UX
+- Mapear `source` → `origin`: `delivery_orders` → `"Delivery"`; `pdv_orders.source === 'salao'` (ou table_id presente) → `"Salão"`; demais (`balcao`, `comanda` avulsa) → `"Balcão"`.
+- Concatenar `orders` das duas fontes; cada item ganha `origin`.
+- Adicionar agregação `byOrigin` (count, discount, revenue) e renderizar um novo card "Descontos por origem" com 3 linhas (Delivery / Salão / Balcão).
+- Tabela "Pedidos com desconto" ganha coluna **Origem**.
+- Aba do XLSX "Descontos Diretos" inclui coluna `origem`.
+- KPIs e `byCoupon`/`byDay` consideram a soma das duas fontes (pedidos PDV não têm `coupon_code` → caem em `(sem cupom)`).
 
-`ProtectedRoute` hoje mostra um loader full-screen. Reaproveitar o mesmo enquanto `useUserRole` carrega para evitar flicker entre `/pdv/...` e redirect.
+## 4. `FinancialTransactions.tsx` — handlers sem try/catch
 
-## Arquivos editados
+Envolver `handleSubmit`, `handleMarkAsPaidSubmit` e `handleDelete` em try/catch com `toast.error`. Como o hook já mostra toasts em `onError`, manter os catches re-lançando o erro (`throw err`) apenas para `handleSubmit` (assim o dialog do item 2 detecta e mantém o modal aberto). `handleDelete` e `handleMarkAsPaidSubmit` ficam com toast extra de segurança caso a mutation lance algo fora do `onError`.
 
-- `src/components/ProtectedRoute.tsx` — usar `useUserRole` + `RouteModuleGuard`.
-- `src/hooks/use-user-role.ts` — pequeno ajuste em `caixa.subRoutes`.
-- `src/pages/PublicTasks.tsx` — validar `userId` via RPC e migrar mutations para edge function.
-- `src/pages/PublicChecklistAccess.tsx` — idem para `checklistId`.
+## 5. `PDVTransactionFilters.tsx` — filtro "all"
 
-## Fora deste plano (follow-up)
+No `onValueChange` do select de tipo, mapear `'all'` para `undefined` antes de propagar:
 
-- Edge functions `public-tasks-*` e `public-checklist-*` (serão criadas junto ao deploy de RLS para não quebrar QR Codes em campo).
-- RPC `validate_public_tasks_userid(uuid)` e `validate_checklist_token(uuid, text)`.
+```ts
+onValueChange={(value) =>
+  onFiltersChange({ ...filters, transaction_type: value === 'all' ? undefined : (value as any) })
+}
+```
+
+Padroniza com os outros filtros e evita o valor `'all'` literal vazar para a query mesmo se o guard do hook for removido.
+
+## 6. `FinancialTransactions.tsx` — filtro local da aba
+
+Remover o `transactions.filter(...)` local. Em vez disso, derivar filtros adicionais da aba e mesclar em `filters` quando aplicáveis:
+
+- `activeTab === 'payable'` → `transaction_type='payable'`, `status=['pending']`
+- `activeTab === 'receivable'` → `transaction_type='receivable'`, `status=['pending']`
+- `activeTab === 'overdue'` → `status=['overdue']` + `due_date_to=today-1` para incluir pendentes vencidos (alternativa: usar `status=['overdue','pending']` com `due_date_to=startOfToday`). Vai com `status=['overdue']` + cliente complementa pendentes vencidos via segunda condição já presente no hook (ou ampliar o hook com flag `include_overdue_pending`).
+- `activeTab === 'paid'` → `status=['paid']`
+- `activeTab === 'all'` → sem override.
+
+Implementação: `const effectiveFilters = useMemo(() => ({ ...filters, ...tabOverrides(activeTab, filters) }), [filters, activeTab])` e passar para `usePDVFinancialTransactions(effectiveFilters)`. A lista renderiza `transactions` direto, sem `.filter`. Contagens das abas continuam vindo de `stats` (já corretas no server).
+
+Para a aba "Vencidas" usar `status=['overdue']` combinado com `or` no hook ou simplesmente um segundo filtro `due_date_to = today` mais `status=['pending','overdue']` — vou estender `TransactionFilters` com `overdue_only?: boolean` e tratar no hook (`status in ('overdue') OR (status='pending' AND due_date < today)`).
+
+## 7. `MarkAsPaidDialog.tsx` — estado não reseta
+
+Adicionar:
+
+```ts
+useEffect(() => {
+  if (open) {
+    setPaymentDate(new Date());
+    setPaymentMethod('');
+    setBankAccountId('');
+  }
+}, [open]);
+```
+
+## Arquivos a editar
+
+- `src/components/pdv/financial/PDVTransactionDialog.tsx` (itens 1 e 2)
+- `src/components/pdv/financial/PDVTransactionFilters.tsx` (item 5)
+- `src/components/pdv/financial/MarkAsPaidDialog.tsx` (item 7)
+- `src/pages/pdv/financial/FinancialTransactions.tsx` (itens 4 e 6)
+- `src/hooks/use-pdv-financial-transactions.ts` (item 6: suporte a `overdue_only`)
+- `src/pages/pdv/reports/DiscountsReport.tsx` (item 3)

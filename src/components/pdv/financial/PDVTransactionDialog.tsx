@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -36,45 +38,61 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
   const { suppliers } = usePDVSuppliers();
   const { customers } = usePDVCustomers();
 
+  const getDefaults = (t?: PDVFinancialTransaction): PDVFinancialTransactionFormData =>
+    t
+      ? {
+          transaction_type: t.transaction_type,
+          description: t.description,
+          amount: t.amount,
+          due_date: new Date(t.due_date),
+          payment_date: t.payment_date ? new Date(t.payment_date) : undefined,
+          status: t.status,
+          chart_account_id: t.chart_account_id || undefined,
+          cost_center_id: t.cost_center_id || undefined,
+          bank_account_id: t.bank_account_id || undefined,
+          supplier_id: t.supplier_id || undefined,
+          customer_id: t.customer_id || undefined,
+          payment_method: t.payment_method || undefined,
+          document_number: t.document_number || undefined,
+          notes: t.notes || undefined,
+        }
+      : {
+          transaction_type: 'payable',
+          status: 'pending',
+          amount: 0,
+          description: '',
+          due_date: new Date(),
+        };
+
   const form = useForm<PDVFinancialTransactionFormData>({
     resolver: zodResolver(pdvFinancialTransactionSchema),
-    defaultValues: transaction ? {
-      transaction_type: transaction.transaction_type,
-      description: transaction.description,
-      amount: transaction.amount,
-      due_date: new Date(transaction.due_date),
-      payment_date: transaction.payment_date ? new Date(transaction.payment_date) : undefined,
-      status: transaction.status,
-      chart_account_id: transaction.chart_account_id || undefined,
-      cost_center_id: transaction.cost_center_id || undefined,
-      bank_account_id: transaction.bank_account_id || undefined,
-      supplier_id: transaction.supplier_id || undefined,
-      customer_id: transaction.customer_id || undefined,
-      payment_method: transaction.payment_method || undefined,
-      document_number: transaction.document_number || undefined,
-      notes: transaction.notes || undefined,
-    } : {
-      transaction_type: 'payable',
-      status: 'pending',
-      amount: 0,
-      description: '',
-      due_date: new Date(),
-    },
+    defaultValues: getDefaults(transaction),
   });
+
+  useEffect(() => {
+    if (open) form.reset(getDefaults(transaction));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, transaction?.id]);
 
   const transactionType = form.watch('transaction_type');
   const status = form.watch('status');
   const paymentDate = form.watch('payment_date');
 
   // Auto-update status when payment_date is set
-  if (paymentDate && status === 'pending') {
-    form.setValue('status', 'paid');
-  }
+  useEffect(() => {
+    if (paymentDate && status === 'pending') {
+      form.setValue('status', 'paid');
+    }
+  }, [paymentDate, status, form]);
 
   const handleSubmit = async (data: PDVFinancialTransactionFormData) => {
-    await onSubmit(transaction ? { id: transaction.id, ...data } : data);
-    onOpenChange(false);
-    form.reset();
+    try {
+      await onSubmit(transaction ? { id: transaction.id, ...data } : data);
+      onOpenChange(false);
+      form.reset(getDefaults());
+    } catch (err: any) {
+      toast.error(err?.message || 'Falha ao salvar lançamento');
+    }
   };
 
   return (

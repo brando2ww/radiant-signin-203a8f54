@@ -31,13 +31,22 @@ export default function DiscountsReport() {
       const startISO = start.toISOString();
       const endISO = end.toISOString();
 
-      const [discOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
+      const [discOrdersRes, pdvOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
         supabase
           .from("delivery_orders")
           .select("id, order_number, customer_id, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
           .eq("user_id", visibleUserId!)
           .gt("discount", 0)
           .not("status", "in", "(cancelled,cancelado)")
+          .gte("created_at", startISO)
+          .lte("created_at", endISO)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("pdv_orders")
+          .select("id, order_number, customer_name, subtotal, discount, total, source, table_id, closed_at, created_at, status")
+          .eq("user_id", visibleUserId!)
+          .gt("discount", 0)
+          .not("status", "in", "(cancelled,cancelado,aberta,open,cancelada)")
           .gte("created_at", startISO)
           .lte("created_at", endISO)
           .order("created_at", { ascending: false }),
@@ -57,7 +66,9 @@ export default function DiscountsReport() {
       ]);
 
       if (discOrdersRes.error) throw discOrdersRes.error;
+      if (pdvOrdersRes.error) throw pdvOrdersRes.error;
       const rawOrders = discOrdersRes.data || [];
+      const rawPdvOrders = pdvOrdersRes.data || [];
       const couponsRedeemed = couponsRedeemedRes.data || [];
       const couponsGenerated = couponsGeneratedRes.data || [];
 
@@ -88,7 +99,7 @@ export default function DiscountsReport() {
         });
       }
 
-      const orders = rawOrders.map((o: any) => ({
+      const deliveryOrders = rawOrders.map((o: any) => ({
         id: o.id,
         order_number: o.order_number,
         customer_name: (o.customer_name && String(o.customer_name).trim())
@@ -98,9 +109,34 @@ export default function DiscountsReport() {
         discount: Number(o.discount || 0),
         total: Number(o.total || 0),
         coupon_code: o.coupon_code || null,
+        origin: "Delivery" as const,
         closed_at: o.created_at,
         created_at: o.created_at,
       }));
+
+      const pdvOrders = rawPdvOrders.map((o: any) => {
+        const src = String(o.source || "").toLowerCase();
+        const origin: "Salão" | "Balcão" =
+          src === "salao" || src === "salão" || src === "mesa" || o.table_id
+            ? "Salão"
+            : "Balcão";
+        return {
+          id: o.id,
+          order_number: o.order_number,
+          customer_name: o.customer_name || "",
+          subtotal: Number(o.subtotal || 0),
+          discount: Number(o.discount || 0),
+          total: Number(o.total || 0),
+          coupon_code: null as string | null,
+          origin,
+          closed_at: o.closed_at || o.created_at,
+          created_at: o.created_at,
+        };
+      });
+
+      const orders = [...deliveryOrders, ...pdvOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
       const couponsEnriched = couponsRedeemed.map((c: any) => ({
         ...c,
@@ -121,6 +157,21 @@ export default function DiscountsReport() {
         r.discount += o.discount;
         r.revenue += o.total;
         r.subtotal += o.subtotal;
+      });
+
+      // Aggregation by origin (Delivery / Salão / Balcão)
+      const byOrigin = new Map<string, { origin: string; count: number; discount: number; revenue: number }>(
+        [
+          ["Delivery", { origin: "Delivery", count: 0, discount: 0, revenue: 0 }],
+          ["Salão", { origin: "Salão", count: 0, discount: 0, revenue: 0 }],
+          ["Balcão", { origin: "Balcão", count: 0, discount: 0, revenue: 0 }],
+        ]
+      );
+      orders.forEach((o) => {
+        const r = byOrigin.get(o.origin)!;
+        r.count += 1;
+        r.discount += o.discount;
+        r.revenue += o.total;
       });
 
       // Daily evolution
@@ -148,6 +199,7 @@ export default function DiscountsReport() {
         coupons: couponsEnriched,
         totalRevenue,
         byCoupon: Array.from(byCoupon.values()).sort((a, b) => b.discount - a.discount),
+        byOrigin: Array.from(byOrigin.values()),
         byDay: Array.from(byDay.values()),
         byCampaign: Array.from(byCampaign.values()).sort((a, b) => b.count - a.count),
         couponsGenerated: couponsGenerated.length,
@@ -166,6 +218,7 @@ export default function DiscountsReport() {
   }, [startDate, endDate, orders.length]);
   const coupons = data?.coupons || [];
   const byCoupon = data?.byCoupon || [];
+  const byOrigin = data?.byOrigin || [];
   const byDay = data?.byDay || [];
   const byCampaign = data?.byCampaign || [];
 
@@ -211,19 +264,30 @@ export default function DiscountsReport() {
       {
         name: "Descontos Diretos",
         rows: orders.map((o: any) => ({
-          data: o.created_at, pedido: o.order_number, cliente: o.customer_name,
+          data: o.created_at, pedido: o.order_number, origem: o.origin, cliente: o.customer_name,
           subtotal: Number(o.subtotal || 0), desconto: Number(o.discount || 0), total: Number(o.total || 0), cupom: o.coupon_code || "—",
           pct: Number(o.subtotal || 0) > 0 ? Number(o.discount || 0) / Number(o.subtotal || 0) : 0,
         })),
         columns: [
           { key: "data", label: "Data", width: 18, type: "datetime" },
           { key: "pedido", label: "Pedido", width: 10, type: "number" },
+          { key: "origem", label: "Origem", width: 12 },
           { key: "cliente", label: "Cliente", width: 26 },
           { key: "subtotal", label: "Subtotal", width: 14, type: "currency" },
           { key: "desconto", label: "Desconto", width: 14, type: "currency" },
           { key: "pct", label: "% desc.", width: 10, type: "percent" },
           { key: "total", label: "Total", width: 14, type: "currency" },
           { key: "cupom", label: "Cupom", width: 16 },
+        ],
+      },
+      {
+        name: "Por Origem",
+        rows: byOrigin.map((o) => ({ origem: o.origin, pedidos: o.count, desconto: o.discount, receita: o.revenue })),
+        columns: [
+          { key: "origem", label: "Origem", width: 14 },
+          { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
+          { key: "desconto", label: "Desconto", width: 16, type: "currency" },
+          { key: "receita", label: "Receita", width: 16, type: "currency" },
         ],
       },
       {
@@ -352,6 +416,34 @@ export default function DiscountsReport() {
       </div>
 
       <Card>
+        <CardHeader><CardTitle>Descontos por origem</CardTitle></CardHeader>
+        <CardContent>
+          {isLoading ? <Skeleton className="h-32 w-full" /> : (
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Origem</TableHead>
+                <TableHead className="text-right">Pedidos</TableHead>
+                <TableHead className="text-right">Desconto total</TableHead>
+                <TableHead className="text-right">Receita</TableHead>
+                <TableHead className="text-right">% s/ receita</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {byOrigin.map((o) => (
+                  <TableRow key={o.origin}>
+                    <TableCell className="font-medium">{o.origin}</TableCell>
+                    <TableCell className="text-right">{o.count}</TableCell>
+                    <TableCell className="text-right">{formatBRL(o.discount)}</TableCell>
+                    <TableCell className="text-right">{formatBRL(o.revenue)}</TableCell>
+                    <TableCell className="text-right">{o.revenue > 0 ? `${((o.discount / o.revenue) * 100).toFixed(1)}%` : "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>Descontos por cupom</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? <Skeleton className="h-48 w-full" /> : (
@@ -390,6 +482,7 @@ export default function DiscountsReport() {
               <TableHeader><TableRow>
                 <TableHead>Data</TableHead>
                 <TableHead>Pedido</TableHead>
+                <TableHead>Origem</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Subtotal</TableHead>
                 <TableHead className="text-right">Desconto</TableHead>
@@ -398,13 +491,14 @@ export default function DiscountsReport() {
                 <TableHead>Cupom</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {orders.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum desconto no período</TableCell></TableRow> :
+                {orders.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhum desconto no período</TableCell></TableRow> :
                   orders.slice(0, visibleCount).map((o: any) => {
                     const pct = Number(o.subtotal || 0) > 0 ? (Number(o.discount || 0) / Number(o.subtotal || 0)) * 100 : 0;
                     return (
                       <TableRow key={o.id}>
                         <TableCell className="text-muted-foreground">{o.created_at ? format(new Date(o.created_at), "dd/MM/yy HH:mm", { locale: ptBR }) : "—"}</TableCell>
                         <TableCell>#{o.order_number ?? "—"}</TableCell>
+                        <TableCell>{o.origin}</TableCell>
                         <TableCell>{o.customer_name || "—"}</TableCell>
                         <TableCell className="text-right">{formatBRL(o.subtotal)}</TableCell>
                         <TableCell className="text-right">{formatBRL(o.discount)}</TableCell>
