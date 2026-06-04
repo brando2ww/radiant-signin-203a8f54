@@ -47,7 +47,7 @@ export interface FiscalCoupon {
   cancelled_at: string | null;
   last_status_check_at: string | null;
   parent_emission_id: string | null;
-  nuvem_fiscal_id: string | null;
+  
   danfe_pdf_url: string | null;
   danfe_html_url: string | null;
   xml_url: string | null;
