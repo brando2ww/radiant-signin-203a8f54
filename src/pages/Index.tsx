@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthLayout, Testimonial } from "@/components/ui/auth-layout";
+import { AuthLayout } from "@/components/ui/auth-layout";
 import { LoginForm } from "@/components/ui/forms/login-form";
 import { SignUpForm } from "@/components/ui/forms/signup-form";
 import { ResetPasswordForm } from "@/components/ui/forms/reset-password-form";
