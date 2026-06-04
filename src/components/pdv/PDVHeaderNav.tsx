@@ -124,6 +124,7 @@ const sectionItems: Section[] = [
       { title: "Usuários", url: "/pdv/usuarios", icon: Users },
       { title: "Venda a Prazo", url: "/pdv/venda-a-prazo", icon: UserCheck },
       { title: "Franquia", url: "/pdv/franquia", icon: GitBranch },
+      { title: "Integrações", url: "/pdv/integracoes", icon: Plug },
     ],
   },
   {
@@ -155,13 +156,6 @@ const sectionItems: Section[] = [
       { title: "Análise de Produtos", url: "/pdv/relatorios?tab=sales-by-product", icon: BarChart3 },
       { title: "CMV Geral", url: "/pdv/financeiro/cmv-geral", icon: PieChart },
       { title: "Demo. Caixa", url: "/pdv/financeiro/demonstrativo-caixa", icon: Receipt },
-    ],
-  },
-  {
-    title: "Integrações",
-    icon: Plug,
-    items: [
-      { title: "Gerenciar Integrações", url: "/pdv/integracoes", icon: Plug },
     ],
   },
 ];
