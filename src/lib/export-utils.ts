@@ -125,6 +125,16 @@ export async function exportFullBackup(): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Usuário não autenticado');
 
+  // Defense-in-depth: resolve owner do estabelecimento (caso usuário seja membro/staff)
+  // mesmo que a RLS regrida, o filtro explícito mantém o isolamento por tenant.
+  let ownerId = user.id;
+  try {
+    const { data: resolved } = await supabase.rpc('pdv_resolve_owner', { _user_id: user.id });
+    if (resolved) ownerId = resolved as string;
+  } catch {
+    // mantém ownerId = user.id como fallback
+  }
+
   // Fetch all user data in parallel
   const [
     transactionsRes,
@@ -134,13 +144,14 @@ export async function exportFullBackup(): Promise<void> {
     settingsRes,
     goalsRes,
   ] = await Promise.all([
-    supabase.from('transactions').select('*').eq('user_id', user.id),
-    supabase.from('bank_accounts').select('*').eq('user_id', user.id),
-    supabase.from('credit_cards').select('*').eq('user_id', user.id),
-    supabase.from('bills').select('*').eq('user_id', user.id),
-    supabase.from('user_settings').select('*').eq('user_id', user.id).single(),
-    supabase.from('monthly_goals').select('*').eq('user_id', user.id),
+    supabase.from('transactions').select('*').eq('user_id', ownerId),
+    supabase.from('bank_accounts').select('*').eq('user_id', ownerId),
+    supabase.from('credit_cards').select('*').eq('user_id', ownerId),
+    supabase.from('bills').select('*').eq('user_id', ownerId),
+    supabase.from('user_settings').select('*').eq('user_id', ownerId).single(),
+    supabase.from('monthly_goals').select('*').eq('user_id', ownerId),
   ]);
+
 
   const backup = {
     version: '1.0',

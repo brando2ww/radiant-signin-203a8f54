@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Link2, ExternalLink, CheckCircle2, AlertCircle, FileDown, RefreshCw } from "lucide-react";
+import { Link2, ExternalLink, CheckCircle2, AlertCircle, FileDown, RefreshCw, Loader2 } from "lucide-react";
 import { useIFoodIntegration } from "@/hooks/use-ifood-integration";
 import { IFoodConnectionDialog } from "./IFoodConnectionDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -178,13 +178,18 @@ export function IntegrationsTab() {
                 size="sm"
                 disabled={isUpdating}
                 onClick={() => {
-                  updatePDVSettings({
-                    nfe_auto_import_cnpj: nfeCnpj || pdvSettings?.nfe_auto_import_cnpj || "",
-                  });
+                  const cnpj = nfeCnpj || pdvSettings?.nfe_auto_import_cnpj || "";
+                  if (!cnpj.trim()) {
+                    toast.error("Informe um CNPJ válido");
+                    return;
+                  }
+                  updatePDVSettings({ nfe_auto_import_cnpj: cnpj });
                 }}
               >
+                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar CNPJ
               </Button>
+
             </div>
           )}
           <div className="text-xs text-muted-foreground">
