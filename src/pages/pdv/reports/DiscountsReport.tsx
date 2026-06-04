@@ -264,19 +264,30 @@ export default function DiscountsReport() {
       {
         name: "Descontos Diretos",
         rows: orders.map((o: any) => ({
-          data: o.created_at, pedido: o.order_number, cliente: o.customer_name,
+          data: o.created_at, pedido: o.order_number, origem: o.origin, cliente: o.customer_name,
           subtotal: Number(o.subtotal || 0), desconto: Number(o.discount || 0), total: Number(o.total || 0), cupom: o.coupon_code || "—",
           pct: Number(o.subtotal || 0) > 0 ? Number(o.discount || 0) / Number(o.subtotal || 0) : 0,
         })),
         columns: [
           { key: "data", label: "Data", width: 18, type: "datetime" },
           { key: "pedido", label: "Pedido", width: 10, type: "number" },
+          { key: "origem", label: "Origem", width: 12 },
           { key: "cliente", label: "Cliente", width: 26 },
           { key: "subtotal", label: "Subtotal", width: 14, type: "currency" },
           { key: "desconto", label: "Desconto", width: 14, type: "currency" },
           { key: "pct", label: "% desc.", width: 10, type: "percent" },
           { key: "total", label: "Total", width: 14, type: "currency" },
           { key: "cupom", label: "Cupom", width: 16 },
+        ],
+      },
+      {
+        name: "Por Origem",
+        rows: byOrigin.map((o) => ({ origem: o.origin, pedidos: o.count, desconto: o.discount, receita: o.revenue })),
+        columns: [
+          { key: "origem", label: "Origem", width: 14 },
+          { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
+          { key: "desconto", label: "Desconto", width: 16, type: "currency" },
+          { key: "receita", label: "Receita", width: 16, type: "currency" },
         ],
       },
       {
