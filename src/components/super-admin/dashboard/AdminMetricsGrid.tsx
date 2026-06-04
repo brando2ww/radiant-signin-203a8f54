@@ -1,29 +1,26 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, ToggleRight, Users, Package, TrendingUp, GitBranch } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import type { AdminDashboardData } from "@/hooks/use-admin-dashboard";
+import { useAdminSetting } from "@/hooks/use-admin-setting";
 
 interface Props {
   data?: AdminDashboardData["metrics"];
   isLoading: boolean;
 }
 
-const GOAL_KEY = "admin:goal:new-tenants";
-
 export function AdminMetricsGrid({ data, isLoading }: Props) {
   const navigate = useNavigate();
-  const [goal, setGoal] = useState<number>(() => {
-    const v = Number(localStorage.getItem(GOAL_KEY));
-    return Number.isFinite(v) && v > 0 ? v : 5;
-  });
+  const { value: goalValue, setValue: setGoalValue } = useAdminSetting<number>(
+    "new_tenants_goal",
+    5
+  );
+  const goal = Number.isFinite(goalValue) && goalValue > 0 ? goalValue : 5;
+  const setGoal = (n: number) => setGoalValue(n);
   const [editingGoal, setEditingGoal] = useState(false);
-
-  useEffect(() => {
-    localStorage.setItem(GOAL_KEY, String(goal));
-  }, [goal]);
 
   if (isLoading || !data) {
     return (

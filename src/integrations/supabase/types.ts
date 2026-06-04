@@ -5335,13 +5335,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "pdv_printer_status_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "pdv_device_config"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "pdv_printer_status_production_center_id_fkey"
             columns: ["production_center_id"]
             isOneToOne: false
