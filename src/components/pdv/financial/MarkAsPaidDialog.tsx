@@ -56,11 +56,15 @@ export function MarkAsPaidDialog({ open, onOpenChange, transaction, onSubmit }: 
     }).format(value);
   };
 
-  if (!transaction) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
+        {!transaction ? (
+          <div className="flex items-center justify-center p-8 text-muted-foreground">
+            Carregando...
+          </div>
+        ) : (
+          <>
         <DialogHeader>
           <DialogTitle>Marcar como {transaction.transaction_type === 'payable' ? 'Pago' : 'Recebido'}</DialogTitle>
         </DialogHeader>
