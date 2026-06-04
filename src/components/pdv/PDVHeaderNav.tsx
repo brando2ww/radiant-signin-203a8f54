@@ -158,13 +158,6 @@ const sectionItems: Section[] = [
       { title: "Demo. Caixa", url: "/pdv/financeiro/demonstrativo-caixa", icon: Receipt },
     ],
   },
-  {
-    title: "Integrações",
-    icon: Plug,
-    items: [
-      { title: "Gerenciar Integrações", url: "/pdv/integracoes", icon: Plug },
-    ],
-  },
 ];
 
 export function PDVHeaderNav() {
