@@ -253,7 +253,7 @@ export function PDVHeaderNav() {
                     )}
                   >
                     <OnlyIcon className="h-4 w-4" />
-                    <span className="hidden lg:inline">{only.title}</span>
+                    <span className="hidden xl:inline">{only.title}</span>
                   </NavLink>
                 </NavigationMenuLink>
               </NavigationMenuItem>
@@ -269,7 +269,7 @@ export function PDVHeaderNav() {
                 )}
               >
                 <SectionIcon className="h-4 w-4" />
-                <span className="hidden lg:inline">{section.title}</span>
+                <span className="hidden xl:inline">{section.title}</span>
               </NavigationMenuTrigger>
               <NavigationMenuContent
                 className={cn(
