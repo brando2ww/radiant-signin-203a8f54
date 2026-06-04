@@ -9,13 +9,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/pdv/shared/ErrorState";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
+import { BarChart3 } from "lucide-react";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function CashFlow() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const { data, isLoading } = usePDVCashFlow(selectedMonth);
+  const { data, isLoading, isError, refetch } = usePDVCashFlow(selectedMonth);
 
   return (
     <div className="p-6 space-y-6">
