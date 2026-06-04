@@ -95,16 +95,18 @@ export default function PDV() {
       <DeliveryCatalogRealtime />
       <div className="flex flex-col min-h-screen w-full">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex h-14 items-center px-4 gap-4">
+          <div className="flex h-14 items-center px-3 gap-2">
             <Logo size="lg" className="shrink-0" />
-            <PDVHeaderNav />
-            <div className="flex-1" />
-            <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <PDVHeaderNav />
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
               <CashierStatus />
               <PDVNotifications />
               <PDVUserMenu />
             </div>
           </div>
+
         </header>
 
         <main className={isFixedHeight ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
