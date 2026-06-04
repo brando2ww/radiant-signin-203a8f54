@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PieChart as PieChartIcon, TrendingDown, TrendingUp, RefreshCw, CalendarIcon } from "lucide-react";
+import { PieChart as PieChartIcon, TrendingDown, TrendingUp, RefreshCw, CalendarIcon, BarChart3 } from "lucide-react";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { usePDVCmv } from "@/hooks/use-pdv-cmv";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -71,7 +72,7 @@ export default function GeneralCMV() {
             <CardDescription>Últimos 6 meses</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-[300px] w-full" /> : (
+            {isLoading ? <Skeleton className="h-[300px] w-full" /> : (data?.evolution?.length || 0) > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={data?.evolution || []}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -83,6 +84,13 @@ export default function GeneralCMV() {
                   <Bar dataKey="cmv" fill="hsl(var(--warning))" name="CMV" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            ) : (
+              <EmptyState
+                icon={BarChart3}
+                title="Sem histórico de CMV"
+                description="Ainda não há dados suficientes para gerar a evolução nos últimos meses."
+                className="h-[300px] py-0"
+              />
             )}
           </CardContent>
         </Card>
