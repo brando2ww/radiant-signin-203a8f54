@@ -10,6 +10,7 @@ import { OrdersTab } from "@/components/pdv/settings/OrdersTab";
 import { NotificationsTab } from "@/components/pdv/settings/NotificationsTab";
 import { IntegrationsTab } from "@/components/pdv/settings/IntegrationsTab";
 import { PermissionsTab } from "@/components/pdv/settings/PermissionsTab";
+import { FiscalTab } from "@/components/pdv/settings/FiscalTab";
 
 export default function PDVSettings() {
   const { settings, isLoading, updateSettings, isUpdating } = usePDVSettings();
@@ -48,12 +49,13 @@ export default function PDVSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-8">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="visual">Visual</TabsTrigger>
           <TabsTrigger value="financial">Financeiro</TabsTrigger>
           <TabsTrigger value="orders">Pedidos</TabsTrigger>
           <TabsTrigger value="notifications">Notificações</TabsTrigger>
+          <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="permissions">Permissões</TabsTrigger>
         </TabsList>
@@ -94,9 +96,14 @@ export default function PDVSettings() {
           />
         </TabsContent>
 
+        <TabsContent value="fiscal">
+          <FiscalTab />
+        </TabsContent>
+
         <TabsContent value="integrations">
           <IntegrationsTab />
         </TabsContent>
+
 
         <TabsContent value="permissions">
           <PermissionsTab />

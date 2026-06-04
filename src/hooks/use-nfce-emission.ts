@@ -48,7 +48,7 @@ export interface EmitNFCeResult {
 export function useNFCeEmission() {
   const mutation = useMutation({
     mutationFn: async (params: EmitNFCeParams): Promise<EmitNFCeResult> => {
-      const { data, error } = await supabase.functions.invoke("emit-nfce", {
+      const { data, error } = await supabase.functions.invoke("focusnfe-emitir-nfce", {
         body: params,
       });
       if (error) {
