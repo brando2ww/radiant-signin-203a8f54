@@ -82,21 +82,15 @@ export function ProductionCentersTab() {
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok && body.ok) {
-        const status = { ok: true, at: Date.now() };
-        writeStatus(center.id, status);
-        setStatuses((s) => ({ ...s, [center.id]: status }));
+        await recordStatus({ productionCenterId: center.id, ok: true });
         toast.success(`Impressora ${center.printer_ip} respondeu`);
       } else {
         const error = body.error || `HTTP ${res.status}`;
-        const status = { ok: false, at: Date.now(), error };
-        writeStatus(center.id, status);
-        setStatuses((s) => ({ ...s, [center.id]: status }));
+        await recordStatus({ productionCenterId: center.id, ok: false, error });
         toast.error(`Falha ao imprimir: ${error}`);
       }
     } catch (e: any) {
-      const status = { ok: false, at: Date.now(), error: "Bridge offline" };
-      writeStatus(center.id, status);
-      setStatuses((s) => ({ ...s, [center.id]: status }));
+      await recordStatus({ productionCenterId: center.id, ok: false, error: "Bridge offline" });
       toast.error("Print Bridge offline — inicie o serviço no PC do caixa");
     } finally {
       setTestingId(null);
