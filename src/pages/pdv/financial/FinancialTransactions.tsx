@@ -18,8 +18,6 @@ import type { PDVFinancialTransaction } from "@/hooks/use-pdv-financial-transact
 export default function FinancialTransactions() {
   const [filters, setFilters] = useState<TransactionFilters>({});
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [filters, setFilters] = useState<TransactionFilters>({});
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [markAsPaidOpen, setMarkAsPaidOpen] = useState(false);
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PDVFinancialTransaction | undefined>();
