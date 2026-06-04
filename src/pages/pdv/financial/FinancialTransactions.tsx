@@ -18,10 +18,29 @@ import type { PDVFinancialTransaction } from "@/hooks/use-pdv-financial-transact
 export default function FinancialTransactions() {
   const [filters, setFilters] = useState<TransactionFilters>({});
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [filters, setFilters] = useState<TransactionFilters>({});
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [markAsPaidOpen, setMarkAsPaidOpen] = useState(false);
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<PDVFinancialTransaction | undefined>();
   const [activeTab, setActiveTab] = useState('all');
+
+  // Aplica o filtro da aba diretamente na query (server-side) para que
+  // a contagem e a paginação fiquem consistentes.
+  const effectiveFilters = useMemo<TransactionFilters>(() => {
+    switch (activeTab) {
+      case 'payable':
+        return { ...filters, transaction_type: 'payable', status: ['pending'] };
+      case 'receivable':
+        return { ...filters, transaction_type: 'receivable', status: ['pending'] };
+      case 'overdue':
+        return { ...filters, overdue_only: true };
+      case 'paid':
+        return { ...filters, status: ['paid'] };
+      default:
+        return filters;
+    }
+  }, [filters, activeTab]);
 
   const {
     transactions,
@@ -31,7 +50,7 @@ export default function FinancialTransactions() {
     updateTransaction,
     deleteTransaction,
     markAsPaid,
-  } = usePDVFinancialTransactions(filters);
+  } = usePDVFinancialTransactions(effectiveFilters);
 
   const handleEdit = (transaction: PDVFinancialTransaction) => {
     setSelectedTransaction(transaction);
@@ -44,34 +63,39 @@ export default function FinancialTransactions() {
   };
 
   const handleSubmit = async (data: any) => {
-    if (selectedTransaction) {
-      await updateTransaction(data);
-    } else {
-      await createTransaction(data);
+    try {
+      if (selectedTransaction) {
+        await updateTransaction(data);
+      } else {
+        await createTransaction(data);
+      }
+    } catch (err: any) {
+      // O dialog detecta a exceção e mantém aberto; o hook já mostra toast.
+      throw err;
     }
   };
 
   const handleMarkAsPaidSubmit = async (data: any) => {
-    await markAsPaid(data);
+    try {
+      await markAsPaid(data);
+    } catch (err: any) {
+      toast.error(err?.message || 'Falha ao registrar pagamento');
+      throw err;
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await deleteTransaction(id);
+    try {
+      await deleteTransaction(id);
+    } catch (err: any) {
+      toast.error(err?.message || 'Falha ao excluir lançamento');
+    }
   };
 
   const handleNewTransaction = () => {
     setSelectedTransaction(undefined);
     setDialogOpen(true);
   };
-
-  // Filter transactions based on active tab
-  const filteredTransactions = transactions.filter((t) => {
-    if (activeTab === 'payable') return t.transaction_type === 'payable' && t.status === 'pending';
-    if (activeTab === 'receivable') return t.transaction_type === 'receivable' && t.status === 'pending';
-    if (activeTab === 'overdue') return t.status === 'overdue' || (t.status === 'pending' && new Date(t.due_date) < new Date());
-    if (activeTab === 'paid') return t.status === 'paid';
-    return true;
-  });
 
   return (
     <div className="p-6 space-y-6">
