@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend, ComposedChart } from "recharts";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
+import { BarChart3 } from "lucide-react";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
 
