@@ -115,7 +115,7 @@ export default function FinancialTransactions() {
         </div>
       </div>
 
-      <FinancialStatsCards stats={stats} />
+      <FinancialStatsCards stats={stats} isLoading={isLoading} />
 
       <PaymentFeesReport />
 
