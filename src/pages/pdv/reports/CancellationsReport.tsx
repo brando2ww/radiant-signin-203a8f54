@@ -273,7 +273,9 @@ export default function CancellationsReport() {
         <Card>
           <CardHeader><CardTitle>Evolução diária</CardTitle></CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-[260px] w-full" /> : (
+            {isLoading ? <Skeleton className="h-[260px] w-full" /> : orders.length === 0 ? (
+              <EmptyState icon={Ban} title="Sem cancelamentos no período" className="h-[260px] py-0" />
+            ) : (
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={byDay}>
