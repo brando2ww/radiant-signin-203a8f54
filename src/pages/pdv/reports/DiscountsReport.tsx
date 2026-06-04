@@ -482,6 +482,7 @@ export default function DiscountsReport() {
               <TableHeader><TableRow>
                 <TableHead>Data</TableHead>
                 <TableHead>Pedido</TableHead>
+                <TableHead>Origem</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead className="text-right">Subtotal</TableHead>
                 <TableHead className="text-right">Desconto</TableHead>
@@ -490,13 +491,14 @@ export default function DiscountsReport() {
                 <TableHead>Cupom</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {orders.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum desconto no período</TableCell></TableRow> :
+                {orders.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhum desconto no período</TableCell></TableRow> :
                   orders.slice(0, visibleCount).map((o: any) => {
                     const pct = Number(o.subtotal || 0) > 0 ? (Number(o.discount || 0) / Number(o.subtotal || 0)) * 100 : 0;
                     return (
                       <TableRow key={o.id}>
                         <TableCell className="text-muted-foreground">{o.created_at ? format(new Date(o.created_at), "dd/MM/yy HH:mm", { locale: ptBR }) : "—"}</TableCell>
                         <TableCell>#{o.order_number ?? "—"}</TableCell>
+                        <TableCell>{o.origin}</TableCell>
                         <TableCell>{o.customer_name || "—"}</TableCell>
                         <TableCell className="text-right">{formatBRL(o.subtotal)}</TableCell>
                         <TableCell className="text-right">{formatBRL(o.discount)}</TableCell>
