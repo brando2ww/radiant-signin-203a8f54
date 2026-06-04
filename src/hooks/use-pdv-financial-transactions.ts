@@ -49,6 +49,8 @@ export interface TransactionFilters {
   supplier_id?: string;
   customer_id?: string;
   payment_method?: string;
+  /** Inclui status='overdue' OU (status='pending' AND due_date < hoje). */
+  overdue_only?: boolean;
 }
 
 export function usePDVFinancialTransactions(filters?: TransactionFilters) {
