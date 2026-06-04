@@ -148,6 +148,8 @@ export function MarkAsPaidDialog({ open, onOpenChange, transaction, onSubmit }: 
             </Button>
           </div>
         </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -115,7 +115,7 @@ export default function AccountsPayable() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir conta?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget ? `"${deleteTarget.description}" será removida permanentemente.` : ""}
+              {deleteTarget ? `"${deleteTarget.title}" será removida permanentemente.` : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
