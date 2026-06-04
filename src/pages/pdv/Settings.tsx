@@ -96,9 +96,14 @@ export default function PDVSettings() {
           />
         </TabsContent>
 
+        <TabsContent value="fiscal">
+          <FiscalTab />
+        </TabsContent>
+
         <TabsContent value="integrations">
           <IntegrationsTab />
         </TabsContent>
+
 
         <TabsContent value="permissions">
           <PermissionsTab />
