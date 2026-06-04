@@ -1,95 +1,77 @@
-## 1. Remover integrações falsas de adquirentes (PagSeguro, Stone, Getnet, Rede)
+# Migração de localStorage para o banco
 
-Os cards em `src/components/pdv/integrations/{PagSeguro,Stone,Getnet,Rede}IntegrationCard.tsx` usam `setTimeout(() => setIsConnected(true), 1500)` e descartam o token digitado — o lojista pensa que conectou um adquirente mas nada é persistido.
+## Item 1 — `src/lib/active-order-storage.ts` (NÃO migrar)
 
-Ação:
-- Reescrever os 4 cards como estado honesto "Em breve — integração em desenvolvimento":
-  - Remover `setTimeout`, `useState` de token/PV/connected e os botões "Conectar / Desconectar".
-  - Manter cabeçalho (logo/nome/descrição) e adicionar badge `secondary` "Em breve" + parágrafo curto explicando que ainda não está disponível e que cobranças devem ser registradas manualmente no PDV.
-  - Remover todos os inputs de token/credencial (nada para salvar).
-- Em `src/pages/pdv/IntegrationsHub.tsx`: manter os cards visíveis (sinaliza roadmap), atualizar qualquer subtítulo/contagem de "integrações ativas" para não contar esses 4.
+Apesar do nome, este storage **não** guarda o pedido ativo do PDV. Ele é usado apenas em:
 
-## 2. Remover completamente Nuvem Fiscal — FocusNFE é o único provedor fiscal
+- `src/components/public-menu/CheckoutFlow.tsx` — após o cliente final finalizar o pedido no cardápio público
+- `src/components/public-menu/checkout/OrderTrackingView.tsx` — tela "Acompanhar pedido" do cliente
+- `src/hooks/use-active-order.ts` — hook que lê este id
 
-### Edge functions a deletar (`supabase--delete_edge_functions`)
-- `emit-nfce`
-- `cancel-nfce`
-- `check-nfce-status`
-- `resend-nfce`
-- `fetch-nfe-automatica` (usa `auth.nuvemfiscal.com.br` / `api.nuvemfiscal.com.br`)
+O fluxo PDV (garçom/caixa) já é 100% no banco: itens em `pdv_comanda_items`, comandas em `pdv_comandas`, mesas em `pdv_tables`, com sincronização via Supabase Realtime (`catalog-realtime-sync`). Não há divergência entre tablet do garçom e o caixa — o "active order" deste arquivo é apenas para o navegador do cliente final lembrar qual pedido está acompanhando.
 
-Também apagar as pastas correspondentes em `supabase/functions/`.
+**Recomendação:** não mexer. Renomear opcionalmente para `customer-tracking-storage.ts` para evitar confusão futura. Migrar para o banco seria pior: exigiria que o cliente final tivesse conta/sessão.
 
-### Código frontend a remover/migrar
-- `src/hooks/use-fiscal-coupon-actions.ts` — substituir as chamadas para `cancel-nfce` / `check-nfce-status` / `resend-nfce` pelas equivalentes FocusNFE (`focusnfe-cancelar-nota`, `focusnfe-consultar-nota`, e — para reenvio — disparar novamente `focusnfe-emitir-nfce` a partir do payload original). Ajustar tipos do payload conforme as functions Focus.
-- `src/hooks/use-pdv-invoices.ts` (linha 222) — remover a invocação de `fetch-nfe-automatica` e a feature de importação automática de NF-e via Nuvem Fiscal. UI que dependia disso (botão de "Buscar automaticamente") deve sumir; manter apenas import manual de XML/PDF.
-- `src/hooks/use-fiscal-coupons.ts` — remover o campo `nuvem_fiscal_id` do tipo TypeScript local (a coluna no banco fica como legado, só não usamos mais).
-- `src/hooks/use-nfce-emission.ts` — já usa `focusnfe-emitir-nfce`, manter sem mudanças.
-- Buscar `rg -n "nuvemfiscal|nuvem_fiscal"` e limpar qualquer string/comentário restante em código de aplicação (não tocar em `src/integrations/supabase/types.ts`, que é gerado).
+Se você ainda assim quiser persistir no banco (vinculado ao telefone do cliente, por exemplo), me confirme e eu incluo no plano.
 
-### Configuração fiscal por tenant
-Hoje `tenant_fiscal_config` é referenciada por hooks via `as any` mas **não existe** no banco. Vamos criá-la, sem campo de seleção de provedor.
+## Item 2 — Meta do super-admin (`AdminMetricsGrid.tsx`)
 
-Migração (`supabase--migration`):
-- `CREATE TABLE public.tenant_fiscal_config` com os campos hoje usados por `useFiscalConfig` (`razao_social`, `nome_fantasia`, `cnpj`, `inscricao_estadual`, `inscricao_municipal`, `regime_tributario`, `telefone`, `email`, `logradouro`, `numero`, `complemento`, `bairro`, `municipio`, `uf`, `cep`, `codigo_municipio_ibge`, `certificado_pfx_path`, `certificado_valido_ate`, `id_token_nfce_producao`, `id_token_nfce_homologacao`, `habilita_nfce`, `habilita_nfe`, `habilita_nfse`, `serie_nfce`, `serie_nfe`, `serie_nfse`, `focusnfe_empresa_id`, `focusnfe_ambiente`, `cadastrada_em`, `last_test_at`, `last_test_status`, `last_test_message`) + `id`, `user_id unique`, `created_at`, `updated_at`.
-- GRANTs para `authenticated`/`service_role` (sem `anon`).
-- RLS: leitura para dono + `is_establishment_member(user_id)`; escrita só dono; total `service_role`.
-- Trigger `update_updated_at_column`.
+Migrar a chave `admin:goal:new-tenants` para o banco.
 
-UI (`src/components/pdv/settings/FiscalTab.tsx` + `src/pages/pdv/Fiscal.tsx`):
-- Não introduzir RadioGroup de provedor; remover qualquer cópia/aviso que mencione "Nuvem Fiscal".
-- Cabeçalho mostra apenas badge "Provedor: FocusNFE" como rótulo informativo.
-- Manter os campos atuais do FocusNFE (CSC, ambiente, tokens, certificado .pfx).
+**Nova tabela `public.admin_settings`:**
 
-## 3. iFood — mover Client ID/Secret para a edge function
+| coluna | tipo | descrição |
+|---|---|---|
+| `id` | uuid PK | |
+| `key` | text UNIQUE | ex.: `new_tenants_goal` |
+| `value` | jsonb | valor flexível |
+| `updated_by` | uuid | super admin que alterou |
 
-Hoje `IFoodConnectionDialog.tsx` coleta `clientId` + `clientSecret` no frontend e `use-ifood-integration.ts` envia ambos no body de `ifood-oauth`.
+- RLS: SELECT/INSERT/UPDATE/DELETE apenas para `is_super_admin()`.
+- GRANTs para `authenticated` e `service_role`.
 
-Ação:
-- Solicitar via `secrets--add_secret`: `IFOOD_CLIENT_ID`, `IFOOD_CLIENT_SECRET`.
-- Atualizar `supabase/functions/ifood-oauth/index.ts` para ler `Deno.env.get(...)` e ignorar credenciais do body. Se as envs faltarem → `503 { error: "Integração iFood não configurada pelo administrador" }`.
-- `IFoodConnectionDialog.tsx`: remover inputs de Client ID/Secret, manter só "Código de autorização" + instruções. `use-ifood-integration.ts` muda a assinatura para `{ code }`.
+**Frontend:**
 
-## 4. WhatsApp/Evolution — falhar com mensagem clara
+- Novo hook `useAdminSetting(key)` com React Query — retorna `{ value, setValue }`.
+- `AdminMetricsGrid.tsx`: trocar `useState`+`localStorage` por `useAdminSetting('new_tenants_goal')`. Default 5 quando vazio.
 
-Edge functions afetadas: `send-quotation-whatsapp`, `whatsapp-qrcode`, `whatsapp-transactions`, `register-whatsapp-webhook`, `send-whatsapp-code`, `send-2fa-code`, `send-tasks-report`.
+## Item 3 — Status de impressoras (`ProductionCentersTab.tsx`)
 
-Ação (functions):
-```ts
-const url = Deno.env.get("EVOLUTION_API_URL");
-const key = Deno.env.get("EVOLUTION_API_KEY");
-if (!url || !key) {
-  console.error("Evolution não configurado");
-  return json({ error: "WhatsApp não configurado", code: "evolution_not_configured" }, 503);
-}
-```
-Inserir no início de cada handler, antes de qualquer chamada externa.
+Hoje cada navegador testa a impressora local (bridge `http://localhost:7777`) e guarda o resultado em `printer-status-<id>`. Faz sentido ser **por dispositivo**, não global no banco — uma impressora USB conectada ao tablet do garçom não existe no notebook do gerente.
 
-Ação (UI):
-- Nova function leve `whatsapp-check-config` retornando `{ configured: boolean }` a partir da presença das envs.
-- Em `src/pages/pdv/IntegrationsHub.tsx`, antes de renderizar o card WhatsApp, consultar esse status. Se `configured === false`, mostrar `<Alert>` "WhatsApp não configurado pelo administrador — solicitar ativação no suporte" e desabilitar botões de conectar/gerar QR.
-- Em fluxos que disparam mensagens (cotações, código 2FA, relatório de tarefas) tratar o erro `evolution_not_configured` com `toast.error("WhatsApp não está configurado no servidor")`.
+**Proposta:** persistir por dispositivo no banco usando `pdv_device_config` (já existe e identifica o dispositivo via token de ativação).
 
-## Detalhes técnicos
+**Migração:**
 
-- Cards "Em breve" seguem `bg-card`, `text-muted-foreground`, badge `secondary` — sem cores custom (memória de Color Scheme).
-- Coluna legada `nuvem_fiscal_id` em `pdv_nfce_emissions` permanece no banco (não-destrutivo); só paramos de ler/gravar.
-- Não tocar em fluxos financeiros, comandas ou pagamentos além do necessário para remover dependências.
-- Não editar `src/integrations/supabase/types.ts` manualmente — será regenerado após a migração.
+- Nova tabela `public.pdv_printer_status` com `device_id` (FK `pdv_device_config`), `production_center_id` (FK `pdv_production_centers`), `is_online` bool, `last_tested_at` timestamptz, `last_error` text, UNIQUE(`device_id`, `production_center_id`).
+- RLS: dono do device (via `pdv_device_config.user_id = auth.uid()` ou `is_establishment_member`).
+- GRANTs para `authenticated` e `service_role`.
 
-## Arquivos afetados
+**Frontend:**
 
-Frontend:
-- `src/components/pdv/integrations/{PagSeguro,Stone,Getnet,Rede}IntegrationCard.tsx`
-- `src/pages/pdv/IntegrationsHub.tsx`
-- `src/components/pdv/settings/FiscalTab.tsx`, `src/pages/pdv/Fiscal.tsx`, `src/hooks/use-fiscal-config.ts`
-- `src/hooks/use-fiscal-coupon-actions.ts`, `src/hooks/use-fiscal-coupons.ts`, `src/hooks/use-pdv-invoices.ts`
-- `src/components/pdv/settings/IFoodConnectionDialog.tsx`, `src/hooks/use-ifood-integration.ts`
+- Novo hook `usePrinterStatus(deviceId)` lendo/escrevendo na tabela.
+- `ProductionCentersTab.tsx`: substituir `readStatus`/`writeStatus` pelo hook. Manter a chamada real ao bridge local; só o resultado vai para o banco.
+- Como o `device_id` é obrigatório: se o navegador não estiver "ativado" como device, cair no comportamento atual (estado local apenas) com aviso "Ative este dispositivo para compartilhar status".
 
-Backend:
-- Deletar: `supabase/functions/{emit-nfce,cancel-nfce,check-nfce-status,resend-nfce,fetch-nfe-automatica}/`
-- Editar: `supabase/functions/ifood-oauth/index.ts`
-- Editar (guard de envs): `send-quotation-whatsapp`, `whatsapp-qrcode`, `whatsapp-transactions`, `register-whatsapp-webhook`, `send-whatsapp-code`, `send-2fa-code`, `send-tasks-report`
-- Nova: `supabase/functions/whatsapp-check-config/`
-- Migração: criar `tenant_fiscal_config` com GRANTs/RLS/trigger
-- Secrets a adicionar: `IFOOD_CLIENT_ID`, `IFOOD_CLIENT_SECRET`
+## Item 4 — Status das adquirentes (PagSeguro/Stone/Getnet/Rede)
+
+Os 4 cards já foram trocados para "Em breve" sem estado de conexão. Quando uma integração real for implementada no futuro, o status deve ser gravado em uma tabela `tenant_integrations` (provider, status, credenciais cifradas, `connected_at`). Não criar a tabela agora — fica como diretriz para quando alguma adquirente for de fato integrada.
+
+## Resumo do que será alterado
+
+**Migrations (1):**
+- Criar `admin_settings` + `pdv_printer_status` com GRANTs, RLS e trigger `updated_at`.
+
+**Arquivos novos:**
+- `src/hooks/use-admin-setting.ts`
+- `src/hooks/use-printer-status.ts`
+
+**Arquivos editados:**
+- `src/components/super-admin/dashboard/AdminMetricsGrid.tsx`
+- `src/components/pdv/settings/ProductionCentersTab.tsx`
+
+**Não alterados:**
+- `src/lib/active-order-storage.ts` (uso correto para cliente final)
+- `IntegrationsHub.tsx` (sem integrações reais ainda)
+
+Confirma este escopo? Em especial: (a) manter `active-order-storage` como está, e (b) status de impressora por dispositivo (não global por tenant).
