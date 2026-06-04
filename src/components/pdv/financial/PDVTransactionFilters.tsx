@@ -43,7 +43,7 @@ export function PDVTransactionFilters({ filters, onFiltersChange }: PDVTransacti
 
         <Select
           value={filters.transaction_type || 'all'}
-          onValueChange={(value) => onFiltersChange({ ...filters, transaction_type: value as any })}
+          onValueChange={(value) => onFiltersChange({ ...filters, transaction_type: value === 'all' ? undefined : (value as any) })}
         >
           <SelectTrigger>
             <SelectValue placeholder="Tipo" />
