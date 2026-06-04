@@ -49,12 +49,13 @@ export default function PDVSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-8">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="visual">Visual</TabsTrigger>
           <TabsTrigger value="financial">Financeiro</TabsTrigger>
           <TabsTrigger value="orders">Pedidos</TabsTrigger>
           <TabsTrigger value="notifications">Notificações</TabsTrigger>
+          <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
           <TabsTrigger value="integrations">Integrações</TabsTrigger>
           <TabsTrigger value="permissions">Permissões</TabsTrigger>
         </TabsList>
