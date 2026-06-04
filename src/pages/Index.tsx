@@ -110,7 +110,7 @@ const Index = () => {
   }
 
   return (
-    <AuthLayout testimonials={sampleTestimonials}>
+    <AuthLayout testimonials={[]}>
       <div key={currentForm} className="animate-fade-in">
         {currentForm === 'login' && (
           <LoginForm
