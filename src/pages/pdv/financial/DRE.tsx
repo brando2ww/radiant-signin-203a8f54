@@ -124,7 +124,13 @@ export default function DRE() {
               <DRELine label="= LUCRO OPERACIONAL" value={data.operatingProfit} bold bg="bg-muted/50" />
               <DRELine label="= LUCRO LÍQUIDO" value={data.netProfit} bold bg="bg-primary/10" color="text-primary" />
             </div>
-          ) : null}
+          ) : (
+            <EmptyState
+              icon={FileBarChart2}
+              title="Nenhum dado disponível"
+              description="Não há movimento financeiro para o período selecionado."
+            />
+          )}
         </CardContent>
       </Card>
 
