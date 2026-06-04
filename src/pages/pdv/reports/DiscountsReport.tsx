@@ -31,13 +31,22 @@ export default function DiscountsReport() {
       const startISO = start.toISOString();
       const endISO = end.toISOString();
 
-      const [discOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
+      const [discOrdersRes, pdvOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
         supabase
           .from("delivery_orders")
           .select("id, order_number, customer_id, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
           .eq("user_id", visibleUserId!)
           .gt("discount", 0)
           .not("status", "in", "(cancelled,cancelado)")
+          .gte("created_at", startISO)
+          .lte("created_at", endISO)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("pdv_orders")
+          .select("id, order_number, customer_name, subtotal, discount, total, source, table_id, closed_at, created_at, status")
+          .eq("user_id", visibleUserId!)
+          .gt("discount", 0)
+          .not("status", "in", "(cancelled,cancelado,aberta,open,cancelada)")
           .gte("created_at", startISO)
           .lte("created_at", endISO)
           .order("created_at", { ascending: false }),
@@ -57,7 +66,9 @@ export default function DiscountsReport() {
       ]);
 
       if (discOrdersRes.error) throw discOrdersRes.error;
+      if (pdvOrdersRes.error) throw pdvOrdersRes.error;
       const rawOrders = discOrdersRes.data || [];
+      const rawPdvOrders = pdvOrdersRes.data || [];
       const couponsRedeemed = couponsRedeemedRes.data || [];
       const couponsGenerated = couponsGeneratedRes.data || [];
 
