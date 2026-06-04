@@ -33,7 +33,7 @@ import {
   UtensilsCrossed,
   Tag,
   Palette,
-  MapPin,
+  
   Store,
   Megaphone,
   Plug,
