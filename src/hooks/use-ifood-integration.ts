@@ -43,20 +43,19 @@ export function useIFoodIntegration() {
   });
 
   const connectIFood = useMutation({
-    mutationFn: async ({ clientId, clientSecret, code }: { clientId: string; clientSecret: string; code: string }) => {
+    mutationFn: async ({ code }: { code: string }) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
       const { data, error } = await supabase.functions.invoke("ifood-oauth", {
         body: {
           action: "exchange_code",
-          clientId,
-          clientSecret,
           code,
         },
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {

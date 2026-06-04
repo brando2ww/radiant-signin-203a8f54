@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, FileText, Download, RefreshCw } from "lucide-react";
+import { Upload, FileText, Download } from "lucide-react";
 import { InvoiceUploadDialog } from "@/components/pdv/invoices/InvoiceUploadDialog";
 import { InvoiceReviewWizard } from "@/components/pdv/invoices/InvoiceReviewWizard";
 import { InvoiceCard } from "@/components/pdv/invoices/InvoiceCard";
 import { InvoiceFilters } from "@/components/pdv/invoices/InvoiceFilters";
-import { usePDVInvoices, useDeleteInvoice, useFetchNFeAutomatica, PDVInvoice } from "@/hooks/use-pdv-invoices";
+import { usePDVInvoices, useDeleteInvoice, PDVInvoice } from "@/hooks/use-pdv-invoices";
 import { ParsedInvoice } from "@/lib/invoice/xml-parser";
 import { EditableInvoiceData } from "@/types/invoice";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,7 +73,6 @@ export default function Invoices() {
     status: statusFilter === 'all' ? undefined : statusFilter,
   });
   const deleteInvoice = useDeleteInvoice();
-  const fetchNFe = useFetchNFeAutomatica();
 
   const handleParsed = (invoice: ParsedInvoice) => {
     setParsedInvoice(invoice);
@@ -126,14 +125,6 @@ export default function Invoices() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => fetchNFe.mutate()}
-            disabled={fetchNFe.isPending}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${fetchNFe.isPending ? 'animate-spin' : ''}`} />
-            Buscar NF-e SEFAZ
-          </Button>
           <Button onClick={() => setUploadOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
             Importar NF-e
@@ -218,10 +209,6 @@ export default function Invoices() {
             </p>
             {!searchTerm && statusFilter === 'all' && (
               <div className="flex gap-2 justify-center">
-                <Button variant="outline" onClick={() => fetchNFe.mutate()} disabled={fetchNFe.isPending}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${fetchNFe.isPending ? 'animate-spin' : ''}`} />
-                  Buscar NF-e SEFAZ
-                </Button>
                 <Button onClick={() => setUploadOpen(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Importar NF-e

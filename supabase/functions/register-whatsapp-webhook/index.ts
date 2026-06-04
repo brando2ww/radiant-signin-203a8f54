@@ -38,6 +38,14 @@ Deno.serve(async (req) => {
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')
 
+
+    if (!evolutionApiUrl || !evolutionApiKey) {
+      console.error("Evolution não configurado");
+      return new Response(
+        JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     if (!evolutionApiUrl || !evolutionApiKey) {
       return new Response(
         JSON.stringify({ error: 'Configuração da Evolution API não encontrada' }),

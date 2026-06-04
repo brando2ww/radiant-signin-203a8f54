@@ -1,9 +1,12 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ResponsivePageHeader } from "@/components/ui/responsive-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Bike, TabletSmartphone } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle, ArrowRight, Bike, TabletSmartphone } from "lucide-react";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
+import { supabase } from "@/integrations/supabase/client";
 
 import pagseguroLogo from "@/assets/integrations/pagseguro.png";
 import stoneLogo from "@/assets/integrations/stone.png";
@@ -33,6 +36,7 @@ const integrations: IntegrationItem[] = [
     logo: pagseguroLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "stone",
@@ -41,6 +45,7 @@ const integrations: IntegrationItem[] = [
     logo: stoneLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "getnet",
@@ -49,6 +54,7 @@ const integrations: IntegrationItem[] = [
     logo: getnetLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "rede",
@@ -57,6 +63,7 @@ const integrations: IntegrationItem[] = [
     logo: redeLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "nf-automatica",
@@ -112,12 +119,34 @@ const integrations: IntegrationItem[] = [
 export default function IntegrationsHub() {
   const navigate = useNavigate();
 
+  const { data: whatsappConfig } = useQuery({
+    queryKey: ["whatsapp-check-config"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-check-config");
+      if (error) return { configured: true }; // fail-open: não bloqueia se a verificação falhar
+      return data as { configured: boolean };
+    },
+    staleTime: 60_000,
+  });
+  const whatsappNotConfigured = whatsappConfig?.configured === false;
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <ResponsivePageHeader
         title="Integrações"
         description="Conecte seu PDV com plataformas de delivery, maquininhas e ferramentas fiscais"
       />
+
+      {whatsappNotConfigured && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>WhatsApp não configurado</AlertTitle>
+          <AlertDescription>
+            A integração com WhatsApp não foi configurada pelo administrador.
+            Conexões e envios de mensagens estarão indisponíveis até que a Evolution API seja ativada.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {integrations.map((item) => (
