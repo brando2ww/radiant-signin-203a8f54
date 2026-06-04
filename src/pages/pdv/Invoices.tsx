@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, FileText, Download, RefreshCw } from "lucide-react";
+import { Upload, FileText, Download } from "lucide-react";
 import { InvoiceUploadDialog } from "@/components/pdv/invoices/InvoiceUploadDialog";
 import { InvoiceReviewWizard } from "@/components/pdv/invoices/InvoiceReviewWizard";
 import { InvoiceCard } from "@/components/pdv/invoices/InvoiceCard";

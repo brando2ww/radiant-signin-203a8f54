@@ -119,12 +119,34 @@ const integrations: IntegrationItem[] = [
 export default function IntegrationsHub() {
   const navigate = useNavigate();
 
+  const { data: whatsappConfig } = useQuery({
+    queryKey: ["whatsapp-check-config"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-check-config");
+      if (error) return { configured: true }; // fail-open: não bloqueia se a verificação falhar
+      return data as { configured: boolean };
+    },
+    staleTime: 60_000,
+  });
+  const whatsappNotConfigured = whatsappConfig?.configured === false;
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <ResponsivePageHeader
         title="Integrações"
         description="Conecte seu PDV com plataformas de delivery, maquininhas e ferramentas fiscais"
       />
+
+      {whatsappNotConfigured && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>WhatsApp não configurado</AlertTitle>
+          <AlertDescription>
+            A integração com WhatsApp não foi configurada pelo administrador.
+            Conexões e envios de mensagens estarão indisponíveis até que a Evolution API seja ativada.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {integrations.map((item) => (
