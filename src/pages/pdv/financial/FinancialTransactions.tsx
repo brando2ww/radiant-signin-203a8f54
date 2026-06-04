@@ -162,7 +162,7 @@ export default function FinancialTransactions() {
                 </div>
               ) : (
                 <PDVTransactionList
-                  transactions={filteredTransactions}
+                  transactions={transactions}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onMarkAsPaid={handleMarkAsPaid}
