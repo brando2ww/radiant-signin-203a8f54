@@ -58,6 +58,7 @@ import Customers from "./pdv/Customers";
 import CustomerDetail from "./pdv/CustomerDetail";
 import ProductionCenters from "./pdv/ProductionCenters";
 import EmployeeConsumptionAdmin from "./pdv/EmployeeConsumptionAdmin";
+import Fiscal from "./pdv/Fiscal";
 
 function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; children: React.ReactNode; canAccess: (p: string) => boolean; defaultRoute: string }) {
   if (!canAccess(path)) {
@@ -152,6 +153,7 @@ export default function PDV() {
               <Route path="fornecedores" element={<RoleRoute path="/pdv/fornecedores" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSuppliers /></RoleRoute>} />
               <Route path="notas-fiscais" element={<RoleRoute path="/pdv/notas-fiscais" canAccess={canAccess} defaultRoute={defaultRoute}><Invoices /></RoleRoute>} />
               <Route path="cupons-fiscais" element={<RoleRoute path="/pdv/cupons-fiscais" canAccess={canAccess} defaultRoute={defaultRoute}><FiscalCoupons /></RoleRoute>} />
+              <Route path="fiscal" element={<RoleRoute path="/pdv/fiscal" canAccess={canAccess} defaultRoute={defaultRoute}><Fiscal /></RoleRoute>} />
               <Route path="relatorios" element={<RoleRoute path="/pdv/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><PDVReports /></RoleRoute>} />
               <Route path="configuracoes" element={<RoleRoute path="/pdv/configuracoes" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSettings /></RoleRoute>} />
               <Route path="usuarios" element={<RoleRoute path="/pdv/usuarios" canAccess={canAccess} defaultRoute={defaultRoute}><Users /></RoleRoute>} />

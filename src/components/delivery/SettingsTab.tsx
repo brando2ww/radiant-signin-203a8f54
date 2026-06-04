@@ -1,5 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Truck, CreditCard, Bell, Smartphone, TrendingUp } from "lucide-react";
+import { Clock, Truck, CreditCard, Bell, Smartphone, TrendingUp, FileText } from "lucide-react";
 import { BusinessHoursSettings } from "./settings/BusinessHoursSettings";
 import { DeliverySettings } from "./settings/DeliverySettings";
 import { PaymentSettings } from "./settings/PaymentSettings";
@@ -7,6 +7,7 @@ import { NotificationPreferences } from "./settings/NotificationPreferences";
 import { PublicMenuLink } from "./settings/PublicMenuLink";
 import { AppInstallGuide } from "./settings/AppInstallGuide";
 import { MarketingSettings } from "./settings/MarketingSettings";
+import { DeliveryFiscalSettings } from "./settings/DeliveryFiscalSettings";
 import { useState } from "react";
 
 export const SettingsTab = () => {
@@ -18,7 +19,7 @@ export const SettingsTab = () => {
     <div className="space-y-6">
 
       <Tabs defaultValue="hours" className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-6">
+        <TabsList className="grid w-full max-w-4xl grid-cols-7">
           <TabsTrigger value="hours" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">Horários</span>
@@ -42,6 +43,10 @@ export const SettingsTab = () => {
           <TabsTrigger value="marketing" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             <span className="hidden sm:inline">Marketing</span>
+          </TabsTrigger>
+          <TabsTrigger value="fiscal" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Fiscal</span>
           </TabsTrigger>
         </TabsList>
 
@@ -85,6 +90,10 @@ export const SettingsTab = () => {
 
         <TabsContent value="marketing" className="mt-6">
           <MarketingSettings />
+        </TabsContent>
+
+        <TabsContent value="fiscal" className="mt-6">
+          <DeliveryFiscalSettings />
         </TabsContent>
       </Tabs>
     </div>
