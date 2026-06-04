@@ -227,7 +227,9 @@ export default function ByUserReport() {
         <Card>
           <CardHeader><CardTitle>Ranking de receita</CardTitle></CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-[300px] w-full" /> : (
+            {isLoading ? <Skeleton className="h-[300px] w-full" /> : rows.length === 0 ? (
+              <EmptyState icon={Users} title="Sem vendas no período" className="h-[300px] py-0" />
+            ) : (
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={rows.slice(0, 10)} layout="vertical">
