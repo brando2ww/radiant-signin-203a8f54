@@ -7861,6 +7861,7 @@ export type Database = {
           owner_user_id: string
         }[]
       }
+      can_access_owner: { Args: { _owner: string }; Returns: boolean }
       consume_ingredients_for_comanda_items: {
         Args: { p_item_ids: string[] }
         Returns: {
