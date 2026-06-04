@@ -1,118 +1,62 @@
-# Substituir "Em breve" por funcionalidades reais
+# Correções de isolamento multi-tenant
 
-Plano para implementar as 6 áreas marcadas como stub. Sempre que possível reuso de tabelas já existentes; só uma nova tabela é necessária (badges/conquistas).
+## 1. `is_establishment_member` — assinatura ambígua
 
-## 1. Cupons de avaliação — `EvalCupons.tsx`
+A função atual recebe `owner_id` e apenas confirma membership do `auth.uid()` nesse owner. Não há "colisão de IDs": como `owner_id` é UUID global, o problema real é que algumas policies passam o `user_id` do recurso sem garantir que esse `user_id` seja efetivamente o **owner** do establishment do usuário logado (e não outro UUID qualquer existente como user).
 
-Fonte: `campaign_prize_wins` (já tem `coupon_code`, `customer_name/whatsapp`, `coupon_expires_at`, `is_redeemed`, `redeemed_at`, `campaign_id`, `prize_id`) + joins em `evaluation_campaigns.name` e `campaign_prizes(name, reward_type, reward_value)`.
+**Ação (migration):**
+- Manter a função `is_establishment_member(owner_id uuid)` como está (não quebrar policies existentes).
+- Criar função auxiliar `public.current_establishment_owner()` que retorna o owner do `auth.uid()` (ou o próprio `auth.uid()` se for dono). Já existe `pdv_resolve_owner` — reaproveitar.
+- Adicionar variante explícita `public.can_access_owner(_owner uuid)` que retorna `(_owner = auth.uid()) OR is_establishment_member(_owner)` para padronizar uso futuro. Não reescreve policies em massa.
+- **Checklists**: nas tabelas `checklist_*` (criadas na migration 20260414021544 e posteriores), garantir que toda policy use o `user_id`/`owner_user_id` do recurso (não o `auth.uid()` direto). Auditar e corrigir policies que estejam usando apenas `is_establishment_member(auth.uid())` em vez de `is_establishment_member(<coluna do recurso>)`.
 
-- Hook `use-evaluation-coupons.ts` (React Query) com filtros: período (`created_at`) e `campaign_id`.
-- Página com:
-  - Filtros: DateRangePicker (ptBR) + Select de campanha + busca por código/cliente.
-  - Tabela: Código, Cliente, WhatsApp, Campanha, Prêmio, Valor (formatBRL quando `reward_type='discount'`), Gerado em, Validade, Status (Badge "Usado" / "Disponível" / "Expirado" calculado a partir de `is_redeemed` e `coupon_expires_at`).
-  - `EmptyState`/`ErrorState` (já criados).
-- Sem mudanças de schema.
+## 2. `tenant_integrations` — SELECT para o próprio tenant
 
-## 2. Clientes avaliadores — `EvalClientes.tsx`
+Adicionar policy via migration:
 
-Fonte: `customer_evaluations` (tem `customer_name`, `customer_whatsapp`, `customer_birth_date`, `nps_score`, `evaluation_date`, `campaign_id`).
+```sql
+CREATE POLICY "Tenant can view own integrations"
+ON public.tenant_integrations FOR SELECT
+TO authenticated
+USING (user_id = auth.uid() OR public.is_establishment_member(user_id));
+```
 
-- Hook `use-evaluation-customers.ts`. Deduplicar por telefone mantendo a avaliação mais recente; expor `totalEvaluations` por cliente.
-- Página:
-  - Cards de resumo: Total de avaliadores, NPS médio, Aniversariantes do mês.
-  - Seção destaque "Aniversariantes do mês" (filtra `EXTRACT(MONTH FROM customer_birth_date) = currentMonth`).
-  - Tabela: Nome, Telefone, NPS (badge colorido por faixa: 0–6 detrator, 7–8 neutro, 9–10 promotor), Última avaliação (date-fns ptBR), Campanha, # avaliações.
-  - Filtros: período + campanha + checkbox "Somente aniversariantes do mês".
-  - Botão "Exportar CSV" usando utilitário simples (`Blob`/`URL.createObjectURL`), nomes em pt-BR.
+Verificar que `GRANT SELECT ... TO authenticated` já existe; se não, adicionar.
 
-## 3. Contatos adicionais do fornecedor — `SupplierDialog.tsx`
+## 3. Filtro explícito em exports
 
-`pdv_suppliers.contacts` já existe (jsonb). Sem migração.
+Em `src/lib/export-utils.ts` e `src/lib/reports-export.ts` (e quaisquer chamadas em hooks de exportação), adicionar parâmetro `ownerId` obrigatório e aplicar `.eq('user_id', ownerId)` (ou coluna equivalente) em todas as queries — mesmo que a RLS já filtre. Resolver `ownerId` via hook `use-establishment-id` no call-site.
 
-- Tipo `SupplierContact = { id: string; name: string; role?: string; phone?: string; email?: string }`.
-- Componente novo `SupplierContactsTab.tsx` dentro do drawer:
-  - Lista de cards com nome/cargo e ações Edit/Remove (menu ⋮ conforme padrão).
-  - Botão "Adicionar contato" abre formulário inline (não Dialog aninhado) com campos validados.
-  - `id` gerado via `crypto.randomUUID()`.
-  - Estado controlado por `useFieldArray`/`watch("contacts")` integrado ao submit existente — salva no mesmo update do supplier.
-- Substituir bloco em `SupplierDialog.tsx` linhas 606–612.
+Defense-in-depth: se a RLS algum dia regredir para `USING(true)`, o export continua isolado.
 
-## 4. Meta do Mês configurável — `Dashboard.tsx`
+## 4. Settings.tsx — fiação completa das abas
 
-Fonte: `monthly_goals` (já existe com `month_year`, `revenue_goal`). Sem migração.
+Hoje `VisualTab`, `FiscalTab`, `IntegrationsTab` e `PermissionsTab` são renderizados sem `onSave`. Necessário:
 
-- Hook `use-monthly-goal.ts`:
-  - `useQuery` por `month_year = YYYY-MM-01` do mês atual.
-  - `useMutation` `upsert` em `(user_id, month_year)`.
-- Componente `MonthlyGoalCard.tsx` substituindo o card hardcoded:
-  - Sem meta: botão "Definir meta" abre Dialog com `Input` (máscara BRL).
-  - Com meta: valor da meta, progresso (`Progress` shadcn) baseado em `metrics.monthSales / revenue_goal`, percentual e diferença restante; ícone ⋮ para editar.
-- Verificar política RLS de `monthly_goals` (assumida por `user_id = auth.uid()`); confirmar via `supabase.linter` se necessário.
+- **VisualTab / FiscalTab / IntegrationsTab / PermissionsTab**: cada uma deve receber `onSave` (ou ter seu próprio submit interno que persista no Supabase e emita toast de sucesso/erro). Para tabs com persistência própria (ex.: `PermissionsTab` que grava em `pdv_action_permissions`), manter submit interno mas garantir feedback.
+- **IntegrationsTab** especificamente: o campo CNPJ NF-e deve ser salvo via mutation própria em `tenant_integrations` (ou `business_settings`, conforme onde está sendo lido) com toast de sucesso/erro e estado de loading no botão "Salvar".
+- Padronizar: todo botão "Salvar" deve mostrar `Loader2` durante o submit e exibir toast ao final.
 
-## 5. Melhor/Menor score da semana — `TeamIndicators.tsx`
+## Resumo técnico (ordem de execução)
 
-Fontes: `checklist_executions(operator_id, score, completed_at, status)` + `checklist_operators(name, avatar_color)`. Já existe `operator_scores` que pode acelerar; usaremos agregação direta para garantir frescor.
+```text
+1. Migration: policy SELECT em tenant_integrations + helper can_access_owner
+2. Migration: auditoria e correção de policies em checklist_* que usem auth.uid() direto
+3. Refactor src/lib/export-utils.ts e reports-export.ts → exigir ownerId
+4. Atualizar call-sites de exportação para passar ownerId via use-establishment-id
+5. Fiar onSave em VisualTab/FiscalTab/IntegrationsTab/PermissionsTab
+6. Implementar mutation + toast no campo CNPJ NF-e de IntegrationsTab
+```
 
-- Hook `use-team-week-indicators.ts`:
-  - Janela: `startOfWeek(now, { locale: ptBR })` → `endOfWeek`.
-  - Query agrupando `checklist_executions` por `operator_id` (status `completed`), calculando `AVG(score)`.
-  - Retorna `{ best, worst }` com `{ operatorId, name, avgScore, executions }`.
-- Substituir os dois cards "Em breve" pelos valores reais + sublabel "Semana atual"; manter "—" quando sem execuções na semana.
+## Arquivos afetados
 
-## 6. Badges/Conquistas do operador — `OperatorProfileDrawer.tsx`
+- `supabase/migrations/<new>_multi_tenant_hardening.sql`
+- `src/lib/export-utils.ts`, `src/lib/reports-export.ts`
+- Hooks de exportação que chamam essas funções
+- `src/pages/pdv/Settings.tsx`
+- `src/components/pdv/settings/{Visual,Fiscal,Integrations,Permissions}Tab.tsx`
 
-Não há tabela existente. Criar uma e popular via regras simples (futuro: triggers; agora: leitura).
+## Pontos a confirmar antes de implementar
 
-### Migração
-
-Tabela `public.operator_achievements`:
-- `id uuid pk default gen_random_uuid()`
-- `user_id uuid not null` (dono — establishment owner)
-- `operator_id uuid not null references checklist_operators(id) on delete cascade`
-- `code text not null` (ex.: `streak_7d`, `perfect_week`, `top_score`)
-- `name text not null`
-- `icon text not null` (lucide name)
-- `awarded_at timestamptz not null default now()`
-- `unique (operator_id, code)`
-- timestamps + trigger `handle_updated_at` não necessário.
-- GRANTs: `SELECT, INSERT, UPDATE, DELETE` para `authenticated`; `ALL` para `service_role`.
-- RLS: `auth.uid() = user_id OR public.is_establishment_member(user_id)`.
-
-### UI
-
-- Hook `use-operator-achievements.ts` (por `operator_id`).
-- Seção Badges renderiza grid de cards com `<Icon />` (lookup `lucide-react`), nome, data (`format(awarded_at, "dd/MM/yyyy", { locale: ptBR })`).
-- Empty state: "Nenhuma conquista ainda".
-- População inicial automática: não criar trigger ainda — apenas leitura. Documentar em comentário JSX que o lançamento de badges será feito posteriormente.
-
-## Arquivos
-
-**Novos**
-- `src/hooks/use-evaluation-coupons.ts`
-- `src/hooks/use-evaluation-customers.ts`
-- `src/hooks/use-monthly-goal.ts`
-- `src/hooks/use-team-week-indicators.ts`
-- `src/hooks/use-operator-achievements.ts`
-- `src/components/pdv/suppliers/SupplierContactsTab.tsx`
-- `src/components/pdv/dashboard/MonthlyGoalCard.tsx`
-- Migração `operator_achievements`
-
-**Editados**
-- `src/pages/pdv/evaluations/EvalCupons.tsx` (reescrita completa)
-- `src/pages/pdv/evaluations/EvalClientes.tsx` (reescrita completa)
-- `src/components/pdv/SupplierDialog.tsx` (linhas 606–612)
-- `src/pages/pdv/Dashboard.tsx` (linhas 86–92)
-- `src/components/pdv/checklists/team/TeamIndicators.tsx`
-- `src/components/pdv/checklists/team/OperatorProfileDrawer.tsx`
-
-## Padrões respeitados
-
-- Cores: somente tokens semânticos (`bg-card`, `text-muted-foreground`, `border-primary` etc.).
-- Datas: `date-fns` com `ptBR` explícito.
-- Moeda: `formatBRL`.
-- React Query para todas as buscas com `EmptyState` / `ErrorState` / skeletons.
-- Sem alterações de lógica de negócio existente; apenas UI + leitura/escrita das tabelas listadas.
-
-## Pergunta antes de prosseguir
-
-Confirmar: posso criar a tabela `operator_achievements` na migração do item 6 (apenas leitura por enquanto, sem geração automática de badges)? Se preferir adiar, o item 6 mostrará só o empty state "Nenhuma conquista ainda".
+1. Posso auditar/listar quais policies de `checklist_*` precisam de correção e ajustá-las no mesmo migration (potencialmente várias)? Ou prefere que eu apenas adicione o helper e deixe a correção das policies para um próximo passo após revisão?
+2. Para o CNPJ NF-e em `IntegrationsTab`, ele deve ser salvo em `tenant_integrations` (chave `nfe_cnpj`) ou em `business_settings.document`? Ver qual já é a fonte usada pelo restante do sistema NF-e.
