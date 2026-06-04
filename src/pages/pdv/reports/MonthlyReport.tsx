@@ -226,19 +226,19 @@ export default function MonthlyReport() {
       </Card>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <Kpi label={`Receita ${year}`} value={formatBRL(totals.revenue)} />
-        <Kpi label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} />
-        <Kpi label="Itens vendidos" value={totals.items.toLocaleString("pt-BR")} />
+        <Kpi label={`Receita ${year}`} value={formatBRL(totals.revenue)} loading={isLoading} />
+        <Kpi label="Pedidos" value={totals.orders.toLocaleString("pt-BR")} loading={isLoading} />
+        <Kpi label="Itens vendidos" value={totals.items.toLocaleString("pt-BR")} loading={isLoading} />
         {rows.reduce((s, r) => s + r.prevRevenue, 0) > 0 ? (
-          <Kpi label={`vs ${year - 1}`} value={`${(totals.yoy * 100).toFixed(1)}%`} />
+          <Kpi label={`vs ${year - 1}`} value={`${(totals.yoy * 100).toFixed(1)}%`} loading={isLoading} />
         ) : (
-          <Kpi label={`vs ${year - 1}`} value={`Sem dados de ${year - 1}`} />
+          <Kpi label={`vs ${year - 1}`} value={`Sem dados de ${year - 1}`} loading={isLoading} />
         )}
       </div>
       <div className="grid gap-3 md:grid-cols-3">
-        <Kpi label="Ticket médio" value={formatBRL(totals.ticket)} />
-        <Kpi label="Melhor mês" value={totals.best ? `${totals.best.label} — ${formatBRL(totals.best.currentRevenue)}` : "—"} />
-        <Kpi label="Pior mês (c/ venda)" value={totals.worst ? `${totals.worst.label} — ${formatBRL(totals.worst.currentRevenue)}` : "—"} />
+        <Kpi label="Ticket médio" value={formatBRL(totals.ticket)} loading={isLoading} />
+        <Kpi label="Melhor mês" value={totals.best ? `${totals.best.label} — ${formatBRL(totals.best.currentRevenue)}` : "—"} loading={isLoading} />
+        <Kpi label="Pior mês (c/ venda)" value={totals.worst ? `${totals.worst.label} — ${formatBRL(totals.worst.currentRevenue)}` : "—"} loading={isLoading} />
       </div>
 
       <Card>
@@ -253,7 +253,9 @@ export default function MonthlyReport() {
           </Tabs>
         </CardHeader>
         <CardContent>
-          {isLoading ? <Skeleton className="h-[300px] w-full" /> : (
+          {isLoading ? <Skeleton className="h-[300px] w-full" /> : chartData.every((d) => d.atual === 0 && d.anterior === 0) ? (
+            <EmptyState icon={BarChart3} title="Sem dados no período" className="h-[320px] py-0" />
+          ) : (
             <div className="h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
@@ -345,11 +347,11 @@ export default function MonthlyReport() {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({ label, value, loading }: { label: string; value: string; loading?: boolean }) {
   return (
     <Card><CardContent className="pt-6">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold mt-1 truncate">{value}</p>
+      {loading ? <Skeleton className="h-6 w-24 mt-1" /> : <p className="text-xl font-bold mt-1 truncate">{value}</p>}
     </CardContent></Card>
   );
 }
