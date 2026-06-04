@@ -2631,6 +2631,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (!evolutionApiUrl || !evolutionApiKey) {
+    console.error("Evolution não configurado");
+    return new Response(
+      JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
+      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const body = await req.json();
     console.log('📩 Webhook recebido:', JSON.stringify(body, null, 2));
