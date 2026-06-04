@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, CalendarIcon } from "lucide-react";
+import { Download, CalendarIcon, FileBarChart2 } from "lucide-react";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { usePDVDre } from "@/hooks/use-pdv-dre";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
