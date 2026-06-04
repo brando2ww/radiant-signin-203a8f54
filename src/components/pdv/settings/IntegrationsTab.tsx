@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Link2, ExternalLink, CheckCircle2, AlertCircle, FileDown, RefreshCw } from "lucide-react";
+import { Link2, ExternalLink, CheckCircle2, AlertCircle, FileDown, RefreshCw, Loader2 } from "lucide-react";
 import { useIFoodIntegration } from "@/hooks/use-ifood-integration";
 import { IFoodConnectionDialog } from "./IFoodConnectionDialog";
 import { Skeleton } from "@/components/ui/skeleton";
