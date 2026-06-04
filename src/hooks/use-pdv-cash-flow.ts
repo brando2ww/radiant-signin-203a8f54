@@ -7,7 +7,7 @@ export function usePDVCashFlow(selectedMonth?: Date) {
   const { user } = useAuth();
   const refDate = selectedMonth || new Date();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["pdv-cash-flow", user?.id, format(refDate, "yyyy-MM")],
     queryFn: async () => {
       if (!user) throw new Error("Usuário não autenticado");
@@ -105,5 +105,5 @@ export function usePDVCashFlow(selectedMonth?: Date) {
     enabled: !!user,
   });
 
-  return { data, isLoading };
+  return { data, isLoading, isError, refetch };
 }

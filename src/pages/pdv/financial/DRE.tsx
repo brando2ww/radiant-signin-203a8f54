@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, CalendarIcon } from "lucide-react";
+import { Download, CalendarIcon, FileBarChart2 } from "lucide-react";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { usePDVDre } from "@/hooks/use-pdv-dre";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -124,7 +125,13 @@ export default function DRE() {
               <DRELine label="= LUCRO OPERACIONAL" value={data.operatingProfit} bold bg="bg-muted/50" />
               <DRELine label="= LUCRO LÍQUIDO" value={data.netProfit} bold bg="bg-primary/10" color="text-primary" />
             </div>
-          ) : null}
+          ) : (
+            <EmptyState
+              icon={FileBarChart2}
+              title="Nenhum dado disponível"
+              description="Não há movimento financeiro para o período selecionado."
+            />
+          )}
         </CardContent>
       </Card>
 

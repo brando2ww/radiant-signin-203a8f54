@@ -9,13 +9,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/pdv/shared/ErrorState";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
+import { BarChart3 } from "lucide-react";
 
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function CashFlow() {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const { data, isLoading } = usePDVCashFlow(selectedMonth);
+  const { data, isLoading, isError, refetch } = usePDVCashFlow(selectedMonth);
 
   return (
     <div className="p-6 space-y-6">
@@ -44,6 +47,14 @@ export default function CashFlow() {
         </Popover>
       </div>
 
+      {isError && (
+        <ErrorState
+          title="Não foi possível carregar o fluxo de caixa"
+          message="Verifique sua conexão e tente novamente."
+          onRetry={() => refetch()}
+        />
+      )}
+
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -51,7 +62,9 @@ export default function CashFlow() {
             <ArrowUpRight className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-28" /> : (
+            {isLoading ? <Skeleton className="h-8 w-28" /> : isError ? (
+              <div className="text-2xl font-bold text-muted-foreground">—</div>
+            ) : (
               <>
                 <div className="text-2xl font-bold text-success">{fmt(data?.totalIn || 0)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Neste mês</p>
@@ -66,7 +79,9 @@ export default function CashFlow() {
             <ArrowDownRight className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-28" /> : (
+            {isLoading ? <Skeleton className="h-8 w-28" /> : isError ? (
+              <div className="text-2xl font-bold text-muted-foreground">—</div>
+            ) : (
               <>
                 <div className="text-2xl font-bold text-destructive">{fmt(data?.totalOut || 0)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Neste mês</p>
@@ -81,7 +96,9 @@ export default function CashFlow() {
             <TrendingUp className="h-4 w-4" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-8 w-28" /> : (
+            {isLoading ? <Skeleton className="h-8 w-28" /> : isError ? (
+              <div className="text-2xl font-bold text-muted-foreground">—</div>
+            ) : (
               <>
                 <div className={`text-2xl font-bold ${(data?.balance || 0) >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {fmt(data?.balance || 0)}
@@ -117,9 +134,7 @@ export default function CashFlow() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              <p>Sem dados para o período selecionado</p>
-            </div>
+            <EmptyState icon={BarChart3} title="Sem movimentações no período" className="h-[300px] py-0" />
           )}
         </CardContent>
       </Card>

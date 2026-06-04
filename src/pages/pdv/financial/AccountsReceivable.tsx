@@ -1,23 +1,33 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Inbox } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useBills } from "@/hooks/use-bills";
 import { BillDialog } from "@/components/pdv/bills/BillDialog";
 import { BillFilters } from "@/components/pdv/bills/BillFilters";
 import { BillCard } from "@/components/pdv/bills/BillCard";
 import { BillStats } from "@/components/pdv/bills/BillStats";
 import { MarkAsPaidDialog } from "@/components/pdv/bills/MarkAsPaidDialog";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { Bill } from "@/hooks/use-bills";
 
 export default function AccountsReceivable() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [markAsPaidDialogOpen, setMarkAsPaidDialogOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
-  const [filters, setFilters] = useState({
-    search: "",
-    status: "all",
-    category: "all",
-  });
+  const [deleteTarget, setDeleteTarget] = useState<Bill | null>(null);
+  const [filters, setFilters] = useState({ search: "", status: "all", category: "all" });
 
   const billFilters = {
     type: "receivable" as const,
@@ -29,33 +39,25 @@ export default function AccountsReceivable() {
   const { bills, stats, isLoading, createBill, updateBill, deleteBill, markAsPaid } = useBills(billFilters);
 
   const handleSave = async (data: any) => {
-    if (selectedBill) {
-      await updateBill({ ...data, id: selectedBill.id });
-    } else {
-      await createBill(data);
+    if (selectedBill) await updateBill({ ...data, id: selectedBill.id });
+    else await createBill(data);
+  };
+
+  const handleEdit = (bill: Bill) => { setSelectedBill(bill); setDialogOpen(true); };
+  const handleDelete = (id: string) => {
+    const bill = bills.find((b) => b.id === id);
+    if (bill) setDeleteTarget(bill);
+  };
+  const confirmDelete = async () => {
+    if (deleteTarget) {
+      await deleteBill(deleteTarget.id);
+      setDeleteTarget(null);
     }
   };
 
-  const handleEdit = (bill: Bill) => {
-    setSelectedBill(bill);
-    setDialogOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta conta?")) {
-      await deleteBill(id);
-    }
-  };
-
-  const handleMarkAsPaid = (bill: Bill) => {
-    setSelectedBill(bill);
-    setMarkAsPaidDialogOpen(true);
-  };
-
+  const handleMarkAsPaid = (bill: Bill) => { setSelectedBill(bill); setMarkAsPaidDialogOpen(true); };
   const handleMarkAsPaidConfirm = async (data: any) => {
-    if (selectedBill) {
-      await markAsPaid({ id: selectedBill.id, ...data });
-    }
+    if (selectedBill) await markAsPaid({ id: selectedBill.id, ...data });
   };
 
   return (
@@ -63,9 +65,7 @@ export default function AccountsReceivable() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Contas a Receber</h1>
-          <p className="text-muted-foreground mt-1">
-            Gerencie suas receitas e recebimentos
-          </p>
+          <p className="text-muted-foreground mt-1">Gerencie suas receitas e recebimentos</p>
         </div>
         <Button onClick={() => { setSelectedBill(null); setDialogOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" />
@@ -80,42 +80,27 @@ export default function AccountsReceivable() {
         type="receivable"
       />
 
-      <BillFilters
-        type="receivable"
-        filters={filters}
-        onFiltersChange={setFilters}
-      />
+      <BillFilters type="receivable" filters={filters} onFiltersChange={setFilters} />
 
       <div className="space-y-4">
         {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Carregando...
-          </div>
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4"><Skeleton className="h-24 w-full" /></CardContent></Card>
+          ))
         ) : bills.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p>Nenhuma conta a receber encontrada</p>
-            <p className="text-sm mt-2">Clique em "Nova Receita" para adicionar</p>
-          </div>
+          <EmptyState
+            icon={Inbox}
+            title="Nenhuma conta a receber encontrada"
+            description='Clique em "Nova Receita" para adicionar.'
+          />
         ) : (
           bills.map((bill) => (
-            <BillCard
-              key={bill.id}
-              bill={bill}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onMarkAsPaid={handleMarkAsPaid}
-            />
+            <BillCard key={bill.id} bill={bill} onEdit={handleEdit} onDelete={handleDelete} onMarkAsPaid={handleMarkAsPaid} />
           ))
         )}
       </div>
 
-      <BillDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        bill={selectedBill}
-        onSave={handleSave}
-        type="receivable"
-      />
+      <BillDialog open={dialogOpen} onOpenChange={setDialogOpen} bill={selectedBill} onSave={handleSave} type="receivable" />
 
       <MarkAsPaidDialog
         open={markAsPaidDialogOpen}
@@ -123,6 +108,23 @@ export default function AccountsReceivable() {
         bill={selectedBill}
         onConfirm={handleMarkAsPaidConfirm}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir conta?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget ? `"${deleteTarget.description}" será removida permanentemente.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

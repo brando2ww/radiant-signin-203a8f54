@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { exportToXlsx } from "@/lib/xlsx-export";
+import { toast } from "sonner";
 import { previousPeriod, pctDelta, fmtDelta } from "@/lib/report-period";
 import { fetchPaymentsByOrderIds, fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
@@ -131,63 +132,69 @@ export default function OverviewReport() {
     },
   });
 
-  const onExport = () => {
-    exportToXlsx(`visao-geral-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
-      {
-        name: "Resumo",
-        rows: [
-          { metrica: "Total de vendas", valor: salesReport?.totalSales ?? 0 },
-          { metrica: "Total de pedidos", valor: salesReport?.totalOrders ?? 0 },
-          { metrica: "Ticket médio", valor: salesReport?.averageTicket ?? 0 },
-          { metrica: "Itens vendidos", valor: extra?.totalItems ?? 0 },
-          { metrica: "Itens por pedido", valor: extra?.avgItemsPerOrder ?? 0 },
-          { metrica: "% desconto", valor: extra?.discountPct ?? 0 },
-          { metrica: "% cancelamento", valor: extra?.cancelledRate ?? 0 },
-          { metrica: "Δ receita vs período anterior", valor: extra?.revenueDelta ?? 0 },
-        ],
-        columns: [{ key: "metrica", label: "Métrica", width: 30 }, { key: "valor", label: "Valor", width: 16, type: "number" }],
-      },
-      {
-        name: "Pagamentos",
-        rows: (paymentReport || []).map((p) => ({ metodo: p.method, qtd: p.count, total: p.total, participacao: p.percentage / 100 })),
-        columns: [
-          { key: "metodo", label: "Método", width: 22 },
-          { key: "qtd", label: "Qtd", width: 10, type: "number" },
-          { key: "total", label: "Total", width: 14, type: "currency" },
-          { key: "participacao", label: "%", width: 10, type: "percent" },
-        ],
-      },
-      {
-        name: "Produtos",
-        rows: (productReport || []).map((p) => ({ produto: p.product_name, qtd: p.quantity, receita: p.revenue, pedidos: p.orders })),
-        columns: [
-          { key: "produto", label: "Produto", width: 30 },
-          { key: "qtd", label: "Qtd", width: 10, type: "number" },
-          { key: "receita", label: "Receita", width: 14, type: "currency" },
-          { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
-        ],
-      },
-      {
-        name: "Por hora",
-        rows: (hourlyReport || []).map((h) => ({ hora: `${h.hour}h`, pedidos: h.orders, vendas: h.sales, ticket_medio: h.averageTicket })),
-        columns: [
-          { key: "hora", label: "Hora", width: 10 },
-          { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
-          { key: "vendas", label: "Vendas", width: 14, type: "currency" },
-          { key: "ticket_medio", label: "Ticket médio", width: 14, type: "currency" },
-        ],
-      },
-      {
-        name: "Dia da semana",
-        rows: (extra?.weekday || []).map((d) => ({ dia: d.day, pedidos: d.orders, receita: d.revenue })),
-        columns: [{ key: "dia", label: "Dia", width: 8 }, { key: "pedidos", label: "Pedidos", width: 10, type: "number" }, { key: "receita", label: "Receita", width: 14, type: "currency" }],
-      },
-      {
-        name: "Top clientes",
-        rows: (extra?.topCustomers || []).map((c) => ({ cliente: c.name, pedidos: c.orders, receita: c.revenue })),
-        columns: [{ key: "cliente", label: "Cliente", width: 30 }, { key: "pedidos", label: "Pedidos", width: 10, type: "number" }, { key: "receita", label: "Receita", width: 14, type: "currency" }],
-      },
-    ]);
+  const onExport = async () => {
+    try {
+      await exportToXlsx(`visao-geral-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+        {
+          name: "Resumo",
+          rows: [
+            { metrica: "Total de vendas", valor: salesReport?.totalSales ?? 0 },
+            { metrica: "Total de pedidos", valor: salesReport?.totalOrders ?? 0 },
+            { metrica: "Ticket médio", valor: salesReport?.averageTicket ?? 0 },
+            { metrica: "Itens vendidos", valor: extra?.totalItems ?? 0 },
+            { metrica: "Itens por pedido", valor: extra?.avgItemsPerOrder ?? 0 },
+            { metrica: "% desconto", valor: extra?.discountPct ?? 0 },
+            { metrica: "% cancelamento", valor: extra?.cancelledRate ?? 0 },
+            { metrica: "Δ receita vs período anterior", valor: extra?.revenueDelta ?? 0 },
+          ],
+          columns: [{ key: "metrica", label: "Métrica", width: 30 }, { key: "valor", label: "Valor", width: 16, type: "number" }],
+        },
+        {
+          name: "Pagamentos",
+          rows: (paymentReport || []).map((p) => ({ metodo: p.method, qtd: p.count, total: p.total, participacao: p.percentage / 100 })),
+          columns: [
+            { key: "metodo", label: "Método", width: 22 },
+            { key: "qtd", label: "Qtd", width: 10, type: "number" },
+            { key: "total", label: "Total", width: 14, type: "currency" },
+            { key: "participacao", label: "%", width: 10, type: "percent" },
+          ],
+        },
+        {
+          name: "Produtos",
+          rows: (productReport || []).map((p) => ({ produto: p.product_name, qtd: p.quantity, receita: p.revenue, pedidos: p.orders })),
+          columns: [
+            { key: "produto", label: "Produto", width: 30 },
+            { key: "qtd", label: "Qtd", width: 10, type: "number" },
+            { key: "receita", label: "Receita", width: 14, type: "currency" },
+            { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
+          ],
+        },
+        {
+          name: "Por hora",
+          rows: (hourlyReport || []).map((h) => ({ hora: `${h.hour}h`, pedidos: h.orders, vendas: h.sales, ticket_medio: h.averageTicket })),
+          columns: [
+            { key: "hora", label: "Hora", width: 10 },
+            { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
+            { key: "vendas", label: "Vendas", width: 14, type: "currency" },
+            { key: "ticket_medio", label: "Ticket médio", width: 14, type: "currency" },
+          ],
+        },
+        {
+          name: "Dia da semana",
+          rows: (extra?.weekday || []).map((d) => ({ dia: d.day, pedidos: d.orders, receita: d.revenue })),
+          columns: [{ key: "dia", label: "Dia", width: 8 }, { key: "pedidos", label: "Pedidos", width: 10, type: "number" }, { key: "receita", label: "Receita", width: 14, type: "currency" }],
+        },
+        {
+          name: "Top clientes",
+          rows: (extra?.topCustomers || []).map((c) => ({ cliente: c.name, pedidos: c.orders, receita: c.revenue })),
+          columns: [{ key: "cliente", label: "Cliente", width: 30 }, { key: "pedidos", label: "Pedidos", width: 10, type: "number" }, { key: "receita", label: "Receita", width: 14, type: "currency" }],
+        },
+      ]);
+      toast.success("Relatório exportado");
+    } catch (e) {
+      console.error("[OverviewReport] export failed", e);
+      toast.error("Falha ao exportar relatório");
+    }
   };
 
   return (

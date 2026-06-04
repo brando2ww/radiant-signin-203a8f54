@@ -21,6 +21,7 @@ import { useProductAnalytics, ChannelKey, ProductRow } from "@/hooks/reports/use
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import { ErrorState } from "@/components/pdv/shared/ErrorState";
 
 const CHANNEL_LABEL: Record<ChannelKey, string> = { salao: "Salão", balcao: "Balcão", delivery: "Delivery" };
 
@@ -31,7 +32,7 @@ export default function ProductsAnalyticsReport() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
 
-  const { data, isLoading } = useProductAnalytics({ start, end, channels });
+  const { data, isLoading, isError, refetch } = useProductAnalytics({ start, end, channels });
 
   const categories = useMemo(
     () => Array.from(new Set((data?.rows || []).map((r) => r.category))).sort(),
@@ -218,7 +219,12 @@ export default function ProductsAnalyticsReport() {
           <TabsTrigger value="coverage">Cobertura</TabsTrigger>
         </TabsList>
 
-        {isLoading || !data ? (
+        {isError ? (
+          <ErrorState
+            title="Falha ao carregar análise de produtos"
+            onRetry={() => refetch()}
+          />
+        ) : isLoading || !data ? (
           <Skeleton className="h-[400px] w-full" />
         ) : (
           <>

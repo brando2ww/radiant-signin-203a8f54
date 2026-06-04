@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
+import { EmptyState } from "@/components/pdv/shared/EmptyState";
+import { Users } from "lucide-react";
 import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
 import { exportToXlsx } from "@/lib/xlsx-export";
@@ -225,7 +227,9 @@ export default function ByUserReport() {
         <Card>
           <CardHeader><CardTitle>Ranking de receita</CardTitle></CardHeader>
           <CardContent>
-            {isLoading ? <Skeleton className="h-[300px] w-full" /> : (
+            {isLoading ? <Skeleton className="h-[300px] w-full" /> : rows.length === 0 ? (
+              <EmptyState icon={Users} title="Sem vendas no período" className="h-[300px] py-0" />
+            ) : (
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={rows.slice(0, 10)} layout="vertical">
