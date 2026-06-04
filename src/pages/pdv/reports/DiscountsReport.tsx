@@ -99,7 +99,7 @@ export default function DiscountsReport() {
         });
       }
 
-      const orders = rawOrders.map((o: any) => ({
+      const deliveryOrders = rawOrders.map((o: any) => ({
         id: o.id,
         order_number: o.order_number,
         customer_name: (o.customer_name && String(o.customer_name).trim())
@@ -109,9 +109,34 @@ export default function DiscountsReport() {
         discount: Number(o.discount || 0),
         total: Number(o.total || 0),
         coupon_code: o.coupon_code || null,
+        origin: "Delivery" as const,
         closed_at: o.created_at,
         created_at: o.created_at,
       }));
+
+      const pdvOrders = rawPdvOrders.map((o: any) => {
+        const src = String(o.source || "").toLowerCase();
+        const origin: "Salão" | "Balcão" =
+          src === "salao" || src === "salão" || src === "mesa" || o.table_id
+            ? "Salão"
+            : "Balcão";
+        return {
+          id: o.id,
+          order_number: o.order_number,
+          customer_name: o.customer_name || "",
+          subtotal: Number(o.subtotal || 0),
+          discount: Number(o.discount || 0),
+          total: Number(o.total || 0),
+          coupon_code: null as string | null,
+          origin,
+          closed_at: o.closed_at || o.created_at,
+          created_at: o.created_at,
+        };
+      });
+
+      const orders = [...deliveryOrders, ...pdvOrders].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
       const couponsEnriched = couponsRedeemed.map((c: any) => ({
         ...c,
@@ -132,6 +157,21 @@ export default function DiscountsReport() {
         r.discount += o.discount;
         r.revenue += o.total;
         r.subtotal += o.subtotal;
+      });
+
+      // Aggregation by origin (Delivery / Salão / Balcão)
+      const byOrigin = new Map<string, { origin: string; count: number; discount: number; revenue: number }>(
+        [
+          ["Delivery", { origin: "Delivery", count: 0, discount: 0, revenue: 0 }],
+          ["Salão", { origin: "Salão", count: 0, discount: 0, revenue: 0 }],
+          ["Balcão", { origin: "Balcão", count: 0, discount: 0, revenue: 0 }],
+        ]
+      );
+      orders.forEach((o) => {
+        const r = byOrigin.get(o.origin)!;
+        r.count += 1;
+        r.discount += o.discount;
+        r.revenue += o.total;
       });
 
       // Daily evolution
@@ -159,6 +199,7 @@ export default function DiscountsReport() {
         coupons: couponsEnriched,
         totalRevenue,
         byCoupon: Array.from(byCoupon.values()).sort((a, b) => b.discount - a.discount),
+        byOrigin: Array.from(byOrigin.values()),
         byDay: Array.from(byDay.values()),
         byCampaign: Array.from(byCampaign.values()).sort((a, b) => b.count - a.count),
         couponsGenerated: couponsGenerated.length,
