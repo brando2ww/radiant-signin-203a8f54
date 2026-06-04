@@ -218,6 +218,7 @@ export default function DiscountsReport() {
   }, [startDate, endDate, orders.length]);
   const coupons = data?.coupons || [];
   const byCoupon = data?.byCoupon || [];
+  const byOrigin = data?.byOrigin || [];
   const byDay = data?.byDay || [];
   const byCampaign = data?.byCampaign || [];
 
