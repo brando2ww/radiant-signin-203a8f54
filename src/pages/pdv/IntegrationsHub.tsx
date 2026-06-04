@@ -33,6 +33,7 @@ const integrations: IntegrationItem[] = [
     logo: pagseguroLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "stone",
@@ -41,6 +42,7 @@ const integrations: IntegrationItem[] = [
     logo: stoneLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "getnet",
@@ -49,6 +51,7 @@ const integrations: IntegrationItem[] = [
     logo: getnetLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "rede",
@@ -57,6 +60,7 @@ const integrations: IntegrationItem[] = [
     logo: redeLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    comingSoon: true,
   },
   {
     slug: "nf-automatica",
