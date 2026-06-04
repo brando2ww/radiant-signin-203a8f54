@@ -178,13 +178,18 @@ export function IntegrationsTab() {
                 size="sm"
                 disabled={isUpdating}
                 onClick={() => {
-                  updatePDVSettings({
-                    nfe_auto_import_cnpj: nfeCnpj || pdvSettings?.nfe_auto_import_cnpj || "",
-                  });
+                  const cnpj = nfeCnpj || pdvSettings?.nfe_auto_import_cnpj || "";
+                  if (!cnpj.trim()) {
+                    toast.error("Informe um CNPJ válido");
+                    return;
+                  }
+                  updatePDVSettings({ nfe_auto_import_cnpj: cnpj });
                 }}
               >
+                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar CNPJ
               </Button>
+
             </div>
           )}
           <div className="text-xs text-muted-foreground">
