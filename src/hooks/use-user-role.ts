@@ -30,9 +30,11 @@ const ROLE_SCOPE: Record<AppRole, RoleScope> = {
   gerente: {
     modules: ["pdv", "financeiro", "delivery", "avaliacoes", "tarefas", "crm"],
   },
+  // "Operador" do produto: Frente de Caixa + pedidos de delivery, sem
+  // financeiro/configurações/relatórios.
   caixa: {
-    modules: ["pdv"],
-    subRoutes: ["/pdv/caixa"],
+    modules: ["pdv", "delivery"],
+    subRoutes: ["/pdv/caixa", "/pdv/delivery/pedidos"],
   },
   garcom: {
     modules: ["pdv"],
