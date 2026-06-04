@@ -6873,6 +6873,138 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_fiscal_config: {
+        Row: {
+          bairro: string | null
+          cadastrada_em: string | null
+          cep: string | null
+          certificado_pfx_path: string | null
+          certificado_senha_cifrada: string | null
+          certificado_valido_ate: string | null
+          cnpj: string | null
+          codigo_municipio_ibge: string | null
+          complemento: string | null
+          created_at: string
+          csc_nfce_homologacao_cifrado: string | null
+          csc_nfce_producao_cifrado: string | null
+          email: string | null
+          focusnfe_ambiente: string
+          focusnfe_empresa_id: number | null
+          focusnfe_token_homologacao_cifrado: string | null
+          focusnfe_token_producao_cifrado: string | null
+          habilita_nfce: boolean
+          habilita_nfe: boolean
+          habilita_nfse: boolean
+          id: string
+          id_token_nfce_homologacao: number | null
+          id_token_nfce_producao: number | null
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
+          last_test_at: string | null
+          last_test_message: string | null
+          last_test_status: string | null
+          logradouro: string | null
+          municipio: string | null
+          nome_fantasia: string | null
+          numero: string | null
+          razao_social: string | null
+          regime_tributario: number | null
+          serie_nfce: number | null
+          serie_nfe: number | null
+          serie_nfse: number | null
+          telefone: string | null
+          uf: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bairro?: string | null
+          cadastrada_em?: string | null
+          cep?: string | null
+          certificado_pfx_path?: string | null
+          certificado_senha_cifrada?: string | null
+          certificado_valido_ate?: string | null
+          cnpj?: string | null
+          codigo_municipio_ibge?: string | null
+          complemento?: string | null
+          created_at?: string
+          csc_nfce_homologacao_cifrado?: string | null
+          csc_nfce_producao_cifrado?: string | null
+          email?: string | null
+          focusnfe_ambiente?: string
+          focusnfe_empresa_id?: number | null
+          focusnfe_token_homologacao_cifrado?: string | null
+          focusnfe_token_producao_cifrado?: string | null
+          habilita_nfce?: boolean
+          habilita_nfe?: boolean
+          habilita_nfse?: boolean
+          id?: string
+          id_token_nfce_homologacao?: number | null
+          id_token_nfce_producao?: number | null
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_status?: string | null
+          logradouro?: string | null
+          municipio?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          razao_social?: string | null
+          regime_tributario?: number | null
+          serie_nfce?: number | null
+          serie_nfe?: number | null
+          serie_nfse?: number | null
+          telefone?: string | null
+          uf?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bairro?: string | null
+          cadastrada_em?: string | null
+          cep?: string | null
+          certificado_pfx_path?: string | null
+          certificado_senha_cifrada?: string | null
+          certificado_valido_ate?: string | null
+          cnpj?: string | null
+          codigo_municipio_ibge?: string | null
+          complemento?: string | null
+          created_at?: string
+          csc_nfce_homologacao_cifrado?: string | null
+          csc_nfce_producao_cifrado?: string | null
+          email?: string | null
+          focusnfe_ambiente?: string
+          focusnfe_empresa_id?: number | null
+          focusnfe_token_homologacao_cifrado?: string | null
+          focusnfe_token_producao_cifrado?: string | null
+          habilita_nfce?: boolean
+          habilita_nfe?: boolean
+          habilita_nfse?: boolean
+          id?: string
+          id_token_nfce_homologacao?: number | null
+          id_token_nfce_producao?: number | null
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_status?: string | null
+          logradouro?: string | null
+          municipio?: string | null
+          nome_fantasia?: string | null
+          numero?: string | null
+          razao_social?: string | null
+          regime_tributario?: number | null
+          serie_nfce?: number | null
+          serie_nfe?: number | null
+          serie_nfse?: number | null
+          telefone?: string | null
+          uf?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tenant_integrations: {
         Row: {
           created_at: string | null
