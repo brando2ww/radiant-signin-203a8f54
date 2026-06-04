@@ -14,26 +14,6 @@ import { useUserModules } from "@/hooks/use-user-modules";
 
 type FormType = 'login' | 'signup' | 'reset';
 
-const sampleTestimonials: Testimonial[] = [
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/women/57.jpg",
-    name: "Ana Silva",
-    handle: "@anadigital",
-    text: "Plataforma incrível! A experiência do usuário é perfeita e os recursos são exatamente o que eu precisava."
-  },
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/men/64.jpg",
-    name: "Bruno Oliveira",
-    handle: "@brunotech",
-    text: "Este serviço transformou minha forma de trabalhar. Design limpo, recursos poderosos e excelente suporte."
-  },
-  {
-    avatarSrc: "https://randomuser.me/api/portraits/men/32.jpg",
-    name: "Lucas Ferreira",
-    handle: "@lucascria",
-    text: "Já experimentei muitas plataformas, mas esta se destaca. Intuitiva, confiável e genuinamente útil para produtividade."
-  },
-];
 
 const Index = () => {
   const { signUp, resetPasswordByDocument, signInWithGoogle, user, loading } = useAuth();
