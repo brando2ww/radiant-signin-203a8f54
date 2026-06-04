@@ -26,7 +26,7 @@ export function useTeamWeekIndicators() {
         .from("checklist_executions")
         .select("operator_id, score, status, checklist_operators(name)")
         .eq("user_id", visibleUserId!)
-        .eq("status", "completed")
+        .eq("status", "concluido")
         .gte("execution_date", from.toISOString().slice(0, 10))
         .lte("execution_date", to.toISOString().slice(0, 10))
         .limit(1000);
