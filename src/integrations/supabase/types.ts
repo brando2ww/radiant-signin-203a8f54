@@ -91,6 +91,33 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_settings: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       bank_accounts: {
         Row: {
           account_number: string | null
@@ -5271,6 +5298,57 @@ export type Database = {
           tenant_user_id?: string
         }
         Relationships: []
+      }
+      pdv_printer_status: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          is_online: boolean
+          last_error: string | null
+          last_tested_at: string
+          owner_user_id: string
+          production_center_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          is_online?: boolean
+          last_error?: string | null
+          last_tested_at?: string
+          owner_user_id: string
+          production_center_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          is_online?: boolean
+          last_error?: string | null
+          last_tested_at?: string
+          owner_user_id?: string
+          production_center_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_printer_status_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_device_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_printer_status_production_center_id_fkey"
+            columns: ["production_center_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_production_centers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pdv_product_composition_groups: {
         Row: {
