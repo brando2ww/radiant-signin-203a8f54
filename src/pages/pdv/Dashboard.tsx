@@ -3,13 +3,13 @@ import { DashboardMetricCard } from "@/components/pdv/DashboardMetricCard";
 import { SalesChart } from "@/components/pdv/SalesChart";
 import { TopProductsList } from "@/components/pdv/TopProductsList";
 import { OperationHealthWidget } from "@/components/pdv/checklists/OperationHealthWidget";
+import { MonthlyGoalCard } from "@/components/pdv/dashboard/MonthlyGoalCard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatBRL } from "@/lib/format";
 import {
   DollarSign,
   ShoppingCart,
   TrendingUp,
-  Wallet,
   Calendar,
   Lock,
   Unlock,
@@ -83,13 +83,7 @@ export default function PDVDashboard() {
           isLoading={isLoading}
         />
 
-        <DashboardMetricCard
-          title="Meta do Mês"
-          value="-"
-          subtitle="Configure suas metas"
-          icon={TrendingUp}
-          isLoading={isLoading}
-        />
+        <MonthlyGoalCard monthSales={metrics?.monthSales || 0} isLoadingSales={isLoading} />
       </div>
 
       <OperationHealthWidget />

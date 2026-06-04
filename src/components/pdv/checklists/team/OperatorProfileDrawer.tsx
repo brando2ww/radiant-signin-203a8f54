@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { SECTOR_LABELS, type ChecklistSector } from "@/hooks/use-checklists";
-import { Pencil, KeyRound, Calendar, Clock, User } from "lucide-react";
+import { Pencil, KeyRound, Calendar, Clock, User, Award } from "lucide-react";
+import * as Icons from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useOperatorAchievements } from "@/hooks/use-operator-achievements";
 import type { Database } from "@/integrations/supabase/types";
 
 type OperatorRow = Database["public"]["Tables"]["checklist_operators"]["Row"];
@@ -155,8 +157,8 @@ export function OperatorProfileDrawer({ open, onOpenChange, operator, onEdit }: 
 
             <Card>
               <CardContent className="py-4 px-4">
-                <p className="text-sm font-medium mb-2">Badges</p>
-                <p className="text-xs text-muted-foreground">Em breve — Badges como "Semana perfeita" e "Destaque do mês" aparecerão aqui.</p>
+                <p className="text-sm font-medium mb-3">Conquistas</p>
+                <AchievementsList operatorId={op?.id || null} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -197,6 +199,37 @@ function InfoRow({ icon, label, value }: { icon?: React.ReactNode; label: string
       {icon && <span className="text-muted-foreground">{icon}</span>}
       <span className="text-muted-foreground min-w-[120px]">{label}</span>
       <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function AchievementsList({ operatorId }: { operatorId: string | null }) {
+  const { data, isLoading } = useOperatorAchievements(operatorId);
+
+  if (isLoading) {
+    return <p className="text-xs text-muted-foreground">Carregando...</p>;
+  }
+  if (!data || data.length === 0) {
+    return <p className="text-xs text-muted-foreground">Nenhuma conquista ainda.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      {data.map((a) => {
+        const Icon = (Icons as any)[a.icon] || Award;
+        return (
+          <div
+            key={a.id}
+            className="flex flex-col items-center text-center gap-1 p-3 rounded-md border bg-muted/30"
+          >
+            <Icon className="h-6 w-6 text-primary" />
+            <p className="text-xs font-medium leading-tight">{a.name}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {format(new Date(a.awarded_at), "dd/MM/yyyy", { locale: ptBR })}
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 }

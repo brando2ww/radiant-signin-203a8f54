@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, Trophy, AlertTriangle, Clock } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { useTeamWeekIndicators } from "@/hooks/use-team-week-indicators";
 
 type OperatorRow = Database["public"]["Tables"]["checklist_operators"]["Row"];
 
@@ -10,6 +11,7 @@ interface Props {
 
 export function TeamIndicators({ operators }: Props) {
   const activeCount = operators.filter((o) => o.is_active).length;
+  const { data: week } = useTeamWeekIndicators();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -20,6 +22,9 @@ export function TeamIndicators({ operators }: Props) {
     return d.getTime() === today.getTime();
   }).length;
 
+  const best = week?.best ?? null;
+  const worst = week?.worst ?? null;
+
   const cards = [
     {
       label: "Colaboradores ativos",
@@ -29,15 +34,15 @@ export function TeamIndicators({ operators }: Props) {
     },
     {
       label: "Melhor score da semana",
-      value: "—",
-      sub: "Em breve",
+      value: best ? `${Math.round(best.avgScore)}%` : "—",
+      sub: best ? best.name : "Semana atual",
       icon: Trophy,
       color: "text-emerald-500",
     },
     {
       label: "Menor score da semana",
-      value: "—",
-      sub: "Em breve",
+      value: worst && worst !== best ? `${Math.round(worst.avgScore)}%` : "—",
+      sub: worst && worst !== best ? worst.name : "Semana atual",
       icon: AlertTriangle,
       color: "text-amber-500",
     },

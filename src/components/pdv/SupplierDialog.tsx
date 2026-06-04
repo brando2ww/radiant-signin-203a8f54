@@ -47,6 +47,7 @@ import { useCEPLookup } from "@/hooks/use-cep-lookup";
 import { Loader2, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SUPPLIER_CATEGORIES } from "@/components/pdv/SupplierFilters";
+import { SupplierContactsTab, type SupplierContact } from "@/components/pdv/suppliers/SupplierContactsTab";
 
 interface SupplierDialogProps {
   open: boolean;
@@ -94,6 +95,7 @@ export function SupplierDialog({
       preferred_payment_method: "",
       category: "",
       is_active: true,
+      contacts: [] as SupplierContact[],
     },
   });
 
@@ -142,6 +144,7 @@ export function SupplierDialog({
         preferred_payment_method: supplier.preferred_payment_method || "",
         category: supplier.category || "",
         is_active: supplier.is_active,
+        contacts: Array.isArray((supplier as any).contacts) ? (supplier as any).contacts : [],
       });
     } else {
       reset({
@@ -174,6 +177,7 @@ export function SupplierDialog({
         preferred_payment_method: "",
         category: "",
         is_active: true,
+        contacts: [],
       });
       setDocumentType("cnpj");
     }
@@ -604,12 +608,10 @@ export function SupplierDialog({
             </TabsContent>
 
             <TabsContent value="contacts" className="space-y-4 mt-4">
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Funcionalidade de contatos adicionais em breve</p>
-                <p className="text-sm mt-2">
-                  Por enquanto, utilize os campos de contato na aba "Dados Gerais"
-                </p>
-              </div>
+              <SupplierContactsTab
+                value={(watch("contacts") as SupplierContact[]) || []}
+                onChange={(next) => setValue("contacts", next)}
+              />
             </TabsContent>
           </Tabs>
           </div>

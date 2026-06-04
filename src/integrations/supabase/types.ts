@@ -2779,6 +2779,47 @@ export type Database = {
         }
         Relationships: []
       }
+      operator_achievements: {
+        Row: {
+          awarded_at: string
+          code: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          operator_id: string
+          user_id: string
+        }
+        Insert: {
+          awarded_at?: string
+          code: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          operator_id: string
+          user_id: string
+        }
+        Update: {
+          awarded_at?: string
+          code?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          operator_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_achievements_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       operator_scores: {
         Row: {
           badges: Json | null
