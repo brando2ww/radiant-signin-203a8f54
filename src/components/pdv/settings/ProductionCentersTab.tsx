@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
+import { usePrinterStatus, type PrinterStatusMap } from "@/hooks/use-printer-status";
 
 const ICON_MAP: Record<string, any> = {
   ChefHat, Wine, Coffee, Cake, Pizza, Soup, Sandwich, IceCream, Beer, Utensils,
@@ -22,21 +23,7 @@ const ICON_MAP: Record<string, any> = {
 
 const BRIDGE_URL = "http://localhost:7777";
 
-type PrinterStatus = { ok: boolean; at: number; error?: string } | null;
-
-function readStatus(id: string): PrinterStatus {
-  try {
-    const raw = localStorage.getItem(`printer-status-${id}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStatus(id: string, status: PrinterStatus) {
-  if (status) localStorage.setItem(`printer-status-${id}`, JSON.stringify(status));
-  else localStorage.removeItem(`printer-status-${id}`);
-}
+type PrinterStatus = PrinterStatusMap[string];
 
 function CenterIcon({ name, color, className }: { name: string; color: string; className?: string }) {
   const Icon = ICON_MAP[name] || ChefHat;
@@ -55,17 +42,11 @@ function StatusDot({ status }: { status: PrinterStatus }) {
 
 export function ProductionCentersTab() {
   const { centers, isLoading, deleteCenter, isDeleting } = useProductionCenters();
+  const { statuses, recordStatus } = usePrinterStatus();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCenter, setEditingCenter] = useState<ProductionCenter | null>(null);
   const [deletingCenter, setDeletingCenter] = useState<ProductionCenter | null>(null);
-  const [statuses, setStatuses] = useState<Record<string, PrinterStatus>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const map: Record<string, PrinterStatus> = {};
-    centers.forEach((c) => { map[c.id] = readStatus(c.id); });
-    setStatuses(map);
-  }, [centers]);
 
   const handleEdit = (center: ProductionCenter) => {
     setEditingCenter(center);
