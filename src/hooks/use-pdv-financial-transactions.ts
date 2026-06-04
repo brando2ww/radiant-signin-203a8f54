@@ -86,6 +86,11 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         query = query.in("status", filters.status);
       }
 
+      if (filters?.overdue_only) {
+        const today = format(new Date(), "yyyy-MM-dd");
+        query = query.or(`status.eq.overdue,and(status.eq.pending,due_date.lt.${today})`);
+      }
+
       if (filters?.due_date_from) {
         query = query.gte("due_date", format(filters.due_date_from, "yyyy-MM-dd"));
       }
