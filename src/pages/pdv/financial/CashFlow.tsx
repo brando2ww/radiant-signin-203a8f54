@@ -134,9 +134,7 @@ export default function CashFlow() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              <p>Sem dados para o período selecionado</p>
-            </div>
+            <EmptyState icon={BarChart3} title="Sem movimentações no período" className="h-[300px] py-0" />
           )}
         </CardContent>
       </Card>
