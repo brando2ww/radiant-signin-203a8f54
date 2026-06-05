@@ -1002,22 +1002,36 @@ export function PaymentDialog({
       : (comanda?.customer_name
           || (comanda?.comanda_number ? `Comanda #${comanda.comanda_number}` : ""));
 
+    const snap = printSnapshotRef.current;
+    const printItems = snap
+      ? snap.items
+      : displayItems.map((i) => ({
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          subtotal: i.subtotal,
+        }));
+    const printSubtotal = snap ? snap.subtotal : subtotal;
+    const printDiscount = snap ? snap.discountAmount : discountAmount;
+    const printServiceFee = snap ? snap.serviceFeeAmount : serviceFeeAmount;
+    const printTotal = snap ? snap.total : total;
+    const printMethod = snap ? snap.selectedMethod : selectedMethod;
+    const printValorPago = printMethod === "dinheiro"
+      ? (snap ? snap.cashReceivedNum : cashReceivedNum)
+      : printTotal;
+    const printChange = snap ? snap.changeAmount : changeAmount;
+
     printNonFiscalReceipt({
       business: buildBusinessInfo(),
       header: { mesa: mesaLabel, comanda: comandaLabel },
-      items: displayItems.map((i) => ({
-        product_name: i.product_name,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        subtotal: i.subtotal,
-      })),
-      subtotal,
-      desconto: discountAmount,
-      taxa_servico: serviceFeeAmount,
-      total,
-      forma_pagamento: selectedMethod,
-      valor_pago: selectedMethod === "dinheiro" ? cashReceivedNum : total,
-      troco: changeAmount,
+      items: printItems,
+      subtotal: printSubtotal,
+      desconto: printDiscount,
+      taxa_servico: printServiceFee,
+      total: printTotal,
+      forma_pagamento: printMethod,
+      valor_pago: printValorPago,
+      troco: printChange,
     });
   };
 
