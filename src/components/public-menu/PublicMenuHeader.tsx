@@ -85,19 +85,17 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
                     </div>
                   </div>
 
-                  {loyaltyActive && (
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        navigate(loyaltyPath);
-                      }}
-                    >
-                      <Star className="h-4 w-4 text-primary" />
-                      Meus pontos de fidelidade
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate(loyaltyPath);
+                    }}
+                  >
+                    <Star className="h-4 w-4 text-primary" />
+                    Meus pontos de fidelidade
+                  </Button>
 
                   <Button
                     variant="ghost"
