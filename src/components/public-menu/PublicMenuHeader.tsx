@@ -109,54 +109,18 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
         {/* Loyalty entry */}
         {loyaltyActive && (
           <div className="mt-4">
-            {customer ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-                <Star className="h-4 w-4 text-primary fill-primary" />
-                <span>
-                  Olá{customer.name ? `, ${customer.name.split(" ")[0]}` : ""}! Você tem{" "}
-                  <strong className="text-primary">{points} pontos</strong>
-                  {cashbackPerPoint > 0 && (
-                    <span className="text-muted-foreground"> · {formatBRL(cashbackValue)} em cashback</span>
-                  )}
-                </span>
-                <div className="ml-auto flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => navigate(loyaltyPath)}
-                  >
-                    Ver prêmios
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setCustomer(null)}
-                    title="Sair"
-                  >
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIdentifyOpen(true)}
-                className="gap-2"
-              >
-                <Star className="h-4 w-4 text-primary" />
-                Ver meus pontos de fidelidade
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(loyaltyPath)}
+              className="gap-2"
+            >
+              <Star className="h-4 w-4 text-primary" />
+              Ver meus pontos de fidelidade
+            </Button>
           </div>
         )}
       </div>
-
-      <LoyaltyIdentifyDialog
-        open={identifyOpen}
-        onOpenChange={setIdentifyOpen}
-        onConfirm={(c) => setCustomer(c)}
-      />
     </div>
   );
 };
