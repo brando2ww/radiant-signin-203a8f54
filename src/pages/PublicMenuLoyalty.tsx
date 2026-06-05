@@ -5,7 +5,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Star, Gift, History, LogOut, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Star, Gift, History, LogOut, Loader2, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -17,15 +18,16 @@ import {
   useCustomerLoyaltyHistory,
   useRedeemLoyaltyPrize,
 } from "@/hooks/use-delivery-loyalty";
-import { usePublicLoyaltySession } from "@/hooks/use-public-loyalty-session";
-import { LoyaltyIdentifyDialog } from "@/components/public-menu/LoyaltyIdentifyDialog";
 import { useBusinessSettings } from "@/hooks/use-public-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import { CustomerLogin } from "@/components/public-menu/checkout/CustomerLogin";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const PublicMenuLoyalty = () => {
   const { userId: handle } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const { data: resolvedUserId, isLoading: resolvingHandle } = useQuery({
     queryKey: ["resolve-menu-handle", handle],
@@ -41,18 +43,18 @@ const PublicMenuLoyalty = () => {
   });
 
   const userId = resolvedUserId || undefined;
-  const slug = handle || "";
-  const { session, save, clear } = usePublicLoyaltySession(slug);
   const { data: businessSettings } = useBusinessSettings(userId || "");
   const { data: loyaltySettings } = useLoyaltySettings(userId);
-  const { data: balanceData } = useCustomerLoyaltyBalance(session?.session_token);
+  const { data: balanceData } = useCustomerLoyaltyBalance(userId);
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
-  const { data: history = [] } = useCustomerLoyaltyHistory(session?.session_token);
+  const { data: history = [] } = useCustomerLoyaltyHistory(userId);
   const redeem = useRedeemLoyaltyPrize();
 
-  const [identifyOpen, setIdentifyOpen] = useState(!session);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [redemptionCode, setRedemptionCode] = useState<string | null>(null);
 
+  const authenticated = !!user;
+  const linked = balanceData?.linked ?? false;
   const points = balanceData?.balance ?? 0;
   const expiringSoon = balanceData?.expiring_soon ?? 0;
   const cashbackPerPoint = Number(loyaltySettings?.cashback_value_per_point ?? 0);
@@ -62,13 +64,13 @@ const PublicMenuLoyalty = () => {
   );
 
   const handleRedeem = (prize: any) => {
-    if (!session) return;
+    if (!userId || !authenticated) return;
     if (points < prize.points_cost) {
       toast.error("Pontos insuficientes");
       return;
     }
     redeem.mutate(
-      { session_token: session.session_token, prize_id: prize.id },
+      { user_id: userId, prize_id: prize.id },
       {
         onSuccess: (res: any) => {
           setRedemptionCode(String(prize.id).slice(0, 8).toUpperCase());
@@ -110,8 +112,8 @@ const PublicMenuLoyalty = () => {
               {businessSettings?.business_name || ""}
             </p>
           </div>
-          {session && (
-            <Button variant="ghost" size="sm" onClick={clear}>
+          {authenticated && (
+            <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="h-4 w-4 mr-1" /> Sair
             </Button>
           )}
@@ -125,12 +127,29 @@ const PublicMenuLoyalty = () => {
               Este estabelecimento não possui programa de fidelidade ativo.
             </CardContent>
           </Card>
-        ) : !session ? (
+        ) : !authenticated ? (
           <Card>
             <CardContent className="py-10 text-center space-y-3">
               <Star className="h-10 w-10 text-primary mx-auto" />
-              <p className="text-muted-foreground">Identifique-se para ver seus pontos.</p>
-              <Button onClick={() => setIdentifyOpen(true)}>Informar telefone</Button>
+              <p className="text-muted-foreground">
+                Faça login para visualizar seus pontos e resgatar prêmios.
+              </p>
+              <Button onClick={() => setLoginOpen(true)}>
+                <LogIn className="h-4 w-4 mr-2" /> Entrar
+              </Button>
+            </CardContent>
+          </Card>
+        ) : !linked ? (
+          <Card>
+            <CardContent className="py-10 text-center space-y-2">
+              <Star className="h-10 w-10 text-muted-foreground mx-auto" />
+              <p className="font-medium">Você ainda não tem pontos neste cardápio.</p>
+              <p className="text-sm text-muted-foreground">
+                Faça seu primeiro pedido para começar a acumular.
+              </p>
+              <Button className="mt-2" onClick={() => navigate(`/cardapio/${handle}`)}>
+                Ver cardápio
+              </Button>
             </CardContent>
           </Card>
         ) : (
@@ -247,12 +266,17 @@ const PublicMenuLoyalty = () => {
         )}
       </main>
 
-      <LoyaltyIdentifyDialog
-        slug={slug}
-        open={identifyOpen}
-        onOpenChange={setIdentifyOpen}
-        onAuthenticated={(s) => save(s)}
-      />
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Entrar na sua conta</DialogTitle>
+          </DialogHeader>
+          <CustomerLogin
+            onConfirm={() => setLoginOpen(false)}
+            onBack={() => setLoginOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {redemptionCode && (
         <div
