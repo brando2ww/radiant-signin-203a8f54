@@ -89,12 +89,6 @@ export function LoyaltySettings() {
               <Input type="number" min="0" {...register("points_expire_days", { valueAsNumber: true })} />
               <p className="text-xs text-muted-foreground">0 = pontos nunca expiram. Recomendado: 180.</p>
             </div>
-
-            <div className="space-y-2">
-              <Label>Sessão do cliente (minutos)</Label>
-              <Input type="number" min="5" {...register("otp_session_minutes", { valueAsNumber: true })} />
-              <p className="text-xs text-muted-foreground">Tempo que o cliente fica autenticado após validar o código por WhatsApp.</p>
-            </div>
           </div>
 
 
