@@ -34,6 +34,13 @@ export const CustomerLogin = ({ onConfirm, onBack }: CustomerLoginProps) => {
       if (error) throw error;
       if (!auth.user) throw new Error("Falha ao autenticar");
 
+      const role = (auth.user.user_metadata as any)?.role;
+      if (role && role !== "delivery_customer") {
+        await supabase.auth.signOut();
+        toast.error("Esta conta é de estabelecimento. Use o painel administrativo.");
+        return;
+      }
+
       const { data: customer, error: cErr } = await (supabase
         .from("delivery_customers") as any)
         .select("*")

@@ -7927,6 +7927,7 @@ export type Database = {
         Args: { prize_id: string }
         Returns: undefined
       }
+      is_delivery_customer: { Args: { _uid: string }; Returns: boolean }
       is_establishment_member: { Args: { owner_id: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       log_pdv_action: {

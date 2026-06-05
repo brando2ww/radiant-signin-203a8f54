@@ -75,9 +75,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 1. Configurar listener PRIMEIRO
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Guard: contas de cliente final não podem usar o app de estabelecimento
+        const role = (session?.user?.user_metadata as any)?.role;
+        if (session?.user && role === "delivery_customer") {
+          supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         // 2. Buscar perfil se houver usuário (com setTimeout para evitar deadlock)
         if (session?.user) {
           setTimeout(() => {
@@ -103,11 +113,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    
+
+    if (!error && data.user) {
+      const role = (data.user.user_metadata as any)?.role;
+      if (role === "delivery_customer") {
+        await supabase.auth.signOut();
+        return {
+          error: {
+            name: "AuthApiError",
+            message: "Esta conta é de cliente final. Use o cardápio público para entrar.",
+            status: 403,
+          } as unknown as AuthError,
+        };
+      }
+    }
+
     return { error };
   };
 
