@@ -1,14 +1,10 @@
 import { useBusinessSettings, usePublicSettings } from "@/hooks/use-public-menu";
-import { Clock, MapPin, Star, LogOut } from "lucide-react";
+import { Clock, MapPin, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatBRL } from "@/lib/format";
 import { isStoreCurrentlyOpen, formatTodayShifts } from "@/lib/delivery-hours";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLoyaltySettings, useCustomerPoints } from "@/hooks/use-delivery-loyalty";
-import { usePublicCustomer } from "@/hooks/use-public-customer";
-import { LoyaltyIdentifyDialog } from "./LoyaltyIdentifyDialog";
+import { useLoyaltySettings } from "@/hooks/use-delivery-loyalty";
 
 interface PublicMenuHeaderProps {
   userId: string;
@@ -19,14 +15,9 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
   const { data: businessSettings } = useBusinessSettings(userId);
   const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
-  const { customer, setCustomer } = usePublicCustomer(userId);
-  const { data: points = 0 } = useCustomerPoints(userId, customer?.id);
-  const [identifyOpen, setIdentifyOpen] = useState(false);
   const navigate = useNavigate();
 
   const loyaltyActive = loyaltySettings?.is_active ?? false;
-  const cashbackPerPoint = Number(loyaltySettings?.cashback_value_per_point ?? 0);
-  const cashbackValue = points * cashbackPerPoint;
   const loyaltyPath = `/cardapio/${handle || userId}/meus-pontos`;
 
   return (
