@@ -14,7 +14,6 @@ interface FormValues {
   cashback_value_per_point: number;
   is_active: boolean;
   points_expire_days: number;
-  otp_session_minutes: number;
 }
 
 export function LoyaltySettings() {
@@ -27,7 +26,6 @@ export function LoyaltySettings() {
       cashback_value_per_point: 0.1,
       is_active: true,
       points_expire_days: 0,
-      otp_session_minutes: 30,
     },
   });
 
@@ -39,7 +37,6 @@ export function LoyaltySettings() {
         cashback_value_per_point: Number(settings.cashback_value_per_point),
         is_active: settings.is_active,
         points_expire_days: (settings as any).points_expire_days ?? 0,
-        otp_session_minutes: (settings as any).otp_session_minutes ?? 30,
       });
     }
   }, [settings, reset]);
@@ -91,12 +88,6 @@ export function LoyaltySettings() {
               <Label>Pontos expiram após (dias)</Label>
               <Input type="number" min="0" {...register("points_expire_days", { valueAsNumber: true })} />
               <p className="text-xs text-muted-foreground">0 = pontos nunca expiram. Recomendado: 180.</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Sessão do cliente (minutos)</Label>
-              <Input type="number" min="5" {...register("otp_session_minutes", { valueAsNumber: true })} />
-              <p className="text-xs text-muted-foreground">Tempo que o cliente fica autenticado após validar o código por WhatsApp.</p>
             </div>
           </div>
 
