@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 // ---- Settings ----
 export function useLoyaltySettings(userId?: string) {
-  const ownerId = useEstablishmentId();
+  const { visibleUserId: ownerId } = useEstablishmentId();
   const id = userId || ownerId;
   return useQuery({
     queryKey: ["loyalty-settings", id],
@@ -26,7 +26,7 @@ export function useLoyaltySettings(userId?: string) {
 
 export function useUpsertLoyaltySettings() {
   const qc = useQueryClient();
-  const ownerId = useEstablishmentId();
+  const { visibleUserId: ownerId } = useEstablishmentId();
   return useMutation({
     mutationFn: async (values: {
       points_per_real: number;
@@ -66,7 +66,7 @@ export function useUpsertLoyaltySettings() {
 
 // ---- Prizes ----
 export function useLoyaltyPrizes(userId?: string) {
-  const ownerId = useEstablishmentId();
+  const { visibleUserId: ownerId } = useEstablishmentId();
   const id = userId || ownerId;
   return useQuery({
     queryKey: ["loyalty-prizes", id],
@@ -86,7 +86,7 @@ export function useLoyaltyPrizes(userId?: string) {
 
 export function useCreateLoyaltyPrize() {
   const qc = useQueryClient();
-  const ownerId = useEstablishmentId();
+  const { visibleUserId: ownerId } = useEstablishmentId();
   return useMutation({
     mutationFn: async (values: {
       name: string;
@@ -228,7 +228,7 @@ export function useRedeemCashback() {
 // ---- Ranking (admin — resolves owner via establishment) ----
 export function useCustomerRanking() {
   const { user } = useAuth();
-  const ownerId = useEstablishmentId();
+  const { visibleUserId: ownerId } = useEstablishmentId();
   return useQuery({
     queryKey: ["loyalty-ranking", ownerId],
     queryFn: async () => {
@@ -266,7 +266,7 @@ export function useCustomerRanking() {
 // ---- Redemption history (admin) ----
 export function useRedemptionHistory() {
   const { user } = useAuth();
-  const ownerId = useEstablishmentId();
+  const { visibleUserId: ownerId } = useEstablishmentId();
   return useQuery({
     queryKey: ["loyalty-redemptions", ownerId],
     queryFn: async () => {
