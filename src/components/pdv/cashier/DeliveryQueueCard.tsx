@@ -234,7 +234,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       )}
 
       <div className="space-y-2">
-        {(nextLabel || (onPrintMotoboy && !isPickup)) && (
+        {(nextLabel || onPrintMotoboy) && (
           <div className="flex gap-2">
             {nextLabel && onAdvanceStatus && (
               <Button
@@ -247,16 +247,16 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
                 {nextLabel}
               </Button>
             )}
-            {onPrintMotoboy && !isPickup && (
+            {onPrintMotoboy && (
               <Button
                 size="sm"
                 variant="outline"
                 className="h-8 text-xs gap-1 px-2"
                 onClick={() => onPrintMotoboy(order)}
-                title="Imprimir comanda do motoboy"
+                title={isPickup ? "Imprimir comanda de retirada" : "Imprimir comanda do motoboy"}
               >
                 <Printer className="h-3.5 w-3.5" />
-                Motoboy
+                {isPickup ? "Retirada" : "Motoboy"}
               </Button>
             )}
           </div>
