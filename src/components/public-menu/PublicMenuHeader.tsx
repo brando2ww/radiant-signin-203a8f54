@@ -3,6 +3,7 @@ import { Clock, MapPin, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isStoreCurrentlyOpen, formatTodayShifts } from "@/lib/delivery-hours";
+import { formatBRL } from "@/lib/format";
 import { useNavigate } from "react-router-dom";
 import { useLoyaltySettings } from "@/hooks/use-delivery-loyalty";
 
