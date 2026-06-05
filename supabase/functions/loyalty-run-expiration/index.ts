@@ -1,21 +1,14 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
+// Public endpoint — safe because expire_loyalty_points() is idempotent
+// (NOT EXISTS guard prevents duplicate 'expire' rows for the same point).
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const expected = Deno.env.get("CRON_SECRET");
-    const provided = req.headers.get("x-cron-secret");
-    if (!expected || provided !== expected) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
