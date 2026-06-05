@@ -260,6 +260,7 @@ export function PaymentDialog({
     setShowSuccess(false);
     setSuccessData(null);
     setNfceState({ kind: "idle" });
+    printSnapshotRef.current = null;
   };
 
   // Limpa o set de remoções otimistas quando o dialog fecha,
