@@ -154,48 +154,49 @@ export function useDeleteLoyaltyPrize() {
   });
 }
 
-// ---- Public customer balance/history via SECURITY DEFINER RPCs ----
-export function useCustomerLoyaltyBalance(sessionToken?: string | null) {
+// ---- Public customer balance/history via SECURITY DEFINER RPCs (auth-based) ----
+export function useCustomerLoyaltyBalance(userId?: string | null) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["loyalty-balance-rpc", sessionToken],
+    queryKey: ["loyalty-balance-rpc", userId, user?.id ?? null],
     queryFn: async () => {
-      if (!sessionToken) return null;
+      if (!userId) return null;
       const { data, error } = await supabase.rpc("loyalty_get_balance", {
-        _session_token: sessionToken,
+        _user_id: userId,
       });
       if (error) throw error;
-      return data as { balance: number; expiring_soon: number };
+      return data as unknown as { balance: number; expiring_soon: number; authenticated: boolean; linked?: boolean };
     },
-    enabled: !!sessionToken,
+    enabled: !!userId,
   });
 }
 
-export function useCustomerLoyaltyHistory(sessionToken?: string | null) {
+export function useCustomerLoyaltyHistory(userId?: string | null) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["loyalty-history-rpc", sessionToken],
+    queryKey: ["loyalty-history-rpc", userId, user?.id ?? null],
     queryFn: async () => {
-      if (!sessionToken) return [];
+      if (!userId || !user) return [];
       const { data, error } = await supabase.rpc("loyalty_get_history", {
-        _session_token: sessionToken,
+        _user_id: userId,
       });
       if (error) throw error;
-      return data || [];
+      return ((data as unknown) as any[]) || [];
     },
-    enabled: !!sessionToken,
+    enabled: !!userId && !!user,
   });
 }
 
-// ---- Public prize redemption (requires OTP session) ----
 export function useRedeemLoyaltyPrize() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (values: { session_token: string; prize_id: string }) => {
+    mutationFn: async (values: { user_id: string; prize_id: string }) => {
       const { data, error } = await supabase.rpc("redeem_loyalty_prize", {
-        _session_token: values.session_token,
+        _user_id: values.user_id,
         _prize_id: values.prize_id,
       });
       if (error) throw error;
-      return data as { new_balance: number; prize_name: string };
+      return data as unknown as { new_balance: number; prize_name: string };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
@@ -205,18 +206,17 @@ export function useRedeemLoyaltyPrize() {
   });
 }
 
-// ---- Public cashback redemption (server-validated) ----
 export function useRedeemCashback() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (values: { session_token: string; order_id?: string; points: number }) => {
+    mutationFn: async (values: { user_id: string; order_id?: string; points: number }) => {
       const { data, error } = await supabase.rpc("redeem_cashback", {
-        _session_token: values.session_token,
+        _user_id: values.user_id,
         _order_id: values.order_id ?? null,
         _points: values.points,
       });
       if (error) throw error;
-      return data as { new_balance: number; redeemed: number };
+      return data as unknown as { new_balance: number; redeemed: number };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
