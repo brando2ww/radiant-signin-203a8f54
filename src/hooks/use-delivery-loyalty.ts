@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
 
 // ---- Settings ----
 export function useLoyaltySettings(userId?: string) {
-  const { user } = useAuth();
-  const id = userId || user?.id;
+  const ownerId = useEstablishmentId();
+  const id = userId || ownerId;
   return useQuery({
     queryKey: ["loyalty-settings", id],
     queryFn: async () => {
@@ -25,19 +26,21 @@ export function useLoyaltySettings(userId?: string) {
 
 export function useUpsertLoyaltySettings() {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const ownerId = useEstablishmentId();
   return useMutation({
     mutationFn: async (values: {
       points_per_real: number;
       min_points_redeem: number;
       cashback_value_per_point: number;
       is_active: boolean;
+      points_expire_days?: number;
+      otp_session_minutes?: number;
     }) => {
-      if (!user) throw new Error("Auth required");
+      if (!ownerId) throw new Error("Auth required");
       const { data: existing } = await supabase
         .from("delivery_loyalty_settings")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", ownerId)
         .maybeSingle();
 
       if (existing) {
@@ -49,7 +52,7 @@ export function useUpsertLoyaltySettings() {
       } else {
         const { error } = await supabase
           .from("delivery_loyalty_settings")
-          .insert({ ...values, user_id: user.id });
+          .insert({ ...values, user_id: ownerId });
         if (error) throw error;
       }
     },
@@ -63,8 +66,8 @@ export function useUpsertLoyaltySettings() {
 
 // ---- Prizes ----
 export function useLoyaltyPrizes(userId?: string) {
-  const { user } = useAuth();
-  const id = userId || user?.id;
+  const ownerId = useEstablishmentId();
+  const id = userId || ownerId;
   return useQuery({
     queryKey: ["loyalty-prizes", id],
     queryFn: async () => {
@@ -83,7 +86,7 @@ export function useLoyaltyPrizes(userId?: string) {
 
 export function useCreateLoyaltyPrize() {
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const ownerId = useEstablishmentId();
   return useMutation({
     mutationFn: async (values: {
       name: string;
@@ -93,10 +96,10 @@ export function useCreateLoyaltyPrize() {
       is_active?: boolean;
       max_quantity?: number | null;
     }) => {
-      if (!user) throw new Error("Auth required");
+      if (!ownerId) throw new Error("Auth required");
       const { error } = await supabase
         .from("delivery_loyalty_prizes")
-        .insert({ ...values, user_id: user.id });
+        .insert({ ...values, user_id: ownerId });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -151,118 +154,89 @@ export function useDeleteLoyaltyPrize() {
   });
 }
 
-// ---- Points ----
-export function useCustomerPoints(userId?: string, customerId?: string) {
+// ---- Public customer balance/history via SECURITY DEFINER RPCs ----
+export function useCustomerLoyaltyBalance(sessionToken?: string | null) {
   return useQuery({
-    queryKey: ["loyalty-points-balance", userId, customerId],
+    queryKey: ["loyalty-balance-rpc", sessionToken],
     queryFn: async () => {
-      if (!userId || !customerId) return 0;
-      const { data, error } = await supabase
-        .from("delivery_loyalty_points")
-        .select("points")
-        .eq("user_id", userId)
-        .eq("customer_id", customerId);
+      if (!sessionToken) return null;
+      const { data, error } = await supabase.rpc("loyalty_get_balance", {
+        _session_token: sessionToken,
+      });
       if (error) throw error;
-      return (data || []).reduce((sum, r) => sum + r.points, 0);
+      return data as { balance: number; expiring_soon: number };
     },
-    enabled: !!userId && !!customerId,
+    enabled: !!sessionToken,
   });
 }
 
-export function useEarnPoints() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (values: {
-      user_id: string;
-      customer_id: string;
-      points: number;
-      reference_id?: string;
-      description?: string;
-    }) => {
-      const { error } = await supabase
-        .from("delivery_loyalty_points")
-        .insert({ ...values, type: "earn" });
-      if (error) throw error;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["loyalty-points-balance", vars.user_id, vars.customer_id] });
-    },
-  });
-}
-
-export function useRedeemPoints() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (values: {
-      user_id: string;
-      customer_id: string;
-      points: number;
-      reference_id?: string;
-      description?: string;
-    }) => {
-      const { error } = await supabase
-        .from("delivery_loyalty_points")
-        .insert({ ...values, points: -Math.abs(values.points), type: "redeem" });
-      if (error) throw error;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["loyalty-points-balance", vars.user_id, vars.customer_id] });
-    },
-  });
-}
-
-// ---- Public customer history ----
-export function useCustomerPointsHistory(userId?: string, customerId?: string) {
+export function useCustomerLoyaltyHistory(sessionToken?: string | null) {
   return useQuery({
-    queryKey: ["loyalty-points-history", userId, customerId],
+    queryKey: ["loyalty-history-rpc", sessionToken],
     queryFn: async () => {
-      if (!userId || !customerId) return [];
-      const { data, error } = await supabase
-        .from("delivery_loyalty_points")
-        .select("id, points, type, description, created_at, reference_id")
-        .eq("user_id", userId)
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false })
-        .limit(50);
+      if (!sessionToken) return [];
+      const { data, error } = await supabase.rpc("loyalty_get_history", {
+        _session_token: sessionToken,
+      });
       if (error) throw error;
       return data || [];
     },
-    enabled: !!userId && !!customerId,
+    enabled: !!sessionToken,
   });
 }
 
-// ---- Public prize redemption via secure RPC ----
+// ---- Public prize redemption (requires OTP session) ----
 export function useRedeemLoyaltyPrize() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (values: { user_id: string; customer_id: string; prize_id: string }) => {
+    mutationFn: async (values: { session_token: string; prize_id: string }) => {
       const { data, error } = await supabase.rpc("redeem_loyalty_prize", {
-        _user_id: values.user_id,
-        _customer_id: values.customer_id,
+        _session_token: values.session_token,
         _prize_id: values.prize_id,
       });
       if (error) throw error;
-      return data as string;
+      return data as { new_balance: number; prize_name: string };
     },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["loyalty-points-balance", vars.user_id, vars.customer_id] });
-      qc.invalidateQueries({ queryKey: ["loyalty-points-history", vars.user_id, vars.customer_id] });
-      qc.invalidateQueries({ queryKey: ["loyalty-prizes", vars.user_id] });
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-history-rpc"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-prizes"] });
     },
   });
 }
 
-// ---- Ranking (admin) ----
+// ---- Public cashback redemption (server-validated) ----
+export function useRedeemCashback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (values: { session_token: string; order_id?: string; points: number }) => {
+      const { data, error } = await supabase.rpc("redeem_cashback", {
+        _session_token: values.session_token,
+        _order_id: values.order_id ?? null,
+        _points: values.points,
+      });
+      if (error) throw error;
+      return data as { new_balance: number; redeemed: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-history-rpc"] });
+    },
+  });
+}
+
+// ---- Ranking (admin — resolves owner via establishment) ----
 export function useCustomerRanking() {
   const { user } = useAuth();
+  const ownerId = useEstablishmentId();
   return useQuery({
-    queryKey: ["loyalty-ranking", user?.id],
+    queryKey: ["loyalty-ranking", ownerId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!ownerId) return [];
       const { data, error } = await supabase
         .from("delivery_loyalty_points")
         .select("customer_id, points, delivery_customers(name, phone)")
-        .eq("user_id", user.id);
+        .eq("user_id", ownerId);
       if (error) throw error;
 
       const map = new Map<string, { name: string; phone: string; total: number; earned: number; redeemed: number }>();
@@ -285,27 +259,28 @@ export function useCustomerRanking() {
         .map(([id, v]) => ({ id, ...v }))
         .sort((a, b) => b.total - a.total);
     },
-    enabled: !!user,
+    enabled: !!user && !!ownerId,
   });
 }
 
 // ---- Redemption history (admin) ----
 export function useRedemptionHistory() {
   const { user } = useAuth();
+  const ownerId = useEstablishmentId();
   return useQuery({
-    queryKey: ["loyalty-redemptions", user?.id],
+    queryKey: ["loyalty-redemptions", ownerId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!ownerId) return [];
       const { data, error } = await supabase
         .from("delivery_loyalty_points")
         .select("*, delivery_customers(name, phone)")
-        .eq("user_id", user.id)
+        .eq("user_id", ownerId)
         .eq("type", "redeem")
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!ownerId,
   });
 }
