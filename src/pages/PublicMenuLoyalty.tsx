@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +12,12 @@ import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
 import {
   useLoyaltySettings,
-  useCustomerPoints,
   useLoyaltyPrizes,
-  useCustomerPointsHistory,
+  useCustomerLoyaltyBalance,
+  useCustomerLoyaltyHistory,
   useRedeemLoyaltyPrize,
 } from "@/hooks/use-delivery-loyalty";
-import { usePublicCustomer } from "@/hooks/use-public-customer";
+import { usePublicLoyaltySession } from "@/hooks/use-public-loyalty-session";
 import { LoyaltyIdentifyDialog } from "@/components/public-menu/LoyaltyIdentifyDialog";
 import { useBusinessSettings } from "@/hooks/use-public-menu";
 
@@ -41,21 +41,20 @@ const PublicMenuLoyalty = () => {
   });
 
   const userId = resolvedUserId || undefined;
-  const { customer, setCustomer } = usePublicCustomer(userId);
+  const slug = handle || "";
+  const { session, save, clear } = usePublicLoyaltySession(slug);
   const { data: businessSettings } = useBusinessSettings(userId || "");
   const { data: loyaltySettings } = useLoyaltySettings(userId);
-  const { data: points = 0 } = useCustomerPoints(userId, customer?.id);
+  const { data: balanceData } = useCustomerLoyaltyBalance(session?.session_token);
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
-  const { data: history = [] } = useCustomerPointsHistory(userId, customer?.id);
+  const { data: history = [] } = useCustomerLoyaltyHistory(session?.session_token);
   const redeem = useRedeemLoyaltyPrize();
 
-  const [identifyOpen, setIdentifyOpen] = useState(!customer);
+  const [identifyOpen, setIdentifyOpen] = useState(!session);
   const [redemptionCode, setRedemptionCode] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!customer && !resolvingHandle && userId) setIdentifyOpen(true);
-  }, [customer, resolvingHandle, userId]);
-
+  const points = balanceData?.balance ?? 0;
+  const expiringSoon = balanceData?.expiring_soon ?? 0;
   const cashbackPerPoint = Number(loyaltySettings?.cashback_value_per_point ?? 0);
   const pointsPerReal = Number(loyaltySettings?.points_per_real ?? 1);
   const activePrizes = (prizes as any[]).filter(
@@ -63,17 +62,17 @@ const PublicMenuLoyalty = () => {
   );
 
   const handleRedeem = (prize: any) => {
-    if (!userId || !customer) return;
+    if (!session) return;
     if (points < prize.points_cost) {
       toast.error("Pontos insuficientes");
       return;
     }
     redeem.mutate(
-      { user_id: userId, customer_id: customer.id, prize_id: prize.id },
+      { session_token: session.session_token, prize_id: prize.id },
       {
-        onSuccess: (id) => {
-          setRedemptionCode(String(id).slice(0, 8).toUpperCase());
-          toast.success(`Prêmio "${prize.name}" resgatado!`);
+        onSuccess: (res: any) => {
+          setRedemptionCode(String(prize.id).slice(0, 8).toUpperCase());
+          toast.success(`Prêmio "${res?.prize_name || prize.name}" resgatado!`);
         },
         onError: (e: any) => toast.error(e?.message || "Erro ao resgatar"),
       },
@@ -111,8 +110,8 @@ const PublicMenuLoyalty = () => {
               {businessSettings?.business_name || ""}
             </p>
           </div>
-          {customer && (
-            <Button variant="ghost" size="sm" onClick={() => setCustomer(null)}>
+          {session && (
+            <Button variant="ghost" size="sm" onClick={clear}>
               <LogOut className="h-4 w-4 mr-1" /> Sair
             </Button>
           )}
@@ -126,7 +125,7 @@ const PublicMenuLoyalty = () => {
               Este estabelecimento não possui programa de fidelidade ativo.
             </CardContent>
           </Card>
-        ) : !customer ? (
+        ) : !session ? (
           <Card>
             <CardContent className="py-10 text-center space-y-3">
               <Star className="h-10 w-10 text-primary mx-auto" />
@@ -136,7 +135,6 @@ const PublicMenuLoyalty = () => {
           </Card>
         ) : (
           <>
-            {/* Summary */}
             <Card>
               <CardHeader>
                 <CardDescription>Seu saldo</CardDescription>
@@ -156,13 +154,14 @@ const PublicMenuLoyalty = () => {
                   Regra: a cada R$ 1,00 gasto você ganha <strong>{pointsPerReal}</strong>{" "}
                   ponto{pointsPerReal > 1 ? "s" : ""}.
                 </p>
-                {loyaltySettings?.min_points_redeem && (
-                  <p>Mínimo para resgatar cashback: {loyaltySettings.min_points_redeem} pontos.</p>
+                {expiringSoon > 0 && (
+                  <p className="text-foreground">
+                    ⚠ <strong>{expiringSoon}</strong> pontos vencem nos próximos 30 dias.
+                  </p>
                 )}
               </CardContent>
             </Card>
 
-            {/* Prizes */}
             <section className="space-y-3">
               <h2 className="font-semibold flex items-center gap-2">
                 <Gift className="h-5 w-5 text-primary" /> Prêmios disponíveis
@@ -211,7 +210,6 @@ const PublicMenuLoyalty = () => {
               )}
             </section>
 
-            {/* History */}
             <section className="space-y-3">
               <h2 className="font-semibold flex items-center gap-2">
                 <History className="h-5 w-5 text-primary" /> Histórico
@@ -250,12 +248,12 @@ const PublicMenuLoyalty = () => {
       </main>
 
       <LoyaltyIdentifyDialog
+        slug={slug}
         open={identifyOpen}
         onOpenChange={setIdentifyOpen}
-        onConfirm={(c) => setCustomer(c)}
+        onAuthenticated={(s) => save(s)}
       />
 
-      {/* Redemption code dialog */}
       {redemptionCode && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
