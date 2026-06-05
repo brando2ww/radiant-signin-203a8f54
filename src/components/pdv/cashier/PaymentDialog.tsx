@@ -260,6 +260,7 @@ export function PaymentDialog({
     setShowSuccess(false);
     setSuccessData(null);
     setNfceState({ kind: "idle" });
+    printSnapshotRef.current = null;
   };
 
   // Limpa o set de remoções otimistas quando o dialog fecha,
@@ -279,6 +280,19 @@ export function PaymentDialog({
   // efetivamente travados (por nós) para liberar caso o operador cancele.
   const lockedIdsRef = useRef<string[]>([]);
   const paymentDoneRef = useRef(false);
+  // Snapshot capturado no momento do pagamento — usado pela impressão para
+  // garantir que o cupom não fiscal reflita exatamente o que o operador viu
+  // na tela (mesmo após refetch que possa "ressuscitar" itens).
+  const printSnapshotRef = useRef<null | {
+    items: Array<{ product_name: string; quantity: number; unit_price: number; subtotal: number }>;
+    subtotal: number;
+    discountAmount: number;
+    serviceFeeAmount: number;
+    total: number;
+    cashReceivedNum: number;
+    changeAmount: number;
+    selectedMethod: PaymentMethod;
+  }>(null);
 
   // Determine payment context
   const isTablePayment = !!table;
@@ -755,6 +769,28 @@ export function PaymentDialog({
     try {
       const finalAmount = total;
 
+      // Congela os valores que serão impressos no cupom não fiscal.
+      // Sem isso, refetch das queries após a baixa pode trazer de volta
+      // itens removidos pelo operador (ex.: 2 águas), fazendo o cupom
+      // exibir um total diferente do que foi cobrado do cliente.
+      printSnapshotRef.current = {
+        items: displayItems.map((i) => ({
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          subtotal: i.subtotal,
+        })),
+        subtotal,
+        discountAmount,
+        serviceFeeAmount,
+        total,
+        cashReceivedNum,
+        changeAmount,
+        selectedMethod,
+      };
+
+
+
       // Mapeia "cartao" + cardType para credito/debito (granularidade exigida pela conferência do fechamento)
       const resolvedMethod: PaymentMethod =
         selectedMethod === "cartao"
@@ -967,22 +1003,36 @@ export function PaymentDialog({
       : (comanda?.customer_name
           || (comanda?.comanda_number ? `Comanda #${comanda.comanda_number}` : ""));
 
+    const snap = printSnapshotRef.current;
+    const printItems = snap
+      ? snap.items
+      : displayItems.map((i) => ({
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          subtotal: i.subtotal,
+        }));
+    const printSubtotal = snap ? snap.subtotal : subtotal;
+    const printDiscount = snap ? snap.discountAmount : discountAmount;
+    const printServiceFee = snap ? snap.serviceFeeAmount : serviceFeeAmount;
+    const printTotal = snap ? snap.total : total;
+    const printMethod = snap ? snap.selectedMethod : selectedMethod;
+    const printValorPago = printMethod === "dinheiro"
+      ? (snap ? snap.cashReceivedNum : cashReceivedNum)
+      : printTotal;
+    const printChange = snap ? snap.changeAmount : changeAmount;
+
     printNonFiscalReceipt({
       business: buildBusinessInfo(),
       header: { mesa: mesaLabel, comanda: comandaLabel },
-      items: displayItems.map((i) => ({
-        product_name: i.product_name,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-        subtotal: i.subtotal,
-      })),
-      subtotal,
-      desconto: discountAmount,
-      taxa_servico: serviceFeeAmount,
-      total,
-      forma_pagamento: selectedMethod,
-      valor_pago: selectedMethod === "dinheiro" ? cashReceivedNum : total,
-      troco: changeAmount,
+      items: printItems,
+      subtotal: printSubtotal,
+      desconto: printDiscount,
+      taxa_servico: printServiceFee,
+      total: printTotal,
+      forma_pagamento: printMethod,
+      valor_pago: printValorPago,
+      troco: printChange,
     });
   };
 

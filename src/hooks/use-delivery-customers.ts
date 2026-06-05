@@ -262,15 +262,25 @@ export const useCreateOrder = () => {
       }
 
       // Create order items
-      const itemsToInsert = orderData.items.map((item) => ({
-        order_id: order.id,
-        product_id: item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        subtotal: item.subtotal,
-        notes: item.notes || null,
-      }));
+      // Importante: `unit_price` é gravado JÁ incluindo os ajustes de adicionais,
+      // para que cupons fiscais, recibos e relatórios mostrem o preço efetivo
+      // por unidade (ex.: Festival em Casa R$ 284 + Geléia R$ 5 = R$ 289/un).
+      const itemsToInsert = orderData.items.map((item) => {
+        const adjustmentPerUnit = (item.options || []).reduce(
+          (s, o) => s + (Number(o.priceAdjustment) || 0) * (Number(o.quantity) || 1),
+          0,
+        );
+        const effectiveUnitPrice = Number(item.unitPrice) + adjustmentPerUnit;
+        return {
+          order_id: order.id,
+          product_id: item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: effectiveUnitPrice,
+          subtotal: item.subtotal,
+          notes: item.notes || null,
+        };
+      });
 
       const { data: orderItems, error: itemsError } = await supabase
         .from("delivery_order_items")
