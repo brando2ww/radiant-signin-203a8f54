@@ -34,7 +34,6 @@ export function useUpsertLoyaltySettings() {
       cashback_value_per_point: number;
       is_active: boolean;
       points_expire_days?: number;
-      otp_session_minutes?: number;
     }) => {
       if (!ownerId) throw new Error("Auth required");
       const { data: existing } = await supabase
