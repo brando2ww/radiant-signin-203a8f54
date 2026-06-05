@@ -13,13 +13,22 @@ interface FormValues {
   min_points_redeem: number;
   cashback_value_per_point: number;
   is_active: boolean;
+  points_expire_days: number;
+  otp_session_minutes: number;
 }
 
 export function LoyaltySettings() {
   const { data: settings, isLoading } = useLoyaltySettings();
   const upsert = useUpsertLoyaltySettings();
   const { register, handleSubmit, setValue, watch, reset } = useForm<FormValues>({
-    defaultValues: { points_per_real: 1, min_points_redeem: 50, cashback_value_per_point: 0.1, is_active: true },
+    defaultValues: {
+      points_per_real: 1,
+      min_points_redeem: 50,
+      cashback_value_per_point: 0.1,
+      is_active: true,
+      points_expire_days: 0,
+      otp_session_minutes: 30,
+    },
   });
 
   useEffect(() => {
@@ -29,9 +38,12 @@ export function LoyaltySettings() {
         min_points_redeem: settings.min_points_redeem,
         cashback_value_per_point: Number(settings.cashback_value_per_point),
         is_active: settings.is_active,
+        points_expire_days: (settings as any).points_expire_days ?? 0,
+        otp_session_minutes: (settings as any).otp_session_minutes ?? 30,
       });
     }
   }, [settings, reset]);
+
 
   const isActive = watch("is_active");
 
@@ -70,8 +82,22 @@ export function LoyaltySettings() {
               <Label>Valor do cashback por ponto (R$)</Label>
               <Input type="number" step="0.01" min="0.01" {...register("cashback_value_per_point", { valueAsNumber: true })} />
               <p className="text-xs text-muted-foreground">Ex: 0.10 = cada ponto vale R$0,10 de desconto</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Pontos expiram após (dias)</Label>
+              <Input type="number" min="0" {...register("points_expire_days", { valueAsNumber: true })} />
+              <p className="text-xs text-muted-foreground">0 = pontos nunca expiram. Recomendado: 180.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Sessão do cliente (minutos)</Label>
+              <Input type="number" min="5" {...register("otp_session_minutes", { valueAsNumber: true })} />
+              <p className="text-xs text-muted-foreground">Tempo que o cliente fica autenticado após validar o código por WhatsApp.</p>
             </div>
           </div>
+
 
           <Button type="submit" disabled={upsert.isPending}>
             {upsert.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
