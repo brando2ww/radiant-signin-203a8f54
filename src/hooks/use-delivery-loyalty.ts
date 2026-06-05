@@ -5,6 +5,16 @@ import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
 
 // ---- Settings ----
+const DEFAULT_LOYALTY_SETTINGS = {
+  id: null as string | null,
+  user_id: null as string | null,
+  points_per_real: 1,
+  min_points_redeem: 50,
+  cashback_value_per_point: 0.1,
+  is_active: true,
+  points_expire_days: 0,
+};
+
 export function useLoyaltySettings(userId?: string) {
   const { visibleUserId: ownerId } = useEstablishmentId();
   const id = userId || ownerId;
@@ -18,7 +28,7 @@ export function useLoyaltySettings(userId?: string) {
         .eq("user_id", id)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ?? ({ ...DEFAULT_LOYALTY_SETTINGS, user_id: id } as any);
     },
     enabled: !!id,
   });
