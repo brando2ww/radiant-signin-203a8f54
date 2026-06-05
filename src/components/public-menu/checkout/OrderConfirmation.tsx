@@ -60,42 +60,16 @@ export const OrderConfirmation = ({
   selectedAddressId,
 }: OrderConfirmationProps) => {
   const createOrder = useCreateOrder();
-  const earnPoints = useEarnPoints();
-  const redeemPoints = useRedeemPoints();
   const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
-  const { data: customerPoints = 0 } = useCustomerPoints(userId, customer.id);
-  const { data: prizes = [] } = useLoyaltyPrizes(userId);
-  const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
-  const [redeemedPointsAmount, setRedeemedPointsAmount] = useState(0);
   // Chave de idempotência por tentativa de checkout — preserva entre retries
   const [idempotencyKey] = useState(() =>
     globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
   );
 
   const loyaltyActive = loyaltySettings?.is_active ?? false;
-  const activePrizes = prizes.filter((p: any) => p.is_active && (!p.max_quantity || p.redeemed_count < p.max_quantity));
 
-  const effectiveTotal = (orderType === "delivery" ? total : subtotal - discount) - loyaltyDiscount;
-
-  const handleCashbackRedeem = (pointsToUse: number) => {
-    if (!loyaltySettings) return;
-    const discountValue = pointsToUse * Number(loyaltySettings.cashback_value_per_point);
-    setLoyaltyDiscount(discountValue);
-    setRedeemedPointsAmount(pointsToUse);
-    toast.success(`Cashback de ${formatBRL(discountValue)} aplicado!`);
-  };
-
-  const handlePrizeRedeem = (prize: any) => {
-    redeemPoints.mutate({
-      user_id: userId,
-      customer_id: customer.id,
-      points: prize.points_cost,
-      reference_id: prize.id,
-      description: `Resgate: ${prize.name}`,
-    });
-    toast.success(`Prêmio "${prize.name}" resgatado!`);
-  };
+  const effectiveTotal = orderType === "delivery" ? total : subtotal - discount;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
