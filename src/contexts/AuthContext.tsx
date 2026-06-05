@@ -75,9 +75,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 1. Configurar listener PRIMEIRO
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // Guard: contas de cliente final não podem usar o app de estabelecimento
+        const role = (session?.user?.user_metadata as any)?.role;
+        if (session?.user && role === "delivery_customer") {
+          supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         // 2. Buscar perfil se houver usuário (com setTimeout para evitar deadlock)
         if (session?.user) {
           setTimeout(() => {
