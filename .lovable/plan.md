@@ -1,49 +1,63 @@
-# Finalização do Módulo de Fidelidade
+# Remover OTP do módulo de Fidelidade e usar login Supabase
 
-Conclui os 3 itens restantes da auditoria de Fidelidade do Delivery.
+Substitui o fluxo OTP por WhatsApp pela autenticação padrão já existente (`supabase.auth` — e-mail/senha ou Google). Identidade do cliente passa a vir de `auth.uid()` → `delivery_customers.auth_user_id`.
 
-## 1. Cron diário de expiração (Fase 7)
+## 1. Banco (migration única)
 
-**Edge function** `supabase/functions/loyalty-run-expiration/index.ts`:
-- Recebe POST simples, valida header `x-cron-secret` contra `Deno.env.get('CRON_SECRET')`.
-- Cria client com `SUPABASE_SERVICE_ROLE_KEY` e chama `supabase.rpc('expire_loyalty_points')`.
-- Retorna `{ ok: true, expired_count }`. Loga erros.
-- Idempotência: garantida pela própria `expire_loyalty_points()` (já usa `NOT EXISTS` para não duplicar linhas `type='expire'` por `reference_id`).
+**Drop**:
+- `loyalty_send_otp` / `loyalty_verify_otp` / `loyalty_resolve_session` (funções)
+- Tabela `delivery_customer_otp_sessions`
+- Colunas `otp_session_minutes`, `last_sent_at` em `delivery_loyalty_settings` (e `otp_session_minutes` em settings)
 
-**Secret novo**: `CRON_SECRET` (gerado aleatório) — adicionar via `secrets--add_secret` antes de agendar.
+**Recriar 4 RPCs `SECURITY DEFINER` sem `_session_token`**:
 
-**Agendamento (via `supabase--insert`, não migration, porque contém URL/anon key específicos do projeto)**:
+Helper interno:
 ```sql
-select cron.schedule(
-  'loyalty-expire-points-daily',
-  '0 6 * * *', -- 03:00 BRT = 06:00 UTC
-  $$ select net.http_post(
-    url:='https://frbziqazwhymwsrtneoy.supabase.co/functions/v1/loyalty-run-expiration',
-    headers:='{"Content-Type":"application/json","x-cron-secret":"<CRON_SECRET>","apikey":"<ANON>"}'::jsonb,
-    body:='{}'::jsonb
-  ); $$
-);
+-- retorna customer_id ligado ao usuário autenticado para o estabelecimento (_user_id = dono do cardápio)
+create or replace function loyalty_current_customer(_owner uuid)
+returns uuid language sql stable security definer set search_path = public as $$
+  select id from delivery_customers
+   where auth_user_id = auth.uid() and user_id = _owner
+   limit 1
+$$;
 ```
-Migration leve antes para garantir `pg_cron` e `pg_net` habilitados.
 
-## 2. Campos no painel admin (`LoyaltySettings.tsx`)
+- `loyalty_get_balance(_user_id uuid)` → resolve `customer_id` via helper; se `auth.uid()` nulo ou cliente não existe → `{ balance: 0, authenticated: false }`. Senão soma `delivery_loyalty_points`.
+- `loyalty_get_history(_user_id uuid)` → mesmo padrão, retorna lista.
+- `redeem_cashback(_user_id uuid, _order_id uuid, _points int)` → exige `auth.uid()`; valida saldo com `pg_advisory_xact_lock(hashtext(customer_id::text))`; insere `type='redeem'`.
+- `redeem_loyalty_prize(_user_id uuid, _prize_id uuid)` → idem; valida estoque + saldo; insere `type='redeem'` e decrementa estoque.
 
-Adicionar dois inputs numéricos no formulário existente:
+Todas verificam `auth.uid() is not null` (retornam erro `authentication_required` se anônimo). Grant para `anon, authenticated` (anon recebe `authenticated:false`).
 
-- **"Pontos expiram após (dias)"** → `points_expire_days` (min 0). Helper: *"0 = pontos nunca expiram. Recomendado: 180."*
-- **"Sessão do cliente (minutos)"** → `otp_session_minutes` (min 5, default 30). Helper: *"Tempo que o cliente fica autenticado após validar o código por WhatsApp."*
+## 2. Frontend
 
-Incluir nos defaults do form, no payload do mutation existente (`useUpdateLoyaltySettings`) e no schema de validação se houver. Sem mudança de hook — campos já existem em `delivery_loyalty_settings`.
+**Deletar**:
+- `src/hooks/use-public-loyalty-session.ts`
+- `src/components/public-menu/LoyaltyIdentifyDialog.tsx`
 
-## 3. Remover componentes legados
+**`src/hooks/use-delivery-loyalty.ts`** — remover `session_token` dos 4 hooks (`useCustomerBalance`, `useCustomerHistory`, `useRedeemCashback`, `useRedeemLoyaltyPrize`). Cada hook passa apenas `_user_id` (dono do cardápio). Adicionar guard: se `useAuth()` não tem `user`, hook fica desabilitado.
 
-`LoyaltyBanner.tsx` e `LoyaltyRedeemSheet.tsx` aparecem apenas como auto-referência (sem importadores). Confirmar com `rg "from.*LoyaltyBanner|from.*LoyaltyRedeemSheet"` e, se zero resultados, deletar ambos os arquivos. Caso reste alguma referência, substituir pelo fluxo novo de `LoyaltyIdentifyDialog` + `PublicMenuLoyalty` antes da remoção.
+**`src/pages/PublicMenuLoyalty.tsx`**:
+- Remover `usePublicLoyaltySession` e `LoyaltyIdentifyDialog`.
+- Usar `useAuth()` (contexto já existente).
+- Se `!user` → renderizar card com mensagem "Faça login para ver seus pontos" + botão que abre `CustomerLogin` (já usado no checkout) em um Dialog, com tabs para login/cadastro existentes.
+- Se `user` mas sem `delivery_customers` linkado para esse estabelecimento → mensagem "Faça seu primeiro pedido neste cardápio para começar a acumular".
+- Se autenticado e linkado → mostra saldo/histórico/prêmios como hoje.
 
-## Ordem de execução
+## 3. Edge functions
 
-1. Editar `LoyaltySettings.tsx` (item 2 — sem risco).
-2. Deletar legados (item 3) após `rg` final.
-3. Criar edge function + secret `CRON_SECRET`.
-4. Migration p/ habilitar `pg_cron`/`pg_net`.
-5. `supabase--insert` com `cron.schedule` usando o secret real.
-6. Validar: invocar a function manualmente via `curl_edge_functions` e conferir linhas `type='expire'` em `delivery_loyalty_points`.
+Deletar `supabase/functions/loyalty-send-otp` e `supabase/functions/loyalty-verify-otp` (arquivos + `supabase--delete_edge_functions`).
+
+## 4. Ordem de execução
+
+1. Editar `PublicMenuLoyalty.tsx` + hooks para usar nova assinatura.
+2. Deletar `LoyaltyIdentifyDialog`, `use-public-loyalty-session`.
+3. Migration (drop tabela/funções OTP + recriar 4 RPCs sem session_token).
+4. Remover edge functions OTP via tool.
+5. Validar manualmente no preview: rota `/cardapio/:slug/meus-pontos` deslogado → CTA de login; logado → saldo.
+
+## Notas
+
+- A coluna `delivery_customers.auth_user_id` já existe e tem RLS configurada (migration `20260527181353`).
+- O CTA de login reusa `CustomerLogin` (`src/components/public-menu/checkout/CustomerLogin.tsx`) que já faz `signInWithPassword`. Se for necessário cadastro também, adicionar tab de signup análoga (`signUp` com `emailRedirectTo: window.location.origin`).
+- Cliente só vê pontos do estabelecimento atual (resolve `_user_id` via slug, já feito em `PublicMenuLoyalty`).
