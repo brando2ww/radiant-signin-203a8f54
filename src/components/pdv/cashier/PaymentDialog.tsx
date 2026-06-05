@@ -279,6 +279,19 @@ export function PaymentDialog({
   // efetivamente travados (por nós) para liberar caso o operador cancele.
   const lockedIdsRef = useRef<string[]>([]);
   const paymentDoneRef = useRef(false);
+  // Snapshot capturado no momento do pagamento — usado pela impressão para
+  // garantir que o cupom não fiscal reflita exatamente o que o operador viu
+  // na tela (mesmo após refetch que possa "ressuscitar" itens).
+  const printSnapshotRef = useRef<null | {
+    items: Array<{ product_name: string; quantity: number; unit_price: number; subtotal: number }>;
+    subtotal: number;
+    discountAmount: number;
+    serviceFeeAmount: number;
+    total: number;
+    cashReceivedNum: number;
+    changeAmount: number;
+    selectedMethod: PaymentMethod;
+  }>(null);
 
   // Determine payment context
   const isTablePayment = !!table;
