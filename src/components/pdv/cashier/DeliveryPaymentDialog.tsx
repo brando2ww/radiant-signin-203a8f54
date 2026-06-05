@@ -58,7 +58,17 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
 
   if (!order) return null;
 
-  const total = Number(order.total) || 0;
+  // Fórmula canônica: subtotal + taxa - desconto.
+  // Calculamos localmente para evitar usar `order.total` se estiver
+  // desatualizado (ex.: gravado antes da taxa de entrega ser incluída).
+  const computedTotal = Math.max(
+    0,
+    Number(order.subtotal || 0) +
+      Number(order.delivery_fee || 0) -
+      Number(order.discount || 0),
+  );
+  const storedTotal = Number(order.total) || 0;
+  const total = computedTotal > 0 ? computedTotal : storedTotal;
   const isCash = method === "dinheiro";
   const cashReceived = isCash ? Number(received) || 0 : 0;
   const change = isCash ? Math.max(0, cashReceived - total) : 0;
