@@ -103,11 +103,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    
+
+    if (!error && data.user) {
+      const role = (data.user.user_metadata as any)?.role;
+      if (role === "delivery_customer") {
+        await supabase.auth.signOut();
+        return {
+          error: {
+            name: "AuthApiError",
+            message: "Esta conta é de cliente final. Use o cardápio público para entrar.",
+            status: 403,
+          } as unknown as AuthError,
+        };
+      }
+    }
+
     return { error };
   };
 
