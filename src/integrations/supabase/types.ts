@@ -1359,6 +1359,51 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_customer_otp_sessions: {
+        Row: {
+          attempts: number
+          code_expires_at: string
+          code_hash: string
+          created_at: string
+          customer_id: string
+          id: string
+          last_sent_at: string
+          phone: string
+          session_expires_at: string | null
+          session_token: string | null
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_expires_at: string
+          code_hash: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          last_sent_at?: string
+          phone: string
+          session_expires_at?: string | null
+          session_token?: string | null
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_expires_at?: string
+          code_hash?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          last_sent_at?: string
+          phone?: string
+          session_expires_at?: string | null
+          session_token?: string | null
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       delivery_customers: {
         Row: {
           auth_user_id: string | null
@@ -1489,6 +1534,7 @@ export type Database = {
           created_at: string
           customer_id: string
           description: string | null
+          expires_at: string | null
           id: string
           points: number
           reference_id: string | null
@@ -1499,6 +1545,7 @@ export type Database = {
           created_at?: string
           customer_id: string
           description?: string | null
+          expires_at?: string | null
           id?: string
           points: number
           reference_id?: string | null
@@ -1509,6 +1556,7 @@ export type Database = {
           created_at?: string
           customer_id?: string
           description?: string | null
+          expires_at?: string | null
           id?: string
           points?: number
           reference_id?: string | null
@@ -1571,6 +1619,8 @@ export type Database = {
           id: string
           is_active: boolean
           min_points_redeem: number
+          otp_session_minutes: number
+          points_expire_days: number
           points_per_real: number
           updated_at: string
           user_id: string
@@ -1581,6 +1631,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           min_points_redeem?: number
+          otp_session_minutes?: number
+          points_expire_days?: number
           points_per_real?: number
           updated_at?: string
           user_id: string
@@ -1591,6 +1643,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           min_points_redeem?: number
+          otp_session_minutes?: number
+          points_expire_days?: number
           points_per_real?: number
           updated_at?: string
           user_id?: string
@@ -7888,6 +7942,8 @@ export type Database = {
         Args: { p_pdv_product_id: string }
         Returns: Json
       }
+      earn_points_for_order: { Args: { _order_id: string }; Returns: undefined }
+      expire_loyalty_points: { Args: never; Returns: number }
       get_admin_dashboard_stats: {
         Args: { p_end: string; p_start: string }
         Returns: Json
@@ -7932,6 +7988,34 @@ export type Database = {
           _target_type: string
         }
         Returns: string
+      }
+      loyalty_get_balance: { Args: { _session_token: string }; Returns: Json }
+      loyalty_get_history: {
+        Args: { _session_token: string }
+        Returns: {
+          created_at: string
+          customer_id: string
+          description: string | null
+          expires_at: string | null
+          id: string
+          points: number
+          reference_id: string | null
+          type: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "delivery_loyalty_points"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      loyalty_resolve_session: {
+        Args: { _session_token: string }
+        Returns: {
+          customer_id: string
+          user_id: string
+        }[]
       }
       pdv_assign_order_ticket: { Args: { p_order_id: string }; Returns: number }
       pdv_cancel_comanda: {
@@ -8039,9 +8123,17 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      redeem_cashback: {
+        Args: { _order_id: string; _points: number; _session_token: string }
+        Returns: Json
+      }
       redeem_loyalty_prize: {
-        Args: { _customer_id: string; _prize_id: string; _user_id: string }
-        Returns: string
+        Args: { _prize_id: string; _session_token: string }
+        Returns: Json
+      }
+      refund_points_for_order: {
+        Args: { _order_id: string }
+        Returns: undefined
       }
       resolve_business_slug: { Args: { _slug: string }; Returns: string }
     }
