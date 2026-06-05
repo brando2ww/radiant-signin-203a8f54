@@ -97,7 +97,7 @@ export const OrderConfirmation = ({
       orderType,
       subtotal,
       deliveryFee: orderType === "delivery" ? deliveryFee : 0,
-      discount: discount + loyaltyDiscount,
+      discount: discount,
       couponCode,
       total: Math.max(0, effectiveTotal),
       paymentMethod,
