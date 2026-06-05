@@ -52,7 +52,7 @@ export function useUpsertLoyaltySettings() {
       } else {
         const { error } = await supabase
           .from("delivery_loyalty_settings")
-          .insert({ ...values, user_id: ownerId });
+          .insert({ ...values, user_id: ownerId } as any);
         if (error) throw error;
       }
     },
@@ -99,7 +99,7 @@ export function useCreateLoyaltyPrize() {
       if (!ownerId) throw new Error("Auth required");
       const { error } = await supabase
         .from("delivery_loyalty_prizes")
-        .insert({ ...values, user_id: ownerId });
+        .insert({ ...values, user_id: ownerId } as any);
       if (error) throw error;
     },
     onSuccess: () => {
