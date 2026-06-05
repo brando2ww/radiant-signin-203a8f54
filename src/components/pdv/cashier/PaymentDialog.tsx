@@ -768,6 +768,28 @@ export function PaymentDialog({
     try {
       const finalAmount = total;
 
+      // Congela os valores que serão impressos no cupom não fiscal.
+      // Sem isso, refetch das queries após a baixa pode trazer de volta
+      // itens removidos pelo operador (ex.: 2 águas), fazendo o cupom
+      // exibir um total diferente do que foi cobrado do cliente.
+      printSnapshotRef.current = {
+        items: displayItems.map((i) => ({
+          product_name: i.product_name,
+          quantity: i.quantity,
+          unit_price: i.unit_price,
+          subtotal: i.subtotal,
+        })),
+        subtotal,
+        discountAmount,
+        serviceFeeAmount,
+        total,
+        cashReceivedNum,
+        changeAmount,
+        selectedMethod,
+      };
+
+
+
       // Mapeia "cartao" + cardType para credito/debito (granularidade exigida pela conferência do fechamento)
       const resolvedMethod: PaymentMethod =
         selectedMethod === "cartao"
