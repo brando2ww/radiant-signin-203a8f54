@@ -75,12 +75,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 1. Configurar listener PRIMEIRO
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        // Guard: contas de cliente final não podem usar o app de estabelecimento
+        // Guard: contas de cliente final não podem usar o app de estabelecimento.
+        // No cardápio público (/cardapio/*) elas DEVEM permanecer logadas.
         const role = (session?.user?.user_metadata as any)?.role;
+        const isPublicMenu =
+          typeof window !== "undefined" &&
+          window.location.pathname.startsWith("/cardapio");
+
         if (session?.user && role === "delivery_customer") {
-          supabase.auth.signOut();
-          setSession(null);
-          setUser(null);
+          if (!isPublicMenu) {
+            supabase.auth.signOut();
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+            return;
+          }
+          // No cardápio público: mantém sessão, sem buscar profile (cliente não tem)
+          setSession(session);
+          setUser(session.user);
           setProfile(null);
           return;
         }
@@ -98,6 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     );
+
 
     // 3. DEPOIS verificar sessão existente
     supabase.auth.getSession().then(({ data: { session } }) => {
