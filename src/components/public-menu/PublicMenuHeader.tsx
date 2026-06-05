@@ -123,19 +123,17 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
                     Entrar / Criar conta
                   </Button>
 
-                  {loyaltyActive && (
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-2"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        navigate(loyaltyPath);
-                      }}
-                    >
-                      <Star className="h-4 w-4 text-primary" />
-                      Programa de fidelidade
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate(loyaltyPath);
+                    }}
+                  >
+                    <Star className="h-4 w-4 text-primary" />
+                    Programa de fidelidade
+                  </Button>
                 </>
               )}
             </div>
