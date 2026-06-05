@@ -255,12 +255,7 @@ export const OrderConfirmation = ({
               <span>-{formatBRL(discount)}</span>
             </div>
           )}
-          {loyaltyDiscount > 0 && (
-            <div className="flex justify-between text-green-600">
-              <span>Cashback (pontos):</span>
-              <span>-{formatBRL(loyaltyDiscount)}</span>
-            </div>
-          )}
+          {/* cashback resgatado em /meus-pontos via código */}
           <Separator />
           <div className="flex justify-between text-lg font-bold">
             <span>Total:</span>
