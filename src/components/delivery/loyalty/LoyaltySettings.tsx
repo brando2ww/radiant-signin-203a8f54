@@ -82,9 +82,11 @@ export function LoyaltySettings() {
               <Label>Valor do cashback por ponto (R$)</Label>
               <Input type="number" step="0.01" min="0.01" {...register("cashback_value_per_point", { valueAsNumber: true })} />
               <p className="text-xs text-muted-foreground">Ex: 0.10 = cada ponto vale R$0,10 de desconto</p>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
+
             <div className="space-y-2">
               <Label>Pontos expiram após (dias)</Label>
               <Input type="number" min="0" {...register("points_expire_days", { valueAsNumber: true })} />
