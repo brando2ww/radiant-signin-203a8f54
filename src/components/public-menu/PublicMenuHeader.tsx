@@ -1,11 +1,27 @@
+import { useState } from "react";
 import { useBusinessSettings, usePublicSettings } from "@/hooks/use-public-menu";
-import { Clock, MapPin, Star } from "lucide-react";
+import { Clock, MapPin, Star, Menu, LogIn, LogOut, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { isStoreCurrentlyOpen, formatTodayShifts } from "@/lib/delivery-hours";
 import { formatBRL } from "@/lib/format";
 import { useNavigate } from "react-router-dom";
 import { useLoyaltySettings } from "@/hooks/use-delivery-loyalty";
+import { useAuth } from "@/contexts/AuthContext";
+import { CustomerLogin } from "@/components/public-menu/checkout/CustomerLogin";
 
 interface PublicMenuHeaderProps {
   userId: string;
@@ -17,12 +33,118 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
   const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   const loyaltyActive = loyaltySettings?.is_active ?? false;
   const loyaltyPath = `/cardapio/${handle || userId}/meus-pontos`;
+  const isCustomer =
+    !!user && (user.user_metadata as any)?.role === "delivery_customer";
+  const displayName =
+    (user?.user_metadata as any)?.name ||
+    (user?.user_metadata as any)?.full_name ||
+    user?.email;
 
   return (
-    <div className="border-b bg-card">
+    <div className="border-b bg-card relative">
+      {/* Hamburger menu */}
+      <div className="absolute top-3 right-3 z-10">
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-10 w-10 rounded-full shadow-md"
+              aria-label="Abrir menu"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-80">
+            <SheetHeader>
+              <SheetTitle>Minha conta</SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-2">
+              {isCustomer ? (
+                <>
+                  <div className="flex items-center gap-3 px-2 py-3 border-b">
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                      <User className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {displayName || "Cliente"}
+                      </p>
+                      {user?.email && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {user.email}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {loyaltyActive && (
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate(loyaltyPath);
+                      }}
+                    >
+                      <Star className="h-4 w-4 text-primary" />
+                      Meus pontos de fidelidade
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2 text-destructive"
+                    onClick={async () => {
+                      await signOut();
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sair
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setLoginOpen(true);
+                    }}
+                  >
+                    <LogIn className="h-4 w-4" />
+                    Entrar / Criar conta
+                  </Button>
+
+                  {loyaltyActive && (
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        navigate(loyaltyPath);
+                      }}
+                    >
+                      <Star className="h-4 w-4 text-primary" />
+                      Programa de fidelidade
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
       {/* Cover Image */}
       {businessSettings?.cover_url && (
         <div className="h-40 w-full overflow-hidden">
@@ -33,7 +155,7 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
           />
         </div>
       )}
-      
+
       <div className="container mx-auto px-4 py-6">
         <div className={`flex items-start gap-4 ${businessSettings?.cover_url ? '-mt-12 relative' : ''}`}>
           {businessSettings?.logo_url ? (
@@ -43,7 +165,7 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
               className={`h-20 w-20 rounded-full object-cover border-4 border-background shadow-lg ${businessSettings?.cover_url ? 'ring-2 ring-white' : ''}`}
             />
           ) : (
-            <div 
+            <div
               className="h-20 w-20 rounded-full border-4 border-background shadow-lg flex items-center justify-center text-white font-bold text-2xl"
               style={{ backgroundColor: businessSettings?.primary_color || '#3b82f6' }}
             >
@@ -106,22 +228,19 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
             </div>
           </div>
         </div>
-
-        {/* Loyalty entry */}
-        {loyaltyActive && (
-          <div className="mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(loyaltyPath)}
-              className="gap-2"
-            >
-              <Star className="h-4 w-4 text-primary" />
-              Ver meus pontos de fidelidade
-            </Button>
-          </div>
-        )}
       </div>
+
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Entrar na sua conta</DialogTitle>
+          </DialogHeader>
+          <CustomerLogin
+            onConfirm={() => setLoginOpen(false)}
+            onBack={() => setLoginOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
