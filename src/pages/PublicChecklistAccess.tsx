@@ -81,10 +81,12 @@ export default function PublicChecklistAccess() {
           // Log open
           supabase.from("checklist_access_logs").insert({
             user_id: (data as any).user_id,
-            operator_id: "00000000-0000-0000-0000-000000000000",
+            operator_id: null,
             action: "qr_open",
             details: { source: "qr", checklistId: data.id },
-          }).then(() => {});
+          }).then(({ error }) => {
+            if (error) console.warn("[checklist] qr_open log failed:", error);
+          });
         }
         setLoading(false);
       });
