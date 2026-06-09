@@ -81,10 +81,12 @@ export default function PublicChecklistAccess() {
           // Log open
           supabase.from("checklist_access_logs").insert({
             user_id: (data as any).user_id,
-            operator_id: "00000000-0000-0000-0000-000000000000",
+            operator_id: null,
             action: "qr_open",
             details: { source: "qr", checklistId: data.id },
-          }).then(() => {});
+          }).then(({ error }) => {
+            if (error) console.warn("[checklist] qr_open log failed:", error);
+          });
         }
         setLoading(false);
       });
@@ -107,29 +109,32 @@ export default function PublicChecklistAccess() {
       .maybeSingle();
 
     if (err || !data) {
+      if (err) console.warn("[checklist] PIN validation error:", err);
       const newCount = failCount + 1;
       setFailCount(newCount);
       setPin("");
       setError("PIN inválido. Tente novamente.");
 
       // Log failure
-      await supabase.from("checklist_access_logs").insert({
+      const { error: logErr } = await supabase.from("checklist_access_logs").insert({
         user_id: checklist.user_id,
-        operator_id: "00000000-0000-0000-0000-000000000000",
+        operator_id: null,
         action: "qr_pin_fail",
         details: { source: "qr", checklistId: checklist.id, attempt: newCount },
       });
+      if (logErr) console.warn("[checklist] qr_pin_fail log failed:", logErr);
 
       if (newCount >= MAX_FAILS) {
         const until = Date.now() + BLOCK_SECONDS * 1000;
         setBlockedUntil(until);
         setError(`Muitas tentativas. Aguarde ${BLOCK_SECONDS}s.`);
-        await supabase.from("checklist_access_logs").insert({
+        const { error: blockErr } = await supabase.from("checklist_access_logs").insert({
           user_id: checklist.user_id,
-          operator_id: "00000000-0000-0000-0000-000000000000",
+          operator_id: null,
           action: "qr_blocked",
           details: { source: "qr", checklistId: checklist.id },
         });
+        if (blockErr) console.warn("[checklist] qr_blocked log failed:", blockErr);
       }
       setValidating(false);
       return;
