@@ -35,7 +35,14 @@ export function PinLoginScreen({ userId, onLogin }: PinLoginScreenProps) {
       .eq("is_active", true)
       .maybeSingle();
 
-    if (err || !data) {
+    if (err) {
+      console.warn("[checklist] PIN validation error:", err);
+      setError("Não foi possível validar o PIN agora. Peça ao gestor para ativar pelo menos um checklist.");
+      setPin("");
+      setLoading(false);
+      return;
+    }
+    if (!data) {
       setError("PIN inválido. Tente novamente.");
       setPin("");
       setLoading(false);
