@@ -1,73 +1,57 @@
-# Welcome to your Lovable project
+# Velara PDV
 
-## Project info
+Aplicação web full stack para gestão de pedidos, ponto de venda (PDV) e operações de delivery. Desenvolvida com foco em performance, organização de código e manutenibilidade.
 
-**URL**: https://lovable.dev/projects/f6b116ee-7dc7-4e58-ad5d-6f8bf566dcd4
+## Stack
 
-## How can I edit this code?
+- **Frontend:** React 18 + TypeScript + Vite
+- **UI:** shadcn/ui + Tailwind CSS + Radix UI
+- **Backend/BaaS:** Supabase (PostgreSQL, Auth, Storage, Edge Functions)
+- **State management:** TanStack Query
+- **Forms:** React Hook Form + Zod
 
-There are several ways of editing your application.
+## Pré-requisitos
 
-**Use Lovable**
+- Node.js 18+ e npm
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f6b116ee-7dc7-4e58-ad5d-6f8bf566dcd4) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Setup local
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Instalar dependências
+npm install
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Iniciar servidor de desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+O servidor sobe em `http://localhost:8080`.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Build de produção
 
-**Use GitHub Codespaces**
+```sh
+npm run build
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Os artefatos ficam em `dist/`.
 
-## What technologies are used for this project?
+## Estrutura principal
 
-This project is built with:
+```
+src/
+  components/    # Componentes reutilizáveis
+  pages/         # Rotas da aplicação
+  hooks/         # Custom hooks
+  integrations/  # Clientes de serviços externos (Supabase)
+supabase/
+  functions/     # Edge Functions (Deno)
+  migrations/    # Migrações SQL
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Variáveis de ambiente
 
-## How can I deploy this project?
+Crie um arquivo `.env.local` na raiz com:
 
-Simply open [Lovable](https://lovable.dev/projects/f6b116ee-7dc7-4e58-ad5d-6f8bf566dcd4) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```env
+VITE_SUPABASE_URL=<sua-url-supabase>
+VITE_SUPABASE_ANON_KEY=<sua-chave-anon>
+```

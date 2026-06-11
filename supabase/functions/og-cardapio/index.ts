@@ -17,8 +17,7 @@ const UUID_RE =
 const APP_ORIGIN =
   Deno.env.get("PUBLIC_APP_ORIGIN") ?? "https://pdv.velaraia.app";
 
-const VELARA_LOGO =
-  "https://storage.googleapis.com/gpt-engineer-file-uploads/xq3rsxM6G3Uju6VR6UIMsJ47WSN2/uploads/1760447776495-simbolo_velara_preto.png";
+const VELARA_LOGO = `${APP_ORIGIN}/velara-symbol.png`;
 
 function escapeHtml(s: string): string {
   return s

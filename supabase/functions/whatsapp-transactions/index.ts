@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const openaiApiKey = Deno.env.get('OPENAI_API_KEY')!;
+const llmApiKey = Deno.env.get('OPENAI_API_KEY')!;
 const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
 const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
 const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME')!;
@@ -497,7 +497,7 @@ function parseNaturalTime(input: string): string | null {
 
 // ==================== FIM FUNÇÕES DE AGENDA ====================
 
-// Interpreta mensagem usando OpenAI
+// Interpreta mensagem usando motor de linguagem
 async function interpretMessage(message: string, context: Record<string, unknown>) {
   console.log(`🤖 Interpretando mensagem: ${message}`);
   console.log(`📋 Contexto atual:`, JSON.stringify(context));
@@ -804,7 +804,7 @@ ESTADO ATUAL DO USUÁRIO: ${JSON.stringify(context)}`;
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${llmApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -820,7 +820,7 @@ ESTADO ATUAL DO USUÁRIO: ${JSON.stringify(context)}`;
     const data = await response.json();
     const content = data.choices[0].message.content;
     
-    console.log(`📝 Resposta OpenAI: ${content}`);
+    console.log(`📝 Resposta do motor: ${content}`);
     
     // Tenta parsear JSON
     try {
@@ -974,7 +974,7 @@ async function downloadAudioFromEvolution(messageKey: Record<string, unknown>): 
   }
 }
 
-// Transcreve áudio usando OpenAI Whisper
+// Transcreve áudio
 async function transcribeAudio(audioBase64: string): Promise<string | null> {
   console.log('🎤 Transcrevendo áudio... Tamanho base64:', audioBase64.length);
   
@@ -1017,27 +1017,27 @@ async function transcribeAudio(audioBase64: string): Promise<string | null> {
     // Cria Blob com tipo correto
     const blob = new Blob([bytes], { type: mimeType });
     
-    // Cria FormData para OpenAI
+    // Cria FormData para transcrição
     const formData = new FormData();
     formData.append('file', blob, fileName);
     formData.append('model', 'whisper-1');
     formData.append('language', 'pt');
 
-    console.log('📤 Enviando para OpenAI Whisper...');
+    console.log('📤 Enviando para transcrição...');
     
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${llmApiKey}`,
       },
       body: formData,
     });
 
     const responseText = await response.text();
-    console.log('📨 Resposta OpenAI:', response.status, responseText.substring(0, 500));
+    console.log('📨 Resposta transcrição:', response.status, responseText.substring(0, 500));
 
     if (!response.ok) {
-      console.error('❌ Erro OpenAI Whisper:', response.status, responseText);
+      console.error('❌ Erro transcrição:', response.status, responseText);
       return null;
     }
 
@@ -1156,7 +1156,7 @@ async function findPendingQuotationsForSupplier(supplierId: string, userId: stri
   return pending;
 }
 
-// Usa IA para extrair preços da resposta do fornecedor
+// Extrai preços da resposta do fornecedor
 async function extractQuotationPrices(
   messageText: string,
   pendingItems: Array<{ quotation_item_id: string; quotation_item: Record<string, unknown> }>
@@ -1194,7 +1194,7 @@ Se o fornecedor não informou preço para um item, coloque unit_price: null.`;
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${llmApiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         messages: [
@@ -1206,7 +1206,7 @@ Se o fornecedor não informou preço para um item, coloque unit_price: null.`;
     });
     const data = await response.json();
     const content = data.choices[0].message.content;
-    console.log(`📝 Extração IA cotação: ${content}`);
+    console.log(`📝 Extração cotação: ${content}`);
     try {
       return JSON.parse(content);
     } catch {
@@ -2405,7 +2405,7 @@ async function processMessage(remoteJid: string, messageText: string, instanceNa
     case 'unknown':
     default:
       // FALLBACK INTELIGENTE: Se estamos em um estado de agenda, tenta processar a mensagem diretamente
-      console.log(`⚠️ Fallback: Estado=${context.conversation_state}, OpenAI retornou=${interpretation.type}`);
+      console.log(`⚠️ Fallback: Estado=${context.conversation_state}, motor retornou=${interpretation.type}`);
       
       // Fallback para awaiting_event_date
       if (context.conversation_state === 'awaiting_event_date') {
