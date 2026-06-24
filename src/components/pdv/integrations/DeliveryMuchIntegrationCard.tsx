@@ -47,8 +47,8 @@ export function DeliveryMuchIntegrationCard() {
   };
 
   const handleSetDeliveryTime = () => {
-    const dMin = Number(deliveryMin || settings?.deliverymuch_delivery_time_min ?? 40);
-    const pMin = Number(pickupMin || settings?.deliverymuch_pickup_time_min ?? 20);
+    const dMin = Number(deliveryMin || (settings?.deliverymuch_delivery_time_min ?? 40));
+    const pMin = Number(pickupMin || (settings?.deliverymuch_pickup_time_min ?? 20));
     setDeliveryTime.mutate({ delivery_min: dMin, pickup_min: pMin });
   };
 
