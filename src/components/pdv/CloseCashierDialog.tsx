@@ -206,12 +206,13 @@ export async function printCashierReport(params: PrintCashierReportParams) {
     })
     .join("");
 
-  // Busca cancelamentos e descontos vinculados a esta sessão.
+  // Busca cancelamentos, descontos e despesas vinculados a esta sessão.
   let cancellations: Array<{ order_number: any; total: number; cancellation_reason: string | null }> = [];
   let discounts: Array<{ order_number: any; discount: number; total: number }> = [];
+  let expenses: Array<{ description: string; amount: number }> = [];
   if (session?.id) {
     try {
-      const [{ data: cancs }, { data: discs }] = await Promise.all([
+      const [{ data: cancs }, { data: discs }, { data: expData }] = await Promise.all([
         supabase
           .from("pdv_orders")
           .select("order_number,total,cancellation_reason,cancelled_at")
@@ -225,6 +226,15 @@ export async function printCashierReport(params: PrintCashierReportParams) {
           .neq("status", "cancelled")
           .gt("discount", 0)
           .order("closed_at", { ascending: true }),
+        supabase
+          .from("pdv_financial_transactions")
+          .select("description,amount,paid_at")
+          .eq("user_id", session.user_id)
+          .eq("transaction_type", "expense")
+          .eq("status", "paid")
+          .gte("paid_at", session.opened_at)
+          .lte("paid_at", session.closed_at || new Date().toISOString())
+          .order("paid_at", { ascending: true }),
       ]);
       cancellations = (cancs || []).map((r: any) => ({
         order_number: r.order_number,
@@ -236,6 +246,10 @@ export async function printCashierReport(params: PrintCashierReportParams) {
         discount: Number(r.discount) || 0,
         total: Number(r.total) || 0,
       }));
+      expenses = (expData || []).map((r: any) => ({
+        description: r.description || "Despesa",
+        amount: Number(r.amount) || 0,
+      }));
     } catch {
       // segue impressão sem essas seções
     }
@@ -243,6 +257,7 @@ export async function printCashierReport(params: PrintCashierReportParams) {
 
   const cancellationsTotal = cancellations.reduce((a, c) => a + c.total, 0);
   const discountsTotal = discounts.reduce((a, d) => a + d.discount, 0);
+  const expensesTotal = expenses.reduce((a, e) => a + e.amount, 0);
 
   const cancellationsHtml = cancellations.length
     ? `<div class="divider"></div>
@@ -267,6 +282,16 @@ export async function printCashierReport(params: PrintCashierReportParams) {
       (d) => `<div class="row"><span>#${d.order_number ?? "—"}</span><span>${formatBRL(d.discount)} (de ${formatBRL(d.total + d.discount)})</span></div>`,
     )
     .join("")}
+</div>`
+    : "";
+
+  const expensesHtml = expenses.length
+    ? `<div class="divider"></div>
+<div class="section">
+  <div class="section-title">DESPESAS</div>
+  <div class="row total"><span>${expenses.length} despesa${expenses.length > 1 ? "s" : ""}</span><span>- ${formatBRL(expensesTotal)}</span></div>
+  ${expenses.map((e) => `<div class="row"><span>${String(e.description).slice(0, 45)}</span><span>${formatBRL(e.amount)}</span></div>`).join("")}
+  <div class="row"><span style="font-size:11px;opacity:0.65">* Já descontadas do saldo da gaveta</span></div>
 </div>`
     : "";
 
@@ -339,6 +364,7 @@ ${conferenceHtml ? `<div class="divider"></div>
 </div>
 ${cancellationsHtml}
 ${discountsHtml}
+${expensesHtml}
 ${movements.length > 0 ? `
 <div class="divider"></div>
 <div class="section">

@@ -1,4 +1,5 @@
 require("dotenv").config();
+const ws = require("ws");
 const net = require("net");
 const http = require("http");
 const fs = require("fs");
@@ -21,7 +22,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  realtime: { params: { eventsPerSecond: 10 } },
+  realtime: { params: { eventsPerSecond: 10 }, transport: ws },
 });
 
 // ─── Estado interno (para /health) ───────────────────────────────────────
@@ -232,7 +233,7 @@ const PS_RAWPRINT_TYPE = `
 using System; using System.Runtime.InteropServices;
 public class VelaraRawPrint {
   [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Ansi)]
-  public struct DOCINFO { public int cbSize; public string pDocName; public string pOutputFile; public string pDataType; }
+  public struct DOCINFO { public string pDocName; public string pOutputFile; public string pDataType; }
   [DllImport("winspool.drv",SetLastError=true)] static extern bool OpenPrinter(string n,out IntPtr h,IntPtr d);
   [DllImport("winspool.drv",SetLastError=true)] static extern bool ClosePrinter(IntPtr h);
   [DllImport("winspool.drv",SetLastError=true)] static extern int StartDocPrinter(IntPtr h,int l,ref DOCINFO i);
@@ -243,7 +244,7 @@ public class VelaraRawPrint {
   public static void Send(string p,byte[] b){
     IntPtr h; if(!OpenPrinter(p,out h,IntPtr.Zero)) throw new Exception("Impressora nao encontrada: "+p);
     try {
-      var d=new DOCINFO{cbSize=System.Runtime.InteropServices.Marshal.SizeOf(typeof(DOCINFO)),pDocName="Velara",pDataType="RAW"};
+      var d=new DOCINFO{pDocName="Velara",pDataType="RAW"};
       StartDocPrinter(h,1,ref d); StartPagePrinter(h);
       int w; WritePrinter(h,b,b.Length,out w);
       EndPagePrinter(h); EndDocPrinter(h);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Bike, UserPlus } from "lucide-react";
 import { useDeliveryDrivers, useAssignDriver, initialsFromName } from "@/hooks/use-delivery-drivers";
 import { Link } from "react-router-dom";
@@ -16,7 +17,7 @@ export const AssignDriverPopover = ({ orderId, trigger }: Props) => {
   const { drivers } = useDeliveryDrivers();
   const { assignDriver, isAssigning } = useAssignDriver();
 
-  const available = drivers.filter((d) => d.is_active && d.status === "disponivel");
+  const available = drivers.filter((d) => d.is_active && d.status !== "inativo");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -37,7 +38,7 @@ export const AssignDriverPopover = ({ orderId, trigger }: Props) => {
           </div>
         ) : available.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-3">
-            Nenhum entregador disponível no momento
+            Todos os entregadores estão inativos
           </p>
         ) : (
           <div className="space-y-1 max-h-60 overflow-auto">
@@ -61,6 +62,11 @@ export const AssignDriverPopover = ({ orderId, trigger }: Props) => {
                     <Bike className="h-3 w-3" /> {d.vehicle_type}
                   </p>
                 </div>
+                {d.status === "em_entrega" && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                    {(d as any).active_orders ?? 1} em rota
+                  </Badge>
+                )}
               </button>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Printer, Wallet, Ticket } from "lucide-react";
+import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Printer, Wallet, Ticket, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CashierActionsSidebarProps {
@@ -12,6 +12,7 @@ interface CashierActionsSidebarProps {
   onReprintLast?: () => void;
   onQuickExpense?: () => void;
   onOpenCoupons?: () => void;
+  onOpenEmployeeAccounts?: () => void;
 }
 
 export function CashierActionsSidebar({
@@ -25,6 +26,7 @@ export function CashierActionsSidebar({
   onReprintLast,
   onQuickExpense,
   onOpenCoupons,
+  onOpenEmployeeAccounts,
 }: CashierActionsSidebarProps) {
   return (
     <div className="flex flex-col gap-2 h-full overflow-y-auto">
@@ -102,6 +104,18 @@ export function CashierActionsSidebar({
                 <Ticket className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs font-medium leading-none">Cupons</span>
                 <kbd className="text-[9px] opacity-50 bg-muted px-1 py-0 rounded">F6</kbd>
+              </Button>
+            )}
+
+            {onOpenEmployeeAccounts && (
+              <Button
+                onClick={onOpenEmployeeAccounts}
+                variant="outline"
+                className="h-14 flex-col gap-0.5 border-muted-foreground/30 hover:bg-muted col-span-2"
+              >
+                <UserCheck className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium leading-none">Contas a Prazo</span>
+                <span className="text-[9px] opacity-50">Quitar / Lançar</span>
               </Button>
             )}
           </div>
