@@ -24,7 +24,11 @@ import {
   CheckCircle,
   ChevronRight,
   Printer,
+  FileText,
+  Receipt,
 } from "lucide-react";
+import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
+import { useOrderNfce } from "@/hooks/use-order-nfce";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { OrderStatusBadge } from "./OrderStatusBadge";
@@ -64,6 +68,7 @@ export const OrderDetailDialog = ({
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
   const reprintOrder = useReprintOrder();
+  const { data: nfce } = useOrderNfce(order.status === "completed" ? order.id : null);
 
   const canReprint = !["pending", "cancelled"].includes(order.status);
 
@@ -301,6 +306,49 @@ export const OrderDetailDialog = ({
                 )}
               </div>
             </div>
+
+            {/* Recibos — visível apenas para pedidos concluídos */}
+            {order.status === "completed" && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Receipt className="h-4 w-4" />
+                    Recibos
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => printMotoboyReceipt(order)}
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Recibo não fiscal
+                    </Button>
+                    {nfce?.danfe_pdf_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(nfce.danfe_pdf_url!, "_blank")}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Cupom fiscal (NFC-e)
+                      </Button>
+                    )}
+                    {nfce?.xml_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(nfce.xml_url!, "_blank")}
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        XML da NFC-e
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Actions */}
             {(canAdvanceStatus || canReprint) && (

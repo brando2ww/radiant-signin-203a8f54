@@ -6,8 +6,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { DollarSign, CreditCard, Save } from "lucide-react";
+import { DollarSign, CreditCard } from "lucide-react";
+import { SettingsSaveBar } from "./SettingsSaveBar";
 import { PaymentMethodFeesManager } from "./PaymentMethodFeesManager";
 
 const financialSchema = z.object({
@@ -164,12 +164,11 @@ export function FinancialTab({ defaultValues, onSave, isSubmitting }: FinancialT
 
         <PaymentMethodFeesManager />
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            <Save className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Salvando..." : "Salvar Configurações"}
-          </Button>
-        </div>
+        <SettingsSaveBar
+          isDirty={form.formState.isDirty}
+          isSubmitting={isSubmitting ?? false}
+          onCancel={() => form.reset()}
+        />
       </form>
     </Form>
   );

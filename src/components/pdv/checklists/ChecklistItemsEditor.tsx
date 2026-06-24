@@ -76,6 +76,10 @@ function ItemCard({
   const [maxVal, setMaxVal] = useState(item.max_value?.toString() || "");
   const [trainingInstruction, setTrainingInstruction] = useState(item.training_instruction || "");
   const [trainingVideoUrl, setTrainingVideoUrl] = useState(item.training_video_url || "");
+  const [options, setOptions] = useState<string[]>(
+    Array.isArray((item as any).options) ? (item as any).options : []
+  );
+  const [newOption, setNewOption] = useState("");
 
   const handleSave = async () => {
     await onSave({
@@ -91,6 +95,7 @@ function ItemCard({
       max_value: maxVal ? Number(maxVal) : null,
       training_instruction: trainingInstruction || null,
       training_video_url: trainingVideoUrl || null,
+      options: itemType === "multiple_choice" ? options : null,
     });
     setEditing(false);
   };
@@ -135,6 +140,54 @@ function ItemCard({
             <div>
               <Label className="text-xs">Máximo (°C)</Label>
               <Input type="number" value={maxVal} onChange={(e) => setMaxVal(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {itemType === "multiple_choice" && (
+          <div className="space-y-2">
+            <Label className="text-xs">Opções de resposta</Label>
+            {options.map((opt, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={opt}
+                  onChange={(e) => setOptions(options.map((o, j) => j === i ? e.target.value : o))}
+                  placeholder={`Opção ${i + 1}`}
+                  className="h-8 text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setOptions(options.filter((_, j) => j !== i))}
+                  type="button"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Input
+                value={newOption}
+                onChange={(e) => setNewOption(e.target.value)}
+                placeholder="Nova opção..."
+                className="h-8 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newOption.trim()) {
+                    setOptions([...options, newOption.trim()]);
+                    setNewOption("");
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={!newOption.trim()}
+                onClick={() => { setOptions([...options, newOption.trim()]); setNewOption(""); }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
         )}
@@ -202,6 +255,8 @@ function NewItemForm({
   const [requiresPhoto, setRequiresPhoto] = useState(false);
   const [minVal, setMinVal] = useState("");
   const [maxVal, setMaxVal] = useState("");
+  const [options, setOptions] = useState<string[]>([]);
+  const [newOption, setNewOption] = useState("");
 
   const handleSave = () =>
     onSave({
@@ -214,6 +269,7 @@ function NewItemForm({
       sort_order: sortOrder,
       min_value: minVal ? Number(minVal) : null,
       max_value: maxVal ? Number(maxVal) : null,
+      options: itemType === "multiple_choice" ? options : null,
     });
 
   return (
@@ -237,6 +293,53 @@ function NewItemForm({
             <div>
               <Label className="text-xs">Máximo (°C)</Label>
               <Input type="number" value={maxVal} onChange={(e) => setMaxVal(e.target.value)} />
+            </div>
+          </div>
+        )}
+        {itemType === "multiple_choice" && (
+          <div className="space-y-2">
+            <Label className="text-xs">Opções de resposta</Label>
+            {options.map((opt, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={opt}
+                  onChange={(e) => setOptions(options.map((o, j) => j === i ? e.target.value : o))}
+                  placeholder={`Opção ${i + 1}`}
+                  className="h-8 text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => setOptions(options.filter((_, j) => j !== i))}
+                  type="button"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <Input
+                value={newOption}
+                onChange={(e) => setNewOption(e.target.value)}
+                placeholder="Nova opção..."
+                className="h-8 text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newOption.trim()) {
+                    setOptions([...options, newOption.trim()]);
+                    setNewOption("");
+                  }
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                disabled={!newOption.trim()}
+                onClick={() => { setOptions([...options, newOption.trim()]); setNewOption(""); }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
             </div>
           </div>
         )}

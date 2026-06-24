@@ -13,12 +13,12 @@ import {
   LayoutDashboard,
   Armchair,
   ShoppingBag,
-  
+
   Package,
   Warehouse,
   Truck,
   BarChart3,
-  Settings,
+  Settings2,
   FileText,
   TrendingDown,
   TrendingUp,
@@ -33,10 +33,9 @@ import {
   UtensilsCrossed,
   Tag,
   Palette,
-  
+
   Store,
   Megaphone,
-  Plug,
   Users,
   UserCheck,
   Star,
@@ -44,6 +43,7 @@ import {
   ClipboardCheck,
   Factory,
   Bike,
+  ShoppingCart,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -98,7 +98,6 @@ const sectionItems: Section[] = [
       { title: "Cardápio", url: "/pdv/delivery/cardapio", icon: UtensilsCrossed },
       { title: "Personalização", url: "/pdv/delivery/personalizacao", icon: Palette },
       { title: "Cupons", url: "/pdv/delivery/cupons", icon: Tag },
-      { title: "Configurações", url: "/pdv/delivery/configuracoes", icon: Settings },
       { title: "Relatórios", url: "/pdv/delivery/relatorios", icon: BarChart3 },
       
       { title: "Fidelidade", url: "/pdv/delivery/fidelidade", icon: Star },
@@ -108,23 +107,27 @@ const sectionItems: Section[] = [
     title: "Administrador",
     icon: LayoutDashboard,
     items: [
-      { title: "Dashboard", url: "/pdv/dashboard", icon: LayoutDashboard },
       { title: "Produtos", url: "/pdv/produtos", icon: Package },
       { title: "Centros de Produção", url: "/pdv/centros-producao", icon: Factory },
       { title: "Estoque", url: "/pdv/estoque", icon: Warehouse },
-      { title: "Fornecedores", url: "/pdv/fornecedores", icon: Truck },
-      { title: "Cotações", url: "/pdv/compras/cotacoes", icon: FileText },
-      { title: "Pedidos de Compra", url: "/pdv/compras/pedidos", icon: ShoppingBag },
-      { title: "Lista de Compras", url: "/pdv/compras/lista", icon: PackageSearch },
       { title: "Notas Fiscais", url: "/pdv/notas-fiscais", icon: Receipt },
       { title: "Cupons Fiscais", url: "/pdv/cupons-fiscais", icon: Receipt },
       { title: "Relatórios", url: "/pdv/relatorios", icon: BarChart3 },
-      { title: "Configurações", url: "/pdv/configuracoes", icon: Settings },
       { title: "Clientes", url: "/pdv/clientes", icon: UserCheck },
       { title: "Usuários", url: "/pdv/usuarios", icon: Users },
       { title: "Venda a Prazo", url: "/pdv/venda-a-prazo", icon: UserCheck },
       { title: "Franquia", url: "/pdv/franquia", icon: GitBranch },
-      { title: "Integrações", url: "/pdv/integracoes", icon: Plug },
+    ],
+  },
+  {
+    title: "Compras",
+    icon: ShoppingCart,
+    items: [
+      { title: "Cotações",          url: "/pdv/compras/cotacoes",       icon: FileText },
+      { title: "Lista de Compras",  url: "/pdv/compras/lista",          icon: PackageSearch },
+      { title: "Pedidos de Compra", url: "/pdv/compras/pedidos",        icon: ClipboardCheck },
+      { title: "Fornecedores",      url: "/pdv/fornecedores",           icon: Truck },
+      { title: "Importação NF-e",  url: "/pdv/compras/importacao-nfe", icon: FileText },
     ],
   },
   {
@@ -155,7 +158,14 @@ const sectionItems: Section[] = [
       { title: "CMV Produtos", url: "/pdv/financeiro/cmv-produtos", icon: PackageSearch },
       { title: "Análise de Produtos", url: "/pdv/relatorios?tab=sales-by-product", icon: BarChart3 },
       { title: "CMV Geral", url: "/pdv/financeiro/cmv-geral", icon: PieChart },
-      { title: "Demo. Caixa", url: "/pdv/financeiro/demonstrativo-caixa", icon: Receipt },
+      { title: "Demo. Caixa",    url: "/pdv/financeiro/demonstrativo-caixa",  icon: Receipt },
+    ],
+  },
+  {
+    title: "Configurações",
+    icon: Settings2,
+    items: [
+      { title: "Configurações", url: "/pdv/configuracoes-gerais", icon: Settings2 },
     ],
   },
 ];
@@ -210,7 +220,7 @@ export function PDVHeaderNav() {
                 )}
               >
                 <ItemIcon className="h-4 w-4 shrink-0" />
-                <span>{item.title}</span>
+                <span className="whitespace-nowrap">{item.title}</span>
               </NavLink>
             </NavigationMenuLink>
           </li>
@@ -273,7 +283,7 @@ export function PDVHeaderNav() {
                 )}
               >
                 {isAdminSection && visibleAnnouncements.length > 0 ? (
-                  <div className="flex w-[280px] md:w-[550px]">
+                  <div className="flex w-[320px] md:w-[640px]">
                     <div className="w-[180px] border-r border-border p-3 bg-primary/5">
                       <div className="flex items-center gap-2 mb-3">
                         <Megaphone className="h-4 w-4 text-primary" />
@@ -301,7 +311,7 @@ export function PDVHeaderNav() {
                     </div>
                   </div>
                 ) : (
-                  <div className="w-[280px] md:w-[400px]">
+                  <div className="w-[280px] md:w-[480px]">
                     {renderNavLinks(section.items)}
                   </div>
                 )}

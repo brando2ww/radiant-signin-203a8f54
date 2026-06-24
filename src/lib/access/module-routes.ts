@@ -4,7 +4,10 @@ import type { UserModule } from "@/hooks/use-user-modules";
  * Rotas sempre liberadas (infraestrutura básica do app).
  * Não dependem de módulo do tenant.
  */
-export const ALWAYS_ALLOWED_ROUTES: string[] = [];
+export const ALWAYS_ALLOWED_ROUTES: string[] = [
+  "/pdv/assinatura",
+  "/pdv/configuracoes-gerais",
+];
 
 /**
  * Mapeia rotas → módulo do tenant. Fonte única da verdade.
@@ -15,26 +18,28 @@ export const ALWAYS_ALLOWED_ROUTES: string[] = [];
  */
 export const MODULE_ROUTES: Record<UserModule, string[]> = {
   pdv: [
-    "/pdv/dashboard",
     "/pdv/salao",
     "/pdv/caixa",
     "/pdv/comandas",
     "/pdv/produtos",
     "/pdv/centros-producao",
     "/pdv/estoque",
-    "/pdv/fornecedores",
     "/pdv/notas-fiscais",
     "/pdv/cupons-fiscais",
     "/pdv/relatorios",
     "/pdv/franquia",
     "/pdv/venda-a-prazo",
     "/pdv/funcionarios-consumo",
-    "/pdv/compras",
     "/pdv/configuracoes",
     "/pdv/usuarios",
     "/pdv/integracoes",
     "/pdv/clientes",
     "/garcom",
+  ],
+  compras: [
+    "/pdv/compras",
+    "/pdv/fornecedores",
+    "/pdv/compras/importacao-nfe",
   ],
   financeiro: ["/pdv/financeiro"],
   delivery: ["/pdv/delivery"],
@@ -75,6 +80,7 @@ export function routesForModules(modules: UserModule[]): string[] {
 /** Rótulos amigáveis para exibir mensagens de módulo bloqueado. */
 export const MODULE_LABELS: Record<UserModule, string> = {
   pdv: "Frente de Caixa",
+  compras: "Compras",
   financeiro: "Financeiro",
   delivery: "Delivery",
   avaliacoes: "Avaliações",

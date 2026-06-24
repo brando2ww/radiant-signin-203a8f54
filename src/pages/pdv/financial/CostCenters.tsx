@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Target, Pencil, Trash2 } from "lucide-react";
+import { Plus, Target, Pencil, Trash2, CalendarIcon } from "lucide-react";
 import { usePDVCostCenters, PDVCostCenter } from "@/hooks/use-pdv-cost-centers";
 import { usePDVFinancialTransactions } from "@/hooks/use-pdv-financial-transactions";
 import { Badge } from "@/components/ui/badge";
-import { useMemo } from "react";
-import { startOfMonth, endOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CostCenterQuickDialog } from "@/components/pdv/CostCenterQuickDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,12 +25,13 @@ import {
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function CostCenters() {
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
   const { costCenters, isLoading, createCostCenter, isCreating, updateCostCenter, isUpdating, deleteCostCenter } = usePDVCostCenters();
   const { transactions, isLoading: isLoadingTx } = usePDVFinancialTransactions({
     transaction_type: "payable",
     status: ["paid"],
-    due_date_from: startOfMonth(new Date()),
-    due_date_to: endOfMonth(new Date()),
+    due_date_from: startOfMonth(selectedMonth),
+    due_date_to: endOfMonth(selectedMonth),
   });
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -60,10 +63,28 @@ export default function CostCenters() {
           <h1 className="text-3xl font-bold">Centros de Custo</h1>
           <p className="text-muted-foreground mt-1">Rastreie despesas por setor ou departamento</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Centro de Custo
-        </Button>
+        <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={selectedMonth}
+                onSelect={(d) => d && setSelectedMonth(d)}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Centro de Custo
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -79,7 +100,9 @@ export default function CostCenters() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Gasto no Mês</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Gasto — {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoadingTx ? <Skeleton className="h-8 w-24" /> : (
@@ -111,7 +134,7 @@ export default function CostCenters() {
       <Card>
         <CardHeader>
           <CardTitle>Centros de Custo Cadastrados</CardTitle>
-          <CardDescription>Gastos do mês por centro de custo</CardDescription>
+          <CardDescription>Despesas pagas em {format(selectedMonth, "MMMM yyyy", { locale: ptBR })}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (

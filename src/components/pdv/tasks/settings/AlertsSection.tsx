@@ -1,7 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { PhoneInput } from "@/components/ui/phone-input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -16,7 +15,6 @@ interface AlertSettings {
   alertDailySummaryTarget: string;
   alertTemperatureEnabled: boolean;
   alertBrowserNotifications: boolean;
-  alertWhatsappNumber: string;
 }
 
 interface Props {
@@ -121,15 +119,6 @@ export function AlertsSection({ values, onChange }: Props) {
             <p className="text-xs text-muted-foreground">Push notification no navegador</p>
           </div>
           <Switch checked={values.alertBrowserNotifications} onCheckedChange={(v) => onChange({ alertBrowserNotifications: v })} />
-        </div>
-        <div>
-          <Label className="text-sm">WhatsApp do responsável</Label>
-          <PhoneInput
-            value={values.alertWhatsappNumber}
-            onChange={(v) => onChange({ alertWhatsappNumber: v })}
-            placeholder="(00) 00000-0000"
-          />
-          <p className="text-xs text-muted-foreground mt-1">Número que receberá os alertas por WhatsApp</p>
         </div>
       </div>
     </div>

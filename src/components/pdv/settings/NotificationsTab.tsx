@@ -5,8 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Bell, Save } from "lucide-react";
+import { Bell } from "lucide-react";
+import { SettingsSaveBar } from "./SettingsSaveBar";
 
 const notificationsSchema = z.object({
   enable_sound_notifications: z.boolean().optional(),
@@ -155,12 +155,11 @@ export function NotificationsTab({ defaultValues, onSave, isSubmitting }: Notifi
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            <Save className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Salvando..." : "Salvar Configurações"}
-          </Button>
-        </div>
+        <SettingsSaveBar
+          isDirty={form.formState.isDirty}
+          isSubmitting={isSubmitting ?? false}
+          onCancel={() => form.reset()}
+        />
       </form>
     </Form>
   );

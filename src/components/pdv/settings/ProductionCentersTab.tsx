@@ -66,24 +66,26 @@ export function ProductionCentersTab() {
 
   const handleTestPrinter = async (center: ProductionCenter) => {
     if (!center.printer_ip) {
-      toast.error("Configure o IP da impressora primeiro");
+      toast.error("Configure o endereço da impressora primeiro (IP, COM3 ou nome Windows)");
       return;
     }
     setTestingId(center.id);
     try {
+      const printerTarget = center.printer_ip!;
+      const isTcpIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(printerTarget.trim());
       const res = await fetch(`${BRIDGE_URL}/test-print`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ip: center.printer_ip,
-          port: center.printer_port ?? 9100,
-          centerName: center.name,
-        }),
+        body: JSON.stringify(
+          isTcpIp
+            ? { ip: printerTarget, port: center.printer_port ?? 9100, centerName: center.name }
+            : { printerName: printerTarget, centerName: center.name }
+        ),
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok && body.ok) {
         await recordStatus({ productionCenterId: center.id, ok: true });
-        toast.success(`Impressora ${center.printer_ip} respondeu`);
+        toast.success(`Impressora [${center.printer_ip}] respondeu`);
       } else {
         const error = body.error || `HTTP ${res.status}`;
         await recordStatus({ productionCenterId: center.id, ok: false, error });

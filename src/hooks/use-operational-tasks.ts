@@ -49,9 +49,6 @@ export interface TaskSettings {
   shifts: ShiftConfig[];
   autoGenerate: boolean;
   qrCodeEnabled: boolean;
-  whatsappReportEnabled: boolean;
-  whatsappReportPhone: string;
-  whatsappReportTime: string;
   alertCriticalEnabled: boolean;
   alertCriticalDelayMinutes: number;
   alertOverdueEnabled: boolean;
@@ -61,7 +58,6 @@ export interface TaskSettings {
   alertDailySummaryTarget: string;
   alertTemperatureEnabled: boolean;
   alertBrowserNotifications: boolean;
-  alertWhatsappNumber: string;
   reportDailyContent: string[];
   reportWeeklyEnabled: boolean;
   reportWeeklyDay: number;
@@ -74,6 +70,11 @@ export interface TaskSettings {
   minPinDigits: number;
   sessionTimeoutMinutes: number;
   sectorsConfig: any[];
+  emailReportEnabled: boolean;
+  emailReportAddress: string;
+  emailReportTime: string;
+  emailReportIncludeChecklists: boolean;
+  emailReportIncludeTasks: boolean;
 }
 
 const DEFAULT_SHIFTS: ShiftConfig[] = [
@@ -84,16 +85,17 @@ const DEFAULT_SHIFTS: ShiftConfig[] = [
 
 const DEFAULT_SETTINGS = (userId: string): TaskSettings => ({
   id: "", userId, shifts: DEFAULT_SHIFTS, autoGenerate: true, qrCodeEnabled: true,
-  whatsappReportEnabled: false, whatsappReportPhone: "", whatsappReportTime: "23:00",
   alertCriticalEnabled: true, alertCriticalDelayMinutes: 15,
   alertOverdueEnabled: true, alertOverdueDelayMinutes: 10,
   alertDailySummaryEnabled: false, alertDailySummaryTime: "22:00", alertDailySummaryTarget: "gestor",
-  alertTemperatureEnabled: true, alertBrowserNotifications: false, alertWhatsappNumber: "",
+  alertTemperatureEnabled: true, alertBrowserNotifications: false,
   reportDailyContent: ["taxa_conclusao","atrasadas","destaque","criticos","turnos"],
   reportWeeklyEnabled: false, reportWeeklyDay: 1,
   allowLateCompletion: true, requirePhotoDefault: false, defaultMaxDurationMinutes: 60,
   allowFreeNotes: true, showCountdownTimer: true, blockEarlyExecution: false,
   minPinDigits: 4, sessionTimeoutMinutes: 30, sectorsConfig: [],
+  emailReportEnabled: false, emailReportAddress: "", emailReportTime: "08:00",
+  emailReportIncludeChecklists: true, emailReportIncludeTasks: true,
 });
 
 export function useOperationalTasks(selectedDate?: string) {
@@ -160,9 +162,6 @@ export function useOperationalTasks(selectedDate?: string) {
         shifts: (data.shifts as any) || DEFAULT_SHIFTS,
         autoGenerate: data.auto_generate,
         qrCodeEnabled: data.qr_code_enabled,
-        whatsappReportEnabled: data.whatsapp_report_enabled ?? false,
-        whatsappReportPhone: data.whatsapp_report_phone ?? "",
-        whatsappReportTime: data.whatsapp_report_time ?? "23:00",
         alertCriticalEnabled: data.alert_critical_enabled ?? true,
         alertCriticalDelayMinutes: data.alert_critical_delay_minutes ?? 15,
         alertOverdueEnabled: data.alert_overdue_enabled ?? true,
@@ -172,7 +171,6 @@ export function useOperationalTasks(selectedDate?: string) {
         alertDailySummaryTarget: data.alert_daily_summary_target ?? "gestor",
         alertTemperatureEnabled: data.alert_temperature_enabled ?? true,
         alertBrowserNotifications: data.alert_browser_notifications ?? false,
-        alertWhatsappNumber: data.alert_whatsapp_number ?? "",
         reportDailyContent: (data.report_daily_content as any) ?? ["taxa_conclusao","atrasadas","destaque","criticos","turnos"],
         reportWeeklyEnabled: data.report_weekly_enabled ?? false,
         reportWeeklyDay: data.report_weekly_day ?? 1,
@@ -185,6 +183,11 @@ export function useOperationalTasks(selectedDate?: string) {
         minPinDigits: data.min_pin_digits ?? 4,
         sessionTimeoutMinutes: data.session_timeout_minutes ?? 30,
         sectorsConfig: (data.sectors_config as any) ?? [],
+        emailReportEnabled: data.email_report_enabled ?? false,
+        emailReportAddress: data.email_report_address ?? "",
+        emailReportTime: data.email_report_time ?? "08:00",
+        emailReportIncludeChecklists: data.email_report_include_checklists ?? true,
+        emailReportIncludeTasks: data.email_report_include_tasks ?? true,
       } as TaskSettings;
     },
     enabled: !!user?.id,
@@ -290,9 +293,6 @@ export function useOperationalTasks(selectedDate?: string) {
         shifts: s.shifts as any,
         auto_generate: s.autoGenerate,
         qr_code_enabled: s.qrCodeEnabled,
-        whatsapp_report_enabled: s.whatsappReportEnabled,
-        whatsapp_report_phone: s.whatsappReportPhone || null,
-        whatsapp_report_time: s.whatsappReportTime || "23:00",
         alert_critical_enabled: s.alertCriticalEnabled,
         alert_critical_delay_minutes: s.alertCriticalDelayMinutes,
         alert_overdue_enabled: s.alertOverdueEnabled,
@@ -302,7 +302,6 @@ export function useOperationalTasks(selectedDate?: string) {
         alert_daily_summary_target: s.alertDailySummaryTarget,
         alert_temperature_enabled: s.alertTemperatureEnabled,
         alert_browser_notifications: s.alertBrowserNotifications,
-        alert_whatsapp_number: s.alertWhatsappNumber || null,
         report_daily_content: s.reportDailyContent as any,
         report_weekly_enabled: s.reportWeeklyEnabled,
         report_weekly_day: s.reportWeeklyDay,
@@ -315,6 +314,11 @@ export function useOperationalTasks(selectedDate?: string) {
         min_pin_digits: s.minPinDigits,
         session_timeout_minutes: s.sessionTimeoutMinutes,
         sectors_config: s.sectorsConfig as any,
+        email_report_enabled: s.emailReportEnabled,
+        email_report_address: s.emailReportAddress || null,
+        email_report_time: s.emailReportTime || "08:00",
+        email_report_include_checklists: s.emailReportIncludeChecklists,
+        email_report_include_tasks: s.emailReportIncludeTasks,
       }, { onConflict: "user_id" });
       if (error) throw error;
     },

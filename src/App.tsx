@@ -21,8 +21,18 @@ import PublicChecklistAccess from "./pages/PublicChecklistAccess";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
 import NotFound from "./pages/NotFound";
 import { RadixBodyUnlock } from "@/components/RadixBodyUnlock";
+import Onboarding from "./pages/Onboarding";
+import OnboardingSuccess from "./pages/OnboardingSuccess";
+import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
+
+function AuthOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
@@ -75,6 +85,9 @@ const App = () => (
                   <Route path="/avaliacao/:campaignId" element={<PublicEvaluation />} />
                   <Route path="/tarefas/:userId" element={<PublicTasks />} />
                   <Route path="/c/:checklistId" element={<PublicChecklistAccess />} />
+                  {/* Onboarding (auth-only, sem ProtectedRoute para evitar loop) */}
+                  <Route path="/onboarding" element={<AuthOnlyRoute><Onboarding /></AuthOnlyRoute>} />
+                  <Route path="/onboarding/sucesso" element={<AuthOnlyRoute><OnboardingSuccess /></AuthOnlyRoute>} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>

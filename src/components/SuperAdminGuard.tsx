@@ -15,7 +15,7 @@ export function SuperAdminGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return <Navigate to="/" replace />;
-  if (!isSuperAdmin) return <Navigate to="/pdv/dashboard" replace />;
+  if (!isSuperAdmin) return <Navigate to="/pdv/caixa" replace />;
 
   return <>{children}</>;
 }

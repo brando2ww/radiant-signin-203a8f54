@@ -13,6 +13,7 @@ export const pdvFinancialTransactionSchema = z.object({
   due_date: z.date({
     required_error: 'Selecione a data de vencimento',
   }),
+  competence_date: z.date().optional().nullable(),
   payment_date: z.date().optional().nullable(),
   status: z.enum(['pending', 'paid', 'cancelled', 'overdue']).default('pending'),
   chart_account_id: z.string().optional().nullable(),

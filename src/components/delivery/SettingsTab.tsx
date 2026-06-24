@@ -10,16 +10,26 @@ import { MarketingSettings } from "./settings/MarketingSettings";
 import { DeliveryFiscalSettings } from "./settings/DeliveryFiscalSettings";
 import { useState } from "react";
 
-export const SettingsTab = () => {
+interface SettingsTabProps {
+  value?: string;
+  onValueChange?: (value: string) => void;
+}
+
+export const SettingsTab = ({ value: controlledValue, onValueChange }: SettingsTabProps = {}) => {
+  const isControlled = controlledValue !== undefined;
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
 
+  const tabsProps = isControlled
+    ? { value: controlledValue, onValueChange }
+    : { defaultValue: "hours" };
+
   return (
     <div className="space-y-6">
 
-      <Tabs defaultValue="hours" className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-7">
+      <Tabs {...tabsProps} className="w-full">
+        {!isControlled && <TabsList className="grid w-full max-w-4xl grid-cols-7">
           <TabsTrigger value="hours" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
             <span className="hidden sm:inline">Horários</span>
@@ -48,7 +58,7 @@ export const SettingsTab = () => {
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Fiscal</span>
           </TabsTrigger>
-        </TabsList>
+        </TabsList>}
 
         <TabsContent value="hours" className="mt-6">
           <BusinessHoursSettings />

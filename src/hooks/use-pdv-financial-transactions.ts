@@ -11,6 +11,7 @@ export interface PDVFinancialTransaction {
   transaction_type: 'payable' | 'receivable';
   amount: number;
   due_date: string;
+  competence_date?: string | null;
   payment_date?: string | null;
   status: 'pending' | 'paid' | 'cancelled' | 'overdue';
   chart_account_id?: string | null;
@@ -214,6 +215,9 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
           ...feeColumns,
           user_id: user.id,
           due_date: transaction.due_date ? format(new Date(transaction.due_date), "yyyy-MM-dd") : undefined,
+          competence_date: transaction.competence_date
+            ? format(new Date(transaction.competence_date), "yyyy-MM-dd")
+            : transaction.due_date ? format(new Date(transaction.due_date), "yyyy-MM-dd") : undefined,
           payment_date: transaction.payment_date ? format(new Date(transaction.payment_date), "yyyy-MM-dd") : null,
         }])
         .select()
@@ -239,6 +243,9 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         .update({
           ...transaction,
           due_date: transaction.due_date ? format(new Date(transaction.due_date), "yyyy-MM-dd") : undefined,
+          competence_date: transaction.competence_date
+            ? format(new Date(transaction.competence_date), "yyyy-MM-dd")
+            : undefined,
           payment_date: transaction.payment_date ? format(new Date(transaction.payment_date), "yyyy-MM-dd") : null,
         })
         .eq("id", id)
@@ -287,7 +294,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
       // Buscar o registro para conhecer tipo + valor e gerar snapshot de taxa
       const { data: existing } = await supabase
         .from("pdv_financial_transactions")
-        .select("amount, transaction_type")
+        .select("amount, transaction_type, description")
         .eq("id", id)
         .single();
 
@@ -315,11 +322,34 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         .single();
 
       if (error) throw error;
+
+      // Atualiza saldo da conta bancária PDV ao marcar como pago
+      if (bank_account_id && existing && user) {
+        const { data: account } = await supabase
+          .from("pdv_bank_accounts")
+          .select("current_balance")
+          .eq("id", bank_account_id)
+          .single();
+
+        if (account) {
+          const delta = existing.transaction_type === "receivable"
+            ? Number(existing.amount)
+            : -Number(existing.amount);
+          const newBalance = (account.current_balance || 0) + delta;
+
+          await supabase
+            .from("pdv_bank_accounts")
+            .update({ current_balance: newBalance })
+            .eq("id", bank_account_id);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-financial-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-financial-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-bank-accounts"] });
       toast.success("Lançamento marcado como pago");
     },
     onError: (error: any) => {

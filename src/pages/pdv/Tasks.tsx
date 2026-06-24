@@ -38,8 +38,12 @@ const NAV_ITEMS = [
   { key: "logs", label: "Logs", icon: FileText },
 ] as const;
 
-export default function Tasks() {
-  const [activeSection, setActiveSection] = useState<string>("painel");
+interface TasksProps {
+  defaultSection?: string;
+}
+
+export default function Tasks({ defaultSection = "painel" }: TasksProps) {
+  const [activeSection, setActiveSection] = useState<string>(defaultSection);
   const [qrOpen, setQrOpen] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
   const { user } = useAuth();

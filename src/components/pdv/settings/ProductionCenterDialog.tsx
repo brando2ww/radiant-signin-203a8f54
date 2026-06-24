@@ -161,16 +161,16 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
 
           <div className="grid grid-cols-[1fr_100px] gap-2">
             <div className="space-y-2">
-              <Label htmlFor="printer-ip">IP da impressora</Label>
+              <Label htmlFor="printer-ip">IP ou nome da impressora</Label>
               <Input
                 id="printer-ip"
-                placeholder="192.168.1.50"
+                placeholder="192.168.1.50 ou COM3 ou Epson TM-T20"
                 value={printerIp}
                 onChange={(e) => setPrinterIp(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="printer-port">Porta</Label>
+              <Label htmlFor="printer-port">Porta TCP</Label>
               <Input
                 id="printer-port"
                 type="number"
@@ -181,7 +181,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            IP e porta TCP da impressora térmica. Padrão é 9100 (ESC/POS). Deixe o IP em branco se não quiser imprimir automaticamente.
+            Aceita IP de rede (192.168.1.50), porta serial (COM3, LPT1) ou nome exato da impressora no Windows. Porta TCP usada apenas para impressoras de rede.
           </p>
         </div>
 

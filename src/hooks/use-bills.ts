@@ -146,7 +146,8 @@ export function useBills(filters?: BillFilters) {
             await supabase
               .from("bills")
               .update({ parent_bill_id: parentId })
-              .eq("id", data[i].id);
+              .eq("id", data[i].id)
+              .eq("user_id", user.id);
           }
         }
 

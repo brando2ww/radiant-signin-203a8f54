@@ -71,7 +71,11 @@ export default function EvaluationsDashboard() {
       const d = subDays(new Date(), i);
       const key = format(d, "yyyy-MM-dd");
       const label = format(d, "EEE dd/MM", { locale: ptBR });
-      const count = evaluations?.filter(e => (e.evaluation_date || e.created_at).startsWith(key)).length || 0;
+      const count = evaluations?.filter(e => {
+        const dateStr = e.evaluation_date || e.created_at;
+        const brazilDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date(dateStr));
+        return brazilDate === key;
+      }).length || 0;
       days.push({ day: label, count });
     }
     return days;

@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertTriangle,
   ShieldCheck,
@@ -23,6 +24,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Banknote,
+  Bike,
   CreditCard,
   Smartphone,
   Ticket,
@@ -45,6 +47,7 @@ export interface CashMovement {
   created_at: string;
   discount_reason?: string | null;
   discount_authorized_by?: string | null;
+  source?: string | null;
 }
 
 export interface PrintCashierReportParams {
@@ -517,6 +520,11 @@ export function CloseCashierDialog({
   session,
   movements = [],
 }: CloseCashierDialogProps) {
+  const deliveryCashMovements = movements.filter(
+    (m) => m.source === "delivery" && m.payment_method === "dinheiro" && m.type === "venda"
+  );
+  const totalDeliveryCash = deliveryCashMovements.reduce((s, m) => s + Number(m.amount), 0);
+
   const [step, setStep] = useState<Step>("blind");
 
   // Etapa 1 — apuração às cegas
@@ -772,6 +780,28 @@ export function CloseCashierDialog({
                   </div>
                 </CardContent>
               </Card>
+
+              {totalDeliveryCash > 0 && (
+                <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+                  <Bike className="h-4 w-4 text-blue-600" />
+                  <AlertTitle className="text-blue-700 text-sm">Dinheiro de delivery na gaveta</AlertTitle>
+                  <AlertDescription className="text-blue-600 text-xs space-y-1">
+                    <p>
+                      {deliveryCashMovements.length} pedido(s) de delivery registrado(s) como dinheiro,
+                      totalizando <strong>{formatBRL(totalDeliveryCash)}</strong>.
+                    </p>
+                    <p>Verifique se esse valor foi recolhido pelos entregadores e está na gaveta antes de apurar.</p>
+                    <div className="mt-2 space-y-0.5">
+                      {deliveryCashMovements.map((m, i) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span className="truncate">{m.description}</span>
+                          <span className="tabular-nums ml-2">{formatBRL(Number(m.amount))}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <BlindInput icon={Banknote} label="Dinheiro (gaveta)" value={declaredCash} onChange={setDeclaredCash} />

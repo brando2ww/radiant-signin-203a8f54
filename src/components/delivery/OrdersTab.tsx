@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { useDeliveryOrders } from "@/hooks/use-delivery-orders";
 import { OrdersKanban } from "./OrdersKanban";
@@ -10,13 +11,31 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { formatBRL } from "@/lib/format";
 import { startOfDay } from "date-fns";
 
-type OrderType = "delivery" | "pickup";
+type OrderType = "delivery" | "pickup" | "completed" | "scheduled";
 
 export const OrdersTab = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: allOrders = [] } = useDeliveryOrders();
   const [orderType, setOrderType] = useState<OrderType>("delivery");
+  const scheduledNotifiedRef = useRef(false);
+
+  // Notificar pedidos agendados para hoje ao abrir a tela
+  useEffect(() => {
+    if (scheduledNotifiedRef.current || allOrders.length === 0) return;
+    const now = new Date();
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+    const todayScheduled = allOrders.filter(
+      (o) => o.scheduled_for && o.status === "pending" && new Date(o.scheduled_for) > now && new Date(o.scheduled_for) <= todayEnd
+    );
+    if (todayScheduled.length > 0) {
+      scheduledNotifiedRef.current = true;
+      toast(`${todayScheduled.length} pedido${todayScheduled.length > 1 ? "s" : ""} agendado${todayScheduled.length > 1 ? "s" : ""} para hoje — verifique a aba Agendados`, {
+        duration: 8000,
+      });
+    }
+  }, [allOrders]);
 
   const {
     notifications,
@@ -29,10 +48,15 @@ export const OrdersTab = () => {
   });
 
   const counts = useMemo(() => {
+    const now = new Date();
     const isActive = (s: string) => !["completed", "cancelled"].includes(s);
+    const isScheduledFuture = (o: any) =>
+      o.scheduled_for && o.status === "pending" && new Date(o.scheduled_for) > now;
     return {
-      delivery: allOrders.filter((o) => o.order_type === "delivery" && isActive(o.status)).length,
-      pickup: allOrders.filter((o) => o.order_type === "pickup" && isActive(o.status)).length,
+      delivery: allOrders.filter((o) => o.order_type === "delivery" && isActive(o.status) && !isScheduledFuture(o)).length,
+      pickup: allOrders.filter((o) => o.order_type === "pickup" && isActive(o.status) && !isScheduledFuture(o)).length,
+      completed: allOrders.filter((o) => o.status === "completed").length,
+      scheduled: allOrders.filter(isScheduledFuture).length,
     };
   }, [allOrders]);
 

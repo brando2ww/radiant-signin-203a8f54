@@ -6,8 +6,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { ShoppingBag, Save } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
+import { SettingsSaveBar } from "./SettingsSaveBar";
 
 const ordersSchema = z.object({
   default_preparation_time: z.number().min(1).optional(),
@@ -174,12 +174,11 @@ export function OrdersTab({ defaultValues, onSave, isSubmitting }: OrdersTabProp
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            <Save className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Salvando..." : "Salvar Configurações"}
-          </Button>
-        </div>
+        <SettingsSaveBar
+          isDirty={form.formState.isDirty}
+          isSubmitting={isSubmitting ?? false}
+          onCancel={() => form.reset()}
+        />
       </form>
     </Form>
   );

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PackageSearch, CalendarIcon } from "lucide-react";
+import { PackageSearch, CalendarIcon, AlertTriangle, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePDVCmv } from "@/hooks/use-pdv-cmv";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -29,7 +31,19 @@ export default function ProductCMV() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">CMV por Produto</h1>
-          <p className="text-muted-foreground mt-1">Análise detalhada de custos e margens por produto</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground text-sm">Análise detalhada de custos e margens por produto</p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs">
+                  CMV calculado por custo de produção: ingredientes × quantidade vendida. Não inclui variação de estoque físico.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
         <Popover>
           <PopoverTrigger asChild>
@@ -44,9 +58,20 @@ export default function ProductCMV() {
         </Popover>
       </div>
 
+      {!isLoading && (data?.productsWithoutCost ?? 0) > 0 && (
+        <Alert className="border-warning/50 bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertDescription className="text-warning-foreground">
+            {data!.productsWithoutCost} produto{data!.productsWithoutCost !== 1 ? "s" : ""} sem custo
+            cadastrado não {data!.productsWithoutCost !== 1 ? "estão incluídos" : "está incluído"} no CMV.
+            Cadastre receitas ou defina o custo unitário para obter resultados precisos.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
         {[
-          { label: "Produtos Analisados", value: String(data?.analyzedCount || 0), sub: "com receitas cadastradas" },
+          { label: "Produtos Analisados", value: String(data?.analyzedCount || 0), sub: "custo calculado por receitas de produção" },
           { label: "Margem Média", value: `${(data?.avgMargin || 0).toFixed(1)}%`, sub: "dos produtos" },
           { label: "Melhor Margem", value: `${(data?.bestMargin || 0).toFixed(1)}%`, sub: "produto mais lucrativo", color: "text-success" },
           { label: "Pior Margem", value: `${(data?.worstMargin || 0).toFixed(1)}%`, sub: "requer atenção", color: "text-destructive" },

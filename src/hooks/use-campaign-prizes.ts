@@ -164,8 +164,12 @@ export const useRegisterPrizeWin = () => {
       const code = generateCouponCode();
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + data.couponValidityDays);
+      const expiresAtISO = expiresAt.toISOString();
 
-      const { data: win, error } = await supabase
+      // Avoid .select().single() after insert: the public evaluation page is unauthenticated,
+      // so the SELECT RLS policy ("Owner can read wins") blocks RETURNING, causing PostgREST
+      // to return 406 and roll back the entire transaction.
+      const { error } = await supabase
         .from("campaign_prize_wins")
         .insert({
           campaign_id: data.campaignId,
@@ -174,17 +178,26 @@ export const useRegisterPrizeWin = () => {
           customer_name: data.customerName,
           customer_whatsapp: data.customerWhatsapp,
           coupon_code: code,
-          coupon_expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single();
+          coupon_expires_at: expiresAtISO,
+        });
 
       if (error) throw error;
 
-      // Increment redeemed_count
       await supabase.rpc("increment_prize_redeemed_count" as any, { prize_id: data.prizeId });
 
-      return win as CampaignPrizeWin;
+      return {
+        id: crypto.randomUUID(),
+        campaign_id: data.campaignId,
+        prize_id: data.prizeId,
+        evaluation_id: data.evaluationId,
+        customer_name: data.customerName,
+        customer_whatsapp: data.customerWhatsapp,
+        coupon_code: code,
+        coupon_expires_at: expiresAtISO,
+        is_redeemed: false,
+        redeemed_at: null,
+        created_at: new Date().toISOString(),
+      } as CampaignPrizeWin;
     },
   });
 };

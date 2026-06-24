@@ -390,6 +390,10 @@ export function PaymentDialog({
   // Subtotal efetivo usado para descontos/taxas/total
   const subtotal = isByProduct ? selectedSubtotal : allSubtotal;
 
+  // Taxa de entrega — só presente em pedidos de delivery; não entra no subtotal
+  // para não distorcer cálculos de desconto e taxa de serviço.
+  const deliveryFeeAmount = isDelivery ? Number(deliveryOrder!.delivery_fee || 0) : 0;
+
   const title = isDelivery
     ? `${isPickupDelivery ? "Retirada" : "Delivery"} #${deliveryOrder!.order_number}${
         deliveryOrder!.customer_name ? ` · ${deliveryOrder!.customer_name}` : ""
@@ -430,7 +434,7 @@ export function PaymentDialog({
   const serviceFeeAmount = serviceFeeEnabled && serviceFeeAllowed ? (subtotal - discountAmount) * serviceFeeRate : 0;
 
   // Final total
-  const total = Math.max(0, subtotal - discountAmount + serviceFeeAmount);
+  const total = Math.max(0, subtotal - discountAmount + serviceFeeAmount + deliveryFeeAmount);
 
   // Cash calculations
   const cashReceivedNum = parseFloat(cashReceived) || 0;
@@ -1644,7 +1648,7 @@ export function PaymentDialog({
                           {formatCurrency(
                             Math.max(
                               0,
-                              subtotal - computedDiscountAmount + (serviceFeeEnabled && serviceFeeAllowed ? (subtotal - computedDiscountAmount) * serviceFeeRate : 0),
+                              subtotal - computedDiscountAmount + (serviceFeeEnabled && serviceFeeAllowed ? (subtotal - computedDiscountAmount) * serviceFeeRate : 0) + deliveryFeeAmount,
                             ),
                           )}
                         </span>
@@ -1812,6 +1816,12 @@ export function PaymentDialog({
                   <span className="text-muted-foreground">Subtotal</span>
                   <span>{formatCurrency(subtotal)}</span>
                 </div>
+                {deliveryFeeAmount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Taxa de entrega</span>
+                    <span>{formatCurrency(deliveryFeeAmount)}</span>
+                  </div>
+                )}
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Desconto</span>

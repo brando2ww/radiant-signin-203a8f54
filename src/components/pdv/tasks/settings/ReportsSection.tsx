@@ -4,13 +4,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { PhoneInput } from "@/components/ui/phone-input";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Mail, Send } from "lucide-react";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { DateRange } from "react-day-picker";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 const REPORT_CONTENT_OPTIONS = [
   { key: "taxa_conclusao", label: "Taxa de conclusão do dia" },
@@ -31,12 +33,14 @@ const WEEK_DAYS = [
 ];
 
 interface ReportSettings {
-  whatsappReportEnabled: boolean;
-  whatsappReportPhone: string;
-  whatsappReportTime: string;
   reportDailyContent: string[];
   reportWeeklyEnabled: boolean;
   reportWeeklyDay: number;
+  emailReportEnabled: boolean;
+  emailReportAddress: string;
+  emailReportTime: string;
+  emailReportIncludeChecklists: boolean;
+  emailReportIncludeTasks: boolean;
 }
 
 interface Props {
@@ -45,7 +49,29 @@ interface Props {
 }
 
 export function ReportsSection({ values, onChange }: Props) {
+  const { user } = useAuth();
   const [exportRange, setExportRange] = useState<DateRange | undefined>();
+  const [sendingTest, setSendingTest] = useState(false);
+
+  const handleTestEmail = async () => {
+    if (!user?.id || !values.emailReportAddress) return;
+    setSendingTest(true);
+    try {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const reportDate = yesterday.toISOString().split("T")[0];
+      const { error } = await supabase.functions.invoke("send-checklist-report", {
+        body: { user_id: user.id, report_date: reportDate, test_email: values.emailReportAddress },
+      });
+      if (error) throw error;
+      toast({ title: "Relatório de teste enviado!", description: `Verifique ${values.emailReportAddress}` });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Falha ao enviar";
+      toast({ title: "Erro no envio", description: msg, variant: "destructive" });
+    } finally {
+      setSendingTest(false);
+    }
+  };
 
   const toggleContent = (key: string) => {
     const current = values.reportDailyContent || [];
@@ -55,30 +81,70 @@ export function ReportsSection({ values, onChange }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Daily WhatsApp report */}
+      {/* Daily email report */}
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <Label>Relatório diário via WhatsApp</Label>
-            <p className="text-xs text-muted-foreground">Resumo automático das tarefas do dia</p>
+            <Label className="flex items-center gap-2">
+              <Mail className="h-4 w-4" /> Relatório diário por e-mail
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Enviado na manhã seguinte com o resumo do dia anterior
+            </p>
           </div>
-          <Switch checked={values.whatsappReportEnabled} onCheckedChange={(v) => onChange({ whatsappReportEnabled: v })} />
+          <Switch
+            checked={values.emailReportEnabled}
+            onCheckedChange={(v) => onChange({ emailReportEnabled: v })}
+          />
         </div>
 
-        {values.whatsappReportEnabled && (
+        {values.emailReportEnabled && (
           <div className="space-y-3 pl-4 border-l-2 border-muted">
             <div>
-              <Label className="text-xs">Número destino</Label>
-              <PhoneInput
-                value={values.whatsappReportPhone}
-                onChange={(v) => onChange({ whatsappReportPhone: v })}
-                placeholder="(00) 00000-0000"
+              <Label className="text-xs">E-mail destinatário</Label>
+              <Input
+                type="email"
+                placeholder="gestor@seurestaurante.com"
+                value={values.emailReportAddress}
+                onChange={(e) => onChange({ emailReportAddress: e.target.value })}
+                className="mt-1 h-8"
               />
             </div>
             <div className="w-32">
               <Label className="text-xs">Horário de envio</Label>
-              <Input type="time" className="h-8" value={values.whatsappReportTime} onChange={(e) => onChange({ whatsappReportTime: e.target.value })} />
+              <Input
+                type="time"
+                className="mt-1 h-8"
+                value={values.emailReportTime}
+                onChange={(e) => onChange({ emailReportTime: e.target.value })}
+              />
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Incluir no relatório</Label>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={values.emailReportIncludeChecklists}
+                  onCheckedChange={(v) => onChange({ emailReportIncludeChecklists: !!v })}
+                />
+                <Label className="text-sm font-normal cursor-pointer">Checklists</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={values.emailReportIncludeTasks}
+                  onCheckedChange={(v) => onChange({ emailReportIncludeTasks: !!v })}
+                />
+                <Label className="text-sm font-normal cursor-pointer">Tarefas operacionais</Label>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestEmail}
+              disabled={sendingTest || !values.emailReportAddress}
+            >
+              <Send className="h-4 w-4 mr-1" />
+              {sendingTest ? "Enviando..." : "Enviar relatório de teste"}
+            </Button>
           </div>
         )}
       </div>

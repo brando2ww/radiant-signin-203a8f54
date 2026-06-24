@@ -4,7 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { CartItem } from "@/pages/PublicMenu";
 import { DeliveryCustomer, useCreateOrder } from "@/hooks/use-delivery-customers";
-import { ChevronLeft, Loader2, MapPin, CreditCard, Clock, Star } from "lucide-react";
+import { ChevronLeft, Loader2, MapPin, CreditCard, Clock, Star, CalendarClock } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { trackFunnelEvent } from "@/hooks/use-delivery-funnel";
 import { useLoyaltySettings } from "@/hooks/use-delivery-loyalty";
 import { useState } from "react";
@@ -31,6 +33,7 @@ interface OrderConfirmationProps {
   onConfirm: (orderId: string) => void;
   onBack: () => void;
   selectedAddressId: string | null;
+  scheduledFor?: Date | null;
 }
 
 const paymentLabels: Record<string, string> = {
@@ -58,6 +61,7 @@ export const OrderConfirmation = ({
   onConfirm,
   onBack,
   selectedAddressId,
+  scheduledFor,
 }: OrderConfirmationProps) => {
   const createOrder = useCreateOrder();
   const { data: deliverySettings } = usePublicSettings(userId);
@@ -78,7 +82,7 @@ export const OrderConfirmation = ({
     if (createOrder.isPending) return;
 
     const status = isStoreCurrentlyOpen(deliverySettings);
-    if (!status.open) {
+    if (!status.open && !scheduledFor) {
       toast.error(
         status.nextOpenLabel
           ? `Loja fechada. Abre ${status.nextOpenLabel}.`
@@ -104,6 +108,7 @@ export const OrderConfirmation = ({
       changeFor,
       notes,
       idempotencyKey,
+      scheduledFor: scheduledFor?.toISOString(),
       items: cart.map((item) => ({
         productId: item.productId,
         productName: item.name,
@@ -142,6 +147,19 @@ export const OrderConfirmation = ({
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
             <Star className="h-3 w-3 text-primary" />
             <span>Você ganhará <strong>{Math.floor(effectiveTotal * Number(loyaltySettings.points_per_real))}</strong> pontos com este pedido!</span>
+          </div>
+        )}
+
+        {/* Horário agendado */}
+        {scheduledFor && (
+          <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+            <CalendarClock className="h-5 w-5 text-primary shrink-0" />
+            <div>
+              <p className="font-medium text-sm text-primary">Pedido Agendado</p>
+              <p className="text-sm text-muted-foreground">
+                {format(scheduledFor, "EEEE, dd/MM 'às' HH:mm", { locale: ptBR })}
+              </p>
+            </div>
           </div>
         )}
 

@@ -156,6 +156,7 @@ export const useCreateOrder = () => {
       changeFor?: number;
       notes?: string;
       idempotencyKey?: string;
+      scheduledFor?: string;
       items: {
         productId: string;
         productName: string;
@@ -220,6 +221,7 @@ export const useCreateOrder = () => {
           notes: orderData.notes || null,
           estimated_time: 45,
           idempotency_key: idempotencyKey,
+          scheduled_for: orderData.scheduledFor || null,
         } as any)
         .select()
         .single();

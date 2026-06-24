@@ -67,7 +67,7 @@ export function FiscalTab() {
           )}
 
           {/* Dados cadastrais */}
-          <section className="space-y-4">
+          <section id="section-dados" className="space-y-4 scroll-mt-24">
             <h3 className="font-semibold">Dados cadastrais</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -119,7 +119,7 @@ export function FiscalTab() {
           <Separator />
 
           {/* Endereço */}
-          <section className="space-y-4">
+          <section id="section-endereco" className="space-y-4 scroll-mt-24">
             <h3 className="font-semibold">Endereço</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2 md:col-span-2">
@@ -160,7 +160,7 @@ export function FiscalTab() {
           <Separator />
 
           {/* Certificado */}
-          <section className="space-y-4">
+          <section id="section-certificado" className="space-y-4 scroll-mt-24">
             <h3 className="font-semibold">Certificado Digital A1</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -197,7 +197,7 @@ export function FiscalTab() {
           <Separator />
 
           {/* NFC-e CSC */}
-          <section className="space-y-4">
+          <section id="section-nfce" className="space-y-4 scroll-mt-24">
             <h3 className="font-semibold">NFC-e — CSC (obtido no portal do SEFAZ)</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -239,7 +239,7 @@ export function FiscalTab() {
           <Separator />
 
           {/* Habilitação + Séries + Ambiente */}
-          <section className="space-y-4">
+          <section id="section-habilitacao" className="space-y-4 scroll-mt-24">
             <h3 className="font-semibold">Habilitação e ambiente</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="flex items-center justify-between rounded-md border p-3">

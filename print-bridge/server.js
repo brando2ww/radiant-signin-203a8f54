@@ -1,6 +1,10 @@
 require("dotenv").config();
 const net = require("net");
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const { spawnSync } = require("child_process");
 const { createClient } = require("@supabase/supabase-js");
 
 const {
@@ -200,6 +204,132 @@ function sendToPrinter(ip, port, payload) {
   });
 }
 
+// Porta serial (COM1-COM256) ou paralela (LPT1-LPT9) — Node.js puro, sem lib externa
+function sendToSerialPort(portName, buffer) {
+  return new Promise((resolve, reject) => {
+    const devPath = process.platform === "win32"
+      ? `\\\\.\\${portName.toUpperCase()}`
+      : `/dev/${portName}`; // fallback Linux: /dev/ttyUSB0
+    const stream = fs.createWriteStream(devPath, { flags: "a" });
+    let done = false;
+    const finish = (err) => {
+      if (done) return;
+      done = true;
+      stream.destroy();
+      err ? reject(err) : resolve();
+    };
+    stream.once("error", finish);
+    stream.write(buffer, (err) => {
+      if (err) return finish(err);
+      stream.end(finish);
+    });
+  });
+}
+
+// Impressora registrada no Windows (USB com driver, impressora compartilhada, etc.)
+// Usa Win32 API via PowerShell Add-Type + P/Invoke — sem dependências extras
+const PS_RAWPRINT_TYPE = `
+using System; using System.Runtime.InteropServices;
+public class VelaraRawPrint {
+  [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Ansi)]
+  public struct DOCINFO { public int cbSize; public string pDocName; public string pOutputFile; public string pDataType; }
+  [DllImport("winspool.drv",SetLastError=true)] static extern bool OpenPrinter(string n,out IntPtr h,IntPtr d);
+  [DllImport("winspool.drv",SetLastError=true)] static extern bool ClosePrinter(IntPtr h);
+  [DllImport("winspool.drv",SetLastError=true)] static extern int StartDocPrinter(IntPtr h,int l,ref DOCINFO i);
+  [DllImport("winspool.drv",SetLastError=true)] static extern bool EndDocPrinter(IntPtr h);
+  [DllImport("winspool.drv",SetLastError=true)] static extern bool StartPagePrinter(IntPtr h);
+  [DllImport("winspool.drv",SetLastError=true)] static extern bool EndPagePrinter(IntPtr h);
+  [DllImport("winspool.drv",SetLastError=true)] static extern bool WritePrinter(IntPtr h,byte[] b,int n,out int w);
+  public static void Send(string p,byte[] b){
+    IntPtr h; if(!OpenPrinter(p,out h,IntPtr.Zero)) throw new Exception("Impressora nao encontrada: "+p);
+    try {
+      var d=new DOCINFO{cbSize=System.Runtime.InteropServices.Marshal.SizeOf(typeof(DOCINFO)),pDocName="Velara",pDataType="RAW"};
+      StartDocPrinter(h,1,ref d); StartPagePrinter(h);
+      int w; WritePrinter(h,b,b.Length,out w);
+      EndPagePrinter(h); EndDocPrinter(h);
+    } finally { ClosePrinter(h); }
+  }
+}
+`;
+
+function sendToWindowsPrinter(printerName, buffer) {
+  const tmpFile = path.join(os.tmpdir(), `vp_${Date.now()}_${Math.random().toString(36).slice(2)}.bin`);
+  fs.writeFileSync(tmpFile, buffer);
+  // Escapa aspas simples no nome da impressora para uso no PowerShell
+  const safeName = printerName.replace(/'/g, "''");
+  const safeTmp = tmpFile.replace(/\\/g, "\\\\");
+  const ps = `
+Add-Type -TypeDefinition @'
+${PS_RAWPRINT_TYPE}
+'@ -Language CSharp
+$bytes = [System.IO.File]::ReadAllBytes('${safeTmp}')
+[VelaraRawPrint]::Send('${safeName}', $bytes)
+Remove-Item '${safeTmp}' -Force -ErrorAction SilentlyContinue
+`;
+  const result = spawnSync("powershell", ["-NonInteractive", "-NoProfile", "-Command", ps], {
+    timeout: 15000,
+    encoding: "utf8",
+  });
+  // Garante remoção do arquivo temp mesmo em erro
+  try { fs.unlinkSync(tmpFile); } catch (_) {}
+  if (result.status !== 0) {
+    const errMsg = (result.stderr || result.stdout || "Falha ao enviar para impressora Windows").trim();
+    throw new Error(errMsg.slice(0, 300));
+  }
+}
+
+// Roteamento por tipo de impressora baseado no conteúdo de printer_ip
+// - "192.168.1.x" → TCP/IP (comportamento original)
+// - "COM3", "LPT1" → porta serial/paralela
+// - qualquer outro texto → impressora Windows por nome
+function routePrint(job, buffer) {
+  const id = (job.printer_ip || "").trim();
+  if (/^(COM|LPT)\d+$/i.test(id)) {
+    log(`→ Serial ${id}`);
+    return sendToSerialPort(id, buffer);
+  }
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(id)) {
+    return sendToPrinter(id, job.printer_port || 9100, buffer);
+  }
+  log(`→ Windows Printer "${id}"`);
+  return sendToWindowsPrinter(id, buffer);
+}
+
+// Lista impressoras disponíveis no sistema (COM ports + Windows Printers)
+async function listAvailablePrinters() {
+  const result = { com_ports: [], windows_printers: [] };
+  if (process.platform !== "win32") return result;
+
+  // Detecta COM ports testando abertura (COM1..COM30)
+  const comChecks = Array.from({ length: 30 }, (_, i) => `COM${i + 1}`);
+  for (const port of comChecks) {
+    try {
+      const devPath = `\\\\.\\${port}`;
+      // Tentativa de abertura sem escrita para verificar existência
+      const fd = fs.openSync(devPath, fs.constants.O_RDWR | fs.constants.O_NONBLOCK);
+      fs.closeSync(fd);
+      result.com_ports.push(port);
+    } catch (_) {
+      // porta não existe ou sem acesso — ignora
+    }
+  }
+
+  // Lista impressoras Windows via PowerShell
+  const ps = spawnSync(
+    "powershell",
+    ["-NonInteractive", "-NoProfile", "-Command",
+      "Get-Printer | Select-Object -ExpandProperty Name | ConvertTo-Json -Compress"],
+    { timeout: 8000, encoding: "utf8" },
+  );
+  if (ps.status === 0 && ps.stdout) {
+    try {
+      const parsed = JSON.parse(ps.stdout.trim());
+      result.windows_printers = Array.isArray(parsed) ? parsed : [parsed];
+    } catch (_) {}
+  }
+  return result;
+}
+
 function formatDateTime(d = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -213,7 +343,7 @@ async function processJob(job) {
 
   state.last_job_at = new Date().toISOString();
 
-  if (!job.printer_ip) {
+  if (!job.printer_ip || !String(job.printer_ip).trim()) {
     const msg = "sem impressora configurada";
     log(`⚠ Job ${job.id} (${job.payload?.product_name}) sem printer_ip — falhando`);
     await supabase
@@ -227,7 +357,8 @@ async function processJob(job) {
 
   const ip = normalizeIp(job.printer_ip);
   const port = job.printer_port || 9100;
-  const key = `${ip}:${port}`;
+  const printerKey = ip.trim();
+  const key = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(printerKey) ? `${printerKey}:${port}` : printerKey;
   const p = job.payload || {};
   const kind = p.kind || job.source_kind || "comanda";
 
@@ -316,7 +447,7 @@ async function processJob(job) {
     log(`→ Job ${job.id} | ${job.center_name} | ${logSummary} → ${ip}:${port} (tent. ${attemptNumber}/${MAX_ATTEMPTS})`);
 
     try {
-      await sendToPrinter(ip, port, buf);
+      await routePrint(job, buf);
       await supabase
         .from("pdv_print_jobs")
         .update({ status: "printed", printed_at: new Date().toISOString(), error_message: null })
@@ -345,7 +476,7 @@ async function processJob(job) {
           .update({ status: "failed", error_message: msg })
           .eq("id", job.id);
         state.jobs_failed += 1;
-        log(`✗ Falha definitiva ${ip}:${port} — ${msg} (job ${job.id}, ${MAX_ATTEMPTS} tentativas)`);
+        log(`✗ Falha definitiva [${key}] — ${msg} (job ${job.id}, ${MAX_ATTEMPTS} tentativas)`);
       }
     }
   });
@@ -547,20 +678,24 @@ function startHttpServer() {
       req.on("data", (chunk) => (buf += chunk));
       req.on("end", async () => {
         try {
-          const { ip, port = 9100, centerName = "Teste" } = JSON.parse(buf || "{}");
-          if (!ip) {
+          const body = JSON.parse(buf || "{}");
+          // Aceita { ip, port } (TCP) ou { printerName } (COM/Windows)
+          const { ip, port = 9100, printerName, centerName = "Teste" } = body;
+          const target = printerName || ip;
+          if (!target) {
             res.writeHead(400, { "Content-Type": "application/json" });
-            return res.end(JSON.stringify({ ok: false, error: "IP obrigatório" }));
+            return res.end(JSON.stringify({ ok: false, error: "IP ou printerName obrigatório" }));
           }
-          const payload = buildReceipt({
+          const receiptBuf = buildReceipt({
             mesa: "TESTE",
             comanda: "Print Bridge",
-            subheader: ["Centro: " + centerName, "*** TESTE DE IMPRESSÃO ***", formatDateTime()],
+            subheader: ["Centro: " + centerName, "*** TESTE DE IMPRESSAO ***", formatDateTime()],
             body: [{ product_name: "Print Bridge OK", quantity: 1 }],
             centerName,
           });
-          await sendToPrinter(normalizeIp(ip), port, payload);
-          log(`✓ Teste impresso em ${ip}:${port}`);
+          const fakeJob = { printer_ip: target, printer_port: port };
+          await routePrint(fakeJob, receiptBuf);
+          log(`✓ Teste impresso em [${target}]`);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: true }));
         } catch (err) {
@@ -568,6 +703,17 @@ function startHttpServer() {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: err.message }));
         }
+      });
+      return;
+    }
+
+    if (req.method === "GET" && req.url === "/list-printers") {
+      listAvailablePrinters().then((printers) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(printers));
+      }).catch((err) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ com_ports: [], windows_printers: [], error: err.message }));
       });
       return;
     }

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type UserModule = 'financeiro' | 'crm' | 'delivery' | 'pdv' | 'avaliacoes' | 'tarefas';
+export type UserModule = 'financeiro' | 'crm' | 'delivery' | 'pdv' | 'avaliacoes' | 'tarefas' | 'compras';
 
 interface TenantModuleRow {
   id: string;
@@ -16,9 +16,8 @@ interface TenantModuleRow {
 export function useUserModules() {
   const { user } = useAuth();
 
-  // Resolve tenant_id do usuário: owner → establishment_users.tenant_id →
-  // tenant do dono do estabelecimento (para staff sem tenant_id direto).
-  const { data: tenantId, isLoading: isLoadingTenantId } = useQuery({
+  // Resolve tenant_id + stripe_customer_id do usuário.
+  const { data: tenantData, isLoading: isLoadingTenantId } = useQuery({
     queryKey: ['user-tenant-id', user?.id],
     queryFn: async () => {
       if (!user) return null;
@@ -26,10 +25,10 @@ export function useUserModules() {
       // 1. usuário é dono de um tenant?
       const { data: tenant } = await supabase
         .from('tenants')
-        .select('id')
+        .select('id, stripe_customer_id')
         .eq('owner_user_id', user.id)
         .maybeSingle();
-      if (tenant) return tenant.id;
+      if (tenant) return { id: tenant.id, stripeCustomerId: tenant.stripe_customer_id as string | null };
 
       // 2. vínculo em establishment_users
       const { data: eu } = await supabase
@@ -39,22 +38,33 @@ export function useUserModules() {
         .eq('is_active', true)
         .maybeSingle();
 
-      if (eu?.tenant_id) return eu.tenant_id;
+      if (eu?.tenant_id) {
+        // Resolve stripe_customer_id para staff
+        const { data: t } = await supabase
+          .from('tenants')
+          .select('id, stripe_customer_id')
+          .eq('id', eu.tenant_id)
+          .maybeSingle();
+        return { id: eu.tenant_id, stripeCustomerId: (t?.stripe_customer_id as string | null) ?? null };
+      }
 
       // 3. staff sem tenant_id direto: resolver via tenant do dono do estabelecimento
       if (eu?.establishment_owner_id) {
         const { data: ownerTenant } = await supabase
           .from('tenants')
-          .select('id')
+          .select('id, stripe_customer_id')
           .eq('owner_user_id', eu.establishment_owner_id)
           .maybeSingle();
-        if (ownerTenant) return ownerTenant.id;
+        if (ownerTenant) return { id: ownerTenant.id, stripeCustomerId: ownerTenant.stripe_customer_id as string | null };
       }
 
       return null;
     },
     enabled: !!user,
   });
+
+  const tenantId = tenantData?.id ?? null;
+  const isStripeManaged = !!(tenantData?.stripeCustomerId);
 
   const { data: modules = [], isLoading: isLoadingModules } = useQuery({
     queryKey: ['tenant-modules', tenantId],
@@ -87,7 +97,7 @@ export function useUserModules() {
   };
 
   const activeModules = (): UserModule[] => {
-    if (!tenantId) return ['pdv', 'financeiro', 'delivery', 'avaliacoes', 'tarefas', 'crm'];
+    if (!tenantId) return ['pdv', 'compras', 'financeiro', 'delivery', 'avaliacoes', 'tarefas', 'crm'];
     const now = new Date();
     return modules
       .filter((m) => !m.expires_at || new Date(m.expires_at) >= now)
@@ -96,17 +106,17 @@ export function useUserModules() {
 
   const getDefaultModuleRoute = (): string => {
     // Sem tenant (legado): mantém PDV
-    if (!tenantId) return '/pdv/dashboard';
+    if (!tenantId) return '/pdv/caixa';
     const active = activeModules();
     // Standalone só quando avaliações é o ÚNICO módulo
     if (active.length === 1 && active[0] === 'avaliacoes') return '/avaliacoes';
-    if (hasModule('pdv')) return '/pdv/dashboard';
+    if (hasModule('pdv')) return '/pdv/caixa';
     if (hasModule('avaliacoes')) return '/pdv/avaliacoes';
     if (hasModule('tarefas')) return '/pdv/tarefas';
     if (hasModule('delivery')) return '/pdv/delivery/pedidos';
     if (hasModule('financeiro')) return '/pdv/financeiro/lancamentos';
     if (hasModule('crm')) return '/pdv/crm';
-    return '/pdv/dashboard';
+    return '/pdv/caixa';
   };
 
   return {
@@ -116,5 +126,6 @@ export function useUserModules() {
     activeModules,
     getDefaultModuleRoute,
     tenantId,
+    isStripeManaged,
   };
 }

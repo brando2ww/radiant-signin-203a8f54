@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PieChart as PieChartIcon, TrendingDown, TrendingUp, RefreshCw, CalendarIcon, BarChart3 } from "lucide-react";
+import { PieChart as PieChartIcon, TrendingDown, TrendingUp, RefreshCw, CalendarIcon, BarChart3, AlertTriangle, Info } from "lucide-react";
 import { EmptyState } from "@/components/pdv/shared/EmptyState";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePDVCmv } from "@/hooks/use-pdv-cmv";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -27,7 +29,19 @@ export default function GeneralCMV() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">CMV Geral</h1>
-          <p className="text-muted-foreground mt-1">Visão consolidada do Custo das Mercadorias Vendidas</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground text-sm">Visão consolidada do Custo das Mercadorias Vendidas</p>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs">
+                  CMV calculado por custo de produção: ingredientes × quantidade vendida. Não inclui variação de estoque físico.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         </div>
         <Popover>
           <PopoverTrigger asChild>
@@ -41,6 +55,17 @@ export default function GeneralCMV() {
           </PopoverContent>
         </Popover>
       </div>
+
+      {!isLoading && (data?.productsWithoutCost ?? 0) > 0 && (
+        <Alert className="border-warning/50 bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertDescription className="text-warning-foreground">
+            {data!.productsWithoutCost} produto{data!.productsWithoutCost !== 1 ? "s" : ""} sem custo
+            cadastrado não {data!.productsWithoutCost !== 1 ? "estão incluídos" : "está incluído"} no CMV.
+            Cadastre receitas ou defina o custo unitário para obter resultados precisos.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         {[
@@ -78,7 +103,7 @@ export default function GeneralCMV() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis tickFormatter={(v) => `R$ ${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}k`} className="text-xs" />
-                  <Tooltip formatter={(value: number) => fmt(value)} />
+                  <RechartsTooltip formatter={(value: number) => fmt(value)} />
                   <Legend />
                   <Bar dataKey="revenue" fill="hsl(var(--success))" name="Receita" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="cmv" fill="hsl(var(--warning))" name="CMV" radius={[4, 4, 0, 0]} />
@@ -107,7 +132,7 @@ export default function GeneralCMV() {
                   <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(value: number) => fmt(value)} />
+                  <RechartsTooltip formatter={(value: number) => fmt(value)} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (

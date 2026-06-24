@@ -8,10 +8,11 @@ import {
   ArrowLeft, ExternalLink, ShoppingBag, RefreshCw, Clock, CheckCircle2,
   CreditCard, Smartphone, Wifi, Split, Receipt, TrendingUp, FileText,
   Send, XCircle, Mail, Upload, Shield, TabletSmartphone, QrCode,
-  Palette, BarChart3, Menu, Zap, Settings2, MessageCircle, type LucideIcon,
+  Palette, BarChart3, Menu, Zap, Settings2, MessageCircle, Truck, type LucideIcon,
 } from "lucide-react";
 
 import { IFoodIntegrationCard } from "@/components/pdv/integrations/IFoodIntegrationCard";
+import { DeliveryMuchIntegrationCard } from "@/components/pdv/integrations/DeliveryMuchIntegrationCard";
 import { PagSeguroIntegrationCard } from "@/components/pdv/integrations/PagSeguroIntegrationCard";
 import { StoneIntegrationCard } from "@/components/pdv/integrations/StoneIntegrationCard";
 import { NFAutomaticaIntegrationCard } from "@/components/pdv/integrations/NFAutomaticaIntegrationCard";
@@ -75,6 +76,30 @@ const integrations: Record<string, IntegrationData> = {
     component: IFoodIntegrationCard,
     docsUrl: "https://developer.ifood.com.br",
     docsLabel: "Documentação da API iFood",
+  },
+  deliverymuch: {
+    title: "DeliveryMuch",
+    fallbackIcon: Truck,
+    category: "Delivery",
+    description:
+      "A DeliveryMuch é uma plataforma de delivery regional por franquia. Com esta integração, seu PDV recebe pedidos automaticamente, gerencia status, controla disponibilidade online e ajusta tempos de entrega — tudo sem precisar do aplicativo Eugênio separado.",
+    features: [
+      { icon: ShoppingBag, title: "Recebimento de pedidos", description: "Pedidos chegam automaticamente no PDV em tempo real, sem precisar do app Eugênio." },
+      { icon: CheckCircle2, title: "Aceite automático", description: "Configure para aceitar pedidos automaticamente ou revise cada um antes de confirmar." },
+      { icon: Clock, title: "Tempo de entrega", description: "Ajuste o tempo médio de entrega e retirada diretamente pelo PDV sem acessar o painel." },
+      { icon: Wifi, title: "Status online/offline", description: "Abra e feche sua loja na plataforma DeliveryMuch sem sair do PDV." },
+      { icon: Zap, title: "Atualização de status", description: "Marque pedidos como recebido, em preparo, pronto e entregue em um clique." },
+      { icon: XCircle, title: "Cancelamento", description: "Cancele pedidos com motivo diretamente pelo PDV." },
+    ],
+    steps: [
+      "Solicite credenciais de homologação pelo e-mail suporte.tech@deliverymuch.com.br, informando que usa a Velara PDV.",
+      "Após receber as credenciais de dev, insira seu e-mail e senha de restaurante DeliveryMuch no campo abaixo.",
+      "Clique em 'Conectar'. Seu UUID de restaurante será extraído automaticamente do token.",
+      "Após a homologação aprovada pelo DeliveryMuch, solicite as credenciais de produção para ir ao ar.",
+    ],
+    component: DeliveryMuchIntegrationCard,
+    docsUrl: "https://developer.deliverymuch.com.br",
+    docsLabel: "Documentação DeliveryMuch",
   },
   pagseguro: {
     title: "PagSeguro",

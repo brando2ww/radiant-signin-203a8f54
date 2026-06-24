@@ -12,11 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { toast } from "sonner";
-import { Banknote, CreditCard, QrCode, Ticket, Bike } from "lucide-react";
+import { Banknote, CreditCard, QrCode, Ticket, Bike, AlertTriangle, Loader2 } from "lucide-react";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
 import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
@@ -38,11 +40,22 @@ const METHODS: { id: PaymentMethod; label: string; icon: any }[] = [
 
 const QUICK = [50, 100, 150, 200];
 
+function getOriginalMethod(order: DeliveryOrder): PaymentMethod {
+  const m = order.payment_method;
+  if (m === "cash" || m === "dinheiro") return "dinheiro";
+  if (m === "pix") return "pix";
+  if (m === "credit" || m === "credito") return "credito";
+  if (m === "debit" || m === "debito") return "debito";
+  return "dinheiro";
+}
+
 export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
   const { registerDeliveryPayment, isRegistering } = usePDVDeliveryCheckout();
   const { drawerBalance } = usePDVCashier();
   const [method, setMethod] = useState<PaymentMethod>("dinheiro");
   const [received, setReceived] = useState("");
+  const [methodChanged, setMethodChanged] = useState(false);
+  const [cashInDrawerConfirmed, setCashInDrawerConfirmed] = useState(false);
 
   useEffect(() => {
     if (open && order) {
@@ -53,10 +66,17 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
       else if (m === "debit" || m === "debito") setMethod("debito");
       else setMethod("dinheiro");
       setReceived("");
+      setMethodChanged(false);
+      setCashInDrawerConfirmed(false);
     }
   }, [open, order]);
 
   if (!order) return null;
+
+  const handleMethodChange = (newMethod: PaymentMethod) => {
+    setMethod(newMethod);
+    setMethodChanged(newMethod !== getOriginalMethod(order));
+  };
 
   // Fórmula canônica: subtotal + taxa - desconto.
   // Calculamos localmente para evitar usar `order.total` se estiver
@@ -75,9 +95,13 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
   const insufficient = isCash && cashReceived > 0 && cashReceived < total;
   const changeExceedsDrawer = isCash && change > drawerBalance;
 
+  const isPickup = order.order_type === "pickup";
+  const needsCashConfirmation = isCash && !isPickup;
+
   const canConfirm =
     !isRegistering &&
-    (!isCash || (cashReceived >= total && !changeExceedsDrawer));
+    (!isCash || (cashReceived >= total && !changeExceedsDrawer)) &&
+    (!needsCashConfirmation || cashInDrawerConfirmed);
 
   const handleConfirm = async () => {
     if (changeExceedsDrawer) {
@@ -174,7 +198,7 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => setMethod(m.id)}
+                      onClick={() => handleMethodChange(m.id)}
                       className={cn(
                         "flex flex-col items-center justify-center gap-1 rounded-md border p-3 text-xs transition-colors",
                         active
@@ -188,6 +212,18 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
                   );
                 })}
               </div>
+
+              {methodChanged && (
+                <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-700 dark:text-amber-400 text-xs">
+                    O cliente selecionou{" "}
+                    <strong>{METHODS.find((m) => m.id === getOriginalMethod(order))?.label}</strong>{" "}
+                    ao fazer o pedido. Confirme que recebeu em{" "}
+                    <strong>{METHODS.find((m) => m.id === method)?.label}</strong> antes de continuar.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             {isCash ? (
@@ -253,6 +289,23 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
                     Troco maior que o saldo disponível na gaveta.
                   </div>
                 )}
+
+                {needsCashConfirmation && (
+                  <div className="flex items-start gap-2 pt-2 border-t">
+                    <Checkbox
+                      id="cash-in-drawer"
+                      checked={cashInDrawerConfirmed}
+                      onCheckedChange={(v) => setCashInDrawerConfirmed(!!v)}
+                    />
+                    <label
+                      htmlFor="cash-in-drawer"
+                      className="text-xs text-muted-foreground leading-snug cursor-pointer"
+                    >
+                      Confirmo que o dinheiro do entregador foi devolvido e está
+                      fisicamente na gaveta do caixa.
+                    </label>
+                  </div>
+                )}
               </Card>
             ) : (
               <Card className="p-4 text-sm text-muted-foreground">
@@ -270,7 +323,8 @@ export function DeliveryPaymentDialog({ order, open, onOpenChange }: Props) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={!canConfirm}>
+          <Button onClick={handleConfirm} disabled={!canConfirm} className="gap-2">
+            {isRegistering && <Loader2 className="h-4 w-4 animate-spin" />}
             {isRegistering ? "Registrando…" : "Confirmar pagamento"}
           </Button>
         </DialogFooter>

@@ -45,6 +45,7 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
           description: t.description,
           amount: t.amount,
           due_date: new Date(t.due_date),
+          competence_date: t.competence_date ? new Date(t.competence_date) : undefined,
           payment_date: t.payment_date ? new Date(t.payment_date) : undefined,
           status: t.status,
           chart_account_id: t.chart_account_id || undefined,
@@ -228,6 +229,42 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="competence_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm">
+                    Data de Competência{" "}
+                    <span className="text-xs text-muted-foreground font-normal">(opcional — padrão: data de vencimento)</span>
+                  </FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
+                        >
+                          {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Mesmo que vencimento</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value || undefined}
+                        onSelect={field.onChange}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {(status === 'paid' || paymentDate) && (
               <div className="grid gap-4 md:grid-cols-2">

@@ -10,7 +10,6 @@ import { useDeliveryOrdersWatcher } from "@/hooks/use-delivery-orders-watcher";
 import { PDVCatalogRealtime } from "@/components/pdv/PDVCatalogRealtime";
 import { DeliveryCatalogRealtime } from "@/components/delivery/DeliveryCatalogRealtime";
 import { RouteModuleGuard } from "@/components/RouteModuleGuard";
-import PDVDashboard from "./pdv/Dashboard";
 import PDVSalon from "./pdv/Salon";
 
 import PDVCashier from "./pdv/Cashier";
@@ -47,6 +46,8 @@ import ComandasPage from "./pdv/Comandas";
 import Quotations from "./pdv/purchases/Quotations";
 import PurchaseOrders from "./pdv/purchases/PurchaseOrders";
 import ShoppingList from "./pdv/purchases/ShoppingList";
+import PurchaseSettings from "./pdv/purchases/PurchaseSettings";
+import FinancialSettings from "./pdv/financial/FinancialSettings";
 import Integrations from "./pdv/Integrations";
 import Users from "./pdv/Users";
 import UserForm from "./pdv/UserForm";
@@ -59,6 +60,9 @@ import CustomerDetail from "./pdv/CustomerDetail";
 import ProductionCenters from "./pdv/ProductionCenters";
 import EmployeeConsumptionAdmin from "./pdv/EmployeeConsumptionAdmin";
 import Fiscal from "./pdv/Fiscal";
+import Assinatura from "./pdv/Assinatura";
+import NfeImport from "./pdv/purchases/NfeImport";
+import ConfiguracoesGerais from "./pdv/ConfiguracoesGerais";
 
 function RoleRoute({ path, children, canAccess, defaultRoute }: { path: string; children: React.ReactNode; canAccess: (p: string) => boolean; defaultRoute: string }) {
   if (!canAccess(path)) {
@@ -74,8 +78,7 @@ export default function PDV() {
   const { pathname } = useLocation();
   const isFixedHeight =
     pathname.startsWith("/pdv/avaliacoes") ||
-    pathname === "/pdv/tarefas" ||
-    pathname === "/pdv/tarefas/";
+    pathname.startsWith("/pdv/tarefas");
 
   if (isLoading || isLoadingModules) {
     return (
@@ -127,6 +130,7 @@ export default function PDV() {
               <Route path="financeiro/cmv-geral" element={<RoleRoute path="/pdv/financeiro/cmv-geral" canAccess={canAccess} defaultRoute={defaultRoute}><GeneralCMV /></RoleRoute>} />
               <Route path="financeiro/demonstrativo-caixa" element={<RoleRoute path="/pdv/financeiro/demonstrativo-caixa" canAccess={canAccess} defaultRoute={defaultRoute}><CashierStatement /></RoleRoute>} />
               <Route path="financeiro/demonstrativo-caixa/dia/:date" element={<RoleRoute path="/pdv/financeiro/demonstrativo-caixa" canAccess={canAccess} defaultRoute={defaultRoute}><DayStatement /></RoleRoute>} />
+              <Route path="financeiro/configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/financeiro" replace />} />
 
               
               {/* Frente de Caixa */}
@@ -141,14 +145,13 @@ export default function PDV() {
               <Route path="delivery/cardapio" element={<RoleRoute path="/pdv/delivery/cardapio" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryMenu /></RoleRoute>} />
               <Route path="delivery/personalizacao" element={<RoleRoute path="/pdv/delivery/personalizacao" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryPersonalization /></RoleRoute>} />
               <Route path="delivery/cupons" element={<RoleRoute path="/pdv/delivery/cupons" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryCoupons /></RoleRoute>} />
-              <Route path="delivery/configuracoes" element={<RoleRoute path="/pdv/delivery/configuracoes" canAccess={canAccess} defaultRoute={defaultRoute}><DeliverySettings /></RoleRoute>} />
+              <Route path="delivery/configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/delivery" replace />} />
               <Route path="delivery/relatorios" element={<RoleRoute path="/pdv/delivery/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryReports /></RoleRoute>} />
               
               <Route path="delivery/fidelidade" element={<RoleRoute path="/pdv/delivery/fidelidade" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryLoyalty /></RoleRoute>} />
               <Route path="delivery/entregadores" element={<RoleRoute path="/pdv/delivery/entregadores" canAccess={canAccess} defaultRoute={defaultRoute}><DeliveryDrivers /></RoleRoute>} />
               
               {/* Administrador */}
-              <Route path="dashboard" element={<RoleRoute path="/pdv/dashboard" canAccess={canAccess} defaultRoute={defaultRoute}><PDVDashboard /></RoleRoute>} />
               <Route path="produtos" element={<RoleRoute path="/pdv/produtos" canAccess={canAccess} defaultRoute={defaultRoute}><PDVProducts /></RoleRoute>} />
               <Route path="centros-producao" element={<RoleRoute path="/pdv/centros-producao" canAccess={canAccess} defaultRoute={defaultRoute}><ProductionCenters /></RoleRoute>} />
               <Route path="estoque" element={<RoleRoute path="/pdv/estoque" canAccess={canAccess} defaultRoute={defaultRoute}><PDVStock /></RoleRoute>} />
@@ -157,7 +160,8 @@ export default function PDV() {
               <Route path="cupons-fiscais" element={<RoleRoute path="/pdv/cupons-fiscais" canAccess={canAccess} defaultRoute={defaultRoute}><FiscalCoupons /></RoleRoute>} />
               <Route path="fiscal" element={<RoleRoute path="/pdv/fiscal" canAccess={canAccess} defaultRoute={defaultRoute}><Fiscal /></RoleRoute>} />
               <Route path="relatorios" element={<RoleRoute path="/pdv/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><PDVReports /></RoleRoute>} />
-              <Route path="configuracoes" element={<RoleRoute path="/pdv/configuracoes" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSettings /></RoleRoute>} />
+              <Route path="configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/geral" replace />} />
+              <Route path="configuracoes-gerais/*" element={<RoleRoute path="/pdv/configuracoes-gerais" canAccess={canAccess} defaultRoute={defaultRoute}><ConfiguracoesGerais /></RoleRoute>} />
               <Route path="usuarios" element={<RoleRoute path="/pdv/usuarios" canAccess={canAccess} defaultRoute={defaultRoute}><Users /></RoleRoute>} />
               <Route path="usuarios/novo" element={<RoleRoute path="/pdv/usuarios" canAccess={canAccess} defaultRoute={defaultRoute}><UserForm /></RoleRoute>} />
               <Route path="usuarios/:id/editar" element={<RoleRoute path="/pdv/usuarios" canAccess={canAccess} defaultRoute={defaultRoute}><UserForm /></RoleRoute>} />
@@ -166,8 +170,11 @@ export default function PDV() {
               <Route path="compras/cotacoes" element={<RoleRoute path="/pdv/compras/cotacoes" canAccess={canAccess} defaultRoute={defaultRoute}><Quotations /></RoleRoute>} />
               <Route path="compras/pedidos" element={<RoleRoute path="/pdv/compras/pedidos" canAccess={canAccess} defaultRoute={defaultRoute}><PurchaseOrders /></RoleRoute>} />
               <Route path="compras/lista" element={<RoleRoute path="/pdv/compras/lista" canAccess={canAccess} defaultRoute={defaultRoute}><ShoppingList /></RoleRoute>} />
+              <Route path="compras/configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/compras" replace />} />
+              <Route path="compras/importacao-nfe" element={<RoleRoute path="/pdv/compras/importacao-nfe" canAccess={canAccess} defaultRoute={defaultRoute}><NfeImport /></RoleRoute>} />
               
               {/* Integrações */}
+              <Route path="integracoes" element={<Navigate to="/pdv/configuracoes-gerais/integracoes" replace />} />
               <Route path="integracoes/*" element={<RoleRoute path="/pdv/integracoes" canAccess={canAccess} defaultRoute={defaultRoute}><Integrations /></RoleRoute>} />
               
               {/* Avaliações */}
@@ -178,6 +185,7 @@ export default function PDV() {
               
               {/* Tarefas */}
               <Route path="tarefas" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><Tasks /></RoleRoute>} />
+              <Route path="tarefas/configuracoes" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><Tasks defaultSection="configuracoes" /></RoleRoute>} />
               <Route path="tarefas/checklists/novo" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ChecklistEditor /></RoleRoute>} />
               <Route path="tarefas/checklists/:id" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ChecklistEditor /></RoleRoute>} />
               
@@ -188,6 +196,11 @@ export default function PDV() {
               {/* Consumo de Funcionários (fiado interno) */}
               <Route path="venda-a-prazo" element={<RoleRoute path="/pdv/venda-a-prazo" canAccess={canAccess} defaultRoute={defaultRoute}><EmployeeConsumptionAdmin /></RoleRoute>} />
               <Route path="funcionarios-consumo" element={<Navigate to="/pdv/venda-a-prazo" replace />} />
+
+              {/* Assinatura — redirect para administrador tab */}
+              <Route path="assinatura" element={<Navigate to="/pdv/configuracoes-gerais/administrador" replace />} />
+
+              <Route path="*" element={<Navigate to="/pdv/caixa" replace />} />
             </Routes>
           </RouteModuleGuard>
           </main>

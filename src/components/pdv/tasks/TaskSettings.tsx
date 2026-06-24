@@ -67,7 +67,6 @@ export function TaskSettings({ onNavigate }: Props) {
             alertDailySummaryTarget: state.alertDailySummaryTarget,
             alertTemperatureEnabled: state.alertTemperatureEnabled,
             alertBrowserNotifications: state.alertBrowserNotifications,
-            alertWhatsappNumber: state.alertWhatsappNumber,
           }}
           onChange={(v) => patch(v as any)}
         />
@@ -76,12 +75,14 @@ export function TaskSettings({ onNavigate }: Props) {
       <SectionWrapper id="relatorios" title="Relatórios Automáticos" description="Configure relatórios diários e semanais enviados automaticamente.">
         <ReportsSection
           values={{
-            whatsappReportEnabled: state.whatsappReportEnabled,
-            whatsappReportPhone: state.whatsappReportPhone,
-            whatsappReportTime: state.whatsappReportTime,
             reportDailyContent: state.reportDailyContent,
             reportWeeklyEnabled: state.reportWeeklyEnabled,
             reportWeeklyDay: state.reportWeeklyDay,
+            emailReportEnabled: state.emailReportEnabled,
+            emailReportAddress: state.emailReportAddress,
+            emailReportTime: state.emailReportTime,
+            emailReportIncludeChecklists: state.emailReportIncludeChecklists,
+            emailReportIncludeTasks: state.emailReportIncludeTasks,
           }}
           onChange={(v) => patch(v as any)}
         />

@@ -51,7 +51,9 @@ const ROLE_SCOPE: Record<AppRole, RoleScope> = {
       "/pdv/fornecedores",
       "/pdv/notas-fiscais",
       "/pdv/cupons-fiscais",
-      "/pdv/compras",
+      "/pdv/compras/cotacoes",
+      "/pdv/compras/lista",
+      "/pdv/compras/pedidos",
     ],
   },
   financeiro: {
@@ -70,8 +72,8 @@ const ROLE_SCOPE: Record<AppRole, RoleScope> = {
 };
 
 const roleDefaultRoute: Record<AppRole, string> = {
-  proprietario: "/pdv/dashboard",
-  gerente: "/pdv/dashboard",
+  proprietario: "/pdv/caixa",
+  gerente: "/pdv/caixa",
   caixa: "/pdv/caixa",
   garcom: "/garcom",
   cozinheiro: "/pdv/comandas",
@@ -125,7 +127,7 @@ export function useUserRole() {
     return true;
   };
 
-  const roleDefault = roleDefaultRoute[role] || "/pdv/dashboard";
+  const roleDefault = roleDefaultRoute[role] || "/pdv/caixa";
   // Se o default do papel está em um módulo inativo no tenant, usa
   // a primeira rota do primeiro módulo ativo.
   const active = activeModules();

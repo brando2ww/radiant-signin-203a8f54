@@ -22,6 +22,7 @@ export interface ChecklistItemData {
   max_value: number | null;
   training_instruction: string | null;
   training_video_url: string | null;
+  options: string[] | null;
   value: any;
   photo_url: string | null;
   is_compliant: boolean | null;
@@ -212,6 +213,37 @@ export function ExecutionItemRenderer({ item, onSave, userId, executionId }: Exe
                   />
                 </button>
               ))}
+            </div>
+          )}
+
+          {item.item_type === "multiple_choice" && (
+            <div className="space-y-2">
+              {(item.options ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">
+                  Nenhuma opção configurada para este item.
+                </p>
+              ) : (
+                (item.options ?? []).map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleChange(opt)}
+                    className={cn(
+                      "w-full text-left px-3 py-2.5 rounded-md border text-sm transition-colors",
+                      value === opt
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : "border-border hover:bg-accent/60"
+                    )}
+                  >
+                    {opt}
+                  </button>
+                ))
+              )}
+              {value != null && (
+                <p className="text-xs text-muted-foreground">
+                  Selecionado: <strong>{value}</strong>
+                </p>
+              )}
             </div>
           )}
 

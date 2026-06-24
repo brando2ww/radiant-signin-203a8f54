@@ -23,16 +23,32 @@ const Index = () => {
   const [currentForm, setCurrentForm] = useState<FormType>('login');
   const navigate = useNavigate();
 
+  const { role } = useUserRole();
+  const { tenantId: tenantIdFromModules, isStripeManaged, activeModules } = useUserModules();
+
   // Redirecionar se já estiver autenticado
   useEffect(() => {
     if (user && !loading && !superAdminLoading && !roleLoading && !modulesLoading) {
       if (isSuperAdmin) {
         navigate('/admin');
-      } else {
-        navigate(getDefaultModuleRoute());
+        return;
       }
+
+      // Proprietário sem tenant → onboarding step 1
+      if (role === 'proprietario' && tenantIdFromModules === null) {
+        navigate('/onboarding');
+        return;
+      }
+
+      // Proprietário com tenant Stripe mas sem módulos → onboarding step 2
+      if (role === 'proprietario' && tenantIdFromModules && isStripeManaged && activeModules().length === 0) {
+        navigate('/onboarding?step=2');
+        return;
+      }
+
+      navigate(getDefaultModuleRoute());
     }
-  }, [user, loading, isSuperAdmin, superAdminLoading, roleLoading, modulesLoading, defaultRoute, navigate, getDefaultModuleRoute]);
+  }, [user, loading, isSuperAdmin, superAdminLoading, roleLoading, modulesLoading, navigate, getDefaultModuleRoute, role, tenantIdFromModules, isStripeManaged]);
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

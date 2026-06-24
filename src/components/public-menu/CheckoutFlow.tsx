@@ -20,6 +20,9 @@ import { DeliveryAddress } from "./checkout/DeliveryAddress";
 import { PaymentMethod } from "./checkout/PaymentMethod";
 import { OrderConfirmation } from "./checkout/OrderConfirmation";
 import { OrderTrackingView } from "./checkout/OrderTrackingView";
+import { ScheduleTimePicker } from "./checkout/ScheduleTimePicker";
+import { usePublicSettings } from "@/hooks/use-public-menu";
+import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
 import { CartItem } from "@/pages/PublicMenu";
 import { DeliveryCustomer } from "@/hooks/use-delivery-customers";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
@@ -36,9 +39,10 @@ interface CheckoutFlowProps {
   total: number;
   userId: string;
   onOrderComplete: () => void;
+  isScheduling?: boolean;
 }
 
-export type CheckoutStep = "login" | "guest" | "signin" | "signup" | "customer-data" | "address" | "payment" | "confirmation" | "tracking";
+export type CheckoutStep = "login" | "guest" | "signin" | "signup" | "customer-data" | "address" | "schedule" | "payment" | "confirmation" | "tracking";
 
 export const CheckoutFlow = ({
   open,
@@ -51,6 +55,7 @@ export const CheckoutFlow = ({
   total,
   userId,
   onOrderComplete,
+  isScheduling = false,
 }: CheckoutFlowProps) => {
   const [currentStep, setCurrentStep] = useState<CheckoutStep>("login");
   const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
@@ -62,6 +67,9 @@ export const CheckoutFlow = ({
   const [changeFor, setChangeFor] = useState<number | undefined>();
   const [notes, setNotes] = useState<string>("");
   const [resolvedDeliveryFee, setResolvedDeliveryFee] = useState<number | null>(null);
+  const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
+  const { data: deliverySettings } = usePublicSettings(userId);
+  const storeOpen = isStoreCurrentlyOpen(deliverySettings).open;
   const { trackPurchase } = useMarketingTracking();
 
   const effectiveDeliveryFee = orderType === "pickup" ? 0 : resolvedDeliveryFee ?? deliveryFee;
@@ -90,6 +98,14 @@ export const CheckoutFlow = ({
     setSelectedAddressId(addressId || null);
     setAddressText(address || "");
     setResolvedDeliveryFee(type === "pickup" ? 0 : fee ?? null);
+    if (isScheduling) {
+      setCurrentStep("schedule");
+    } else {
+      setCurrentStep("payment");
+    }
+  };
+
+  const handleScheduleConfirmed = () => {
     setCurrentStep("payment");
   };
 
@@ -144,6 +160,8 @@ export const CheckoutFlow = ({
         return "Seus Dados";
       case "address":
         return "Entrega";
+      case "schedule":
+        return "Horários disponíveis";
       case "payment":
         return "Pagamento";
       case "confirmation":
@@ -209,12 +227,23 @@ export const CheckoutFlow = ({
             />
           )}
 
+          {currentStep === "schedule" && (
+            <ScheduleTimePicker
+              businessHours={deliverySettings?.business_hours}
+              isStoreOpen={storeOpen}
+              value={scheduledFor}
+              onChange={setScheduledFor}
+              onConfirm={handleScheduleConfirmed}
+              onBack={() => setCurrentStep("address")}
+            />
+          )}
+
           {currentStep === "payment" && (
             <PaymentMethod
               userId={userId}
               total={effectiveTotal}
               onConfirm={handlePaymentConfirmed}
-              onBack={() => setCurrentStep("address")}
+              onBack={() => isScheduling ? setCurrentStep("schedule") : setCurrentStep("address")}
             />
           )}
 
@@ -237,6 +266,7 @@ export const CheckoutFlow = ({
               onConfirm={handleOrderPlaced}
               onBack={() => setCurrentStep("payment")}
               selectedAddressId={selectedAddressId}
+              scheduledFor={scheduledFor}
             />
           )}
         </DialogContent>

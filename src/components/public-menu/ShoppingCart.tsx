@@ -42,6 +42,7 @@ export const ShoppingCart = ({
   const [appliedCoupon, setAppliedCoupon] = useState<DeliveryCoupon | null>(null);
   const couponAutoApplied = useRef(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
   const { data: settings } = usePublicSettings(userId);
   const validateCoupon = useValidateCoupon();
   const { trackBeginCheckout } = useMarketingTracking();
@@ -55,7 +56,7 @@ export const ShoppingCart = ({
   // Recalcula o desconto em tempo real sobre o subtotal atual.
   // Se o subtotal cair abaixo do mínimo, o cupom é removido automaticamente.
   const discount = appliedCoupon ? computeCouponDiscount(appliedCoupon, subtotal) : 0;
-  const total = subtotal + deliveryFee - discount;
+  const total = subtotal - discount;
   const storeStatus = isStoreCurrentlyOpen(settings);
 
   // Remove cupom automaticamente se o pedido cair abaixo do mínimo
@@ -269,10 +270,6 @@ export const ShoppingCart = ({
                   <span>Subtotal:</span>
                   <span>{formatBRL(subtotal)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Taxa de entrega:</span>
-                  <span>{formatBRL(deliveryFee)}</span>
-                </div>
                 {discount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Desconto:</span>
@@ -286,26 +283,50 @@ export const ShoppingCart = ({
               </div>
 
               {!storeStatus.open && (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 p-3 text-sm text-yellow-800 dark:text-yellow-200">
                   Loja fechada no momento.
                   {storeStatus.nextOpenLabel && <> Abre {storeStatus.nextOpenLabel}.</>}
                 </div>
               )}
-              <Button
-                size="lg"
-                className="w-full"
-                disabled={!storeStatus.open}
-                onClick={() => {
-                  if (!storeStatus.open) {
-                    toast.error("Loja fechada — não é possível finalizar pedidos agora.");
-                    return;
-                  }
-                  setIsCheckoutOpen(true);
-                  trackBeginCheckout(cart, total);
-                }}
-              >
-                {storeStatus.open ? "Finalizar Pedido" : "Loja fechada"}
-              </Button>
+              {storeStatus.open ? (
+                <div className="space-y-2">
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={() => {
+                      setIsScheduling(false);
+                      setIsCheckoutOpen(true);
+                      trackBeginCheckout(cart, total);
+                    }}
+                  >
+                    Finalizar Pedido
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-muted-foreground"
+                    onClick={() => {
+                      setIsScheduling(true);
+                      setIsCheckoutOpen(true);
+                      trackBeginCheckout(cart, total);
+                    }}
+                  >
+                    Agendar para outro horário
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={() => {
+                    setIsScheduling(true);
+                    setIsCheckoutOpen(true);
+                    trackBeginCheckout(cart, total);
+                  }}
+                >
+                  Agendar pedido
+                </Button>
+              )}
             </div>
           </>
         )}
@@ -323,6 +344,7 @@ export const ShoppingCart = ({
       total={total}
       userId={userId}
       onOrderComplete={handleOrderComplete}
+      isScheduling={isScheduling}
     />
     </>
   );

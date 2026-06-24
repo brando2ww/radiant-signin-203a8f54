@@ -67,13 +67,14 @@ export function usePDVCmv(selectedMonth?: Date) {
       };
 
       // Calculate per-product CMV
-      const productCmvList = (products || [])
-        .map((p) => {
-          const cost = computeCost(p.id, new Set());
-          const price = Number(p.price_salon || p.price_balcao || 0);
-          const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
-          return { id: p.id, name: p.name, category: p.category, cost, price, margin };
-        })
+      const allProductsCmv = (products || []).map((p) => {
+        const cost = computeCost(p.id, new Set());
+        const price = Number(p.price_salon || p.price_balcao || 0);
+        const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
+        return { id: p.id, name: p.name, category: p.category, cost, price, margin };
+      });
+      const productsWithoutCost = allProductsCmv.filter((p) => p.cost === 0).length;
+      const productCmvList = allProductsCmv
         .filter((p) => p.cost > 0)
         .sort((a, b) => b.margin - a.margin);
 
@@ -191,6 +192,7 @@ export function usePDVCmv(selectedMonth?: Date) {
         prevRevenue: prevData?.revenue || 0,
         prevMargin,
         analyzedCount: productCmvList.length,
+        productsWithoutCost,
       };
     },
     enabled: !!user,

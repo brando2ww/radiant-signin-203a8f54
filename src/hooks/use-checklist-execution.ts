@@ -19,6 +19,7 @@ interface ExecutionItem {
   max_value: number | null;
   training_instruction: string | null;
   training_video_url: string | null;
+  options: string[] | null;
   value: any;
   photo_url: string | null;
   is_compliant: boolean | null;
@@ -237,6 +238,7 @@ export function useChecklistExecution(userId: string) {
       max_value: ei.checklist_items?.max_value,
       training_instruction: ei.checklist_items?.training_instruction,
       training_video_url: ei.checklist_items?.training_video_url,
+      options: Array.isArray(ei.checklist_items?.options) ? (ei.checklist_items.options as string[]) : null,
       value: ei.value,
       photo_url: ei.photo_url,
       is_compliant: ei.is_compliant,

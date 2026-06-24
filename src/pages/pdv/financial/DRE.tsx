@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, CalendarIcon, FileBarChart2 } from "lucide-react";
+import { Download, CalendarIcon, FileBarChart2, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { usePDVDre } from "@/hooks/use-pdv-dre";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,11 +46,23 @@ export default function DRE() {
     downloadCsv(`DRE_${format(selectedMonth, "yyyy-MM")}.csv`, lines);
   };
 
-  const DRELine = ({ label, value, indent, bold, bg, color }: {
-    label: string; value: number; indent?: boolean; bold?: boolean; bg?: string; color?: string;
+  const DRELine = ({ label, value, indent, bold, bg, color, tooltip }: {
+    label: string; value: number; indent?: boolean; bold?: boolean; bg?: string; color?: string; tooltip?: string;
   }) => (
     <div className={`flex justify-between items-center ${indent ? "pl-4 text-sm" : ""} ${bold ? "font-bold text-lg" : ""} ${bg || ""} ${bg ? "p-3 rounded" : "py-1"}`}>
-      <span className={indent ? "text-muted-foreground" : ""}>{label}</span>
+      <span className={`flex items-center gap-1 ${indent ? "text-muted-foreground" : ""}`}>
+        {label}
+        {tooltip && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">{tooltip}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </span>
       <span className={color || ""}>{fmt(value)}</span>
     </div>
   );
@@ -58,7 +72,13 @@ export default function DRE() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">DRE - Demonstração do Resultado</h1>
-          <p className="text-muted-foreground mt-1">Análise detalhada do resultado do exercício</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground text-sm">Análise detalhada do resultado do exercício</p>
+            <Badge variant="outline" className="text-xs gap-1">
+              <FileBarChart2 className="h-3 w-3" />
+              Despesas por competência
+            </Badge>
+          </div>
         </div>
         <div className="flex gap-2">
           <Popover>
@@ -107,13 +127,23 @@ export default function DRE() {
               <DRELine label="= RECEITA LÍQUIDA" value={data.netRevenue} bold bg="bg-muted/50" />
 
               <div className="border-b pb-2 pt-2">
-                <DRELine label="(-) CMV (Custo das Mercadorias Vendidas)" value={data.cmv} color="text-destructive" />
+                <DRELine
+                  label="(-) CMV (Custo das Mercadorias Vendidas)"
+                  value={data.cmv}
+                  color="text-destructive"
+                  tooltip="Calculado com base no custo das receitas de produção (ingredientes × quantidade vendida). Produtos sem receita ou custo cadastrado são excluídos."
+                />
               </div>
 
               <DRELine label="= LUCRO BRUTO" value={data.grossProfit} bold bg="bg-success/10" color="text-success" />
 
               <div className="border-b pb-2 pt-2">
-                <DRELine label="(-) DESPESAS OPERACIONAIS" value={data.totalExpenses} color="text-destructive" />
+                <DRELine
+                  label="(-) DESPESAS OPERACIONAIS"
+                  value={data.totalExpenses}
+                  color="text-destructive"
+                  tooltip="Despesas reconhecidas pela data de competência — inclui lançamentos pendentes e pagos do período, excluindo cancelados."
+                />
               </div>
               {Object.entries(data.expensesByCategory).map(([cat, val]) => (
                 <DRELine key={cat} label={cat} value={val as number} indent />

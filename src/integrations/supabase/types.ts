@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       account_movements: {
@@ -796,6 +821,42 @@ export type Database = {
           role?: string
           sector?: Database["public"]["Enums"]["checklist_sector"]
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      checklist_report_logs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          recipient_email: string | null
+          report_date: string
+          sent_at: string
+          stats: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_email?: string | null
+          report_date: string
+          sent_at?: string
+          stats?: Json | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          recipient_email?: string | null
+          report_date?: string
+          sent_at?: string
+          stats?: Json | null
+          status?: string
           user_id?: string
         }
         Relationships: []
@@ -2656,6 +2717,11 @@ export type Database = {
           block_early_execution: boolean | null
           created_at: string
           default_max_duration_minutes: number | null
+          email_report_address: string | null
+          email_report_enabled: boolean | null
+          email_report_include_checklists: boolean | null
+          email_report_include_tasks: boolean | null
+          email_report_time: string | null
           id: string
           min_pin_digits: number | null
           qr_code_enabled: boolean
@@ -2690,6 +2756,11 @@ export type Database = {
           block_early_execution?: boolean | null
           created_at?: string
           default_max_duration_minutes?: number | null
+          email_report_address?: string | null
+          email_report_enabled?: boolean | null
+          email_report_include_checklists?: boolean | null
+          email_report_include_tasks?: boolean | null
+          email_report_time?: string | null
           id?: string
           min_pin_digits?: number | null
           qr_code_enabled?: boolean
@@ -2724,6 +2795,11 @@ export type Database = {
           block_early_execution?: boolean | null
           created_at?: string
           default_max_duration_minutes?: number | null
+          email_report_address?: string | null
+          email_report_enabled?: boolean | null
+          email_report_include_checklists?: boolean | null
+          email_report_include_tasks?: boolean | null
+          email_report_time?: string | null
           id?: string
           min_pin_digits?: number | null
           qr_code_enabled?: boolean
@@ -6223,6 +6299,14 @@ export type Database = {
           ifood_refresh_token: string | null
           ifood_sync_menu: boolean | null
           ifood_token_expires_at: string | null
+          deliverymuch_enabled: boolean | null
+          deliverymuch_email: string | null
+          deliverymuch_restaurant_uuid: string | null
+          deliverymuch_access_token: string | null
+          deliverymuch_token_expires_at: string | null
+          deliverymuch_auto_accept: boolean | null
+          deliverymuch_delivery_time_min: number | null
+          deliverymuch_pickup_time_min: number | null
           integrate_with_delivery: boolean | null
           max_tables_per_order: number | null
           min_order_value: number | null
@@ -6287,6 +6371,14 @@ export type Database = {
           ifood_refresh_token?: string | null
           ifood_sync_menu?: boolean | null
           ifood_token_expires_at?: string | null
+          deliverymuch_enabled?: boolean | null
+          deliverymuch_email?: string | null
+          deliverymuch_restaurant_uuid?: string | null
+          deliverymuch_access_token?: string | null
+          deliverymuch_token_expires_at?: string | null
+          deliverymuch_auto_accept?: boolean | null
+          deliverymuch_delivery_time_min?: number | null
+          deliverymuch_pickup_time_min?: number | null
           integrate_with_delivery?: boolean | null
           max_tables_per_order?: number | null
           min_order_value?: number | null
@@ -6351,6 +6443,14 @@ export type Database = {
           ifood_refresh_token?: string | null
           ifood_sync_menu?: boolean | null
           ifood_token_expires_at?: string | null
+          deliverymuch_enabled?: boolean | null
+          deliverymuch_email?: string | null
+          deliverymuch_restaurant_uuid?: string | null
+          deliverymuch_access_token?: string | null
+          deliverymuch_token_expires_at?: string | null
+          deliverymuch_auto_accept?: boolean | null
+          deliverymuch_delivery_time_min?: number | null
+          deliverymuch_pickup_time_min?: number | null
           integrate_with_delivery?: boolean | null
           max_tables_per_order?: number | null
           min_order_value?: number | null
@@ -8264,6 +8364,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: [

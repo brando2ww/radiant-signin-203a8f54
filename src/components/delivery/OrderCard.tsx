@@ -12,7 +12,9 @@ import {
   Banknote,
   QrCode,
   Wallet,
+  CalendarClock,
 } from "lucide-react";
+import { format } from "date-fns";
 import { DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
 import { useDeliveryDrivers } from "@/hooks/use-delivery-drivers";
 import { useEffect, useState } from "react";
@@ -108,13 +110,21 @@ export const OrderCard = ({ order }: OrderCardProps) => {
           {/* Header */}
           <div className="flex items-start justify-between gap-2">
             <p className="font-bold text-lg leading-none">#{order.order_number}</p>
-            <Badge variant="outline" className="text-xs shrink-0">
-              {isPickup ? (
-                <><Package className="h-3 w-3 mr-1" />Retirada</>
-              ) : (
-                <><MapPin className="h-3 w-3 mr-1" />Delivery</>
+            <div className="flex gap-1 flex-wrap justify-end">
+              {order.scheduled_for && (
+                <Badge variant="secondary" className="text-xs gap-1 shrink-0">
+                  <CalendarClock className="h-3 w-3" />
+                  {format(new Date(order.scheduled_for), "HH:mm")}
+                </Badge>
               )}
-            </Badge>
+              <Badge variant="outline" className="text-xs shrink-0">
+                {isPickup ? (
+                  <><Package className="h-3 w-3 mr-1" />Retirada</>
+                ) : (
+                  <><MapPin className="h-3 w-3 mr-1" />Delivery</>
+                )}
+              </Badge>
+            </div>
           </div>
 
           {/* Cliente + tempo */}

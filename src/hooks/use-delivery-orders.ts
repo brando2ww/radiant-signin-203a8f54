@@ -37,6 +37,7 @@ export interface DeliveryOrder {
   updated_at: string;
   driver_id?: string | null;
   driver_assigned_at?: string | null;
+  scheduled_for?: string | null;
   delivery_order_items?: DeliveryOrderItem[];
 }
 

@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Building2, Clock, Save } from "lucide-react";
+import { Building2, Clock } from "lucide-react";
+import { SettingsSaveBar } from "./SettingsSaveBar";
 import { BusinessHoursEditor } from "@/components/shared/BusinessHoursEditor";
 import { serializeBusinessHours } from "@/lib/business-hours";
 
@@ -42,7 +42,7 @@ export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabPr
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSave)} className="space-y-6">
-        <Card>
+        <Card id="section-dados" className="scroll-mt-24">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
@@ -152,7 +152,7 @@ export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabPr
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="section-horarios" className="scroll-mt-24">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -173,12 +173,11 @@ export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabPr
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isSubmitting || hoursHaveErrors}>
-            <Save className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Salvando..." : "Salvar Configurações"}
-          </Button>
-        </div>
+        <SettingsSaveBar
+          isDirty={form.formState.isDirty}
+          isSubmitting={isSubmitting || hoursHaveErrors}
+          onCancel={() => form.reset()}
+        />
       </form>
     </Form>
   );

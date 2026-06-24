@@ -178,9 +178,9 @@ export function usePDVDre(selectedMonth?: Date) {
         .select("amount, description, chart_account_id, pdv_chart_of_accounts(name)")
         .eq("user_id", user.id)
         .eq("transaction_type", "payable")
-        .eq("status", "paid")
-        .gte("payment_date", ms)
-        .lte("payment_date", me);
+        .neq("status", "cancelled")
+        .gte("competence_date", ms)
+        .lte("competence_date", me);
 
       const expensesByCategory: Record<string, number> = {};
       let totalExpenses = 0;
