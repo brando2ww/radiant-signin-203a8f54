@@ -1,6 +1,78 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Busca itens de um pedido de delivery diretamente das tabelas base,
+ * sem depender da view vw_print_bridge_delivery_items.
+ * Retorna dados no mesmo shape que a view produzia.
+ */
+async function fetchOrderItems(orderId: string): Promise<any[]> {
+  const { data: order } = await (supabase as any)
+    .from("delivery_orders")
+    .select("order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,user_id")
+    .eq("id", orderId)
+    .single();
+  if (!order) return [];
+
+  const { data: items } = await (supabase as any)
+    .from("delivery_order_items")
+    .select("id,production_center_id,product_name,quantity,notes")
+    .eq("order_id", orderId);
+  if (!items || items.length === 0) return [];
+
+  // Batch: centros de produção
+  const centerIds = [...new Set((items as any[]).map((i) => i.production_center_id).filter(Boolean))] as string[];
+  const centersMap = new Map<string, any>();
+  if (centerIds.length > 0) {
+    const { data: centers } = await (supabase as any)
+      .from("pdv_production_centers")
+      .select("id,name,printer_ip,printer_port")
+      .in("id", centerIds);
+    (centers ?? []).forEach((c: any) => centersMap.set(c.id, c));
+  }
+
+  // Batch: opções de itens
+  const itemIds = (items as any[]).map((i) => i.id);
+  const optionsMap = new Map<string, any[]>();
+  const { data: options } = await (supabase as any)
+    .from("delivery_order_item_options")
+    .select("order_item_id,item_name,option_name,quantity")
+    .in("order_item_id", itemIds);
+  (options ?? []).forEach((o: any) => {
+    const arr = optionsMap.get(o.order_item_id) || [];
+    arr.push(o);
+    optionsMap.set(o.order_item_id, arr);
+  });
+
+  return (items as any[]).map((item) => {
+    const center = item.production_center_id ? centersMap.get(item.production_center_id) : null;
+    const opts = (optionsMap.get(item.id) ?? []).map((o: any) => ({
+      name: o.item_name,
+      option_name: o.option_name,
+      quantity: o.quantity,
+    }));
+    return {
+      id: item.id,
+      order_id: orderId,
+      production_center_id: item.production_center_id ?? null,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      notes: item.notes,
+      center_name: center?.name ?? null,
+      printer_ip: center?.printer_ip ?? null,
+      printer_port: center?.printer_port ?? null,
+      order_number: order.order_number,
+      ticket_number: order.ticket_number,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
+      order_type: order.order_type,
+      delivery_address_text: order.delivery_address_text,
+      tenant_user_id: order.user_id,
+      options: opts,
+    };
+  });
+}
+
+/**
  * Enfileira jobs de impressão para um pedido de delivery, agrupando
  * itens por centro de produção (cozinha, bar, etc.) — mesma fila e
  * formato usados pelo salão (`pdv_print_jobs`).
@@ -13,16 +85,10 @@ export async function dispatchDeliveryPrintJobs(
   centerIdFilter?: string | null,
   options?: { auto?: boolean },
 ): Promise<{ jobs: number }> {
-  const { data: rows, error } = await (supabase as any)
-    .from("vw_print_bridge_delivery_items")
-    .select("*")
-    .eq("order_id", orderId);
+  const rows = await fetchOrderItems(orderId);
+  if (rows.length === 0) return { jobs: 0 };
 
-  if (error) {
-    console.error("Erro ao buscar itens p/ impressão delivery:", error);
-    return { jobs: 0 };
-  }
-  let items = (rows ?? []) as any[];
+  let items = rows;
   if (centerIdFilter !== undefined) {
     items = items.filter((r) => r.production_center_id === centerIdFilter);
   }
@@ -159,21 +225,14 @@ async function dispatchCaixaJobs(orderId: string, options?: { auto?: boolean }) 
     .limit(1);
   if (existing && existing.length > 0) return;
 
-  // Todos os itens do pedido sem filtro de centro
-  const { data: allItems } = await (supabase as any)
-    .from("vw_print_bridge_delivery_items")
-    .select("*")
-    .eq("order_id", orderId);
-
-  const itemsPayload = (allItems ?? []).map((r: any) => ({
+  const allRows = await fetchOrderItems(orderId);
+  const itemsPayload = allRows.map((r: any) => ({
     product_name: r.product_name,
     quantity: r.quantity,
     notes: r.notes,
-    modifiers: Array.isArray(r.options)
-      ? r.options.map((o: any) => ({
-          name: o?.quantity && Number(o.quantity) > 1 ? `${o.quantity}x ${o.name}` : o?.name,
-        })).filter((m: any) => m.name)
-      : [],
+    modifiers: (r.options ?? []).map((o: any) => ({
+      name: o?.quantity && Number(o.quantity) > 1 ? `${o.quantity}x ${o.name}` : o?.name,
+    })).filter((m: any) => m.name),
   }));
 
   const caixaJobs = (centers as any[]).map((center) => ({
