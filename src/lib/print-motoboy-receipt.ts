@@ -166,7 +166,7 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
   }
 
   <div class="footer">
-    Comanda do motoboy — ${dateStr}
+    Comanda Caixa — ${dateStr}
   </div>
 
   <script>

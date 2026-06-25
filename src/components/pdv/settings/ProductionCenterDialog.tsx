@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ProductionCenter, useProductionCenters } from "@/hooks/use-production-centers";
 import { ChefHat, Wine, Coffee, Cake, Pizza, Soup, Sandwich, IceCream, Beer, Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
   const [printerName, setPrinterName] = useState("");
   const [printerIp, setPrinterIp] = useState("");
   const [printerPort, setPrinterPort] = useState<string>("9100");
+  const [printComplete, setPrintComplete] = useState(false);
 
   const isEditing = !!center;
   const isSubmitting = isCreating || isUpdating;
@@ -53,6 +55,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
       setPrinterName(center.printer_name || "");
       setPrinterIp(center.printer_ip || "");
       setPrinterPort(String(center.printer_port ?? 9100));
+      setPrintComplete(center.print_complete ?? false);
     } else {
       setName("");
       setColor("#3b82f6");
@@ -60,6 +63,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
       setPrinterName("");
       setPrinterIp("");
       setPrinterPort("9100");
+      setPrintComplete(false);
     }
   }, [center, open]);
 
@@ -77,6 +81,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
         printer_name: printerName.trim() || null,
         printer_ip: printerIp.trim() || null,
         printer_port: safePort,
+        print_complete: printComplete,
       };
       if (isEditing && center) {
         await updateCenter({ id: center.id, ...payload });
@@ -183,6 +188,16 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
           <p className="text-xs text-muted-foreground">
             Aceita IP de rede (192.168.1.50), porta serial (COM3, LPT1) ou nome exato da impressora no Windows. Porta TCP usada apenas para impressoras de rede.
           </p>
+
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium">Impressão Completa (Comanda Caixa)</Label>
+              <p className="text-xs text-muted-foreground">
+                Imprime todos os itens + dados de entrega em cada pedido de delivery
+              </p>
+            </div>
+            <Switch checked={printComplete} onCheckedChange={setPrintComplete} />
+          </div>
         </div>
 
         <DialogFooter>

@@ -16,6 +16,7 @@ export interface ProductionCenter {
   printer_port: number | null;
   is_active: boolean;
   display_order: number;
+  print_complete: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface ProductionCenterInput {
   printer_ip?: string | null;
   printer_port?: number | null;
   display_order?: number;
+  print_complete?: boolean;
 }
 
 function slugify(text: string): string {
@@ -85,6 +87,7 @@ export function useProductionCenters() {
           printer_ip: input.printer_ip || null,
           printer_port: input.printer_port ?? 9100,
           display_order: input.display_order ?? maxOrder + 1,
+          print_complete: input.print_complete ?? false,
         })
         .select()
         .single();

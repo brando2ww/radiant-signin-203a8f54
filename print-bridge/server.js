@@ -183,6 +183,96 @@ function buildReceipt({ mesa, comanda, subheader, body, centerName }) {
   return Buffer.concat(chunks);
 }
 
+function buildCaixaReceipt(p) {
+  const chunks = [];
+  const push = (...bytes) => chunks.push(Buffer.from(bytes));
+  const text = (s) => chunks.push(Buffer.from(stripAccents(String(s || "")), "utf8"));
+  const line = () => push(LF);
+  const divider = (c = "=") => { text(c.repeat(32)); line(); };
+  const fmtBRL = (v) => "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
+  const padRow = (label, val, bold) => {
+    const l = stripAccents(String(label)).slice(0, 20);
+    const r = String(val).slice(-12);
+    if (bold) push(GS, 0x21, 0x01);
+    text(l.padEnd(20) + r.padStart(12));
+    line();
+    if (bold) push(GS, 0x21, 0x00);
+  };
+
+  push(ESC, 0x40);
+  push(ESC, 0x61, 0x01);
+  push(GS, 0x21, 0x11);
+  text("COMANDA CAIXA");
+  line();
+  push(GS, 0x21, 0x00);
+  divider();
+
+  push(ESC, 0x61, 0x00);
+  const ticketStr = p.ticket_number != null ? `T#${String(p.ticket_number).padStart(3, "0")}` : null;
+  const orderStr = p.order_number ? `Pedido #${p.order_number}` : null;
+  text([orderStr, ticketStr].filter(Boolean).join("  ") || "Pedido");
+  line();
+  text(formatDateTime());
+  line();
+  divider("-");
+
+  if (p.customer_name) {
+    push(GS, 0x21, 0x01);
+    text(p.customer_name);
+    line();
+    push(GS, 0x21, 0x00);
+    if (p.customer_phone) { text(p.customer_phone); line(); }
+  }
+
+  if (p.order_type !== "pickup" && p.delivery_address) {
+    divider("-");
+    text("ENDERECO:");
+    line();
+    push(GS, 0x21, 0x01);
+    text(p.delivery_address);
+    line();
+    push(GS, 0x21, 0x00);
+  }
+
+  if (p.notes) { divider("-"); text("OBS: " + p.notes); line(); }
+
+  divider("-");
+  const items = Array.isArray(p.items) ? p.items : [];
+  text(`ITENS (${items.length}):`);
+  line();
+  items.forEach((it) => {
+    push(GS, 0x21, 0x01);
+    text(`${it.quantity}x ${String(it.product_name || "").toUpperCase()}`);
+    line();
+    push(GS, 0x21, 0x00);
+    if (it.notes) { text(`  OBS: ${it.notes}`); line(); }
+    (Array.isArray(it.modifiers) ? it.modifiers : []).forEach((m) => {
+      const lbl = typeof m === "string" ? m : (m && (m.name || m.label)) || "";
+      if (lbl) { text(`  + ${lbl}`); line(); }
+    });
+  });
+
+  divider("=");
+  if (p.subtotal != null) padRow("Subtotal:", fmtBRL(p.subtotal));
+  if (Number(p.delivery_fee) > 0) padRow("Taxa de entrega:", fmtBRL(p.delivery_fee));
+  if (Number(p.discount_amount) > 0) padRow("Desconto:", "-" + fmtBRL(p.discount_amount));
+  padRow("TOTAL:", fmtBRL(p.total), true);
+
+  divider("-");
+  const PM = { pix: "PIX", dinheiro: "Dinheiro", credito: "Credito", debito: "Debito",
+               cartao: "Cartao", vale_refeicao: "Vale-refeicao", online: "Online" };
+  const pm = PM[p.payment_method] || p.payment_method || "N/D";
+  const paid = p.payment_status === "paid" ? "PAGO" : "AGUARDANDO";
+  text(`Pagamento: ${pm} (${paid})`);
+  line();
+  if (Number(p.change_amount) > 0) { text(`Troco: ${fmtBRL(p.change_amount)}`); line(); }
+
+  divider("=");
+  push(LF, LF, LF, LF);
+  push(GS, 0x56, 0x41, 0x05);
+  return Buffer.concat(chunks);
+}
+
 function sendToPrinter(ip, port, payload) {
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
@@ -422,13 +512,9 @@ async function processJob(job) {
   }));
 
 
-  const buf = buildReceipt({
-    mesa,
-    comanda,
-    subheader,
-    body,
-    centerName: job.center_name,
-  });
+  const buf = kind === "comanda_caixa"
+    ? buildCaixaReceipt(p)
+    : buildReceipt({ mesa, comanda, subheader, body, centerName: job.center_name });
 
   const existing = printerQueues.get(key);
   if (existing && existing.depth > 0) {

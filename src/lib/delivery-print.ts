@@ -123,5 +123,91 @@ export async function dispatchDeliveryPrintJobs(
     console.error("Erro ao enfileirar prints de delivery:", insertError);
     return { jobs: 0 };
   }
+
+  // Enfileira comanda caixa para centros com print_complete=true (fire-and-forget)
+  dispatchCaixaJobs(orderId, options).catch((e) =>
+    console.error("Erro ao enfileirar comanda_caixa:", e)
+  );
+
   return { jobs: jobs.length };
+}
+
+async function dispatchCaixaJobs(orderId: string, options?: { auto?: boolean }) {
+  if (!options?.auto) return;
+
+  const { data: orderRow } = await (supabase as any)
+    .from("delivery_orders")
+    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,subtotal,delivery_fee,discount_amount,total,payment_method,payment_status,change_amount,notes")
+    .eq("id", orderId)
+    .single();
+  if (!orderRow) return;
+
+  const { data: centers } = await (supabase as any)
+    .from("pdv_production_centers")
+    .select("id,name,printer_ip,printer_port")
+    .eq("user_id", orderRow.user_id)
+    .eq("is_active", true)
+    .eq("print_complete", true);
+  if (!centers || centers.length === 0) return;
+
+  // Dedup: abortar se já existe job comanda_caixa p/ este pedido
+  const { data: existing } = await supabase
+    .from("pdv_print_jobs")
+    .select("id")
+    .eq("source_kind", "comanda_caixa")
+    .eq("source_item_id", orderId)
+    .limit(1);
+  if (existing && existing.length > 0) return;
+
+  // Todos os itens do pedido sem filtro de centro
+  const { data: allItems } = await (supabase as any)
+    .from("vw_print_bridge_delivery_items")
+    .select("*")
+    .eq("order_id", orderId);
+
+  const itemsPayload = (allItems ?? []).map((r: any) => ({
+    product_name: r.product_name,
+    quantity: r.quantity,
+    notes: r.notes,
+    modifiers: Array.isArray(r.options)
+      ? r.options.map((o: any) => ({
+          name: o?.quantity && Number(o.quantity) > 1 ? `${o.quantity}x ${o.name}` : o?.name,
+        })).filter((m: any) => m.name)
+      : [],
+  }));
+
+  const caixaJobs = (centers as any[]).map((center) => ({
+    tenant_user_id: orderRow.user_id,
+    source_kind: "comanda_caixa",
+    source_item_id: orderId,
+    center_id: center.id,
+    center_name: center.name,
+    printer_ip: center.printer_ip,
+    printer_port: center.printer_port || 9100,
+    status: center.printer_ip ? "pending" : "failed",
+    error_message: center.printer_ip ? null : "sem impressora configurada",
+    payload: {
+      kind: "comanda_caixa",
+      order_number: orderRow.order_number,
+      ticket_number: orderRow.ticket_number,
+      customer_name: orderRow.customer_name,
+      customer_phone: orderRow.customer_phone,
+      order_type: orderRow.order_type,
+      delivery_address: orderRow.delivery_address_text,
+      subtotal: orderRow.subtotal,
+      delivery_fee: orderRow.delivery_fee,
+      discount_amount: orderRow.discount_amount,
+      total: orderRow.total,
+      payment_method: orderRow.payment_method,
+      payment_status: orderRow.payment_status,
+      change_amount: orderRow.change_amount,
+      notes: orderRow.notes,
+      items: itemsPayload,
+    },
+  }));
+
+  const { error } = await supabase.from("pdv_print_jobs").insert(caixaJobs as any);
+  if (error && (error as any).code !== "23505") {
+    console.error("Erro ao enfileirar comanda_caixa:", error);
+  }
 }

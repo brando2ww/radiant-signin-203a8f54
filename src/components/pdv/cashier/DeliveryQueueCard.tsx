@@ -253,10 +253,10 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
                 variant="outline"
                 className="h-8 text-xs gap-1 px-2"
                 onClick={() => onPrintMotoboy(order)}
-                title={isPickup ? "Imprimir comanda de retirada" : "Imprimir comanda do motoboy"}
+                title={isPickup ? "Imprimir comanda de retirada" : "Imprimir comanda caixa"}
               >
                 <Printer className="h-3.5 w-3.5" />
-                {isPickup ? "Retirada" : "Motoboy"}
+                {isPickup ? "Retirada" : "Caixa"}
               </Button>
             )}
           </div>

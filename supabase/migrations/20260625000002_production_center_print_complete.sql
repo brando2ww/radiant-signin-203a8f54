@@ -1,0 +1,2 @@
+ALTER TABLE pdv_production_centers
+  ADD COLUMN IF NOT EXISTS print_complete BOOLEAN NOT NULL DEFAULT FALSE;
