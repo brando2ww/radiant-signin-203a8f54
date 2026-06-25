@@ -31,12 +31,15 @@ import {
   Globe,
   MoreHorizontal,
   UserCheck,
+  Loader2,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
 import { usePDVCashier, type CloseCashierPayload } from "@/hooks/use-pdv-cashier";
+import { toast } from "sonner";
 
 export interface CashMovement {
   id: string;
@@ -574,6 +577,12 @@ export function CloseCashierDialog({
   const queryClient = useQueryClient();
   const { submitBlindClosing, isSubmittingBlind } = usePDVCashier();
 
+  // Manager auth states (stale snapshot detection)
+  const [needsManagerAuth, setNeedsManagerAuth] = useState(false);
+  const [managerPassword, setManagerPassword] = useState("");
+  const [isVerifyingManager, setIsVerifyingManager] = useState(false);
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
+
   // Reset on close
   useEffect(() => {
     if (!open) {
@@ -582,6 +591,9 @@ export function CloseCashierDialog({
       setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredFiado("");
       setJustCash(""); setJustCredit(""); setJustDebit(""); setJustPix("");
       setJustVoucher(""); setJustOnline(""); setJustOther(""); setJustFiado(""); setNotes("");
+      setNeedsManagerAuth(false);
+      setManagerPassword("");
+      setSnapshotId(null);
     }
   }, [open]);
 
@@ -595,20 +607,28 @@ export function CloseCashierDialog({
 
       const { data: snap } = await supabase
         .from("pdv_cashier_close_blind_snapshots")
-        .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other, declared_fiado")
+        .select("id, created_at, declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_online_delivery, declared_other, declared_fiado")
         .eq("cashier_session_id", session.id)
         .maybeSingle();
 
       if (snap) {
-        const toStr = (v: any) => (v == null ? "" : String(Number(v)));
-        setDeclaredCash(toStr(snap.declared_cash));
-        setDeclaredCredit(toStr(snap.declared_credit));
-        setDeclaredDebit(toStr(snap.declared_debit));
-        setDeclaredPix(toStr(snap.declared_pix));
-        setDeclaredVoucher(toStr(snap.declared_voucher));
-        
-        setDeclaredFiado(toStr((snap as any).declared_fiado));
-        setStep("review");
+        const hasNewMovements = movements.some(
+          (m) => new Date(m.created_at) > new Date((snap as any).created_at)
+        );
+
+        if (hasNewMovements) {
+          setSnapshotId((snap as any).id);
+          setNeedsManagerAuth(true);
+        } else {
+          const toStr = (v: any) => (v == null ? "" : String(Number(v)));
+          setDeclaredCash(toStr(snap.declared_cash));
+          setDeclaredCredit(toStr(snap.declared_credit));
+          setDeclaredDebit(toStr(snap.declared_debit));
+          setDeclaredPix(toStr(snap.declared_pix));
+          setDeclaredVoucher(toStr(snap.declared_voucher));
+          setDeclaredFiado(toStr((snap as any).declared_fiado));
+          setStep("review");
+        }
       }
     })();
   }, [open, session?.id, queryClient]);
@@ -750,6 +770,40 @@ export function CloseCashierDialog({
     };
   };
 
+  const handleManagerAuth = async () => {
+    if (!managerPassword) return;
+    setIsVerifyingManager(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: users } = await supabase
+        .from("establishment_users")
+        .select("display_name,discount_password")
+        .eq("establishment_owner_id", user?.id || "")
+        .eq("is_active", true);
+
+      const manager = (users || []).find((u: any) => u.discount_password === managerPassword);
+      if (!manager) {
+        toast.error("Senha incorreta");
+        setManagerPassword("");
+        return;
+      }
+
+      if (snapshotId) {
+        await supabase
+          .from("pdv_cashier_close_blind_snapshots")
+          .delete()
+          .eq("id", snapshotId);
+      }
+
+      setNeedsManagerAuth(false);
+      setSnapshotId(null);
+      toast.success(`Autorizado por ${manager.display_name}. Reinicie o fechamento.`);
+    } finally {
+      setIsVerifyingManager(false);
+      setManagerPassword("");
+    }
+  };
+
   const handleFinalize = () => {
     if (!allJustified) return;
     const payload = buildPayload();
@@ -790,8 +844,47 @@ export function CloseCashierDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* AUTORIZAÇÃO DE GERENTE (snapshot stale) */}
+          {needsManagerAuth && (
+            <div className="space-y-4 py-2">
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4">
+                <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Autorização necessária</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                    Foram registradas movimentações após o início do fechamento.
+                    Um gerente deve autorizar para reiniciar a apuração do zero.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="manager-pwd">Senha do gerente</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="manager-pwd"
+                    type="password"
+                    inputMode="numeric"
+                    placeholder="••••"
+                    value={managerPassword}
+                    onChange={(e) => setManagerPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleManagerAuth()}
+                    autoFocus
+                  />
+                  <Button onClick={handleManagerAuth} disabled={!managerPassword || isVerifyingManager}>
+                    {isVerifyingManager ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
+                  </Button>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              </DialogFooter>
+            </div>
+          )}
+
           {/* ETAPA 1 — APURAÇÃO ÀS CEGAS */}
-          {step === "blind" && (
+          {!needsManagerAuth && step === "blind" && (
             <>
               <Card className="bg-muted/40 border-dashed">
                 <CardContent className="pt-3 pb-3 flex items-start gap-2">
@@ -846,7 +939,7 @@ export function CloseCashierDialog({
           )}
 
           {/* ETAPA 2 — CONFERÊNCIA */}
-          {step === "review" && (
+          {!needsManagerAuth && step === "review" && (
             <>
               <Card className="bg-muted/40 border-dashed">
                 <CardContent className="pt-3 pb-3 flex items-start gap-2">
@@ -925,7 +1018,7 @@ export function CloseCashierDialog({
           )}
 
           {/* ETAPA 3 — DONE */}
-          {step === "done" && (
+          {!needsManagerAuth && step === "done" && (
             <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
               <CheckCircle2 className="h-12 w-12 text-green-600" />
               <h3 className="text-lg font-semibold">Caixa fechado com sucesso</h3>
@@ -945,33 +1038,35 @@ export function CloseCashierDialog({
           )}
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t flex-col-reverse sm:flex-row sm:justify-end gap-2">
-          {step === "blind" && (
-            <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmittingBlind} className="w-full sm:w-auto">
-                Cancelar
+        {!needsManagerAuth && (
+          <DialogFooter className="px-6 py-4 border-t flex-col-reverse sm:flex-row sm:justify-end gap-2">
+            {step === "blind" && (
+              <>
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmittingBlind} className="w-full sm:w-auto">
+                  Cancelar
+                </Button>
+                <Button onClick={handleSubmitBlind} disabled={!allBlindFilled || isSubmittingBlind} className="w-full sm:w-auto">
+                  {isSubmittingBlind ? "Registrando..." : "Avançar para conferência"}
+                </Button>
+              </>
+            )}
+            {step === "review" && (
+              <>
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isClosing} className="w-full sm:w-auto">
+                  Cancelar
+                </Button>
+                <Button onClick={handleFinalize} disabled={isClosing || !allJustified} className="w-full sm:w-auto">
+                  {isClosing ? "Fechando..." : "Confirmar Fechamento"}
+                </Button>
+              </>
+            )}
+            {step === "done" && (
+              <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+                Fechar
               </Button>
-              <Button onClick={handleSubmitBlind} disabled={!allBlindFilled || isSubmittingBlind} className="w-full sm:w-auto">
-                {isSubmittingBlind ? "Registrando..." : "Avançar para conferência"}
-              </Button>
-            </>
-          )}
-          {step === "review" && (
-            <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isClosing} className="w-full sm:w-auto">
-                Cancelar
-              </Button>
-              <Button onClick={handleFinalize} disabled={isClosing || !allJustified} className="w-full sm:w-auto">
-                {isClosing ? "Fechando..." : "Confirmar Fechamento"}
-              </Button>
-            </>
-          )}
-          {step === "done" && (
-            <Button onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-              Fechar
-            </Button>
-          )}
-        </DialogFooter>
+            )}
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
