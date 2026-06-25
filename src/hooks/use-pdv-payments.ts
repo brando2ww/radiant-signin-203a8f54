@@ -76,6 +76,7 @@ export function usePDVPayments() {
       cashReceived,
       changeAmount,
       installments,
+      discountAmount,
       discountReason,
       discountAuthorizedBy,
     }: RegisterPaymentParams) => {
@@ -173,6 +174,13 @@ export function usePDVPayments() {
         await supabase.from("pdv_cashier_movements").insert(movementData);
 
         await supabase.rpc("pdv_recompute_session_totals", { p_session_id: activeSession.id });
+
+        if (orderId && discountAmount && discountAmount > 0) {
+          await supabase
+            .from("pdv_orders")
+            .update({ discount: discountAmount, cashier_session_id: activeSession.id })
+            .eq("id", orderId);
+        }
       }
 
       return { success: true };

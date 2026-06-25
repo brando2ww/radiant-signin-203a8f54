@@ -272,16 +272,12 @@ export async function printCashierReport(params: PrintCashierReportParams) {
 </div>`
     : "";
 
-  const discountsHtml = discounts.length
+  const discountsHtml = discountsTotal > 0
     ? `<div class="divider"></div>
 <div class="section">
   <div class="section-title">DESCONTOS CONCEDIDOS</div>
-  <div class="row total"><span>${discounts.length} pedido${discounts.length > 1 ? "s" : ""}</span><span>- ${formatBRL(discountsTotal)}</span></div>
-  ${discounts
-    .map(
-      (d) => `<div class="row"><span>#${d.order_number ?? "—"}</span><span>${formatBRL(d.discount)} (de ${formatBRL(d.total + d.discount)})</span></div>`,
-    )
-    .join("")}
+  <div class="row total"><span>Total de descontos:</span><span>- ${formatBRL(discountsTotal)}</span></div>
+  <div class="row"><span style="font-size:11px;opacity:0.65">${discounts.length} comanda${discounts.length !== 1 ? "s" : ""} com desconto</span></div>
 </div>`
     : "";
 
