@@ -34,10 +34,14 @@ interface CashMovement {
     | "credito"
     | "debito"
     | "pix"
-    | "vale_refeicao";
+    | "vale_refeicao"
+    | "fiado";
   description: string | null;
   created_at: string;
   source?: "salon" | "delivery" | "delivery_online" | null;
+  comanda_id?: string | null;
+  discount_reason?: string | null;
+  discount_authorized_by?: string | null;
 }
 
 export interface CloseCashierPayload {

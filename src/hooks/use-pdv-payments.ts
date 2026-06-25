@@ -166,6 +166,7 @@ export function usePDVPayments() {
           amount,
           payment_method: method,
           description: `Comanda #${comandaId.slice(0, 8)}`,
+          comanda_id: comandaId,
         };
 
         if (discountReason) movementData.discount_reason = discountReason;

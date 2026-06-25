@@ -48,6 +48,7 @@ export interface CashMovement {
   discount_reason?: string | null;
   discount_authorized_by?: string | null;
   source?: string | null;
+  comanda_id?: string | null;
 }
 
 export interface PrintCashierReportParams {
