@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
 
-interface CashierSession {
+export interface CashierSession {
   id: string;
   user_id: string;
   opened_at: string;

@@ -18,12 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, MoreVertical, Pencil, Trash2, FileText, Users, DollarSign, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Search, MoreVertical, Pencil, Trash2, FileText, Users, DollarSign, AlertCircle, ChevronDown, ChevronRight, HandCoins } from "lucide-react";
 import { useAuthorizedEmployees, AuthorizedEmployee } from "@/hooks/use-authorized-employees";
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { usePDVUsers } from "@/hooks/use-pdv-users";
+import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import { AuthorizedEmployeeFormSheet } from "@/components/pdv/employee-consumption/AuthorizedEmployeeFormSheet";
 import { EmployeeStatementSheet } from "@/components/pdv/employee-consumption/EmployeeStatementSheet";
+import { QuitarFiadoDialog } from "@/components/pdv/employee-consumption/QuitarFiadoDialog";
 import { ConsumptionEntryDetails } from "@/components/pdv/employee-consumption/ConsumptionEntryDetails";
 import { formatBRL } from "@/lib/format";
 import { format, startOfMonth } from "date-fns";
@@ -44,6 +46,7 @@ export default function EmployeeConsumptionAdmin() {
   const { employees, isLoading, remove } = useAuthorizedEmployees();
   const { entries, payments } = useEmployeeConsumption();
   const { users } = usePDVUsers();
+  const { activeSession } = usePDVCashier();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -52,6 +55,7 @@ export default function EmployeeConsumptionAdmin() {
   const [editing, setEditing] = useState<AuthorizedEmployee | null>(null);
   const [statementEmp, setStatementEmp] = useState<AuthorizedEmployee | null>(null);
   const [toDelete, setToDelete] = useState<AuthorizedEmployee | null>(null);
+  const [quitarEmp, setQuitarEmp] = useState<AuthorizedEmployee | null>(null);
   const [expandedEntries, setExpandedEntries] = useState<Record<string, boolean>>({});
 
   const filtered = useMemo(() => {
@@ -238,6 +242,11 @@ export default function EmployeeConsumptionAdmin() {
                             <DropdownMenuItem onClick={() => setTimeout(() => setStatementEmp(emp), 0)}>
                               <FileText className="h-4 w-4 mr-2" /> Extrato
                             </DropdownMenuItem>
+                            {hasDebt && (
+                              <DropdownMenuItem onClick={() => setQuitarEmp(emp)}>
+                                <HandCoins className="h-4 w-4 mr-2" /> Quitar
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={() => handleEdit(emp)}>
                               <Pencil className="h-4 w-4 mr-2" /> Editar
                             </DropdownMenuItem>
@@ -266,10 +275,21 @@ export default function EmployeeConsumptionAdmin() {
                         </div>
                       </div>
 
-                      <div className="mt-2">
+                      <div className="mt-2 flex items-center justify-between">
                         <Badge variant={emp.is_active ? "secondary" : "outline"}>
                           {emp.is_active ? "Ativo" : "Inativo"}
                         </Badge>
+                        {hasDebt && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => setQuitarEmp(emp)}
+                          >
+                            <HandCoins className="h-3.5 w-3.5" />
+                            Quitar
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -345,6 +365,15 @@ export default function EmployeeConsumptionAdmin() {
         onOpenChange={(o) => !o && setStatementEmp(null)}
         employee={statementEmp}
       />
+
+      {quitarEmp && (
+        <QuitarFiadoDialog
+          open={!!quitarEmp}
+          onOpenChange={(o) => !o && setQuitarEmp(null)}
+          employee={quitarEmp}
+          activeSession={activeSession}
+        />
+      )}
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>

@@ -118,6 +118,7 @@ export function useEmployeeConsumption(employeeId?: string) {
       employee_id: string;
       amount: number;
       session_id?: string | null;
+      payment_method?: string;
     }) => {
       const { data, error } = await supabase.rpc(
         "pdv_settle_employee_consumption" as any,
@@ -125,6 +126,7 @@ export function useEmployeeConsumption(employeeId?: string) {
           p_employee_id: params.employee_id,
           p_amount: params.amount,
           p_session_id: params.session_id || null,
+          p_payment_method: params.payment_method ?? "dinheiro",
         },
       );
       if (error) throw error;
