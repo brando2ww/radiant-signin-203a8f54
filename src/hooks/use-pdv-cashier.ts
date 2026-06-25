@@ -428,8 +428,9 @@ export function usePDVCashier() {
 
       const { data, error } = await supabase
         .from("pdv_cashier_close_blind_snapshots")
-        .insert({
+        .upsert({
           cashier_session_id: payload.sessionId,
+          created_at: new Date().toISOString(),
           user_id: visibleUserId,
           operator_id: user.id,
           declared_cash: payload.declaredCash,
@@ -441,7 +442,7 @@ export function usePDVCashier() {
           declared_other: payload.declaredOther ?? null,
           declared_fiado: payload.declaredFiado ?? null,
           declared_total: payload.declaredTotal,
-        } as any)
+        } as any, { onConflict: 'cashier_session_id' })
         .select()
         .single();
 
