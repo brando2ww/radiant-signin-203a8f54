@@ -50,9 +50,9 @@ export async function authedOwner(req: Request): Promise<
     { global: { headers: { Authorization: authHeader } } },
   );
   const token = authHeader.replace("Bearer ", "");
-  const { data, error } = await supabase.auth.getClaims(token);
-  if (error || !data?.claims?.sub) return json({ error: "Unauthorized" }, 401);
-  const userId = data.claims.sub as string;
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) return json({ error: "Unauthorized" }, 401);
+  const userId = user.id;
   const service = getServiceClient();
   const { data: ownerData } = await service.rpc("pdv_resolve_owner", {
     _user_id: userId,

@@ -26,7 +26,7 @@ function getOffer(activeMods: UserModule[]): Offer | null {
     return {
       key: "suggest_completo",
       title: "Você já tem 3 módulos!",
-      description: "Por R$ 397/mês, o PDV Completo inclui tudo isso + PDV Core. Pode ser mais vantajoso.",
+      description: "Por R$ 599/mês, o PDV Completo inclui tudo isso + PDV Core. Pode ser mais vantajoso.",
     };
   }
 

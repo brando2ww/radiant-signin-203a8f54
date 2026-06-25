@@ -49,7 +49,7 @@ const MODULE_INFO: Record<string, { name: string; description: string; price: nu
   pdv_completo: {
     name: "Velara PDV Completo",
     description: "PDV Core + Compras + Tarefas + Avaliações",
-    price: 397,
+    price: 599,
     features: [
       { label: "PDV Core (caixa, salão, estoque)" },
       { label: "Módulo de Compras" },
@@ -274,7 +274,7 @@ export default function Assinatura() {
                 onSubscribe={(id) => handleSubscribeModule(id as ModuleKey)}
                 isLoading={checkoutLoading === "pdv_completo"}
                 disabled={!!checkoutLoading && checkoutLoading !== "pdv_completo"}
-                actionLabel="Assinar PDV Completo — R$ 397/mês"
+                actionLabel="Assinar PDV Completo — R$ 599/mês"
               />
             </div>
           )}

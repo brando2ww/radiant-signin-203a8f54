@@ -81,12 +81,7 @@ export function SpinWheel({ prizes, onResult, disabled, primaryColor, secondaryC
     const ty = r + textR * Math.sin(midAngleRad);
 
     // Align text along the radius (reads from center → edge).
-    // Flip 180° on the left half so text never appears upside down.
     let textRotation = midAngleDeg - 90;
-    const needsFlip = midAngleDeg > 90 && midAngleDeg < 270;
-    if (needsFlip) {
-      textRotation += 180;
-    }
 
     const fontSize = Math.max(11, Math.min(15, s.deg / 3.5));
 

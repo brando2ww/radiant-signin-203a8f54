@@ -61,7 +61,7 @@ const PLANS: {
     id: "pdv_completo",
     name: "Velara PDV Completo",
     description: "Plano completo com todos os módulos incluídos",
-    price: 397,
+    price: 599,
     isCompleto: true,
     features: [
       { label: "PDV Core (caixa, salão, estoque, produtos)" },
@@ -378,7 +378,7 @@ export default function Onboarding() {
                       onSubscribe={handleSubscribeModule}
                       isLoading={isLoadingThis}
                       disabled={isCheckingOut && !isLoadingThis}
-                      actionLabel="Assinar PDV Completo — R$ 397/mês"
+                      actionLabel="Assinar PDV Completo — R$ 599/mês"
                     />
                   </div>
                 );

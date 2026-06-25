@@ -263,6 +263,29 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   const discountsTotal = discounts.reduce((a, d) => a + d.discount, 0);
   const expensesTotal = expenses.reduce((a, e) => a + e.amount, 0);
 
+  const reinforcementItems = movements.filter((m) => m.type === "reforco");
+  const withdrawalItems = movements.filter((m) => m.type === "sangria");
+  const reinforcementsTotal = reinforcementItems.reduce((a, m) => a + m.amount, 0);
+  const withdrawalsTotal = withdrawalItems.reduce((a, m) => a + m.amount, 0);
+
+  const reinforcementsHtml = reinforcementItems.length
+    ? `<div class="divider"></div>
+<div class="section">
+  <div class="section-title">REFORÇOS (ENTRADAS)</div>
+  <div class="row total"><span>${reinforcementItems.length} entrada${reinforcementItems.length > 1 ? "s" : ""}</span><span>+ ${formatBRL(reinforcementsTotal)}</span></div>
+  ${reinforcementItems.map((m) => `<div class="row"><span>${format(new Date(m.created_at), "HH:mm", { locale: ptBR })} — ${m.description || "Reforço"}</span><span>${formatBRL(m.amount)}</span></div>`).join("")}
+</div>`
+    : "";
+
+  const withdrawalsHtml = withdrawalItems.length
+    ? `<div class="divider"></div>
+<div class="section">
+  <div class="section-title">SANGRIAS (SAÍDAS)</div>
+  <div class="row total"><span>${withdrawalItems.length} saída${withdrawalItems.length > 1 ? "s" : ""}</span><span>- ${formatBRL(withdrawalsTotal)}</span></div>
+  ${withdrawalItems.map((m) => `<div class="row"><span>${format(new Date(m.created_at), "HH:mm", { locale: ptBR })} — ${m.description || "Sangria"}</span><span>${formatBRL(m.amount)}</span></div>`).join("")}
+</div>`
+    : "";
+
   const cancellationsHtml = cancellations.length
     ? `<div class="divider"></div>
 <div class="section">
@@ -362,6 +385,8 @@ ${conferenceHtml ? `<div class="divider"></div>
 <div class="section">
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
 </div>
+${reinforcementsHtml}
+${withdrawalsHtml}
 ${cancellationsHtml}
 ${discountsHtml}
 ${expensesHtml}

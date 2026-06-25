@@ -149,6 +149,7 @@ export function useChecklists() {
           max_value: item.max_value,
           training_instruction: item.training_instruction,
           training_video_url: item.training_video_url,
+          options: (item as any).options ?? null,
         }));
         await supabase.from("checklist_items").insert(newItems);
       }

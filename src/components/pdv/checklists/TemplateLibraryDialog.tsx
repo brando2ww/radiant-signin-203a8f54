@@ -251,6 +251,7 @@ export function TemplateLibraryDialog({ open, onOpenChange, onLoadItems, editorM
         sort_order: idx,
         min_value: (item as any).min_value ?? null,
         max_value: (item as any).max_value ?? null,
+        options: (item as any).options ?? null,
       }));
       await supabase.from("checklist_items").insert(items);
       onOpenChange(false);

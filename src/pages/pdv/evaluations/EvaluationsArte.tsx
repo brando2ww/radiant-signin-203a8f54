@@ -324,7 +324,7 @@ function PosterContent({
   const isA5 = size === "a5";
   const padding = isLabel ? 16 : isA5 ? 36 : 56;
   const accentH = isLabel ? 6 : isA5 ? 10 : 14;
-  const logoH = isLabel ? 36 : isA5 ? 70 : 110;
+  const logoH = isLabel ? 70 : isA5 ? 130 : 200;
   const headlineSize = isLabel ? 20 : isA5 ? 36 : 60;
   const headlineGap = isLabel ? 8 : isA5 ? 22 : 36;
   const qrPadding = isLabel ? 6 : isA5 ? 14 : 20;
