@@ -426,11 +426,18 @@ export function usePDVCashier() {
       if (!user?.id) throw new Error("Usuário não autenticado");
       if (!visibleUserId) throw new Error("Estabelecimento não resolvido");
 
+      // Idempotent: apaga snapshot anterior desta sessão antes de criar um novo.
+      // Garante que o INSERT abaixo sempre tenha created_at fresco (via DEFAULT now()).
+      await supabase
+        .from("pdv_cashier_close_blind_snapshots")
+        .delete()
+        .eq("cashier_session_id", payload.sessionId)
+        .eq("user_id", visibleUserId);
+
       const { data, error } = await supabase
         .from("pdv_cashier_close_blind_snapshots")
-        .upsert({
+        .insert({
           cashier_session_id: payload.sessionId,
-          created_at: new Date().toISOString(),
           user_id: visibleUserId,
           operator_id: user.id,
           declared_cash: payload.declaredCash,
@@ -442,7 +449,7 @@ export function usePDVCashier() {
           declared_other: payload.declaredOther ?? null,
           declared_fiado: payload.declaredFiado ?? null,
           declared_total: payload.declaredTotal,
-        } as any, { onConflict: 'cashier_session_id' })
+        } as any)
         .select()
         .single();
 
