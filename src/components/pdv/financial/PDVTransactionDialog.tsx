@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { pdvFinancialTransactionSchema, type PDVFinancialTransactionFormData } from "@/lib/validations/pdv-financial-transaction";
@@ -44,9 +44,9 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
           transaction_type: t.transaction_type,
           description: t.description,
           amount: t.amount,
-          due_date: new Date(t.due_date),
-          competence_date: t.competence_date ? new Date(t.competence_date) : undefined,
-          payment_date: t.payment_date ? new Date(t.payment_date) : undefined,
+          due_date: parseISO(t.due_date),
+          competence_date: t.competence_date ? parseISO(t.competence_date) : undefined,
+          payment_date: t.payment_date ? parseISO(t.payment_date) : undefined,
           status: t.status,
           chart_account_id: t.chart_account_id || undefined,
           cost_center_id: t.cost_center_id || undefined,

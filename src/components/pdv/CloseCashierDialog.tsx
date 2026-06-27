@@ -232,13 +232,13 @@ export async function printCashierReport(params: PrintCashierReportParams) {
           .order("closed_at", { ascending: true }),
         supabase
           .from("pdv_financial_transactions")
-          .select("description,amount,paid_at")
+          .select("description,amount,payment_date")
           .eq("user_id", session.user_id)
           .eq("transaction_type", "expense")
           .eq("status", "paid")
-          .gte("paid_at", session.opened_at)
-          .lte("paid_at", session.closed_at || new Date().toISOString())
-          .order("paid_at", { ascending: true }),
+          .gte("payment_date", session.opened_at.slice(0, 10))
+          .lte("payment_date", (session.closed_at || new Date().toISOString()).slice(0, 10))
+          .order("payment_date", { ascending: true }),
       ]);
       cancellations = (cancs || []).map((r: any) => ({
         order_number: r.order_number,
