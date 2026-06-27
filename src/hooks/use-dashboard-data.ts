@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { startOfMonth, endOfMonth, subMonths, format, differenceInDays } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, differenceInDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface DashboardStats {
@@ -255,7 +255,7 @@ export const useDashboardData = () => {
     return bills
       .filter(b => b.status === 'pending')
       .filter(b => {
-        const dueDate = new Date(b.due_date);
+        const dueDate = parseISO(b.due_date);
         return dueDate <= thirtyDaysFromNow;
       })
       .slice(0, 10)
@@ -263,7 +263,7 @@ export const useDashboardData = () => {
         id: b.id,
         title: b.title,
         amount: Number(b.amount),
-        dueDate: new Date(b.due_date),
+        dueDate: parseISO(b.due_date),
         type: b.type as 'payable' | 'receivable',
         status: b.status || 'pending',
         category: b.category || undefined,
@@ -277,7 +277,7 @@ export const useDashboardData = () => {
     if (!bills || !creditCards || !bankAccounts) return alertsList;
 
     const overdueBills = bills.filter(b => {
-      const dueDate = new Date(b.due_date);
+      const dueDate = parseISO(b.due_date);
       return b.status === 'pending' && dueDate < new Date();
     });
 
@@ -291,7 +291,7 @@ export const useDashboardData = () => {
     }
 
     const upcomingSoonBills = bills.filter(b => {
-      const dueDate = new Date(b.due_date);
+      const dueDate = parseISO(b.due_date);
       const daysUntil = differenceInDays(dueDate, new Date());
       return b.status === 'pending' && daysUntil >= 0 && daysUntil <= 3;
     });

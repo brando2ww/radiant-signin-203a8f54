@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,7 +44,7 @@ export function exportTransactionsToCSV(transactions: Transaction[]): void {
   const headers = ['Data', 'Tipo', 'Categoria', 'Descrição', 'Valor'];
   
   const rows = transactions.map(t => [
-    format(new Date(t.transaction_date), 'dd/MM/yyyy'),
+    format(parseISO(t.transaction_date), 'dd/MM/yyyy'),
     t.type === 'income' ? 'Receita' : 'Despesa',
     t.category || '',
     t.description || '',
@@ -66,7 +66,7 @@ export function exportTransactionsToExcel(transactions: Transaction[]): void {
 
   // Transactions sheet
   const transactionsData = transactions.map(t => ({
-    'Data': format(new Date(t.transaction_date), 'dd/MM/yyyy'),
+    'Data': format(parseISO(t.transaction_date), 'dd/MM/yyyy'),
     'Tipo': t.type === 'income' ? 'Receita' : 'Despesa',
     'Categoria': t.category || '',
     'Descrição': t.description || '',

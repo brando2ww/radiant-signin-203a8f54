@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -86,7 +87,7 @@ export const useCalendarEvents = (selectedMonth: Date, filters: {
         if (bills) {
           bills.forEach((bill) => {
             const today = new Date();
-            const dueDate = new Date(bill.due_date);
+            const dueDate = parseISO(bill.due_date);
             let status: 'pending' | 'paid' | 'overdue' = 'pending';
             
             if (bill.paid_at) {

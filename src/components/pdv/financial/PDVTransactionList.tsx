@@ -2,7 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, CheckCircle, Eye } from "lucide-react";
-import { format, isPast } from "date-fns";
+import { format, isPast, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { PDVFinancialTransaction } from "@/hooks/use-pdv-financial-transactions";
 import {
@@ -41,14 +41,14 @@ export function PDVTransactionList({ transactions, onEdit, onDelete, onMarkAsPai
     if (status === 'cancelled') {
       return <Badge variant="secondary">Cancelado</Badge>;
     }
-    if (status === 'pending' && isPast(new Date(dueDate))) {
+    if (status === 'pending' && isPast(parseISO(dueDate))) {
       return <Badge variant="destructive">Vencido</Badge>;
     }
     return <Badge variant="outline">Pendente</Badge>;
   };
 
   const isOverdue = (status: string, dueDate: string) => {
-    return status === 'pending' && isPast(new Date(dueDate));
+    return status === 'pending' && isPast(parseISO(dueDate));
   };
 
   if (transactions.length === 0) {
@@ -83,7 +83,7 @@ export function PDVTransactionList({ transactions, onEdit, onDelete, onMarkAsPai
                 className={isOverdue(transaction.status, transaction.due_date) ? 'bg-destructive/5' : ''}
               >
                 <TableCell>
-                  {format(new Date(transaction.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                  {format(parseISO(transaction.due_date), "dd/MM/yyyy", { locale: ptBR })}
                 </TableCell>
                 <TableCell>
                   <Badge variant={transaction.transaction_type === 'payable' ? 'destructive' : 'default'}>

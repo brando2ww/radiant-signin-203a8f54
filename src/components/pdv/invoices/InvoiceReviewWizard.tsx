@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -215,7 +216,7 @@ export function InvoiceReviewWizard({
       const installmentAmount = editableData.financial.amount / installments;
       const transactionPromises = [];
       for (let i = 0; i < installments; i++) {
-        const dueDate = new Date(editableData.financial.due_date);
+        const dueDate = parseISO(editableData.financial.due_date);
         dueDate.setMonth(dueDate.getMonth() + i);
         transactionPromises.push(
           createTransaction({
