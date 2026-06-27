@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildPaymentSnapshot } from "@/lib/financial/build-payment-snapshot";
 import { toast } from "sonner";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 
 export interface PDVFinancialTransaction {
   id: string;
@@ -214,11 +214,11 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
           ...transaction,
           ...feeColumns,
           user_id: user.id,
-          due_date: transaction.due_date ? format(parseISO(transaction.due_date), "yyyy-MM-dd") : undefined,
+          due_date: transaction.due_date ? format(transaction.due_date as Date, "yyyy-MM-dd") : undefined,
           competence_date: transaction.competence_date
-            ? format(parseISO(transaction.competence_date), "yyyy-MM-dd")
-            : transaction.due_date ? format(parseISO(transaction.due_date), "yyyy-MM-dd") : undefined,
-          payment_date: transaction.payment_date ? format(parseISO(transaction.payment_date), "yyyy-MM-dd") : null,
+            ? format(transaction.competence_date as Date, "yyyy-MM-dd")
+            : transaction.due_date ? format(transaction.due_date as Date, "yyyy-MM-dd") : undefined,
+          payment_date: transaction.payment_date ? format(transaction.payment_date as Date, "yyyy-MM-dd") : null,
         }])
         .select()
         .single();
@@ -242,11 +242,11 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         .from("pdv_financial_transactions")
         .update({
           ...transaction,
-          due_date: transaction.due_date ? format(parseISO(transaction.due_date), "yyyy-MM-dd") : undefined,
+          due_date: transaction.due_date ? format(transaction.due_date as Date, "yyyy-MM-dd") : undefined,
           competence_date: transaction.competence_date
-            ? format(parseISO(transaction.competence_date), "yyyy-MM-dd")
+            ? format(transaction.competence_date as Date, "yyyy-MM-dd")
             : undefined,
-          payment_date: transaction.payment_date ? format(parseISO(transaction.payment_date), "yyyy-MM-dd") : null,
+          payment_date: transaction.payment_date ? format(transaction.payment_date as Date, "yyyy-MM-dd") : null,
         })
         .eq("id", id)
         .select()
