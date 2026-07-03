@@ -115,7 +115,7 @@ export const GuestCheckoutForm = ({ onConfirm, onBack }: GuestCheckoutFormProps)
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="col-span-2 space-y-2">
-          <Label htmlFor="g-doc">Documento</Label>
+          <Label htmlFor="g-doc">Documento (opcional)</Label>
           <Input id="g-doc" value={document} onChange={(e) => setDocument(e.target.value)} />
         </div>
         <div className="space-y-2">

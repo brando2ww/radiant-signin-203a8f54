@@ -181,7 +181,7 @@ export function CancelOrderDialog({
             id="cancel-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Descreva o motivo do cancelamento (mínimo 20 caracteres)..."
+            placeholder="Descreva o motivo do cancelamento (mínimo 10 caracteres)..."
             rows={4}
             disabled={isLoading}
             maxLength={500}

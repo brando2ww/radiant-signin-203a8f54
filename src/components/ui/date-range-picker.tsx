@@ -142,7 +142,7 @@ export function DatePickerWithRange({
             <span className="truncate">{triggerLabel}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto min-w-[920px] p-0" align="start">
           <div className="flex">
             {/* Sidebar */}
             <ScrollArea className="h-[420px] w-[200px] border-r">
@@ -179,7 +179,7 @@ export function DatePickerWithRange({
             </ScrollArea>
 
             {/* Calendar */}
-            <div className="p-3">
+            <div className="p-3 flex-1">
               <Calendar
                 mode="range"
                 defaultMonth={draftRange?.from}

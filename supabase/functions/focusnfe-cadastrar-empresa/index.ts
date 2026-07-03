@@ -90,6 +90,10 @@ Deno.serve(async (req) => {
       habilita_nfce: !!config.habilita_nfce,
       habilita_nfe: !!config.habilita_nfe,
       habilita_nfse: !!config.habilita_nfse,
+      // Distribuição de DF-e / Manifestação do Destinatário — necessário para
+      // puxar as notas RECEBIDAS (nfes_recebidas / MDe). Sem isso a Focus
+      // retorna "CNPJ do emitente não autorizado".
+      habilita_manifestacao: true,
       discrimina_impostos: true,
       enviar_email_destinatario: true,
     };

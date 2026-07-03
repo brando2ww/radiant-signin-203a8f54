@@ -96,21 +96,18 @@ export async function dispatchDeliveryPrintJobs(
 
   // Dedup automático: várias abas/sessões do PDV podem receber o mesmo
   // evento realtime de INSERT e tentar imprimir o mesmo pedido em paralelo.
-  // Antes de enfileirar, verificamos se já existe algum job em
-  // `pdv_print_jobs` para os itens deste pedido — se sim, abortamos.
+  // Usamos o orderId (não item IDs) como chave de dedup — isso é inequívoco
+  // independente da ordem de retorno do SELECT ou de quantos centros existem.
   // Reimpressão manual passa `auto: false` (ou nada) e ignora a checagem.
   if (options?.auto) {
-    const itemIds = items.map((r: any) => r.id).filter(Boolean);
-    if (itemIds.length > 0) {
-      const { data: existing } = await supabase
-        .from("pdv_print_jobs")
-        .select("id")
-        .eq("source_kind", "delivery")
-        .in("source_item_id", itemIds)
-        .limit(1);
-      if (existing && existing.length > 0) {
-        return { jobs: 0 };
-      }
+    const { data: existing } = await supabase
+      .from("pdv_print_jobs")
+      .select("id")
+      .eq("source_kind", "delivery")
+      .eq("source_item_id", orderId)
+      .limit(1);
+    if (existing && existing.length > 0) {
+      return { jobs: 0 };
     }
   }
 
@@ -132,7 +129,10 @@ export async function dispatchDeliveryPrintJobs(
     return {
       tenant_user_id: first.tenant_user_id,
       source_kind: "delivery" as const,
-      source_item_id: first.id,
+      // Usa orderId como chave de dedup — sempre o mesmo independente
+      // de quantos dispositivos processam o evento ou da ordem dos itens.
+      // O índice único (source_item_id, center_id) garante 1 job por centro.
+      source_item_id: orderId,
       center_id: first.production_center_id,
       center_name: first.center_name,
       printer_ip: first.printer_ip,

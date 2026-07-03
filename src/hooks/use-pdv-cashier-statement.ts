@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, startOfMonth, endOfMonth, startOfDay, endOfDay, eachDayOfInterval, isSameDay } from "date-fns";
+import { format, startOfDay, endOfDay, eachDayOfInterval, isSameDay } from "date-fns";
 
 export interface CashierStatementSession {
   id: string;
@@ -22,7 +22,6 @@ export interface CashierStatementSession {
   balance_difference: number | null;
   fraud_risk_level: string | null;
   notes: string | null;
-  // Conferência ampliada
   declared_cash?: number | null;
   declared_credit?: number | null;
   declared_debit?: number | null;
@@ -51,28 +50,28 @@ export interface DailySummary {
   totalCash: number;
   totalCard: number;
   totalPix: number;
+  totalVoucher: number;
+  totalOnlineDelivery: number;
   totalWithdrawals: number;
+  cancelledCount: number;
   hasDifference: boolean;
+  differenceCount: number;
 }
 
-export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: Date) {
+export function usePDVCashierStatement(dateRange: { from: Date; to: Date }) {
   const { user } = useAuth();
 
+  const fromKey = format(dateRange.from, "yyyy-MM-dd");
+  const toKey = format(dateRange.to, "yyyy-MM-dd");
+  const isSingleDay = fromKey === toKey;
+
   const { data, isLoading } = useQuery({
-    queryKey: ["pdv-cashier-statement", user?.id, mode, format(selectedDate, "yyyy-MM-dd")],
+    queryKey: ["pdv-cashier-statement", user?.id, fromKey, toKey],
     queryFn: async () => {
       if (!user) throw new Error("Usuário não autenticado");
 
-      let dateFrom: string;
-      let dateTo: string;
-
-      if (mode === "daily") {
-        dateFrom = startOfDay(selectedDate).toISOString();
-        dateTo = endOfDay(selectedDate).toISOString();
-      } else {
-        dateFrom = startOfMonth(selectedDate).toISOString();
-        dateTo = endOfMonth(selectedDate).toISOString();
-      }
+      const dateFrom = startOfDay(dateRange.from).toISOString();
+      const dateTo = endOfDay(dateRange.to).toISOString();
 
       const { data: sessions, error } = await supabase
         .from("pdv_cashier_sessions")
@@ -84,7 +83,6 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
 
       if (error) throw error;
 
-      // Fetch movements for all sessions
       const sessionIds = (sessions || []).map((s) => s.id);
       let allMovements: any[] = [];
       if (sessionIds.length > 0) {
@@ -110,7 +108,6 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
         movements: allMovements.filter((m) => m.cashier_session_id === s.id),
       }));
 
-      // KPIs
       const totalSales = enrichedSessions.reduce((s, ss) => s + ss.total_sales, 0);
       const totalCash = enrichedSessions.reduce((s, ss) => s + ss.total_cash, 0);
       const totalCard = enrichedSessions.reduce((s, ss) => s + ss.total_card, 0);
@@ -120,12 +117,27 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
         (s) => s.balance_difference !== null && Math.abs(s.balance_difference) > 5
       ).length;
 
-      // Daily summaries for monthly view
+      // Cancelamentos de comandas no período
+      const cancelledByDay = new Map<string, number>();
+      if (!isSingleDay) {
+        const { data: cancelled } = await supabase
+          .from("pdv_comandas")
+          .select("cancelled_at")
+          .eq("user_id", user.id)
+          .not("cancelled_at", "is", null)
+          .gte("cancelled_at", dateFrom)
+          .lte("cancelled_at", dateTo);
+        (cancelled || []).forEach((c: any) => {
+          const key = format(new Date(c.cancelled_at), "yyyy-MM-dd");
+          cancelledByDay.set(key, (cancelledByDay.get(key) ?? 0) + 1);
+        });
+      }
+
       let dailySummaries: DailySummary[] = [];
-      if (mode === "monthly") {
+      if (!isSingleDay) {
         const days = eachDayOfInterval({
-          start: startOfMonth(selectedDate),
-          end: endOfMonth(selectedDate) > new Date() ? new Date() : endOfMonth(selectedDate),
+          start: dateRange.from,
+          end: dateRange.to > new Date() ? new Date() : dateRange.to,
         });
 
         dailySummaries = days
@@ -134,20 +146,27 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
               isSameDay(new Date(s.opened_at), day)
             );
             if (daySessions.length === 0) return null;
+            const diffSessions = daySessions.filter(
+              (s) => s.balance_difference !== null && Math.abs(s.balance_difference) > 5
+            );
+            const dayKey = format(day, "yyyy-MM-dd");
             return {
-              date: format(day, "yyyy-MM-dd"),
+              date: dayKey,
               sessions: daySessions,
               totalSales: daySessions.reduce((s, ss) => s + ss.total_sales, 0),
               totalCash: daySessions.reduce((s, ss) => s + ss.total_cash, 0),
               totalCard: daySessions.reduce((s, ss) => s + ss.total_card, 0),
               totalPix: daySessions.reduce((s, ss) => s + ss.total_pix, 0),
+              totalVoucher: daySessions.reduce((s, ss) => s + (ss.total_voucher || 0), 0),
+              totalOnlineDelivery: daySessions.reduce((s, ss) => s + (ss.total_online_delivery || 0), 0),
               totalWithdrawals: daySessions.reduce((s, ss) => s + ss.total_withdrawals, 0),
-              hasDifference: daySessions.some(
-                (s) => s.balance_difference !== null && Math.abs(s.balance_difference) > 5
-              ),
+              cancelledCount: cancelledByDay.get(dayKey) ?? 0,
+              hasDifference: diffSessions.length > 0,
+              differenceCount: diffSessions.length,
             };
           })
-          .filter(Boolean) as DailySummary[];
+          .filter(Boolean)
+          .reverse() as DailySummary[];
       }
 
       const daysWithSales = new Set(
@@ -158,6 +177,7 @@ export function usePDVCashierStatement(mode: "daily" | "monthly", selectedDate: 
       return {
         sessions: enrichedSessions,
         dailySummaries,
+        isSingleDay,
         kpis: {
           totalSales,
           totalCash,

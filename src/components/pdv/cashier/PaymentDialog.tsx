@@ -1040,6 +1040,36 @@ export function PaymentDialog({
     });
   };
 
+  const handlePrintBill = () => {
+    const mesaRaw = isTablePayment ? String(table?.table_number ?? "") : "";
+    const mesaLabel = mesaRaw
+      ? (/^mesa\b/i.test(mesaRaw) ? mesaRaw : `MESA ${mesaRaw}`)
+      : "BALCÃO";
+    const comandaLabel = isTablePayment
+      ? (tableComandas.length > 1
+          ? `${tableComandas.length} comandas`
+          : (tableComandas[0]?.customer_name
+              || (tableComandas[0]?.comanda_number ? `Comanda #${tableComandas[0].comanda_number}` : "")))
+      : (comanda?.customer_name
+          || (comanda?.comanda_number ? `Comanda #${comanda.comanda_number}` : ""));
+
+    printNonFiscalReceipt({
+      business: buildBusinessInfo(),
+      header: { mesa: mesaLabel, comanda: comandaLabel },
+      items: displayItems.map((i) => ({
+        product_name: i.product_name,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        subtotal: i.subtotal,
+      })),
+      subtotal,
+      desconto: discountAmount,
+      taxa_servico: serviceFeeAmount,
+      total,
+      forma_pagamento: "",
+    });
+  };
+
   const handleEmitNFCe = async () => {
     try {
       // Buscar dados fiscais dos produtos
@@ -1114,7 +1144,7 @@ export function PaymentDialog({
             </div>
             <div className="text-center space-y-1">
               <h3 className="text-xl font-bold text-green-600">Pagamento Confirmado!</h3>
-              <p className="text-2xl font-bold">{formatCurrency(total)}</p>
+              <p className="text-2xl font-bold">{formatCurrency(printSnapshotRef.current?.total ?? total)}</p>
               {successData && successData.change > 0 && (
                 <p className="text-sm text-muted-foreground">
                   Troco: <span className="font-bold text-foreground">{formatCurrency(successData.change)}</span>
@@ -2325,6 +2355,15 @@ export function PaymentDialog({
               disabled={isProcessing || isCancellingComanda}
             >
               Fechar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handlePrintBill}
+              disabled={isProcessing || isCancellingComanda || displayItems.length === 0}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir Consumo
             </Button>
             {involvedComandas.length === 1 && involvedComandas[0]?.id && (
               <Button

@@ -523,15 +523,25 @@ async function processJob(job) {
 
   const { promise } = enqueueForPrinter(key, async () => {
     const attemptNumber = (job.attempts || 0) + 1;
-    await supabase
+
+    // Claim atômico: só atualiza se o job ainda estiver em 'pending'.
+    // Garante que duas instâncias do bridge nunca processem o mesmo job.
+    const { data: claimed, error: claimError } = await supabase
       .from("pdv_print_jobs")
       .update({ status: "printing", attempts: attemptNumber })
-      .eq("id", job.id);
+      .eq("id", job.id)
+      .eq("status", "pending")
+      .select("id");
+    if (claimError) throw claimError;
+    if (!claimed || claimed.length === 0) {
+      log(`⚠ [PID:${process.pid}] Job ${job.id} já assumido por outra instância — abortando`);
+      return;
+    }
 
     const logSummary = items.length === 1
       ? `${items[0].quantity}x ${items[0].product_name}`
       : `${items.length} itens (${items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)} un)`;
-    log(`→ Job ${job.id} | ${job.center_name} | ${logSummary} → ${ip}:${port} (tent. ${attemptNumber}/${MAX_ATTEMPTS})`);
+    log(`→ [PID:${process.pid}] Job ${job.id} | kind=${job.source_kind} | source=${job.source_item_id ?? "null"} | centro=${job.center_name} | ${logSummary} → ${ip}:${port} (tent. ${attemptNumber}/${MAX_ATTEMPTS})`);
 
     try {
       await routePrint(job, buf);
@@ -542,7 +552,7 @@ async function processJob(job) {
       state.jobs_processed += 1;
       state.last_print_at = new Date().toISOString();
       state.last_error = null;
-      log(`✓ Impresso (${ip}) — job ${job.id}`);
+      log(`✓ [PID:${process.pid}] Impresso job ${job.id} → ${ip}:${port}`);
     } catch (err) {
       const msg = err.message || String(err);
       state.last_error = msg;
@@ -616,6 +626,7 @@ async function reprocessPending() {
 }
 
 // ─── Realtime com reconexão ──────────────────────────────────────────────
+let hasBooted = false;
 let currentChannel = null;
 let reconnectDelay = 30000;
 const MAX_DELAY = 5 * 60 * 1000;
@@ -653,9 +664,11 @@ function connectRealtime() {
       state.subscription_status = status;
       if (status === "SUBSCRIBED") {
         reconnectDelay = 30000;
-        log(`✓ Realtime conectado. Ouvindo INSERT em pdv_print_jobs.`);
-        // Após reconectar, reprocessa pendentes
-        reprocessPending().catch((e) => log(`✗ reprocessPending: ${e.message}`));
+        log(`✓ Realtime conectado (PID ${process.pid}). Ouvindo INSERT em pdv_print_jobs.`);
+        if (!hasBooted) {
+          hasBooted = true;
+          reprocessPending().catch((e) => log(`✗ reprocessPending: ${e.message}`));
+        }
       } else if (status === "CHANNEL_ERROR" || status === "CLOSED" || status === "TIMED_OUT") {
         log(`✗ Realtime ${status}${err ? `: ${err.message}` : ""}`);
         scheduleReconnect();
@@ -808,16 +821,40 @@ function startHttpServer() {
     res.writeHead(404);
     res.end();
   });
+  server.on("error", (err) => {
+    if (err.code === "EADDRINUSE") {
+      log(`✗ Porta ${BRIDGE_HTTP_PORT} já em uso — outra instância do bridge está rodando. Encerrando.`);
+      process.exit(1);
+    }
+    log(`✗ Erro no servidor HTTP: ${err.message}`);
+  });
   server.listen(Number(BRIDGE_HTTP_PORT), "127.0.0.1", () => {
     log(`HTTP local em http://localhost:${BRIDGE_HTTP_PORT} (health, test-print, reprint)`);
   });
 }
 
 // ─── Boot ────────────────────────────────────────────────────────────────
+async function resetOrphanedPrintingJobs() {
+  // Jobs travados em 'printing' há > 5 min = bridge crashou antes de concluir.
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  let q = supabase
+    .from("pdv_print_jobs")
+    .update({ status: "pending", error_message: "reset: bridge restart" })
+    .eq("status", "printing")
+    .lt("created_at", cutoff);
+  if (TENANT_USER_ID) q = q.eq("tenant_user_id", TENANT_USER_ID);
+  const { data, error } = await q;
+  if (!error) log(`✓ Jobs órfãos em 'printing' resetados para 'pending': ${(data ?? []).length}`);
+  else log(`✗ resetOrphanedPrintingJobs: ${error.message}`);
+}
+
 log(`=== Velara Print Bridge — ${ESTABLISHMENT_NAME} ===`);
+log(`PID: ${process.pid} | Porta HTTP: ${BRIDGE_HTTP_PORT} | Iniciado em: ${new Date().toISOString()}`);
 if (TENANT_USER_ID) log(`Filtro de tenant: ${TENANT_USER_ID}`);
 startHttpServer();
-connectRealtime();
+resetOrphanedPrintingJobs()
+  .catch((e) => log(`✗ resetOrphan: ${e.message}`))
+  .finally(() => connectRealtime());
 
 process.on("uncaughtException", (err) => log(`✗ uncaught: ${err.message}`));
 process.on("unhandledRejection", (err) => log(`✗ unhandled: ${err}`));

@@ -15,7 +15,7 @@ export function riskBadge(level: string | null) {
   }
 }
 
-export function SessionsTable({ sessions }: { sessions: CashierStatementSession[] }) {
+export function SessionsTable({ sessions, onSelect }: { sessions: CashierStatementSession[]; onSelect?: (session: CashierStatementSession) => void }) {
   return (
     <Table>
       <TableHeader>
@@ -37,7 +37,12 @@ export function SessionsTable({ sessions }: { sessions: CashierStatementSession[
           const status = s.closing_status as string | null | undefined;
           const justification = s.closing_justification || s.notes || "";
           return (
-            <TableRow key={s.id} title={justification ? `Justificativa: ${justification}` : undefined}>
+            <TableRow
+              key={s.id}
+              title={justification ? `Justificativa: ${justification}` : undefined}
+              className={onSelect ? "cursor-pointer hover:bg-muted/40" : ""}
+              onClick={() => onSelect?.(s)}
+            >
               <TableCell>{format(new Date(s.opened_at), "HH:mm")}</TableCell>
               <TableCell>{s.closed_at ? format(new Date(s.closed_at), "HH:mm") : <Badge variant="outline">Aberto</Badge>}</TableCell>
               <TableCell className="text-right font-medium">{formatBRL(s.total_sales)}</TableCell>

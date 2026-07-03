@@ -1,8 +1,10 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { parseISO, format, isValid } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ArrowLeft, Download, DollarSign, Banknote, CreditCard, Smartphone, ArrowDownFromLine, AlertTriangle, TrendingUp, ShoppingBag, Receipt } from "lucide-react";
+import { ArrowLeft, Download, DollarSign, Banknote, CreditCard, Smartphone, ArrowDownFromLine, AlertTriangle, TrendingUp, ShoppingBag, Receipt, XCircle, Tag, ListOrdered } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,14 +25,89 @@ const movementLabel: Record<string, string> = {
 export default function DayStatement() {
   const navigate = useNavigate();
   const { date } = useParams<{ date: string }>();
-  const parsedDate = useMemo(() => (date ? parseISO(date) : new Date()), [date]);
+  // Usar "T00:00:00" para forçar interpretação como hora local (não UTC midnight)
+  const parsedDate = useMemo(() => (date ? new Date(date + "T00:00:00") : new Date()), [date]);
   const validDate = isValid(parsedDate);
-  const { data, isLoading } = usePDVCashierStatement("daily", validDate ? parsedDate : new Date());
+  const d = validDate ? parsedDate : new Date();
+  const { data, isLoading } = usePDVCashierStatement({ from: d, to: d });
+
+  const sessionIds = useMemo(() => (data?.sessions || []).map((s) => s.id), [data]);
 
   const allMovements = useMemo(
     () => (data?.sessions || []).flatMap((s) => s.movements || []),
     [data]
   );
+
+  const { data: orders } = useQuery({
+    queryKey: ["day-orders", sessionIds],
+    queryFn: async () => {
+      if (sessionIds.length === 0) return [];
+      const { data: rows } = await supabase
+        .from("pdv_orders")
+        .select("id,order_number,subtotal,total,discount,status,cancellation_reason,cancelled_at,closed_at,created_at,opened_at,source,pdv_payments(payment_method,amount)")
+        .in("cashier_session_id", sessionIds)
+        .order("created_at", { ascending: true });
+      return rows ?? [];
+    },
+    enabled: sessionIds.length > 0,
+  });
+
+  const cancelledOrders = useMemo(() => (orders || []).filter((o: any) => o.status === "cancelled"), [orders]);
+  const discountedOrders = useMemo(() => (orders || []).filter((o: any) => Number(o.discount) > 0 && o.status !== "cancelled"), [orders]);
+  const activeOrders = useMemo(() => (orders || []).filter((o: any) => o.status !== "cancelled"), [orders]);
+
+  const { data: deliveryOrders } = useQuery({
+    queryKey: ["day-delivery-orders", sessionIds],
+    queryFn: async () => {
+      if (sessionIds.length === 0) return [];
+      const { data: rows } = await supabase
+        .from("delivery_orders")
+        .select("id,order_number,total,subtotal,discount,payment_method,status,cancellation_reason,cancelled_at,customer_name,created_at,delivery_fee")
+        .in("cashier_session_id", sessionIds)
+        .order("created_at", { ascending: true });
+      return rows ?? [];
+    },
+    enabled: sessionIds.length > 0,
+  });
+
+  const deliveryActive     = useMemo(() => (deliveryOrders || []).filter((o: any) => o.status !== "cancelled"), [deliveryOrders]);
+  const deliveryCancelled  = useMemo(() => (deliveryOrders || []).filter((o: any) => o.status === "cancelled"), [deliveryOrders]);
+  const deliveryDiscounted = useMemo(() => (deliveryOrders || []).filter((o: any) => Number(o.discount) > 0 && o.status !== "cancelled"), [deliveryOrders]);
+
+  const pmMap: Record<string, string> = {
+    dinheiro: "Dinheiro", credito: "Crédito", debito: "Débito", pix: "PIX",
+    vale_refeicao: "VR", fiado: "À Prazo", cartao: "Cartão",
+    cash: "Dinheiro", credit: "Crédito", debit: "Débito", card: "Cartão",
+    online: "Online", online_delivery: "Online",
+  };
+
+  const allActiveRows = useMemo(() => {
+    const pdv = activeOrders.map((o: any) => {
+      const pmts: any[] = o.pdv_payments || [];
+      return { id: o.id, num: o.order_number, time: o.closed_at || o.created_at, pm: pmts[0]?.payment_method, amount: pmts.reduce((s: number, p: any) => s + Number(p.amount || 0), 0) || Number(o.subtotal || 0), status: o.status, tipo: "PDV" as const };
+    });
+    const del = deliveryActive.map((o: any) => ({
+      id: o.id, num: o.order_number, time: o.created_at, pm: o.payment_method, amount: Number(o.total || 0), status: o.status, tipo: "Delivery" as const,
+    }));
+    return [...pdv, ...del].sort((a, b) => new Date(a.time || "").getTime() - new Date(b.time || "").getTime());
+  }, [activeOrders, deliveryActive]);
+
+  const allCancelledRows = useMemo(() => {
+    const pdv = cancelledOrders.map((o: any) => ({ id: o.id, num: o.order_number, time: o.cancelled_at, amount: Number(o.subtotal || 0), reason: o.cancellation_reason, tipo: "PDV" as const }));
+    const del = deliveryCancelled.map((o: any) => ({ id: o.id, num: o.order_number, time: o.cancelled_at, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason, tipo: "Delivery" as const }));
+    return [...pdv, ...del].sort((a, b) => new Date(a.time || "").getTime() - new Date(b.time || "").getTime());
+  }, [cancelledOrders, deliveryCancelled]);
+
+  const allDiscountedRows = useMemo(() => {
+    const pdv = discountedOrders.map((o: any) => {
+      const pmts: any[] = o.pdv_payments || [];
+      return { id: o.id, num: o.order_number, gross: Number(o.subtotal || 0), discount: Number(o.discount || 0), paid: pmts.reduce((s: number, p: any) => s + Number(p.amount || 0), 0), tipo: "PDV" as const };
+    });
+    const del = deliveryDiscounted.map((o: any) => ({
+      id: o.id, num: o.order_number, gross: Number(o.subtotal || 0) || (Number(o.total || 0) + Number(o.discount || 0)), discount: Number(o.discount || 0), paid: Number(o.total || 0), tipo: "Delivery" as const,
+    }));
+    return [...pdv, ...del];
+  }, [discountedOrders, deliveryDiscounted]);
 
   const salesCount = useMemo(
     () => allMovements.filter((m: any) => m.type === "venda").length,
@@ -75,8 +152,9 @@ export default function DayStatement() {
     const pix = (data?.sessions || []).reduce((a, s) => a + Number(s.total_pix || 0), 0);
     const voucher = (data?.sessions || []).reduce((a, s) => a + Number(s.total_voucher || 0), 0);
     const delivery = (data?.sessions || []).reduce((a, s) => a + Number(s.total_online_delivery || 0), 0);
+    const fiado = (data?.sessions || []).reduce((a, s) => a + Number((s as any).total_fiado || 0), 0);
     const fallbackCard = (data?.sessions || []).reduce((a, s) => a + Number(s.total_card || 0), 0);
-    const total = cash + credit + debit + pix + voucher + delivery || fallbackCard + cash + pix;
+    const total = cash + credit + debit + pix + voucher + delivery + fiado || fallbackCard + cash + pix;
     const rows = [
       { metodo: "Dinheiro", valor: cash },
       { metodo: "Crédito", valor: credit },
@@ -84,6 +162,7 @@ export default function DayStatement() {
       { metodo: "PIX", valor: pix },
       { metodo: "Voucher", valor: voucher },
       { metodo: "Delivery Online", valor: delivery },
+      { metodo: "À Prazo", valor: fiado },
     ];
     // se crédito/débito vazios mas card preenchido, mostra card
     if (credit === 0 && debit === 0 && fallbackCard > 0) {
@@ -110,6 +189,15 @@ export default function DayStatement() {
     [data]
   );
 
+  const cancTotal = useMemo(() => allCancelledRows.reduce((a, o) => a + o.amount, 0), [allCancelledRows]);
+  const discTotal = useMemo(() => allDiscountedRows.reduce((a, o) => a + o.discount, 0), [allDiscountedRows]);
+
+  const trackedByOrders = useMemo(() => allActiveRows.reduce((a, o) => a + o.amount, 0), [allActiveRows]);
+  const untrackedAmount = useMemo(
+    () => Math.round(Math.max(0, totalSales - trackedByOrders) * 100) / 100,
+    [totalSales, trackedByOrders]
+  );
+
   const handleExport = () => {
     if (!data) return;
     const lines = [
@@ -125,6 +213,8 @@ export default function DayStatement() {
       `Sangrias;${formatBRL(data.kpis.totalWithdrawals)}`,
       `Diferença total;${formatBRL(totalDifference)}`,
       `Sessões;${data.kpis.sessionsCount} (${sessionsClosed} fechadas / ${sessionsOpen} abertas)`,
+      `Cancelamentos;${cancelledOrders.length} pedidos / ${formatBRL(cancTotal)}`,
+      `Descontos concedidos;${formatBRL(discTotal)}`,
     ];
     downloadCsv(`demonstrativo_dia_${format(parsedDate, "yyyy-MM-dd")}.csv`, lines);
   };
@@ -146,7 +236,7 @@ export default function DayStatement() {
     { label: "Cartão", value: formatBRL(data?.kpis.totalCard || 0), hint: `${pct(data?.kpis.totalCard || 0)}%`, icon: CreditCard },
     { label: "PIX", value: formatBRL(data?.kpis.totalPix || 0), hint: `${pct(data?.kpis.totalPix || 0)}%`, icon: Smartphone },
     { label: "Sangrias", value: formatBRL(data?.kpis.totalWithdrawals || 0), icon: ArrowDownFromLine, color: "text-warning" },
-    { label: "Diferença", value: formatBRL(totalDifference), icon: AlertTriangle, color: Math.abs(totalDifference) > 5 ? "text-destructive" : "" },
+    { label: "Diferença", value: formatBRL(totalDifference), icon: AlertTriangle, color: Math.abs(totalDifference) > 5 ? (totalDifference > 0 ? "text-success" : "text-destructive") : "" },
   ];
 
   const secondaryCards = [
@@ -278,6 +368,143 @@ export default function DayStatement() {
         </CardContent>
       </Card>
 
+      {allActiveRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ListOrdered className="h-4 w-4" />
+              Movimentação de Pedidos
+              <span className="ml-auto text-sm font-normal text-muted-foreground">{allActiveRows.length} pedido{allActiveRows.length !== 1 ? "s" : ""}</span>
+            </CardTitle>
+            <CardDescription>Todos os pedidos do dia (PDV e Delivery)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nº</TableHead>
+                  <TableHead>Horário</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Forma de Pgto</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allActiveRows.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-medium">#{o.num ?? "—"}</TableCell>
+                    <TableCell>{o.time ? format(new Date(o.time), "HH:mm") : "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={o.tipo === "Delivery" ? "secondary" : "outline"}>{o.tipo}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{o.pm ? (pmMap[o.pm] || o.pm) : "—"}</TableCell>
+                    <TableCell className="text-right font-medium">{formatBRL(o.amount)}</TableCell>
+                  </TableRow>
+                ))}
+                {untrackedAmount > 0.01 && (
+                  <TableRow className="text-muted-foreground italic">
+                    <TableCell colSpan={4}>Outros pagamentos</TableCell>
+                    <TableCell className="text-right">{formatBRL(untrackedAmount)}</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+            <div className="mt-3 flex justify-end border-t pt-3">
+              <span className="text-sm font-bold">Total: {formatBRL(totalSales)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {allCancelledRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-destructive" />
+              Cancelamentos
+              <Badge variant="destructive" className="ml-auto">{allCancelledRows.length}</Badge>
+            </CardTitle>
+            <CardDescription>Pedidos cancelados durante o dia</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nº</TableHead>
+                  <TableHead>Horário</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Motivo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allCancelledRows.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="font-medium">#{o.num ?? "—"}</TableCell>
+                    <TableCell>{o.time ? format(new Date(o.time), "HH:mm") : "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={o.tipo === "Delivery" ? "secondary" : "outline"}>{o.tipo}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-destructive">{formatBRL(o.amount)}</TableCell>
+                    <TableCell className="text-muted-foreground">{o.reason || "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="mt-3 flex justify-end border-t pt-3">
+              <span className="text-sm font-bold text-destructive">Total cancelado: {formatBRL(cancTotal)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {allDiscountedRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-warning" />
+              Descontos Concedidos
+              <span className="ml-auto text-sm font-normal text-muted-foreground">{allDiscountedRows.length} pedido{allDiscountedRows.length !== 1 ? "s" : ""}</span>
+            </CardTitle>
+            <CardDescription>Pedidos com desconto aplicado</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nº</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Total Bruto</TableHead>
+                  <TableHead className="text-right">Desconto</TableHead>
+                  <TableHead className="text-right">Total Final</TableHead>
+                  <TableHead className="text-right">%</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allDiscountedRows.map((o) => {
+                  const pct = o.gross > 0 ? ((o.discount / o.gross) * 100).toFixed(1) : "0.0";
+                  return (
+                    <TableRow key={o.id}>
+                      <TableCell className="font-medium">#{o.num ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={o.tipo === "Delivery" ? "secondary" : "outline"}>{o.tipo}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">{formatBRL(o.gross)}</TableCell>
+                      <TableCell className="text-right text-warning font-medium">-{formatBRL(o.discount)}</TableCell>
+                      <TableCell className="text-right font-medium">{formatBRL(o.paid)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{pct}%</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <div className="mt-3 flex justify-end border-t pt-3">
+              <span className="text-sm font-bold text-warning">Total em descontos: -{formatBRL(discTotal)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Sangrias e reforços</CardTitle>
@@ -341,7 +568,7 @@ export default function DayStatement() {
                       {format(new Date(s.opened_at), "HH:mm")}
                       {s.closed_at ? ` → ${format(new Date(s.closed_at), "HH:mm")}` : " (aberto)"}
                     </TableCell>
-                    <TableCell className={`text-right font-medium ${Math.abs(Number(s.balance_difference)) > 5 ? "text-destructive" : ""}`}>
+                    <TableCell className={`text-right font-medium ${Math.abs(Number(s.balance_difference)) > 5 ? (Number(s.balance_difference) > 0 ? "text-success" : "text-destructive") : ""}`}>
                       {formatBRL(Number(s.balance_difference))}
                     </TableCell>
                     <TableCell>

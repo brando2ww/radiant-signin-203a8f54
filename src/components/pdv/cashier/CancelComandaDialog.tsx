@@ -39,7 +39,7 @@ const CATEGORIES: { value: CancelCategory; label: string }[] = [
   { value: "outro", label: "Outro" },
 ];
 
-const MIN_REASON_LENGTH = 20;
+const MIN_REASON_LENGTH = 10;
 
 interface CancelComandaDialogProps {
   open: boolean;
@@ -178,7 +178,7 @@ export function CancelComandaDialog({
             id="cancel-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Descreva o motivo do cancelamento (mínimo 20 caracteres)..."
+            placeholder="Descreva o motivo do cancelamento (mínimo 10 caracteres)..."
             rows={4}
             disabled={isLoading}
             maxLength={500}

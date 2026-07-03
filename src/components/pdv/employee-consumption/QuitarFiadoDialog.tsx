@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   ShieldAlert,
@@ -45,7 +47,7 @@ const METHODS = [
 type Step = "auth" | "payment";
 
 export function QuitarFiadoDialog({ open, onOpenChange, employee, activeSession }: Props) {
-  const { settleConsumption } = useEmployeeConsumption();
+  const { settleConsumption, isSettling } = useEmployeeConsumption();
 
   const [step, setStep] = useState<Step>("auth");
   const [password, setPassword] = useState("");
@@ -54,7 +56,8 @@ export function QuitarFiadoDialog({ open, onOpenChange, employee, activeSession 
 
   const balance = employee.balance ?? 0;
   const [method, setMethod] = useState<string>("dinheiro");
-  const [amountStr, setAmountStr] = useState("");
+  const [amountValue, setAmountValue] = useState("");
+  const [registerInCashier, setRegisterInCashier] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -63,7 +66,8 @@ export function QuitarFiadoDialog({ open, onOpenChange, employee, activeSession 
       setIsVerifying(false);
       setAuthorizedBy("");
       setMethod("dinheiro");
-      setAmountStr(balance > 0 ? String(balance.toFixed(2)).replace(".", ",") : "");
+      setAmountValue(balance > 0 ? balance.toFixed(2) : "");
+      setRegisterInCashier(true);
     }
   }, [open, balance]);
 
@@ -92,27 +96,20 @@ export function QuitarFiadoDialog({ open, onOpenChange, employee, activeSession 
     }
   };
 
-  const parseAmount = (s: string) => {
-    const n = parseFloat(s.replace(",", "."));
-    return isNaN(n) ? 0 : n;
-  };
-
-  const amount = parseAmount(amountStr);
+  const amount = parseFloat(amountValue) || 0;
   const change = method === "dinheiro" && amount > balance ? amount - balance : 0;
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (!activeSession || amount <= 0) return;
-    try {
-      await settleConsumption.mutateAsync({
+    settleConsumption(
+      {
         employee_id: employee.id,
         amount,
-        session_id: activeSession.id,
+        session_id: registerInCashier ? activeSession.id : null,
         payment_method: method,
-      });
-      onOpenChange(false);
-    } catch {
-      /* toast handled by mutation */
-    }
+      },
+      { onSuccess: () => onOpenChange(false) }
+    );
   };
 
   return (
@@ -200,12 +197,10 @@ export function QuitarFiadoDialog({ open, onOpenChange, employee, activeSession 
 
             <div className="space-y-2">
               <Label htmlFor="quitar-amount">Valor</Label>
-              <Input
+              <CurrencyInput
                 id="quitar-amount"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={amountStr}
-                onChange={(e) => setAmountStr(e.target.value)}
+                value={amountValue}
+                onChange={setAmountValue}
               />
               {balance > 0 && (
                 <p className="text-xs text-muted-foreground">
@@ -221,15 +216,31 @@ export function QuitarFiadoDialog({ open, onOpenChange, employee, activeSession 
               </div>
             )}
 
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="register-cashier" className="text-sm font-medium cursor-pointer">
+                  Contabilizar na sessão de caixa
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Desative se a venda a prazo já foi contabilizada na sessão
+                </p>
+              </div>
+              <Switch
+                id="register-cashier"
+                checked={registerInCashier}
+                onCheckedChange={setRegisterInCashier}
+              />
+            </div>
+
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
               <Button
                 onClick={handleConfirm}
-                disabled={amount <= 0 || !activeSession || settleConsumption.isPending}
+                disabled={amount <= 0 || !activeSession || isSettling}
               >
-                {settleConsumption.isPending ? (
+                {isSettling ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : null}
                 Confirmar

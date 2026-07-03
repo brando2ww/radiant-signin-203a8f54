@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -210,103 +210,88 @@ export async function printCashierReport(params: PrintCashierReportParams) {
     })
     .join("");
 
-  // Busca cancelamentos, descontos e despesas vinculados a esta sessão.
-  let cancellations: Array<{ order_number: any; total: number; cancellation_reason: string | null }> = [];
-  let discounts: Array<{ order_number: any; discount: number; total: number }> = [];
+  // Busca apenas despesas financeiras vinculadas à sessão (cancelamentos e descontos ficam no demonstrativo digital).
   let expenses: Array<{ description: string; amount: number }> = [];
   if (session?.id) {
     try {
-      const [{ data: cancs }, { data: discs }, { data: expData }] = await Promise.all([
-        supabase
-          .from("pdv_orders")
-          .select("order_number,total,cancellation_reason,cancelled_at")
-          .eq("cashier_session_id", session.id)
-          .eq("status", "cancelled")
-          .order("cancelled_at", { ascending: true }),
-        supabase
-          .from("pdv_orders")
-          .select("order_number,discount,total,closed_at")
-          .eq("cashier_session_id", session.id)
-          .neq("status", "cancelled")
-          .gt("discount", 0)
-          .order("closed_at", { ascending: true }),
-        supabase
-          .from("pdv_financial_transactions")
-          .select("description,amount,payment_date")
-          .eq("user_id", session.user_id)
-          .eq("transaction_type", "expense")
-          .eq("status", "paid")
-          .gte("payment_date", session.opened_at.slice(0, 10))
-          .lte("payment_date", (session.closed_at || new Date().toISOString()).slice(0, 10))
-          .order("payment_date", { ascending: true }),
-      ]);
-      cancellations = (cancs || []).map((r: any) => ({
-        order_number: r.order_number,
-        total: Number(r.total) || 0,
-        cancellation_reason: r.cancellation_reason,
-      }));
-      discounts = (discs || []).map((r: any) => ({
-        order_number: r.order_number,
-        discount: Number(r.discount) || 0,
-        total: Number(r.total) || 0,
-      }));
+      const { data: expData } = await supabase
+        .from("pdv_financial_transactions")
+        .select("description,amount,payment_date")
+        .eq("user_id", session.user_id)
+        .eq("transaction_type", "expense")
+        .eq("status", "paid")
+        .gte("payment_date", session.opened_at.slice(0, 10))
+        .lte("payment_date", (session.closed_at || new Date().toISOString()).slice(0, 10))
+        .order("payment_date", { ascending: true });
       expenses = (expData || []).map((r: any) => ({
         description: r.description || "Despesa",
         amount: Number(r.amount) || 0,
       }));
     } catch {
-      // segue impressão sem essas seções
+      // segue impressão sem despesas
     }
   }
 
-  const cancellationsTotal = cancellations.reduce((a, c) => a + c.total, 0);
-  const discountsTotal = discounts.reduce((a, d) => a + d.discount, 0);
   const expensesTotal = expenses.reduce((a, e) => a + e.amount, 0);
+
+  // Cancelamentos e Descontos por sessão
+  let cancelledOrders: Array<{ num: number | null; amount: number; reason: string | null }> = [];
+  let discountedOrders: Array<{ num: number | null; discount: number }> = [];
+  if (session?.id) {
+    try {
+      const [{ data: cancelPdv }, { data: cancelDel }, { data: discPdv }, { data: discDel }] = await Promise.all([
+        supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
+        supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
+        supabase.from("pdv_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
+        supabase.from("delivery_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
+      ]);
+      cancelledOrders = [
+        ...(cancelPdv || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
+        ...(cancelDel || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason })),
+      ];
+      discountedOrders = [
+        ...(discPdv || []).map((o: any) => ({ num: o.order_number, discount: Number(o.discount || 0) })),
+        ...(discDel || []).map((o: any) => ({ num: o.order_number, discount: Number(o.discount || 0) })),
+      ];
+    } catch {
+      // segue sem esses dados
+    }
+  }
+  const cancTotal = cancelledOrders.reduce((a, o) => a + o.amount, 0);
+  const discTotal = discountedOrders.reduce((a, o) => a + o.discount, 0);
 
   const reinforcementItems = movements.filter((m) => m.type === "reforco");
   const withdrawalItems = movements.filter((m) => m.type === "sangria");
   const reinforcementsTotal = reinforcementItems.reduce((a, m) => a + m.amount, 0);
   const withdrawalsTotal = withdrawalItems.reduce((a, m) => a + m.amount, 0);
 
-  const reinforcementsHtml = reinforcementItems.length
-    ? `<div class="divider"></div>
+  const reinforcementsHtml = `<div class="divider"></div>
 <div class="section">
   <div class="section-title">REFORÇOS (ENTRADAS)</div>
-  <div class="row total"><span>${reinforcementItems.length} entrada${reinforcementItems.length > 1 ? "s" : ""}</span><span>+ ${formatBRL(reinforcementsTotal)}</span></div>
+  <div class="row total"><span>${reinforcementItems.length} entrada${reinforcementItems.length !== 1 ? "s" : ""}</span><span>+ ${formatBRL(reinforcementsTotal)}</span></div>
   ${reinforcementItems.map((m) => `<div class="row"><span>${format(new Date(m.created_at), "HH:mm", { locale: ptBR })} — ${m.description || "Reforço"}</span><span>${formatBRL(m.amount)}</span></div>`).join("")}
-</div>`
-    : "";
+</div>`;
 
-  const withdrawalsHtml = withdrawalItems.length
-    ? `<div class="divider"></div>
+  const withdrawalsHtml = `<div class="divider"></div>
 <div class="section">
   <div class="section-title">SANGRIAS (SAÍDAS)</div>
-  <div class="row total"><span>${withdrawalItems.length} saída${withdrawalItems.length > 1 ? "s" : ""}</span><span>- ${formatBRL(withdrawalsTotal)}</span></div>
+  <div class="row total"><span>${withdrawalItems.length} saída${withdrawalItems.length !== 1 ? "s" : ""}</span><span>- ${formatBRL(withdrawalsTotal)}</span></div>
   ${withdrawalItems.map((m) => `<div class="row"><span>${format(new Date(m.created_at), "HH:mm", { locale: ptBR })} — ${m.description || "Sangria"}</span><span>${formatBRL(m.amount)}</span></div>`).join("")}
-</div>`
-    : "";
+</div>`;
 
-  const cancellationsHtml = cancellations.length
-    ? `<div class="divider"></div>
+  const cancellationsHtml = `<div class="divider"></div>
 <div class="section">
   <div class="section-title">CANCELAMENTOS</div>
-  <div class="row total"><span>${cancellations.length} pedido${cancellations.length > 1 ? "s" : ""}</span><span>- ${formatBRL(cancellationsTotal)}</span></div>
-  ${cancellations
-    .map(
-      (c) => `<div class="row"><span>#${c.order_number ?? "—"}${c.cancellation_reason ? ` — ${String(c.cancellation_reason).slice(0, 40)}` : ""}</span><span>${formatBRL(c.total)}</span></div>`,
-    )
-    .join("")}
-</div>`
-    : "";
+  <div class="row total"><span>${cancelledOrders.length} cancelamento${cancelledOrders.length !== 1 ? "s" : ""}</span><span>${cancelledOrders.length > 0 ? `- ${formatBRL(cancTotal)}` : "R$ 0,00"}</span></div>
+  ${cancelledOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}${o.reason ? ` — ${String(o.reason).slice(0, 30)}` : ""}</span><span>${formatBRL(o.amount)}</span></div>`).join("")}
+</div>`;
 
-  const discountsHtml = discountsTotal > 0
-    ? `<div class="divider"></div>
+  const discountsHtml = `<div class="divider"></div>
 <div class="section">
   <div class="section-title">DESCONTOS CONCEDIDOS</div>
-  <div class="row total"><span>Total de descontos:</span><span>- ${formatBRL(discountsTotal)}</span></div>
-  <div class="row"><span style="font-size:11px;opacity:0.65">${discounts.length} comanda${discounts.length !== 1 ? "s" : ""} com desconto</span></div>
-</div>`
-    : "";
+  <div class="row total"><span>${discountedOrders.length} pedido${discountedOrders.length !== 1 ? "s" : ""}</span><span>${discountedOrders.length > 0 ? `- ${formatBRL(discTotal)}` : "R$ 0,00"}</span></div>
+  ${discountedOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}</span><span>- ${formatBRL(o.discount)}</span></div>`).join("")}
+</div>`;
 
   const expensesHtml = expenses.length
     ? `<div class="divider"></div>
@@ -322,26 +307,6 @@ export async function printCashierReport(params: PrintCashierReportParams) {
     ok: "OK", low: "Baixo", medium: "Médio", high: "Alto", critical: "Crítico",
   };
 
-  const movementRows = movements.map((m) => {
-    const time = format(new Date(m.created_at), "HH:mm", { locale: ptBR });
-    const typeLabel = m.type === "venda" ? "Venda" : m.type === "sangria" ? "Sangria" : m.type === "reforco" ? "Reforço" : m.type;
-    const methodMap: Record<string, string> = {
-      dinheiro: "Dinheiro",
-      cartao: "Cartão",
-      credito: "Crédito",
-      debito: "Débito",
-      pix: "PIX",
-      vale_refeicao: "VR",
-      fiado: "À Prazo",
-    };
-    const method = m.payment_method ? methodMap[m.payment_method] || m.payment_method : "";
-    return `<tr>
-      <td style="padding:3px 6px;font-size:12px">${time}</td>
-      <td style="padding:3px 6px;font-size:12px"><b>${typeLabel}</b></td>
-      <td style="padding:3px 6px;font-size:12px">${method}</td>
-      <td style="padding:3px 6px;font-size:12px;text-align:right"><b>${formatBRL(m.amount)}</b></td>
-    </tr>`;
-  }).join("");
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Demonstrativo de Caixa</title>
 <style>
@@ -387,16 +352,9 @@ ${conferenceHtml ? `<div class="divider"></div>
 </div>
 ${reinforcementsHtml}
 ${withdrawalsHtml}
+${expensesHtml}
 ${cancellationsHtml}
 ${discountsHtml}
-${expensesHtml}
-${movements.length > 0 ? `
-<div class="divider"></div>
-<div class="section">
-  <div class="section-title">MOVIMENTAÇÕES</div>
-  <table><thead><tr><th>Hora</th><th>Tipo</th><th>Forma</th><th style="text-align:right">Valor</th></tr></thead>
-  <tbody>${movementRows}</tbody></table>
-</div>` : ""}
 ${finalNotes ? `
 <div class="divider"></div>
 <div class="section">
@@ -608,12 +566,11 @@ export function CloseCashierDialog({
   const [isVerifyingManager, setIsVerifyingManager] = useState(false);
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
 
-  // Reset on close
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset on close — preserva step e declared* para retomar de onde parou
   useEffect(() => {
     if (!open) {
-      setStep("blind");
-      setDeclaredCash(""); setDeclaredCredit(""); setDeclaredDebit("");
-      setDeclaredPix(""); setDeclaredVoucher(""); setDeclaredFiado("");
       setJustCash(""); setJustCredit(""); setJustDebit(""); setJustPix("");
       setJustVoucher(""); setJustOnline(""); setJustOther(""); setJustFiado(""); setNotes("");
       setNeedsManagerAuth(false);
@@ -621,6 +578,32 @@ export function CloseCashierDialog({
       setSnapshotId(null);
     }
   }, [open]);
+
+  // Auto-save debounced do rascunho cross-device no banco
+  useEffect(() => {
+    if (!open || !session?.id || step !== "blind") return;
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    draftSaveTimerRef.current = setTimeout(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await supabase
+          .from("pdv_cashier_close_drafts")
+          .upsert({
+            cashier_session_id: session.id,
+            user_id: user.id,
+            declared_cash:    parseFloat(declaredCash)    || null,
+            declared_credit:  parseFloat(declaredCredit)  || null,
+            declared_debit:   parseFloat(declaredDebit)   || null,
+            declared_pix:     parseFloat(declaredPix)     || null,
+            declared_voucher: parseFloat(declaredVoucher) || null,
+            declared_fiado:   parseFloat(declaredFiado)   || null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "cashier_session_id" });
+      } catch {}
+    }, 1500);
+    return () => { if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current); };
+  }, [open, session?.id, step, declaredCash, declaredCredit, declaredDebit, declaredPix, declaredVoucher, declaredFiado]);
 
   // Ao abrir, recalcula totais e verifica se já existe snapshot da Etapa 1
   useEffect(() => {
@@ -653,6 +636,22 @@ export function CloseCashierDialog({
           setDeclaredVoucher(toStr(snap.declared_voucher));
           setDeclaredFiado(toStr((snap as any).declared_fiado));
           setStep("review");
+        }
+      } else {
+        // Sem snapshot committed: restaurar rascunho cross-device do banco
+        const { data: draft } = await supabase
+          .from("pdv_cashier_close_drafts")
+          .select("declared_cash, declared_credit, declared_debit, declared_pix, declared_voucher, declared_fiado")
+          .eq("cashier_session_id", session.id)
+          .maybeSingle();
+        if (draft) {
+          const toStr = (v: any) => (v == null ? "" : String(Number(v)));
+          setDeclaredCash(toStr(draft.declared_cash));
+          setDeclaredCredit(toStr(draft.declared_credit));
+          setDeclaredDebit(toStr(draft.declared_debit));
+          setDeclaredPix(toStr(draft.declared_pix));
+          setDeclaredVoucher(toStr(draft.declared_voucher));
+          setDeclaredFiado(toStr(draft.declared_fiado));
         }
       }
     })();
@@ -718,6 +717,7 @@ export function CloseCashierDialog({
         declaredFiado: parseN(declaredFiado),
         declaredTotal: blindTotal,
       });
+      supabase.from("pdv_cashier_close_drafts").delete().eq("cashier_session_id", session.id);
       setStep("review");
     } catch {
       /* toast handled in mutation */
@@ -831,6 +831,7 @@ export function CloseCashierDialog({
 
   const handleFinalize = () => {
     if (!allJustified) return;
+    if (session?.id) supabase.from("pdv_cashier_close_drafts").delete().eq("cashier_session_id", session.id);
     const payload = buildPayload();
     printCashierReport({
       session: {

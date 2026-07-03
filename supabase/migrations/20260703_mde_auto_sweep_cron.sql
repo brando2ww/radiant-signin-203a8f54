@@ -1,0 +1,8 @@
+-- Fase 2: puxada automática de NF-es recebidas (MDe) via edge function batch + pg_cron.
+-- Edge function: supabase/functions/focusnfe-mde-sweep (deployada em prod, verify_jwt=false, protegida por header x-sweep-secret=MDE_SWEEP_SECRET).
+-- Aplicado em prod (frbziqazwhymwsrtneoy) em 03/07/2026.
+-- Itera tenants com token Focus + CNPJ, roda consulta MDe (nfes_recebidas) e grava em pdv_invoices(source='mde').
+-- Agendado (de hora em hora, respeitando limite SEFAZ DFe):
+-- select cron.schedule('velara-mde-sweep-hourly','0 * * * *', net.http_post(url=focusnfe-mde-sweep, headers: apikey+x-sweep-secret));
+-- PRÉ-REQUISITO Focus (pendente do cliente): conta habilitada para DF-e/notas recebidas + CNPJ autorizado + token/ambiente corretos.
+--   Hoje retorna 401/400 (Access token inválido / CNPJ do emitente não autorizado) — config lado Focus, não bug.

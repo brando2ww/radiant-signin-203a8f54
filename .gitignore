@@ -26,3 +26,7 @@ dist-ssr
 .env.*
 !.env.example
 .vercel
+
+# build artifacts (não versionar binários pesados)
+print-bridge/VelaraPrintBridge.zip
+print-bridge/dist/*.exe

@@ -26,4 +26,4 @@ export function getCancelCategoryLabel(value?: string | null): string {
   return (CANCEL_CATEGORY_LABEL as Record<string, string>)[value] || value;
 }
 
-export const MIN_CANCEL_REASON_LENGTH = 20;
+export const MIN_CANCEL_REASON_LENGTH = 10;

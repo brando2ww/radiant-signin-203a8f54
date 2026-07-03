@@ -20,8 +20,16 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { CurrencyInput } from "@/components/ui/currency-input";
-import { CalendarIcon, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { CalendarIcon, ChevronsUpDown, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -65,6 +73,7 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [chartAccountId, setChartAccountId] = useState<string>(NONE);
+  const [chartAccountOpen, setChartAccountOpen] = useState(false);
   const [costCenterId, setCostCenterId] = useState<string>(NONE);
   const [paymentMethod, setPaymentMethod] = useState<string>(cashierSessionId ? "dinheiro" : NONE);
   const [supplierId, setSupplierId] = useState<string>(NONE);
@@ -182,21 +191,47 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
 
             <div className="space-y-2">
               <Label>Plano de contas *</Label>
-              <Select value={chartAccountId} onValueChange={setChartAccountId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE} disabled>
-                    Selecione a categoria
-                  </SelectItem>
-                  {accountOptions.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.code} - {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={chartAccountOpen} onOpenChange={setChartAccountOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between h-10 font-normal text-left"
+                  >
+                    <span className="truncate">
+                      {chartAccountId !== NONE
+                        ? (() => {
+                            const a = accountOptions.find((a) => a.id === chartAccountId);
+                            return a ? `${a.code} - ${a.name}` : "Selecione a categoria";
+                          })()
+                        : "Selecione a categoria"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar categoria..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhuma categoria encontrada</CommandEmpty>
+                      <CommandGroup>
+                        {accountOptions.map((a) => (
+                          <CommandItem
+                            key={a.id}
+                            value={`${a.code} - ${a.name}`}
+                            onSelect={() => {
+                              setChartAccountId(a.id);
+                              setChartAccountOpen(false);
+                            }}
+                          >
+                            {a.code} - {a.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
