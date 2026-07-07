@@ -67,6 +67,16 @@ Deno.serve(async (req) => {
         const emissMs = Date.parse(emissaoRaw);
         if (!Number.isNaN(emissMs) && emissMs < cutoffMs) continue;
 
+        // Campos vêm do resumo MDe do Focus (documento_emitente/valor_total);
+        // numero e serie são extraídos da chave (não vêm no resumo).
+        const digits = chave.replace(/\D/g, "");
+        const numeroFromChave = digits.length === 44 ? String(parseInt(digits.slice(25, 34), 10)) : "";
+        const serieFromChave = digits.length === 44 ? String(parseInt(digits.slice(22, 25), 10)) : "";
+        const cnpjEmit = String(note.documento_emitente || note.cnpj_emitente || "").replace(/\D/g, "");
+        const valorTotal = Number(note.valor_total ?? note.valor ?? 0);
+        const nomeEmit = note.nome_emitente || note.razao_social_emitente || "";
+        const situacaoMde = note.situacao_manifesto || note.situacao || "pendente";
+
         // Deduplicar por chave de acesso
         const { error: upsertError, data: existing } = await service
           .from("pdv_invoices")
@@ -80,19 +90,19 @@ Deno.serve(async (req) => {
           const { error: insertError } = await service.from("pdv_invoices").insert({
             user_id: ownerId,
             invoice_key: chave,
-            invoice_number: String(note.numero || ""),
-            series: String(note.serie || "1"),
+            invoice_number: String(note.numero || numeroFromChave || ""),
+            series: String(note.serie || serieFromChave || "1"),
             emission_date: emissaoRaw,
-            supplier_cnpj: (note.cnpj_emitente || "").replace(/\D/g, ""),
-            supplier_name: note.nome_emitente || note.razao_social_emitente || "",
-            total_products: Number(note.valor || 0),
+            supplier_cnpj: cnpjEmit,
+            supplier_name: nomeEmit,
+            total_products: valorTotal,
             total_tax: 0,
-            total_invoice: Number(note.valor || 0),
+            total_invoice: valorTotal,
             operation_type: "entrada",
             invoice_type: "compra",
             status: "pending",
             source: "mde",
-            mde_status: note.situacao_manifesto || "pendente",
+            mde_status: situacaoMde,
             mde_raw_payload: note,
             mde_queried_at: new Date().toISOString(),
           });
@@ -101,7 +111,14 @@ Deno.serve(async (req) => {
           await service
             .from("pdv_invoices")
             .update({
-              mde_status: note.situacao_manifesto || "pendente",
+              invoice_number: String(note.numero || numeroFromChave || ""),
+              series: String(note.serie || serieFromChave || "1"),
+              emission_date: emissaoRaw,
+              supplier_cnpj: cnpjEmit,
+              supplier_name: nomeEmit,
+              total_products: valorTotal,
+              total_invoice: valorTotal,
+              mde_status: situacaoMde,
               mde_raw_payload: note,
               mde_queried_at: new Date().toISOString(),
             })

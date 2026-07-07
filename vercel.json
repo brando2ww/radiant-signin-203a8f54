@@ -1,3 +1,9 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/l/cotacao/:token",
+      "destination": "https://frbziqazwhymwsrtneoy.supabase.co/functions/v1/og-cotacao?token=:token"
+    },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }

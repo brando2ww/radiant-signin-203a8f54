@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfDay, endOfDay, format, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
+import { brtRange } from "@/lib/reports-data-source";
+
+const DELIVERED = ["delivered", "completed", "entregue"];
+const isCancelled = (s: string) => s === "cancelled" || s === "cancelada";
 
 export interface DeliveryMetrics {
   totalOrders: number;
@@ -34,19 +38,22 @@ export const useDeliveryMetrics = (userId: string, startDate: Date, endDate: Dat
   return useQuery({
     queryKey: ["delivery-metrics", userId, startDate, endDate],
     queryFn: async () => {
+      const { startISO, endISO } = brtRange(startDate, endDate);
       const { data, error } = await supabase
         .from("delivery_orders")
         .select("total,status,order_type,created_at,delivered_at")
         .eq("user_id", userId)
-        .gte("created_at", startOfDay(startDate).toISOString())
-        .lte("created_at", endOfDay(endDate).toISOString());
+        .gte("created_at", startISO)
+        .lte("created_at", endISO);
 
       if (error) throw error;
 
       const totalOrders = data.length;
-      const totalRevenue = data.reduce((s, o) => s + Number(o.total), 0);
-      const cancelled = data.filter((o) => o.status === "cancelled").length;
-      const delivered = data.filter((o) => o.status === "delivered" && o.delivered_at);
+      const cancelled = data.filter((o) => isCancelled(o.status)).length;
+      // Faturamento e ticket contam SÓ pedidos concluídos (exclui cancelados/em andamento).
+      const completed = data.filter((o) => DELIVERED.includes(o.status));
+      const totalRevenue = completed.reduce((s, o) => s + Number(o.total), 0);
+      const delivered = completed.filter((o) => o.delivered_at);
       const avgDeliveryTimeMin =
         delivered.length > 0
           ? delivered.reduce(
@@ -59,8 +66,8 @@ export const useDeliveryMetrics = (userId: string, startDate: Date, endDate: Dat
       const metrics: DeliveryMetrics = {
         totalOrders,
         totalRevenue,
-        averageTicket: totalOrders > 0 ? totalRevenue / totalOrders : 0,
-        completedOrders: data.filter((o) => o.status === "delivered").length,
+        averageTicket: completed.length > 0 ? totalRevenue / completed.length : 0,
+        completedOrders: completed.length,
         cancelledOrders: cancelled,
         deliveryOrders: data.filter((o) => o.order_type === "delivery").length,
         pickupOrders: data.filter((o) => o.order_type === "pickup").length,
@@ -77,13 +84,14 @@ export const useDailySales = (userId: string, startDate: Date, endDate: Date) =>
   return useQuery({
     queryKey: ["daily-sales", userId, startDate, endDate],
     queryFn: async () => {
+      const { startISO, endISO } = brtRange(startDate, endDate);
       const { data, error } = await supabase
         .from("delivery_orders")
         .select("created_at, total")
         .eq("user_id", userId)
         .neq("status", "cancelled")
-        .gte("created_at", startOfDay(startDate).toISOString())
-        .lte("created_at", endOfDay(endDate).toISOString())
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
         .order("created_at");
 
       if (error) throw error;
@@ -123,13 +131,14 @@ export const useTopProducts = (userId: string, startDate: Date, endDate: Date) =
   return useQuery({
     queryKey: ["top-products", userId, startDate, endDate],
     queryFn: async () => {
+      const { startISO, endISO } = brtRange(startDate, endDate);
       const { data: orders, error: ordersError } = await supabase
         .from("delivery_orders")
         .select("id")
         .eq("user_id", userId)
         .neq("status", "cancelled")
-        .gte("created_at", startOfDay(startDate).toISOString())
-        .lte("created_at", endOfDay(endDate).toISOString());
+        .gte("created_at", startISO)
+        .lte("created_at", endISO);
 
       if (ordersError) throw ordersError;
       if (!orders.length) return [];

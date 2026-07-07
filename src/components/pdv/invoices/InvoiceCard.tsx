@@ -34,6 +34,18 @@ export function InvoiceCard({ invoice, onView, onDelete }: InvoiceCardProps) {
   };
 
   const isAutoImported = invoice.source === 'sefaz_auto';
+  const isMde = invoice.source === 'mde';
+  const productsReady = ((invoice as any).mde_raw_payload?.nfe_completa === true);
+  // Status de download dos produtos (só para notas recebidas via MDe).
+  const productsBadge = !isMde || invoice.status === 'imported' ? null : productsReady ? (
+    <Badge variant="outline" className="text-xs border-emerald-500/50 text-emerald-600">
+      Produtos disponíveis
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-600">
+      Aguardando SEFAZ
+    </Badge>
+  );
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
@@ -52,6 +64,12 @@ export function InvoiceCard({ invoice, onView, onDelete }: InvoiceCardProps) {
                   Automática
                 </Badge>
               )}
+              {isMde && (
+                <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-600">
+                  Recebida
+                </Badge>
+              )}
+              {productsBadge}
             </div>
 
             <p className="text-sm text-muted-foreground mb-2">

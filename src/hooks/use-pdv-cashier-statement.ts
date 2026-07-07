@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { format, startOfDay, endOfDay, eachDayOfInterval, isSameDay } from "date-fns";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
+import { format, eachDayOfInterval, isSameDay } from "date-fns";
+import { brtRange } from "@/lib/reports-data-source";
 
 export interface CashierStatementSession {
   id: string;
@@ -59,24 +60,23 @@ export interface DailySummary {
 }
 
 export function usePDVCashierStatement(dateRange: { from: Date; to: Date }) {
-  const { user } = useAuth();
+  const { visibleUserId } = useEstablishmentId();
 
   const fromKey = format(dateRange.from, "yyyy-MM-dd");
   const toKey = format(dateRange.to, "yyyy-MM-dd");
   const isSingleDay = fromKey === toKey;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pdv-cashier-statement", user?.id, fromKey, toKey],
+    queryKey: ["pdv-cashier-statement", visibleUserId, fromKey, toKey],
+    enabled: !!visibleUserId,
     queryFn: async () => {
-      if (!user) throw new Error("Usuário não autenticado");
-
-      const dateFrom = startOfDay(dateRange.from).toISOString();
-      const dateTo = endOfDay(dateRange.to).toISOString();
+      const owner = visibleUserId!;
+      const { startISO: dateFrom, endISO: dateTo } = brtRange(dateRange.from, dateRange.to);
 
       const { data: sessions, error } = await supabase
         .from("pdv_cashier_sessions")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", owner)
         .gte("opened_at", dateFrom)
         .lte("opened_at", dateTo)
         .order("opened_at", { ascending: false });
@@ -123,7 +123,7 @@ export function usePDVCashierStatement(dateRange: { from: Date; to: Date }) {
         const { data: cancelled } = await supabase
           .from("pdv_comandas")
           .select("cancelled_at")
-          .eq("user_id", user.id)
+          .eq("user_id", owner)
           .not("cancelled_at", "is", null)
           .gte("cancelled_at", dateFrom)
           .lte("cancelled_at", dateTo);
@@ -191,7 +191,6 @@ export function usePDVCashierStatement(dateRange: { from: Date; to: Date }) {
         },
       };
     },
-    enabled: !!user,
   });
 
   return { data, isLoading };

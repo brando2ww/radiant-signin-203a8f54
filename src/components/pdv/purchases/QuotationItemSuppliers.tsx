@@ -1,12 +1,18 @@
 import { useMemo, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { usePDVIngredientSuppliers } from "@/hooks/use-pdv-ingredient-suppliers";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertCircle, ChevronsUpDown } from "lucide-react";
+import { AlertCircle, ChevronsUpDown, Search } from "lucide-react";
 
 interface SupplierItem {
   id: string;
@@ -15,11 +21,17 @@ interface SupplierItem {
     id: string;
     name: string;
     phone: string | null;
+    whatsapp: string | null;
     email: string | null;
     contact_name: string | null;
   };
   is_preferred: boolean;
   is_direct: boolean;
+}
+
+/** Número de contato do fornecedor: prioriza WhatsApp, cai para telefone. */
+function supplierContactNumber(s: { whatsapp?: string | null; phone?: string | null }) {
+  return (s.whatsapp && s.whatsapp.trim()) || (s.phone && s.phone.trim()) || "";
 }
 
 interface QuotationItemSuppliersProps {
@@ -34,7 +46,8 @@ export function QuotationItemSuppliers({
   onSuppliersChange,
 }: QuotationItemSuppliersProps) {
   const [open, setOpen] = useState(false);
-  const { ingredientSuppliers, isLoading: isLoadingMultiple } = usePDVIngredientSuppliers(ingredientId);
+  const [search, setSearch] = useState("");
+  const { ingredientSuppliers, availableSuppliers, isLoading: isLoadingMultiple } = usePDVIngredientSuppliers(ingredientId);
 
   // Fetch the ingredient with its direct supplier
   const { data: ingredientData, isLoading: isLoadingDirect } = useQuery({
@@ -46,7 +59,7 @@ export function QuotationItemSuppliers({
         .select(`
           id,
           supplier_id,
-          supplier:pdv_suppliers(id, name, phone, email, contact_name)
+          supplier:pdv_suppliers(id, name, phone, whatsapp, email, contact_name)
         `)
         .eq('id', ingredientId)
         .maybeSingle();
@@ -68,6 +81,7 @@ export function QuotationItemSuppliers({
         id: string;
         name: string;
         phone: string | null;
+        whatsapp: string | null;
         email: string | null;
         contact_name: string | null;
       };
@@ -95,15 +109,36 @@ export function QuotationItemSuppliers({
           });
         }
       });
-    
+
+    // Adiciona TODOS os demais fornecedores ativos (o lojista pode cotar com
+    // qualquer fornecedor, não só os pré-vinculados ao ingrediente).
+    (availableSuppliers ?? []).forEach((s: any) => {
+      if (!result.some((r) => r.supplier_id === s.id)) {
+        result.push({
+          id: `all-${s.id}`,
+          supplier_id: s.id,
+          supplier: {
+            id: s.id,
+            name: s.name,
+            phone: s.phone ?? null,
+            whatsapp: s.whatsapp ?? null,
+            email: s.email ?? null,
+            contact_name: s.contact_name ?? null,
+          },
+          is_preferred: false,
+          is_direct: false,
+        });
+      }
+    });
+
     return result;
-  }, [ingredientData, ingredientSuppliers, ingredientId]);
+  }, [ingredientData, ingredientSuppliers, availableSuppliers, ingredientId]);
 
   // Auto-select preferred/direct suppliers on first load
   useEffect(() => {
     if (suppliers.length > 0 && selectedSuppliers.length === 0) {
       const preferredIds = suppliers
-        .filter((s) => (s.is_preferred || s.is_direct) && s.supplier?.phone)
+        .filter((s) => (s.is_preferred || s.is_direct) && supplierContactNumber(s.supplier))
         .map((s) => s.supplier_id);
       if (preferredIds.length > 0) {
         onSuppliersChange(preferredIds);
@@ -136,73 +171,126 @@ export function QuotationItemSuppliers({
     return (
       <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-400">
         <AlertCircle className="h-3 w-3 shrink-0" />
-        <span>Nenhum fornecedor vinculado a este ingrediente</span>
+        <span>Nenhum fornecedor cadastrado. Cadastre em Compras → Fornecedores.</span>
       </div>
     );
   }
 
   const selectedCount = selectedSuppliers.length;
+  const filtered = suppliers.filter((link) =>
+    search.trim() === ""
+      ? true
+      : (link.supplier.name ?? "").toLowerCase().includes(search.trim().toLowerCase()),
+  );
 
   return (
     <div className="mt-2 pl-2 space-y-1">
       <span className="text-xs text-muted-foreground font-medium">Fornecedores:</span>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between text-xs h-8"
-          >
-            {selectedCount === 0
-              ? "Selecione os fornecedores..."
-              : `${selectedCount} fornecedor${selectedCount > 1 ? "es" : ""} selecionado${selectedCount > 1 ? "s" : ""}`}
-            <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-1 bg-popover" align="start">
-          <div className="max-h-60 overflow-auto">
-            {suppliers.map((link) => {
-              const supplier = link.supplier;
-              const hasPhone = !!supplier.phone;
-              const isSelected = selectedSuppliers.includes(link.supplier_id);
 
+      {/* Gatilho: abre o modal dedicado de seleção */}
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full justify-between text-xs h-8"
+        onClick={() => { setSearch(""); setOpen(true); }}
+      >
+        {selectedCount === 0
+          ? "Selecione os fornecedores..."
+          : `${selectedCount} fornecedor${selectedCount > 1 ? "es" : ""} selecionado${selectedCount > 1 ? "s" : ""}`}
+        <ChevronsUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+      </Button>
+
+      {/* Resumo dos selecionados (chips), fora do modal */}
+      {selectedCount > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1">
+          {suppliers
+            .filter((l) => selectedSuppliers.includes(l.supplier_id))
+            .map((l) => (
+              <Badge key={l.supplier_id} variant="secondary" className="text-[10px]">
+                {l.supplier.name}
+              </Badge>
+            ))}
+        </div>
+      )}
+
+      {/* Modal dedicado de seleção de fornecedores */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Selecionar fornecedores</DialogTitle>
+          </DialogHeader>
+
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              autoFocus={false}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar fornecedor..."
+              className="pl-8"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{selectedCount} selecionado(s)</span>
+            <button
+              type="button"
+              className="text-xs text-primary hover:underline"
+              onClick={() =>
+                onSuppliersChange(
+                  selectedCount === filtered.length ? [] : filtered.map((l) => l.supplier_id),
+                )
+              }
+            >
+              {selectedCount === filtered.length ? "Limpar todos" : "Selecionar todos"}
+            </button>
+          </div>
+
+          <div className="max-h-[50vh] overflow-auto -mx-1 px-1 divide-y">
+            {filtered.map((link) => {
+              const supplier = link.supplier;
+              const hasPhone = !!supplierContactNumber(supplier);
+              const isSelected = selectedSuppliers.includes(link.supplier_id);
               return (
-                <div
+                <label
                   key={link.id}
-                  className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${
-                    !hasPhone ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted"
+                  className={`flex items-center gap-3 px-2 py-3 cursor-pointer select-none rounded ${
+                    isSelected ? "bg-primary/10" : "hover:bg-muted"
                   }`}
-                  onClick={() => hasPhone && handleToggle(link.supplier_id)}
                 >
-                  <Checkbox
+                  <input
+                    type="checkbox"
                     checked={isSelected}
-                    disabled={!hasPhone}
-                    onCheckedChange={() => hasPhone && handleToggle(link.supplier_id)}
-                    className="h-3.5 w-3.5"
+                    onChange={() => handleToggle(link.supplier_id)}
+                    className="h-4 w-4 accent-primary shrink-0"
                   />
-                  <span className="flex-1 truncate">{supplier.name}</span>
+                  <span className="flex-1 truncate text-sm">{supplier.name}</span>
                   {link.is_direct && (
-                    <Badge variant="default" className="text-[10px] py-0 px-1">
-                      Principal
-                    </Badge>
+                    <Badge variant="default" className="text-[10px] py-0 px-1">Principal</Badge>
                   )}
                   {link.is_preferred && !link.is_direct && (
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1">
-                      Preferido
-                    </Badge>
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1">Preferido</Badge>
                   )}
                   {!hasPhone && (
-                    <Badge variant="outline" className="text-[10px] py-0 px-1 text-amber-600">
-                      Sem WhatsApp
-                    </Badge>
+                    <Badge variant="outline" className="text-[10px] py-0 px-1 text-amber-600">Sem WhatsApp</Badge>
                   )}
-                </div>
+                </label>
               );
             })}
+            {filtered.length === 0 && (
+              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                Nenhum fornecedor encontrado.
+              </p>
+            )}
           </div>
-        </PopoverContent>
-      </Popover>
+
+          <DialogFooter>
+            <Button type="button" onClick={() => setOpen(false)}>
+              Concluir ({selectedCount})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

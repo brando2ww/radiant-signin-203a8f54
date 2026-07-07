@@ -19,6 +19,7 @@ export interface IngredientSupplier {
     id: string;
     name: string;
     phone: string | null;
+    whatsapp: string | null;
     email: string | null;
     contact_name: string | null;
   };
@@ -57,7 +58,7 @@ export function usePDVIngredientSuppliers(ingredientId?: string) {
         .from('pdv_ingredient_suppliers')
         .select(`
           *,
-          supplier:pdv_suppliers(id, name, phone, email, contact_name),
+          supplier:pdv_suppliers(id, name, phone, whatsapp, email, contact_name),
           ingredient:pdv_ingredients(id, name, unit)
         `)
         .eq('user_id', user.id);
@@ -82,7 +83,7 @@ export function usePDVIngredientSuppliers(ingredientId?: string) {
 
       const { data, error } = await supabase
         .from('pdv_suppliers')
-        .select('id, name, phone, email, contact_name')
+        .select('id, name, phone, whatsapp, email, contact_name')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .order('name');

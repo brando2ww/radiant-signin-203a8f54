@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { PDVHeaderNav } from "@/components/pdv/PDVHeaderNav";
+import { PrinterAlertBanner } from "@/components/pdv/PrinterAlertBanner";
 import { PDVUserMenu } from "@/components/pdv/PDVUserMenu";
 import { PDVNotifications } from "@/components/pdv/PDVNotifications";
 import { CashierStatus } from "@/components/pdv/CashierStatus";
@@ -111,6 +112,8 @@ export default function PDV() {
           </div>
 
         </header>
+
+        <PrinterAlertBanner />
 
         <main className={isFixedHeight ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
           <RouteModuleGuard>

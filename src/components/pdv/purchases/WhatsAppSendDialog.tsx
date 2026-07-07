@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
-import { MessageCircle, Check, Loader2 } from "lucide-react";
+import { MessageCircle, Check, Loader2, Copy, Link2 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,11 @@ interface SupplierWithItems {
   }>;
 }
 
+/** Número de contato do fornecedor: prioriza WhatsApp, cai para telefone. */
+function supplierContactNumber(s: { whatsapp?: string | null; phone?: string | null }) {
+  return (s.whatsapp && s.whatsapp.trim()) || (s.phone && s.phone.trim()) || "";
+}
+
 export function WhatsAppSendDialog({
   open,
   onOpenChange,
@@ -45,6 +51,9 @@ export function WhatsAppSendDialog({
   const { ingredientSuppliers } = usePDVIngredientSuppliers();
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [links, setLinks] = useState<{ supplierId: string; name?: string; url: string }[]>([]);
+  const [qrFor, setQrFor] = useState<string | null>(null);
 
   // Fetch saved suppliers for this quotation's items
   const { data: savedItemSuppliers = [] } = useQuery({
@@ -60,7 +69,7 @@ export function WhatsAppSendDialog({
           quotation_item_id,
           supplier_id,
           sent_at,
-          supplier:pdv_suppliers(id, name, phone)
+          supplier:pdv_suppliers(id, name, phone, whatsapp)
         `)
         .in("quotation_item_id", itemIds);
 
@@ -83,8 +92,9 @@ export function WhatsAppSendDialog({
         const item = quotation.items?.find((i) => i.id === itemSupplier.quotation_item_id);
         if (!item || !itemSupplier.supplier) return;
 
-        const supplier = itemSupplier.supplier as { id: string; name: string; phone: string | null };
-        if (!supplier.phone) return;
+        const supplier = itemSupplier.supplier as { id: string; name: string; phone: string | null; whatsapp: string | null };
+        const contact = supplierContactNumber(supplier);
+        if (!contact) return;
 
         const existing = supplierMap.get(supplier.id);
         if (existing) {
@@ -98,7 +108,7 @@ export function WhatsAppSendDialog({
           supplierMap.set(supplier.id, {
             id: supplier.id,
             name: supplier.name,
-            phone: supplier.phone,
+            phone: contact,
             items: [
               {
                 ingredientId: item.ingredient_id,
@@ -114,7 +124,7 @@ export function WhatsAppSendDialog({
       // Fallback: use all ingredient suppliers (old behavior)
       quotation.items?.forEach((item) => {
         const linkedSuppliers = ingredientSuppliers.filter(
-          (is) => is.ingredient_id === item.ingredient_id && is.supplier?.phone
+          (is) => is.ingredient_id === item.ingredient_id && supplierContactNumber(is.supplier ?? {})
         );
 
         linkedSuppliers.forEach((link) => {
@@ -132,7 +142,7 @@ export function WhatsAppSendDialog({
             supplierMap.set(link.supplier_id, {
               id: link.supplier_id,
               name: link.supplier.name,
-              phone: link.supplier.phone,
+              phone: supplierContactNumber(link.supplier),
               items: [
                 {
                   ingredientId: item.ingredient_id,
@@ -150,25 +160,17 @@ export function WhatsAppSendDialog({
     return Array.from(supplierMap.values());
   }, [quotation.items, ingredientSuppliers, savedItemSuppliers, hasSavedSuppliers]);
 
-  // Registra webhook automaticamente ao abrir o diálogo (garante que a instância receberá respostas)
-  useEffect(() => {
-    if (open) {
-      supabase.functions.invoke("register-whatsapp-webhook").then(({ data, error }) => {
-        if (error) {
-          console.warn("⚠️ Falha ao registrar webhook ao abrir diálogo:", error);
-        } else if (data?.success) {
-          console.log(`✅ Webhook auto-registrado para "${data.instanceName}" ao abrir diálogo`);
-        }
-      });
-    }
-  }, [open]);
-
   // Auto-select all suppliers when dialog opens (if we have saved suppliers)
   useEffect(() => {
     if (open && hasSavedSuppliers && suppliersWithItems.length > 0) {
       setSelectedSuppliers(new Set(suppliersWithItems.map((s) => s.id)));
     }
   }, [open, hasSavedSuppliers, suppliersWithItems]);
+
+  // Limpa os links/QR ao reabrir o diálogo
+  useEffect(() => {
+    if (open) { setLinks([]); setQrFor(null); }
+  }, [open]);
 
   const handleToggleSupplier = (supplierId: string) => {
     const newSelected = new Set(selectedSuppliers);
@@ -188,14 +190,12 @@ export function WhatsAppSendDialog({
     }
   };
 
-  const handleSend = async () => {
+  const buildSuppliersPayload = (onlySelectedWithPhone: boolean) => {
     const deadline = quotation.deadline ? new Date(quotation.deadline) : new Date();
-
-    const suppliersToSend = suppliersWithItems.filter(
-      (s) => selectedSuppliers.has(s.id) && s.phone
+    const chosen = suppliersWithItems.filter(
+      (s) => selectedSuppliers.has(s.id) && (onlySelectedWithPhone ? s.phone : true)
     );
-
-    const suppliersPayload = suppliersToSend.map((supplier) => {
+    return chosen.map((supplier) => {
       const message = quotation.message_template || generateQuotationMessage(
         supplier.items.map((item) => ({
           ingredientName: item.ingredientName,
@@ -208,11 +208,15 @@ export function WhatsAppSendDialog({
       );
       return {
         supplierId: supplier.id,
-        phone: supplier.phone!,
+        name: supplier.name,
+        phone: supplier.phone || "",
         message,
       };
     });
+  };
 
+  const handleSend = async () => {
+    const suppliersPayload = buildSuppliersPayload(true);
     const itemIds = quotation.items?.map((i) => i.id) || [];
 
     setIsSending(true);
@@ -234,15 +238,14 @@ export function WhatsAppSendDialog({
 
       if (data?.sent > 0) {
         toast.success(
-          `${data.sent} mensagem${data.sent > 1 ? "s" : ""} enviada${data.sent > 1 ? "s" : ""} com sucesso!`
+          `${data.sent} link${data.sent > 1 ? "s" : ""} enviado${data.sent > 1 ? "s" : ""} por WhatsApp!`
         );
       }
-
       if (data?.errors?.length > 0) {
-        toast.warning(`${data.errors.length} envio(s) falharam. Verifique os logs.`);
+        toast.warning(`${data.errors.length} envio(s) falharam. Use o link/QR abaixo para enviar manualmente.`);
       }
-
-      onOpenChange(false);
+      // Mantém o diálogo aberto exibindo os links (copiar/QR).
+      if (Array.isArray(data?.links)) setLinks(data.links);
     } catch (err: unknown) {
       console.error("Error sending quotation via WhatsApp:", err);
       const message = err && typeof err === "object" && "message" in err
@@ -254,6 +257,34 @@ export function WhatsAppSendDialog({
     }
   };
 
+  const handleGenerateLinks = async () => {
+    const suppliersPayload = buildSuppliersPayload(false);
+    if (suppliersPayload.length === 0) {
+      toast.error("Selecione ao menos um fornecedor.");
+      return;
+    }
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-quotation-whatsapp", {
+        body: { quotationId: quotation.id, suppliers: suppliersPayload, generateOnly: true },
+      });
+      if (error) throw error;
+      if (Array.isArray(data?.links)) {
+        setLinks(data.links);
+        toast.success("Links gerados. Copie ou mostre o QR ao fornecedor.");
+      }
+    } catch (err) {
+      toast.error("Não foi possível gerar os links.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const copyLink = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success("Link copiado!");
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -262,6 +293,10 @@ export function WhatsAppSendDialog({
             <WhatsAppIcon className="h-5 w-5 text-green-600" />
             Enviar Cotação via WhatsApp
           </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Cada fornecedor recebe um <strong>link</strong> para preencher os preços num
+            formulário. Nada de responder por mensagem.
+          </p>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -344,13 +379,53 @@ export function WhatsAppSendDialog({
                 </div>
               </ScrollArea>
 
+              {links.length > 0 && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Link2 className="h-4 w-4 text-primary" />
+                    Links dos fornecedores
+                  </div>
+                  {links.map((l) => (
+                    <div key={l.supplierId} className="rounded-md bg-muted/50 p-2 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium flex-1 truncate">{l.name || "Fornecedor"}</span>
+                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyLink(l.url)}>
+                          <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => setQrFor(qrFor === l.supplierId ? null : l.supplierId)}
+                        >
+                          QR
+                        </Button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground break-all">{l.url}</p>
+                      {qrFor === l.supplierId && (
+                        <div className="flex justify-center py-2 bg-white rounded">
+                          <QRCodeSVG value={l.url} size={160} level="H" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
-            Cancelar
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isGenerating}>
+            Fechar
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleGenerateLinks}
+            disabled={selectedSuppliers.size === 0 || isGenerating || isSending}
+          >
+            {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Link2 className="h-4 w-4 mr-2" />}
+            Gerar links
           </Button>
           <Button
             onClick={handleSend}
@@ -365,7 +440,7 @@ export function WhatsAppSendDialog({
             ) : (
               <>
                 <WhatsAppIcon className="h-4 w-4 mr-2" />
-                Enviar via WhatsApp ({selectedSuppliers.size})
+                Enviar link ({selectedSuppliers.size})
               </>
             )}
           </Button>

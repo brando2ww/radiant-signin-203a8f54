@@ -201,3 +201,93 @@ export function channelOfSource(source: string | null | undefined): "salao" | "b
   return "salao"; // 'salon', 'salao', empty, anything else
 }
 
+// ===== Fuso horário: fecha dia/mês em America/São_Paulo (-03:00) =====
+// Evita que vendas da virada (ex.: 23h) vazem de dia/mês por causa do fuso do
+// browser/UTC. Usa os componentes de calendário da Date (o que o usuário escolheu).
+function ymd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+export function brtRange(from: Date, to: Date): { startISO: string; endISO: string } {
+  return { startISO: `${ymd(from)}T00:00:00-03:00`, endISO: `${ymd(to)}T23:59:59-03:00` };
+}
+/** Hora do dia (0-23) de um timestamp, no fuso de São Paulo. */
+export function brtHour(iso: string): number {
+  const h = new Date(iso).toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false });
+  const n = parseInt(h, 10);
+  return Number.isNaN(n) ? 0 : n % 24;
+}
+/** Data YYYY-MM-DD de um timestamp, no fuso de São Paulo (para buckets por dia). */
+export function brtDateKey(iso: string): string {
+  // en-CA => YYYY-MM-DD
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
+export interface CashierSalesSummary {
+  total: number;
+  count: number;
+  bySource: Record<"salao" | "balcao" | "delivery", number>;
+  byMethod: Record<string, number>;
+}
+
+/** Resume os movimentos de venda por canal e por forma de pagamento. */
+export function summarizeCashierSales(movements: CashierMovement[]): CashierSalesSummary {
+  const s: CashierSalesSummary = {
+    total: 0,
+    count: 0,
+    bySource: { salao: 0, balcao: 0, delivery: 0 },
+    byMethod: {},
+  };
+  for (const m of movements) {
+    const amt = Number(m.amount || 0);
+    s.total += amt;
+    s.count += 1;
+    s.bySource[channelOfSource(m.source)] += amt;
+    const method = m.payment_method || "outros";
+    s.byMethod[method] = (s.byMethod[method] || 0) + amt;
+  }
+  return s;
+}
+
+/**
+ * Itens de delivery vendidos (entregue/completed) no período, escopados pelo dono.
+ * Para CMV/categorias que precisam dos itens de delivery além dos de salão.
+ */
+export async function fetchDeliveryItemsByPeriod(
+  ownerUserId: string,
+  startISO: string,
+  endISO: string,
+): Promise<Array<{ product_id: string | null; product_name: string; quantity: number; unit_price: number; subtotal: number }>> {
+  const out: Array<{ product_id: string | null; product_name: string; quantity: number; unit_price: number; subtotal: number }> = [];
+  const pageSize = 1000;
+  let f = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("delivery_order_items")
+      .select("product_id, product_name, quantity, unit_price, subtotal, order:delivery_orders!inner(user_id, status, delivered_at, created_at)")
+      .eq("order.user_id", ownerUserId)
+      .in("order.status", ["entregue", "delivered", "completed"])
+      .gte("order.delivered_at", startISO)
+      .lte("order.delivered_at", endISO)
+      .range(f, f + pageSize - 1);
+    if (error) throw error;
+    const rows = (data || []) as any[];
+    rows.forEach((it) => {
+      const qty = Number(it.quantity || 0);
+      const unit = Number(it.unit_price || 0);
+      out.push({
+        product_id: it.product_id,
+        product_name: it.product_name,
+        quantity: qty,
+        unit_price: unit,
+        subtotal: Number(it.subtotal ?? qty * unit),
+      });
+    });
+    if (rows.length < pageSize) break;
+    f += pageSize;
+  }
+  return out;
+}
+

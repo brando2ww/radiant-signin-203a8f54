@@ -12,6 +12,7 @@ import {
   FileText,
   Trash2,
   Eye,
+  PackageCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ import { QuotationRequest, usePDVQuotations } from "@/hooks/use-pdv-quotations";
 import { WhatsAppSendDialog } from "./WhatsAppSendDialog";
 import { QuotationResponseDialog } from "./QuotationResponseDialog";
 import { QuotationComparisonDialog } from "./QuotationComparisonDialog";
+import { SendOrderDialog } from "./SendOrderDialog";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 
 interface QuotationRequestCardProps {
@@ -72,6 +74,7 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [responseOpen, setResponseOpen] = useState(false);
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
 
   const status = statusConfig[quotation.status];
   const StatusIcon = status.icon;
@@ -96,6 +99,11 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
     ) || []
   ).size;
 
+  // Há vencedor selecionado? (habilita o envio do PEDIDO)
+  const hasWinner = quotation.items?.some(
+    (item) => item.responses?.some((r) => r.is_winner),
+  ) ?? false;
+
   const handleDelete = () => {
     deleteQuotation.mutate(quotation.id);
     setDeleteOpen(false);
@@ -114,6 +122,11 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
                   <StatusIcon className="h-3 w-3 mr-1" />
                   {status.label}
                 </Badge>
+                {respondedSuppliers.size > 0 && (
+                  <Badge className="bg-primary text-primary-foreground">
+                    {respondedSuppliers.size} resposta{respondedSuppliers.size > 1 ? "s" : ""}
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3 w-3" />
@@ -195,36 +208,62 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
           {/* Responses info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              Respostas: {totalResponses} de {totalItems * (respondedSuppliers.size || 1)} esperadas
+              {respondedSuppliers.size > 0
+                ? `${respondedSuppliers.size} fornecedor(es) responderam`
+                : "Aguardando respostas dos fornecedores"}
             </span>
-            {respondedSuppliers.size > 0 && (
+            {totalResponses > 0 && (
               <span className="text-muted-foreground">
-                {respondedSuppliers.size} fornecedor(es)
+                {totalResponses} item(ns) cotado(s)
               </span>
             )}
           </div>
 
           {/* Actions */}
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              onClick={() => setWhatsappOpen(true)}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Enviar WhatsApp
-            </Button>
-            {totalResponses > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                className="flex-1"
-                onClick={() => setComparisonOpen(true)}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Ver Comparativo
-              </Button>
+            {hasWinner ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setComparisonOpen(true)}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Comparativo
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => setOrderOpen(true)}
+                >
+                  <PackageCheck className="h-4 w-4 mr-2" />
+                  Enviar Pedido
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setWhatsappOpen(true)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Enviar WhatsApp
+                </Button>
+                {totalResponses > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => setComparisonOpen(true)}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Ver Comparativo
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </CardContent>
@@ -270,6 +309,13 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
       <QuotationComparisonDialog
         open={comparisonOpen}
         onOpenChange={setComparisonOpen}
+        quotation={quotation}
+      />
+
+      {/* Send Order Dialog */}
+      <SendOrderDialog
+        open={orderOpen}
+        onOpenChange={setOrderOpen}
         quotation={quotation}
       />
     </>

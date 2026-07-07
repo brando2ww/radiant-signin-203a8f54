@@ -57,9 +57,19 @@ async function consultMdeForTenant(service: any, ownerId: string) {
         const emissMs = Date.parse(emissaoRaw);
         if (!Number.isNaN(emissMs) && emissMs < cutoffMs) continue;
 
+        // O resumo MDe do Focus traz: documento_emitente (CNPJ), valor_total,
+        // nome_emitente, data_emissao — e NÃO traz numero/serie (extraídos da chave).
+        const digits = chave.replace(/\D/g, "");
+        const numeroFromChave = digits.length === 44 ? String(parseInt(digits.slice(25, 34), 10)) : "";
+        const serieFromChave = digits.length === 44 ? String(parseInt(digits.slice(22, 25), 10)) : "";
+        const cnpjEmit = String(note.documento_emitente || note.cnpj_emitente || "").replace(/\D/g, "");
+        const valorTotal = Number(note.valor_total ?? note.valor ?? 0);
+        const nomeEmit = note.nome_emitente || note.razao_social_emitente || "";
+        const situacaoMde = note.situacao_manifesto || note.situacao || "pendente";
+
         const { data: existing, error: selErr } = await service
           .from("pdv_invoices")
-          .select("id, source")
+          .select("id, source, mde_status")
           .eq("user_id", ownerId)
           .eq("invoice_key", chave)
           .maybeSingle();
@@ -68,28 +78,55 @@ async function consultMdeForTenant(service: any, ownerId: string) {
           const { error: insErr } = await service.from("pdv_invoices").insert({
             user_id: ownerId,
             invoice_key: chave,
-            invoice_number: String(note.numero || ""),
-            series: String(note.serie || "1"),
+            invoice_number: String(note.numero || numeroFromChave || ""),
+            series: String(note.serie || serieFromChave || "1"),
             emission_date: emissaoRaw,
-            supplier_cnpj: (note.cnpj_emitente || "").replace(/\D/g, ""),
-            supplier_name: note.nome_emitente || note.razao_social_emitente || "",
-            total_products: Number(note.valor || 0),
+            supplier_cnpj: cnpjEmit,
+            supplier_name: nomeEmit,
+            total_products: valorTotal,
             total_tax: 0,
-            total_invoice: Number(note.valor || 0),
+            total_invoice: valorTotal,
             operation_type: "entrada",
             invoice_type: "compra",
             status: "pending",
             source: "mde",
-            mde_status: note.situacao_manifesto || "pendente",
+            mde_status: situacaoMde,
             mde_raw_payload: note,
             mde_queried_at: new Date().toISOString(),
           });
-          if (!insErr) newCount++;
+          if (!insErr) {
+            newCount++;
+            // Ciência automática para notas ainda em resumo: libera o XML completo
+            // (com itens) na próxima distribuição. Evento inócuo, disparado 1x.
+            if (note.nfe_completa === false) {
+              try {
+                await fetch(`${baseUrl}/v2/nfes_recebidas/${chave}/manifesto`, {
+                  method: "POST",
+                  headers: { Authorization: basicAuth(token), "Content-Type": "application/json" },
+                  body: JSON.stringify({ tipo: "ciencia" }),
+                });
+                await service.from("pdv_invoices").update({ mde_status: "ciencia" })
+                  .eq("user_id", ownerId).eq("invoice_key", chave);
+              } catch { /* best-effort */ }
+            }
+          }
         } else {
+          // Atualiza também os campos que podem ter chegado vazios antes.
           await service
             .from("pdv_invoices")
             .update({
-              mde_status: note.situacao_manifesto || "pendente",
+              invoice_number: String(note.numero || numeroFromChave || ""),
+              series: String(note.serie || serieFromChave || "1"),
+              emission_date: emissaoRaw,
+              supplier_cnpj: cnpjEmit,
+              supplier_name: nomeEmit,
+              total_products: valorTotal,
+              total_invoice: valorTotal,
+              // Preserva o status de manifestação já registrado (ciencia/confirmado/…);
+              // só atualiza quando ainda não houve manifestação.
+              mde_status: (existing.mde_status && existing.mde_status !== "pendente")
+                ? existing.mde_status
+                : situacaoMde,
               mde_raw_payload: note,
               mde_queried_at: new Date().toISOString(),
             })

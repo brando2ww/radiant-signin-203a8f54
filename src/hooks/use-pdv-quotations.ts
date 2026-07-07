@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +40,7 @@ export interface QuotationResponse {
     id: string;
     name: string;
     phone: string | null;
+    whatsapp?: string | null;
   };
 }
 
@@ -114,7 +116,7 @@ export function usePDVQuotations() {
             ingredient:pdv_ingredients(id, name, unit),
             responses:pdv_quotation_responses(
               *,
-              supplier:pdv_suppliers(id, name, phone)
+              supplier:pdv_suppliers(id, name, phone, whatsapp)
             )
           )
         `)
@@ -126,6 +128,21 @@ export function usePDVQuotations() {
     },
     enabled: !!user,
   });
+
+  // Realtime: fornecedor enviou o orçamento pelo link → o vínculo é atualizado
+  // (status/submitted_at). Recarrega as cotações para refletir as respostas ao vivo.
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`quotation-links-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pdv_quotation_supplier_links', filter: `user_id=eq.${user.id}` },
+        () => queryClient.invalidateQueries({ queryKey: ['pdv-quotations', user.id] }),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, queryClient]);
 
   // Create quotation request
   const createQuotation = useMutation({

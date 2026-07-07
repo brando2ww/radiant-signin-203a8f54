@@ -7,7 +7,9 @@ import { InvoiceReviewWizard } from "@/components/pdv/invoices/InvoiceReviewWiza
 import { InvoiceCard } from "@/components/pdv/invoices/InvoiceCard";
 import { InvoiceFilters } from "@/components/pdv/invoices/InvoiceFilters";
 import { usePDVInvoices, useDeleteInvoice, PDVInvoice } from "@/hooks/use-pdv-invoices";
-import { ParsedInvoice } from "@/lib/invoice/xml-parser";
+import { ParsedInvoice, parseNFeXML } from "@/lib/invoice/xml-parser";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { EditableInvoiceData } from "@/types/invoice";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatBRL } from "@/lib/format";
@@ -68,6 +70,7 @@ export default function Invoices() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PDVInvoice | null>(null);
+  const [fetchingXml, setFetchingXml] = useState(false);
 
   const { invoices, isLoading } = usePDVInvoices({
     status: statusFilter === 'all' ? undefined : statusFilter,
@@ -80,7 +83,33 @@ export default function Invoices() {
     setReviewOpen(true);
   };
 
-  const handleView = (invoice: PDVInvoice) => {
+  const handleView = async (invoice: PDVInvoice) => {
+    // Notas recebidas via MDe não têm itens gravados: baixa o XML completo na
+    // Focus, parseia (mesmo pipeline do upload manual) e abre o wizard com os produtos.
+    if ((invoice as any).source === "mde") {
+      setFetchingXml(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("focusnfe-nfe-xml", {
+          body: { chave: invoice.invoice_key },
+        });
+        if (error) throw error;
+        if (data?.complete && data.xml) {
+          const parsed = await parseNFeXML(data.xml);
+          setReviewEditableData(null);
+          setParsedInvoice(parsed);
+          setReviewOpen(true);
+        } else {
+          toast.info(data?.message || "Produtos ainda não disponíveis para esta nota.");
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Não foi possível baixar o XML desta nota.");
+      } finally {
+        setFetchingXml(false);
+      }
+      return;
+    }
+
     setParsedInvoice(null);
     setReviewEditableData(invoiceToEditableData(invoice));
     setReviewOpen(true);
@@ -117,6 +146,14 @@ export default function Invoices() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {fetchingXml && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <div className="rounded-lg border bg-background px-6 py-4 shadow-lg text-sm flex items-center gap-3">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            Baixando os produtos da nota…
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Notas Fiscais</h1>

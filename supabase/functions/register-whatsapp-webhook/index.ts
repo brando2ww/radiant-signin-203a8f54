@@ -76,7 +76,8 @@ Deno.serve(async (req) => {
     }
 
     const instanceName = connection.instance_name
-    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-transactions`
+    const webhookToken = Deno.env.get('WHATSAPP_WEBHOOK_TOKEN') ?? ''
+    const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-transactions?token=${webhookToken}`
 
     console.log(`🔧 Registrando webhook para instância "${instanceName}": ${webhookUrl}`)
 

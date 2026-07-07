@@ -137,14 +137,13 @@ export function useCreateInvoice() {
     mutationFn: async (invoice: Omit<PDVInvoice, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
 
-      const { data, error } = await supabase
-        .from('pdv_invoices')
-        .insert({
-          ...invoice,
-          user_id: user.id,
-        })
-        .select()
-        .single();
+      const payload = { ...invoice, user_id: user.id };
+      // invoice_key é ÚNICO. Notas recebidas (MDe) já existem no banco — então
+      // fazemos upsert por invoice_key (atualiza a existente em vez de duplicar).
+      const query = invoice.invoice_key
+        ? supabase.from('pdv_invoices').upsert(payload, { onConflict: 'invoice_key' })
+        : supabase.from('pdv_invoices').insert(payload);
+      const { data, error } = await query.select().single();
 
       if (error) throw error;
       return data;

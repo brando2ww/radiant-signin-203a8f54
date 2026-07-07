@@ -1,16 +1,49 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import {
+  brtRange,
+  fetchCashierSalesByPeriod,
+  summarizeCashierSales,
+  fetchItemsByOrderIds,
+  fetchDeliveryItemsByPeriod,
+} from "@/lib/reports-data-source";
+
+const CLOSED = ["fechada", "fechado"];
+
+// Receita (movimentos de venda) + itens vendidos (comanda_items de salão + delivery) do mês.
+async function monthSales(owner: string, monthDate: Date) {
+  const { startISO, endISO } = brtRange(startOfMonth(monthDate), endOfMonth(monthDate));
+  const movements = await fetchCashierSalesByPeriod(owner, startISO, endISO);
+  const revenue = summarizeCashierSales(movements).total;
+
+  const { data: orders } = await supabase
+    .from("pdv_orders")
+    .select("id, status")
+    .eq("user_id", owner)
+    .in("status", CLOSED)
+    .gte("opened_at", startISO)
+    .lte("opened_at", endISO);
+  const ids = (orders || []).map((o: any) => o.id);
+  const salaoItems = ids.length ? await fetchItemsByOrderIds(ids) : [];
+  const deliveryItems = await fetchDeliveryItemsByPeriod(owner, startISO, endISO);
+  const items = [...salaoItems, ...deliveryItems].map((it) => ({
+    product_id: it.product_id,
+    quantity: it.quantity,
+  }));
+  return { revenue, items };
+}
 
 export function usePDVCmv(selectedMonth?: Date) {
-  const { user } = useAuth();
+  const { visibleUserId } = useEstablishmentId();
   const refDate = selectedMonth || new Date();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["pdv-cmv", user?.id, format(refDate, "yyyy-MM")],
+    queryKey: ["pdv-cmv", visibleUserId, format(refDate, "yyyy-MM")],
+    enabled: !!visibleUserId,
     queryFn: async () => {
-      if (!user) throw new Error("Usuário não autenticado");
+      const user = { id: visibleUserId! };
 
       // Get all recipes with ingredient costs
       const { data: recipes } = await supabase
@@ -79,28 +112,12 @@ export function usePDVCmv(selectedMonth?: Date) {
         .sort((a, b) => b.margin - a.margin);
 
 
-      // Current month revenue + cmv from sold items
-      const ms = format(startOfMonth(refDate), "yyyy-MM-dd");
-      const me = format(endOfMonth(refDate), "yyyy-MM-dd");
-
-      const { data: pdvOrders } = await supabase
-        .from("pdv_orders")
-        .select("total")
-        .eq("user_id", user.id)
-        .eq("status", "closed")
-        .gte("closed_at", ms)
-        .lte("closed_at", me + "T23:59:59");
-
-      const totalRevenue = (pdvOrders || []).reduce((s, o) => s + Number(o.total), 0);
-
-      const { data: orderItems } = await supabase
-        .from("pdv_order_items")
-        .select("product_id, quantity")
-        .gte("created_at", ms)
-        .lte("created_at", me + "T23:59:59");
+      // Current month revenue + cmv from sold items (fonte correta)
+      const { revenue: totalRevenue, items: soldItems } = await monthSales(user.id, refDate);
 
       let totalCmv = 0;
-      (orderItems || []).forEach((item: any) => {
+      soldItems.forEach((item) => {
+        if (!item.product_id) return;
         const unitCost = computeCost(item.product_id, new Set());
         if (unitCost > 0) {
           totalCmv += unitCost * Number(item.quantity);
@@ -123,31 +140,13 @@ export function usePDVCmv(selectedMonth?: Date) {
       const evolution: { month: string; cmv: number; revenue: number }[] = [];
       for (let i = 5; i >= 0; i--) {
         const m = subMonths(refDate, i);
-        const mStart = format(startOfMonth(m), "yyyy-MM-dd");
-        const mEnd = format(endOfMonth(m), "yyyy-MM-dd");
-
-        const { data: mOrders } = await supabase
-          .from("pdv_orders")
-          .select("total")
-          .eq("user_id", user.id)
-          .eq("status", "closed")
-          .gte("closed_at", mStart)
-          .lte("closed_at", mEnd + "T23:59:59");
-
-        const { data: mItems } = await supabase
-          .from("pdv_order_items")
-          .select("product_id, quantity")
-          .gte("created_at", mStart)
-          .lte("created_at", mEnd + "T23:59:59");
-
-        const mRev = (mOrders || []).reduce((s, o) => s + Number(o.total), 0);
+        const { revenue: mRev, items: mItems } = await monthSales(user.id, m);
         let mCmv = 0;
-        (mItems || []).forEach((item: any) => {
+        mItems.forEach((item) => {
+          if (!item.product_id) return;
           const unitCost = computeCost(item.product_id, new Set());
           if (unitCost > 0) mCmv += unitCost * Number(item.quantity);
         });
-
-
         evolution.push({ month: format(m, "MMM/yy"), cmv: mCmv, revenue: mRev });
       }
 
@@ -195,7 +194,6 @@ export function usePDVCmv(selectedMonth?: Date) {
         productsWithoutCost,
       };
     },
-    enabled: !!user,
   });
 
   return { data, isLoading };

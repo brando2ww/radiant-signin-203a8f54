@@ -18,6 +18,7 @@ import PublicMenuLoyalty from "./pages/PublicMenuLoyalty";
 import PublicEvaluation from "./pages/PublicEvaluation";
 import PublicTasks from "./pages/PublicTasks";
 import PublicChecklistAccess from "./pages/PublicChecklistAccess";
+import PublicSupplierQuotation from "./pages/PublicSupplierQuotation";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
 import NotFound from "./pages/NotFound";
 import { RadixBodyUnlock } from "@/components/RadixBodyUnlock";
@@ -85,6 +86,7 @@ const App = () => (
                   <Route path="/avaliacao/:campaignId" element={<PublicEvaluation />} />
                   <Route path="/tarefas/:userId" element={<PublicTasks />} />
                   <Route path="/c/:checklistId" element={<PublicChecklistAccess />} />
+                  <Route path="/cotacao/:token" element={<PublicSupplierQuotation />} />
                   {/* Onboarding (auth-only, sem ProtectedRoute para evitar loop) */}
                   <Route path="/onboarding" element={<AuthOnlyRoute><Onboarding /></AuthOnlyRoute>} />
                   <Route path="/onboarding/sucesso" element={<AuthOnlyRoute><OnboardingSuccess /></AuthOnlyRoute>} />

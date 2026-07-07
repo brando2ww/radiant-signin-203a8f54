@@ -287,6 +287,9 @@ export function InvoiceReviewWizard({
         ingredient_id: itemIngredientIds[idx],
         match_status: itemIngredientIds[idx] ? "matched" : "unmatched",
       }));
+      // Remove itens anteriores desta nota (reimportação de nota MDe já existente)
+      // para não duplicar.
+      await supabase.from("pdv_invoice_items").delete().eq("invoice_id", invoiceRecord.id);
       await createInvoiceItems.mutateAsync(itemsToInsert);
 
       // 6) Stock entry: update ingredient + create stock movement

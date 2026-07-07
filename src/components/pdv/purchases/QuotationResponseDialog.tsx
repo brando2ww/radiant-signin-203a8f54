@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Plus, Calendar as CalendarIcon } from "lucide-react";
@@ -36,12 +36,21 @@ interface QuotationResponseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   quotation: QuotationRequest;
+  /** Pré-seleção vinda de uma resposta recebida por WhatsApp (caixa de entrada). */
+  presetSupplierId?: string;
+  presetNotes?: string;
+  inboundMessageId?: string;
+  onSaved?: () => void;
 }
 
 export function QuotationResponseDialog({
   open,
   onOpenChange,
   quotation,
+  presetSupplierId,
+  presetNotes,
+  inboundMessageId,
+  onSaved,
 }: QuotationResponseDialogProps) {
   const { addResponse } = usePDVQuotations();
   const { suppliers } = usePDVSuppliers();
@@ -55,6 +64,15 @@ export function QuotationResponseDialog({
   const [paymentTerms, setPaymentTerms] = useState("");
   const [brand, setBrand] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Pré-preenche quando aberto a partir de uma resposta recebida por WhatsApp.
+  useEffect(() => {
+    if (!open) return;
+    if (presetSupplierId) setSupplierId(presetSupplierId);
+    if (presetNotes) setNotes(presetNotes);
+    // Se a cotação tiver um único item, já seleciona.
+    if (quotation.items?.length === 1) setSelectedItemId(quotation.items[0].id);
+  }, [open, presetSupplierId, presetNotes, quotation.items]);
 
   const selectedItem = quotation.items?.find((item) => item.id === selectedItemId);
   const totalPrice = selectedItem
@@ -78,10 +96,14 @@ export function QuotationResponseDialog({
         payment_terms: paymentTerms || undefined,
         brand: brand || undefined,
         notes: notes || undefined,
-      },
+        source: inboundMessageId ? "whatsapp" : "manual",
+        inbound_message_id: inboundMessageId,
+      } as any,
       {
         onSuccess: () => {
           resetForm();
+          onSaved?.();
+          onOpenChange(false);
         },
       }
     );

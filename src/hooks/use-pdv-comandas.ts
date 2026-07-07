@@ -280,11 +280,25 @@ export function usePDVComandas() {
   });
 
   // Cancel comanda
+  // Aceita `id` (compatível com chamadas existentes) ou `{ id, reason, category }`
+  // para registrar o motivo/categoria do cancelamento (aparece na auditoria).
   const cancelComandaMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (
+      arg: string | { id: string; reason?: string; category?: string },
+    ) => {
+      const id = typeof arg === "string" ? arg : arg.id;
+      const reason = typeof arg === "string" ? undefined : arg.reason;
+      const category = typeof arg === "string" ? undefined : arg.category;
       const { data, error } = await supabase
         .from("pdv_comandas")
-        .update({ status: "cancelada", updated_at: new Date().toISOString() })
+        .update({
+          status: "cancelada",
+          cancelled_at: new Date().toISOString(),
+          cancelled_by_user_id: user?.id ?? null,
+          ...(reason ? { cancellation_reason: reason } : {}),
+          ...(category ? { cancellation_category: category } : {}),
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", id)
         .select()
         .single();

@@ -19,6 +19,7 @@ import { EmployeeConsumptionFlowDialog } from "@/components/pdv/cashier/Employee
 import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
 import { RedeemCouponDialog } from "@/components/pdv/cashier/RedeemCouponDialog";
 import { SalonQueuePanel } from "@/components/pdv/cashier/SalonQueuePanel";
+import { OpenComandasBlockerDialog } from "@/components/pdv/cashier/OpenComandasBlockerDialog";
 import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
 import { usePDVCashierRealtime } from "@/hooks/use-pdv-cashier-realtime";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
@@ -70,6 +71,7 @@ export default function PDVCashier() {
 
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
+  const [blockerDialog, setBlockerDialog] = useState(false);
   const [movementDialog, setMovementDialog] = useState(false);
   const [movementType, setMovementType] = useState<"sangria" | "reforco">("reforco");
   const [shortcutsDialog, setShortcutsDialog] = useState(false);
@@ -117,7 +119,10 @@ export default function PDVCashier() {
   const handleTryCloseCashier = () => {
     const openComandas = comandas.filter(c => c.status === "aberta");
     if (openComandas.length > 0) {
-      toast.error(`Existem ${openComandas.length} comanda(s) aberta(s). Feche ou cancele todas antes de encerrar o caixa.`);
+      // Em vez de um toast sem saída, abre o diálogo que lista e deixa
+      // resolver cada comanda em aberto (inclui as "fantasma" que não
+      // aparecem na fila do Salão).
+      setBlockerDialog(true);
       return;
     }
     const pendingDelivery = deliveryOrders.filter(
@@ -252,7 +257,7 @@ export default function PDVCashier() {
       }
 
       // Ignorar se algum dialog estiver aberto (exceto F12 que pode fechar o shortcuts dialog)
-      if (openDialog || closeDialog || movementDialog || chargeDialog || paymentDialog) {
+      if (openDialog || closeDialog || movementDialog || chargeDialog || paymentDialog || blockerDialog) {
         if (e.key === "F12") {
           e.preventDefault();
           setShortcutsDialog(false);
@@ -321,7 +326,7 @@ export default function PDVCashier() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
+  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, blockerDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
 
   return (
     <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
@@ -427,6 +432,24 @@ export default function PDVCashier() {
         isClosing={isClosingCashier}
         session={activeSession}
         movements={movements}
+      />
+
+      <OpenComandasBlockerDialog
+        open={blockerDialog}
+        onOpenChange={setBlockerDialog}
+        comandas={comandas}
+        tables={tables}
+        getItemsByComanda={getItemsByComanda}
+        onCancel={(id, isGhost) =>
+          cancelComanda({
+            id,
+            reason: isGhost
+              ? "Comanda vazia/órfã encerrada no fechamento de caixa"
+              : "Cancelada no fechamento de caixa (sem consumo)",
+            category: "outro",
+          })
+        }
+        onProceedClose={handleTryCloseCashier}
       />
 
       <CashMovementDialog
