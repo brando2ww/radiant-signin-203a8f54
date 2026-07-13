@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   Dialog,
@@ -31,13 +31,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { BarcodeInput } from "@/components/ui/barcode-input";
-import { Plus, Star, X, ChevronDown } from "lucide-react";
+import { Plus, Star, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { PDVIngredient } from "@/hooks/use-pdv-ingredients";
 import { usePDVSuppliers, useCreateSupplier } from "@/hooks/use-pdv-suppliers";
 import { useIngredientCategories } from "@/hooks/use-ingredient-categories";
@@ -48,6 +43,7 @@ import { CategoryQuickDialog } from "./CategoryQuickDialog";
 import { SectorQuickDialog } from "./SectorQuickDialog";
 import { CostCenterQuickDialog } from "./CostCenterQuickDialog";
 import { SupplierDialog } from "./SupplierDialog";
+import { SupplierPickerDialog } from "./SupplierPickerDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -64,30 +60,22 @@ interface MultiSupplierSelectorProps {
   selectedIds: string[];
   preferredId: string | null;
   availableSuppliers: Array<{ id: string; name: string }>;
-  onAdd: (supplierId: string) => void;
   onRemove: (supplierId: string) => void;
   onSetPreferred: (supplierId: string) => void;
-  onNewSupplier: () => void;
+  onOpenPicker: () => void;
 }
 
 function MultiSupplierSelector({
   selectedIds,
   preferredId,
   availableSuppliers,
-  onAdd,
   onRemove,
   onSetPreferred,
-  onNewSupplier,
+  onOpenPicker,
 }: MultiSupplierSelectorProps) {
-  const [popoverOpen, setPopoverOpen] = useState(false);
-
   const selected = selectedIds.map((id) =>
     availableSuppliers.find((s) => s.id === id)
   ).filter(Boolean) as Array<{ id: string; name: string }>;
-
-  const unselected = availableSuppliers.filter(
-    (s) => !selectedIds.includes(s.id)
-  );
 
   return (
     <div className="space-y-2">
@@ -133,51 +121,22 @@ function MultiSupplierSelector({
         </div>
       )}
 
-      <div className="flex gap-2">
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen} modal={false}>
-          <PopoverTrigger asChild>
-            <Button type="button" variant="outline" size="sm" className="gap-1">
-              <Plus className="h-3 w-3" />
-              Adicionar fornecedor
-              <ChevronDown className="h-3 w-3" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-64 p-1" align="start">
-            {unselected.length === 0 ? (
-              <p className="text-sm text-muted-foreground px-2 py-1.5">
-                Todos os fornecedores já foram adicionados
-              </p>
-            ) : (
-              <div className="max-h-48 overflow-y-auto">
-                {unselected.map((supplier) => (
-                  <button
-                    key={supplier.id}
-                    type="button"
-                    className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent transition-colors"
-                    onClick={() => {
-                      onAdd(supplier.id);
-                      setPopoverOpen(false);
-                    }}
-                  >
-                    {supplier.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+      {selected.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Nenhum fornecedor vinculado a este insumo.
+        </p>
+      )}
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1"
-          onClick={onNewSupplier}
-        >
-          <Plus className="h-3 w-3" />
-          Novo fornecedor
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-1"
+        onClick={onOpenPicker}
+      >
+        <Plus className="h-3 w-3" />
+        {selected.length > 0 ? "Gerenciar fornecedores" : "Adicionar fornecedor"}
+      </Button>
     </div>
   );
 }
@@ -224,6 +183,7 @@ export function IngredientDialog({
   const [sectorDialogOpen, setSectorDialogOpen] = useState(false);
   const [costCenterDialogOpen, setCostCenterDialogOpen] = useState(false);
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [supplierPickerOpen, setSupplierPickerOpen] = useState(false);
 
   // Multi-supplier state
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
@@ -305,6 +265,10 @@ export function IngredientDialog({
           cost_center: ingredient.cost_center || "",
           observations: ingredient.observations || "",
         });
+        // Limpa o que sobrou do insumo anterior; os vínculos reais são
+        // hidratados abaixo, quando a query deste insumo responder.
+        setSelectedSupplierIds([]);
+        setPreferredSupplierId(null);
       } else {
         form.reset({
           code: "",
@@ -337,14 +301,23 @@ export function IngredientDialog({
     }
   }, [ingredient, open]);
 
-  // Popula o estado multi-fornecedor quando os vínculos carregam (modo edição)
+  // Popula o estado multi-fornecedor quando os vínculos carregam (modo edição).
+  // Hidrata uma única vez por abertura: um refetch não pode desfazer o que o
+  // usuário já marcou/desmarcou no formulário.
+  const hydratedForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (open && ingredient && ingredientSuppliers.length > 0) {
-      const ids = ingredientSuppliers.map((is) => is.supplier_id);
-      setSelectedSupplierIds(ids);
-      const preferred = ingredientSuppliers.find((is) => is.is_preferred);
-      setPreferredSupplierId(preferred?.supplier_id || ids[0] || null);
+    if (!open) {
+      hydratedForRef.current = null;
+      return;
     }
+    if (!ingredient || hydratedForRef.current === ingredient.id) return;
+    if (ingredientSuppliers.length === 0) return;
+
+    hydratedForRef.current = ingredient.id;
+    const ids = ingredientSuppliers.map((is) => is.supplier_id);
+    setSelectedSupplierIds(ids);
+    const preferred = ingredientSuppliers.find((is) => is.is_preferred);
+    setPreferredSupplierId(preferred?.supplier_id || ids[0] || null);
   }, [open, ingredient, ingredientSuppliers]);
 
   // Sincroniza o supplier_id principal com o preferencial
@@ -363,6 +336,14 @@ export function IngredientDialog({
       if (next.length === 1) setPreferredSupplierId(supplierId);
       return next;
     });
+  };
+
+  // Substitui a seleção inteira pelo que veio do modal de fornecedores
+  const handleConfirmSuppliers = (ids: string[]) => {
+    setSelectedSupplierIds(ids);
+    setPreferredSupplierId((prev) =>
+      prev && ids.includes(prev) ? prev : ids[0] || null
+    );
   };
 
   const handleRemoveSupplier = (supplierId: string) => {
@@ -435,6 +416,7 @@ export function IngredientDialog({
       setSectorDialogOpen(false);
       setCostCenterDialogOpen(false);
       setSupplierDialogOpen(false);
+      setSupplierPickerOpen(false);
     }
     onOpenChange(isOpen);
   };
@@ -564,10 +546,9 @@ export function IngredientDialog({
                     selectedIds={selectedSupplierIds}
                     preferredId={preferredSupplierId}
                     availableSuppliers={activeSuppliers}
-                    onAdd={handleAddSupplier}
                     onRemove={handleRemoveSupplier}
                     onSetPreferred={handleSetPreferred}
-                    onNewSupplier={() => setSupplierDialogOpen(true)}
+                    onOpenPicker={() => setSupplierPickerOpen(true)}
                   />
                 </TabsContent>
 
@@ -1011,6 +992,18 @@ export function IngredientDialog({
         onOpenChange={setCostCenterDialogOpen}
         onSubmit={handleCreateCostCenter}
         isSubmitting={isCreatingCostCenter}
+      />
+
+      <SupplierPickerDialog
+        open={supplierPickerOpen}
+        onOpenChange={setSupplierPickerOpen}
+        suppliers={activeSuppliers}
+        selectedIds={selectedSupplierIds}
+        onConfirm={handleConfirmSuppliers}
+        onNewSupplier={() => {
+          setSupplierPickerOpen(false);
+          setSupplierDialogOpen(true);
+        }}
       />
 
       <SupplierDialog

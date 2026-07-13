@@ -34,7 +34,7 @@ export default function PDVStock() {
     isAdjusting,
   } = usePDVIngredients();
 
-  const { createLink, deleteLink, ingredientSuppliers: allLinks } = usePDVIngredientSuppliers();
+  const { createLink, updateLink, deleteLink, ingredientSuppliers: allLinks } = usePDVIngredientSuppliers();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<any>(null);
@@ -104,8 +104,17 @@ export default function PDVStock() {
       });
     }
 
-    // Atualizar is_preferred nos existentes
-    // (handled via supplier_id no ingrediente principal — sem necessidade de update aqui)
+    // Atualizar is_preferred nos vínculos que permaneceram
+    const kept = existingLinks.filter((l) => newSupplierIds.includes(l.supplier_id));
+    for (const link of kept) {
+      const shouldBePreferred = link.supplier_id === preferredSupplierId;
+      if (link.is_preferred !== shouldBePreferred) {
+        await updateLink.mutateAsync({
+          id: link.id,
+          is_preferred: shouldBePreferred,
+        });
+      }
+    }
   };
 
   const handleCreate = () => {
