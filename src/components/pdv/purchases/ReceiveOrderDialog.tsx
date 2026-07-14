@@ -20,6 +20,13 @@ interface ReceiveOrderDialogProps {
   order: PurchaseOrder;
 }
 
+// 50.05 - 50 dá 0.04999999999999716 em ponto flutuante: arredonda antes de
+// comparar e de exibir, senão a divergência aparece com 16 casas decimais.
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+const formatQty = (n: number) =>
+  round3(n).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+
 export function ReceiveOrderDialog({
   open,
   onOpenChange,
@@ -52,7 +59,7 @@ export function ReceiveOrderDialog({
   const divergent = useMemo(
     () =>
       items.filter(
-        (item) => (quantities[item.id] ?? 0) !== Number(item.quantity)
+        (item) => round3((quantities[item.id] ?? 0) - Number(item.quantity)) !== 0
       ),
     [items, quantities]
   );
@@ -63,7 +70,7 @@ export function ReceiveOrderDialog({
         orderId: order.id,
         items: items.map((item) => ({
           item_id: item.id,
-          quantity: quantities[item.id] ?? 0,
+          quantity: round3(quantities[item.id] ?? 0),
         })),
       },
       { onSuccess: () => onOpenChange(false) }
@@ -95,7 +102,7 @@ export function ReceiveOrderDialog({
               {items.map((item) => {
                 const ordered = Number(item.quantity);
                 const received = quantities[item.id] ?? 0;
-                const diff = received - ordered;
+                const diff = round3(received - ordered);
 
                 return (
                   <div
@@ -107,7 +114,7 @@ export function ReceiveOrderDialog({
                         {item.ingredient?.name ?? "Insumo"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Pedido: {ordered} {item.unit} ·{" "}
+                        Pedido: {formatQty(ordered)} {item.unit} ·{" "}
                         {formatBRL(Number(item.unit_price))}/{item.unit}
                       </p>
                     </div>
@@ -131,7 +138,7 @@ export function ReceiveOrderDialog({
                       </span>
                     </div>
 
-                    <div className="w-24 text-right">
+                    <div className="flex w-28 shrink-0 justify-end">
                       {diff === 0 ? (
                         <Badge variant="secondary" className="text-xs">
                           Completo
@@ -139,9 +146,10 @@ export function ReceiveOrderDialog({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="border-amber-400 text-xs text-amber-700"
+                          className="whitespace-nowrap border-amber-400 text-xs text-amber-700"
                         >
-                          {diff > 0 ? `+${diff}` : diff} {item.unit}
+                          {diff > 0 ? "+" : "−"}
+                          {formatQty(Math.abs(diff))} {item.unit}
                         </Badge>
                       )}
                     </div>
