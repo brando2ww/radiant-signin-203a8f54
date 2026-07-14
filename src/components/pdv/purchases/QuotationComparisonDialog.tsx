@@ -161,9 +161,16 @@ export function QuotationComparisonDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Comparativo de Cotações - {quotation.request_number}</DialogTitle>
+          {comparisonData.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {comparisonData.length}{" "}
+              {comparisonData.length === 1 ? "item cotado" : "itens cotados"} · role
+              para ver todos
+            </p>
+          )}
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="space-y-6 pr-4">
             {comparisonData.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">

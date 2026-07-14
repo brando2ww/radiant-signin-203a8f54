@@ -439,7 +439,7 @@ function MethodConference({
 
 type Step = "blind" | "review" | "done";
 
-const MIN_REVIEW_JUSTIFICATION = 30;
+const MIN_REVIEW_JUSTIFICATION = 10;
 
 interface BlindInputProps {
   icon: typeof CreditCard;
