@@ -242,6 +242,42 @@ export function usePDVPurchaseOrders() {
     },
   });
 
+  // Recebimento: dá entrada no estoque, registra a movimentação e recalcula o
+  // custo médio (tudo na função pdv_receive_purchase_order, em transação).
+  const receiveOrder = useMutation({
+    mutationFn: async ({
+      orderId,
+      items,
+    }: {
+      orderId: string;
+      items: Array<{ item_id: string; quantity: number }>;
+    }) => {
+      const { data, error } = await (supabase as any).rpc('pdv_receive_purchase_order', {
+        p_order_id: orderId,
+        p_items: items,
+      });
+
+      if (error) throw error;
+      return data as { status: string; items_moved: number; items_pending: number };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['pdv-purchase-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['pdv-ingredients'] });
+      queryClient.invalidateQueries({ queryKey: ['pdv-stock-movements'] });
+
+      if (result?.status === 'partial') {
+        toast.success(
+          `Recebimento parcial registrado. ${result.items_pending} item(ns) ainda em falta.`
+        );
+      } else {
+        toast.success('Pedido recebido e estoque atualizado!');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao registrar o recebimento');
+    },
+  });
+
   // Delete order
   const deleteOrder = useMutation({
     mutationFn: async (id: string) => {
@@ -281,6 +317,7 @@ export function usePDVPurchaseOrders() {
     updateStatus,
     markAsSent,
     updateReceivedQuantity,
+    receiveOrder,
     deleteOrder,
   };
 }

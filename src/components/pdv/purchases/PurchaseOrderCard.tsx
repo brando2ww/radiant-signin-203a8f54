@@ -10,6 +10,7 @@ import {
   Clock,
   XCircle,
   Package,
+  PackageCheck,
   Trash2,
   Truck,
 } from "lucide-react";
@@ -36,6 +37,7 @@ import {
 import { PurchaseOrder, usePDVPurchaseOrders } from "@/hooks/use-pdv-purchase-orders";
 import { formatCurrency, generateOrderMessage, openWhatsApp } from "@/lib/whatsapp-message";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
+import { ReceiveOrderDialog } from "./ReceiveOrderDialog";
 
 interface PurchaseOrderCardProps {
   order: PurchaseOrder;
@@ -77,9 +79,13 @@ const statusConfig = {
 export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
   const { updateStatus, markAsSent, deleteOrder } = usePDVPurchaseOrders();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(false);
 
   const status = statusConfig[order.status];
   const StatusIcon = status.icon;
+
+  // Pedido pode receber mercadoria enquanto não estiver totalmente recebido
+  const canReceive = ["draft", "sent", "confirmed", "partial"].includes(order.status);
 
   const handleSendWhatsApp = () => {
     if (!order.supplier?.phone) {
@@ -145,6 +151,14 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {canReceive && (
+                  <DropdownMenuItem
+                    onClick={() => deferMenuAction(() => setReceiveOpen(true))}
+                  >
+                    <PackageCheck className="h-4 w-4 mr-2" />
+                    Receber pedido
+                  </DropdownMenuItem>
+                )}
                 {order.status === "sent" && (
                   <DropdownMenuItem
                     onClick={() =>
@@ -152,17 +166,7 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                     }
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    Confirmar Recebimento
-                  </DropdownMenuItem>
-                )}
-                {order.status === "confirmed" && (
-                  <DropdownMenuItem
-                    onClick={() =>
-                      updateStatus.mutate({ id: order.id, status: "received" })
-                    }
-                  >
-                    <Truck className="h-4 w-4 mr-2" />
-                    Marcar como Recebido
+                    Fornecedor confirmou o pedido
                   </DropdownMenuItem>
                 )}
                 {order.status !== "cancelled" && order.status !== "received" && (
@@ -235,8 +239,28 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
               Enviar via WhatsApp
             </Button>
           )}
+
+          {canReceive && (
+            <Button
+              variant="default"
+              size="sm"
+              className="w-full"
+              onClick={() => setReceiveOpen(true)}
+            >
+              <PackageCheck className="h-4 w-4 mr-2" />
+              {order.status === "partial"
+                ? "Receber o que faltou"
+                : "Receber pedido"}
+            </Button>
+          )}
         </CardContent>
       </Card>
+
+      <ReceiveOrderDialog
+        open={receiveOpen}
+        onOpenChange={setReceiveOpen}
+        order={order}
+      />
 
       {/* Delete confirmation */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
