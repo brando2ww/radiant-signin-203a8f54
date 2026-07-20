@@ -31,6 +31,8 @@ export interface QuotationResponse {
   minimum_order: number | null;
   payment_terms: string | null;
   brand: string | null;
+  /** resfriado | congelado | ambiente (seco). null = não informado. */
+  conservation: string | null;
   origin: string | null;
   notes: string | null;
   is_winner: boolean;
@@ -80,6 +82,7 @@ export interface CreateResponseData {
   minimum_order?: number;
   payment_terms?: string;
   brand?: string;
+  conservation?: string;
   origin?: string;
   notes?: string;
 }

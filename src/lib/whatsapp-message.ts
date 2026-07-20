@@ -45,8 +45,22 @@ export interface WinnerOrderItem {
   unit: string;
   unitPrice: number;
   brand?: string | null;
+  /** resfriado | congelado | ambiente. */
+  conservation?: string | null;
   deliveryDays?: number | null;
   paymentTerms?: string | null;
+}
+
+const CONSERVATION_LABELS: Record<string, string> = {
+  resfriado: "Resfriado",
+  congelado: "Congelado",
+  ambiente: "Ambiente (seco)",
+};
+
+/** Rótulo legível da conservação, ou null quando não informada. */
+export function conservationLabel(value?: string | null): string | null {
+  if (!value) return null;
+  return CONSERVATION_LABELS[value] ?? value;
 }
 
 /**
@@ -73,7 +87,11 @@ export function generateWinnerOrderMessage(
     const sub = it.quantity * it.unitPrice;
     m += `${i + 1}. *${it.ingredientName}*\n`;
     m += `   ${it.quantity} ${it.unit} × ${formatBRL(it.unitPrice)} = ${formatBRL(sub)}\n`;
+    // Marca e conservação definem QUAL produto foi fechado: o fornecedor pode
+    // ter ofertado o mesmo item em várias marcas, resfriado e congelado.
     if (it.brand) m += `   Marca: ${it.brand}\n`;
+    const cons = conservationLabel(it.conservation);
+    if (cons) m += `   Conservação: ${cons}\n`;
   });
 
   m += `\n💰 *Total: ${formatBRL(total)}*\n`;

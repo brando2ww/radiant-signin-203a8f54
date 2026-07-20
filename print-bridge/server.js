@@ -26,6 +26,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 // ─── Estado interno (para /health) ───────────────────────────────────────
+const VERSION = "1.3.0";
+
 const state = {
   subscription_status: "connecting",
   last_job_at: null,
@@ -36,9 +38,40 @@ const state = {
   started_at: new Date().toISOString(),
 };
 
+// Status por impressora, alimentado a cada impressão e pela sondagem
+// periódica. Antes só existia o estado global, que não dizia QUAL bancada
+// estava fora — e foi exatamente isso que fez a falha do KOTEN passar dois
+// dias despercebida.
+const printers = new Map(); // chave: alvo (ip ou nome Windows)
+
+function printerEntry(target) {
+  if (!printers.has(target)) {
+    printers.set(target, {
+      target,
+      centers: new Set(),
+      online: null, // null = ainda não sondada
+      last_print_at: null,
+      last_error: null,
+      last_error_at: null,
+      checked_at: null,
+    });
+  }
+  return printers.get(target);
+}
+
 // ─── Utilidades ──────────────────────────────────────────────────────────
 const ts = () => new Date().toTimeString().slice(0, 8);
-const log = (...args) => console.log(`[${ts()}]`, ...args);
+
+// Anel dos últimos eventos, para a aba "Detalhes" do painel. Sem isto o
+// cliente precisaria abrir arquivo em Program Files para contar o que houve.
+const LOG_MAX = 300;
+const logRing = [];
+const log = (...args) => {
+  const msg = args.map((a) => (typeof a === "string" ? a : String(a))).join(" ");
+  logRing.push({ at: new Date().toISOString(), msg });
+  if (logRing.length > LOG_MAX) logRing.shift();
+  console.log(`[${ts()}]`, ...args);
+};
 
 const processedJobIds = new Set();
 function markProcessed(id) {
@@ -214,6 +247,15 @@ function buildCaixaReceipt(p) {
   line();
   text(formatDateTime());
   line();
+
+  // Entrega ou retirada em destaque: e a primeira coisa que o caixa precisa
+  // saber, e antes so dava para deduzir pela presenca do endereco.
+  push(ESC, 0x61, 0x01);
+  push(GS, 0x21, 0x01);
+  text(p.order_type === "pickup" ? ">> RETIRADA NO LOCAL <<" : ">> ENTREGA <<");
+  line();
+  push(GS, 0x21, 0x00);
+  push(ESC, 0x61, 0x00);
   divider("-");
 
   if (p.customer_name) {
@@ -232,6 +274,8 @@ function buildCaixaReceipt(p) {
     text(p.delivery_address);
     line();
     push(GS, 0x21, 0x00);
+    if (p.delivery_complement) { text("Compl.: " + p.delivery_complement); line(); }
+    if (p.delivery_reference) { text("Ref.: " + p.delivery_reference); line(); }
   }
 
   if (p.notes) { divider("-"); text("OBS: " + p.notes); line(); }
@@ -259,13 +303,34 @@ function buildCaixaReceipt(p) {
   padRow("TOTAL:", fmtBRL(p.total), true);
 
   divider("-");
-  const PM = { pix: "PIX", dinheiro: "Dinheiro", credito: "Credito", debito: "Debito",
-               cartao: "Cartao", vale_refeicao: "Vale-refeicao", online: "Online" };
-  const pm = PM[p.payment_method] || p.payment_method || "N/D";
-  const paid = p.payment_status === "paid" ? "PAGO" : "AGUARDANDO";
-  text(`Pagamento: ${pm} (${paid})`);
+  // O banco grava em ingles (cash/credit/debit/pix). O mapa antigo so conhecia
+  // os termos em portugues, entao o cupom saia com "Pagamento: cash".
+  const PM = {
+    pix: "PIX",
+    cash: "Dinheiro", dinheiro: "Dinheiro", money: "Dinheiro",
+    credit: "Cartao de credito", credito: "Cartao de credito",
+    credit_card: "Cartao de credito",
+    debit: "Cartao de debito", debito: "Cartao de debito",
+    debit_card: "Cartao de debito",
+    cartao: "Cartao", card: "Cartao",
+    voucher: "Vale-refeicao", vale_refeicao: "Vale-refeicao",
+    online: "Online (ja pago)",
+  };
+  const pm = PM[String(p.payment_method || "").toLowerCase()] || p.payment_method || "N/D";
+  const paid = p.payment_status === "paid" ? "PAGO" : "A RECEBER";
+  push(GS, 0x21, 0x01);
+  text(`Pagamento: ${pm}`);
   line();
-  if (Number(p.change_amount) > 0) { text(`Troco: ${fmtBRL(p.change_amount)}`); line(); }
+  push(GS, 0x21, 0x00);
+  text(`Situacao: ${paid}`);
+  line();
+  // "Troco para" e o valor que o cliente vai entregar, nao o troco em si.
+  if (Number(p.change_amount) > 0) {
+    text(`Troco para: ${fmtBRL(p.change_amount)}`);
+    line();
+    const troco = Number(p.change_amount) - Number(p.total || 0);
+    if (troco > 0) { text(`Levar de troco: ${fmtBRL(troco)}`); line(); }
+  }
 
   divider("=");
   push(LF, LF, LF, LF);
@@ -387,6 +452,76 @@ function routePrint(job, buffer) {
 }
 
 // Lista impressoras disponíveis no sistema (COM ports + Windows Printers)
+// ─── Sondagem de impressoras ─────────────────────────────────────────────
+// Descobre o que ESTÁ CONFIGURADO no painel (não só o que já imprimiu) e
+// testa cada alvo. É o que permite avisar "a cozinha caiu" antes de chegar
+// pedido, em vez de descobrir quando o cupom não sai.
+async function refreshConfiguredPrinters() {
+  if (!TENANT_USER_ID) return;
+
+  // O ideal seria ler pdv_production_centers, mas essa tabela exige sessão
+  // autenticada (RLS: is_establishment_member) e a bridge só tem a chave
+  // anônima. Então derivamos do histórico de impressão, que ela enxerga.
+  // Quando a bridge passar a autenticar por estabelecimento, trocar por uma
+  // leitura direta dos centros — aí impressora recém-configurada que ainda
+  // não imprimiu também aparece.
+  const desde = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("pdv_print_jobs")
+    .select("center_name, printer_ip, printer_port, created_at")
+    .eq("tenant_user_id", TENANT_USER_ID)
+    .gte("created_at", desde)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) return;
+
+  (data || []).forEach((j) => {
+    const target = (j.printer_ip || "").trim();
+    if (!target) return;
+    const e = printerEntry(target);
+    if (j.center_name) e.centers.add(j.center_name);
+    if (!e.port) e.port = j.printer_port || 9100;
+  });
+}
+
+/** Abre e fecha uma conexão TCP só para saber se a impressora atende. */
+function probeTcp(ip, port) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let done = false;
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(3000);
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+    socket.connect(port, ip, () => finish(true));
+  });
+}
+
+async function probeAllPrinters() {
+  const windowsNames = (await listAvailablePrinters()).windows_printers || [];
+  for (const e of printers.values()) {
+    const isIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(e.target);
+    if (isIp) {
+      e.online = await probeTcp(e.target, e.port || 9100);
+    } else if (/^(COM|LPT)\d+$/i.test(e.target)) {
+      e.online = null; // porta serial só dá para saber ao imprimir
+    } else {
+      // Impressora Windows: existir na lista é o que dá para verificar sem
+      // mandar papel. Comparação sem caixa porque o painel guarda o que o
+      // usuário digitou ("bar" vs "Bar").
+      e.online = windowsNames.some(
+        (n) => String(n).toLowerCase() === e.target.toLowerCase(),
+      );
+    }
+    e.checked_at = new Date().toISOString();
+  }
+}
+
 async function listAvailablePrinters() {
   const result = { com_ports: [], windows_printers: [] };
   if (process.platform !== "win32") return result;
@@ -552,10 +687,20 @@ async function processJob(job) {
       state.jobs_processed += 1;
       state.last_print_at = new Date().toISOString();
       state.last_error = null;
+      const okEntry = printerEntry(ip);
+      if (job.center_name) okEntry.centers.add(job.center_name);
+      okEntry.online = true;
+      okEntry.last_print_at = state.last_print_at;
+      okEntry.last_error = null;
       log(`✓ [PID:${process.pid}] Impresso job ${job.id} → ${ip}:${port}`);
     } catch (err) {
       const msg = err.message || String(err);
       state.last_error = msg;
+      const errEntry = printerEntry(ip);
+      if (job.center_name) errEntry.centers.add(job.center_name);
+      errEntry.online = false;
+      errEntry.last_error = msg;
+      errEntry.last_error_at = new Date().toISOString();
       if (attemptNumber < MAX_ATTEMPTS) {
         const delay = RETRY_DELAYS_MS[attemptNumber - 1] || 3000;
         log(`🔁 Retry ${attemptNumber}/${MAX_ATTEMPTS} do job ${job.id} em ${delay}ms — ${msg}`);
@@ -593,6 +738,10 @@ async function loadAndProcessJob(jobId) {
   }
   if (!data) {
     log(`⚠ Job ${jobId} não encontrado`);
+    return;
+  }
+  if (TENANT_USER_ID && data.tenant_user_id !== TENANT_USER_ID) {
+    log(`⚠ Job ${jobId} é de outro estabelecimento — ignorado`);
     return;
   }
   await processJob(data);
@@ -648,14 +797,27 @@ function connectRealtime() {
   log(`→ Conectando Realtime (${name}) — escutando pdv_print_jobs...`);
   state.subscription_status = "connecting";
 
+  // Com mais de um estabelecimento na tabela, ouvir a tabela inteira faz a
+  // bridge de um cliente imprimir o pedido do outro. O filtro server-side corta
+  // isso na origem; sem TENANT_USER_ID o comportamento é o de sempre.
+  const changesFilter = {
+    event: "INSERT",
+    schema: "public",
+    table: "pdv_print_jobs",
+    ...(TENANT_USER_ID ? { filter: `tenant_user_id=eq.${TENANT_USER_ID}` } : {}),
+  };
+
   const channel = supabase
     .channel(name)
     .on(
       "postgres_changes",
-      { event: "INSERT", schema: "public", table: "pdv_print_jobs" },
+      changesFilter,
       (payload) => {
         const job = payload?.new;
         if (!job || job.status !== "pending") return;
+        // Rede de segurança: se o filtro do Realtime falhar (reconexão, versão
+        // antiga do servidor), não imprime job de outro dono.
+        if (TENANT_USER_ID && job.tenant_user_id !== TENANT_USER_ID) return;
         log(`📥 Novo job ${job.id} (${job.payload?.product_name}) status=${job.status}`);
         processJob(job).catch((e) => log(`✗ processJob: ${e.message}`));
       },
@@ -694,9 +856,65 @@ function startHttpServer() {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    // Private Network Access: o painel roda em HTTPS publico e chama
+    // http://localhost. Sem este cabecalho no preflight, o Chrome derruba a
+    // chamada antes de sair do navegador — e o painel mostra "Bridge offline"
+    // mesmo com o servico rodando. So afeta o botao de testar impressora; a
+    // impressao de verdade chega pelo Realtime, sem passar pelo navegador.
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
+    res.setHeader("Access-Control-Max-Age", "86400");
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       return res.end();
+    }
+
+    // Painel de monitoramento. O pkg embute panel.html como asset, então o
+    // caminho vale tanto rodando por node quanto dentro do .exe.
+    if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
+      try {
+        const html = fs.readFileSync(path.join(__dirname, "panel.html"));
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        return res.end(html);
+      } catch (e) {
+        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+        return res.end("Painel indisponivel: " + e.message);
+      }
+    }
+
+    // Painel: tudo que a tela precisa numa chamada só.
+    if (req.method === "GET" && req.url === "/status") {
+      getPendingCount().then((pending) => {
+        const lista = [...printers.values()].map((e) => ({
+          target: e.target,
+          centers: [...e.centers],
+          online: e.online,
+          last_print_at: e.last_print_at,
+          last_error: e.last_error,
+          last_error_at: e.last_error_at,
+          checked_at: e.checked_at,
+          kind: /^\d{1,3}(\.\d{1,3}){3}$/.test(e.target)
+            ? "rede"
+            : /^(COM|LPT)\d+$/i.test(e.target)
+              ? "serial"
+              : "usb",
+        }));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          version: VERSION,
+          establishment: ESTABLISHMENT_NAME,
+          connected: state.subscription_status === "SUBSCRIBED",
+          subscription_status: state.subscription_status,
+          started_at: state.started_at,
+          last_print_at: state.last_print_at,
+          last_error: state.last_error,
+          jobs_processed: state.jobs_processed,
+          jobs_failed: state.jobs_failed,
+          pending_jobs_count: pending,
+          printers: lista,
+          log: logRing.slice(-120).reverse(),
+        }));
+      });
+      return;
     }
 
     if (req.method === "GET" && req.url === "/health") {
@@ -709,6 +927,7 @@ function startHttpServer() {
           last_job_at: state.last_job_at,
           last_print_at: state.last_print_at,
           last_error: state.last_error,
+          version: VERSION,
           jobs_processed: state.jobs_processed,
           jobs_failed: state.jobs_failed,
           pending_jobs_count: pending,
@@ -848,10 +1067,24 @@ async function resetOrphanedPrintingJobs() {
   else log(`✗ resetOrphanedPrintingJobs: ${error.message}`);
 }
 
-log(`=== Velara Print Bridge — ${ESTABLISHMENT_NAME} ===`);
+// Sondagem periódica: descobre impressora fora do ar mesmo sem pedido nenhum
+// chegando. É o que permite avisar antes de faltar cupom na cozinha.
+async function cicloDeSondagem() {
+  try {
+    await refreshConfiguredPrinters();
+    await probeAllPrinters();
+  } catch (e) {
+    log(`✗ sondagem: ${e.message}`);
+  }
+}
+
+log(`=== Velara Print Bridge ${VERSION} — ${ESTABLISHMENT_NAME} ===`);
 log(`PID: ${process.pid} | Porta HTTP: ${BRIDGE_HTTP_PORT} | Iniciado em: ${new Date().toISOString()}`);
 if (TENANT_USER_ID) log(`Filtro de tenant: ${TENANT_USER_ID}`);
+log(`Painel: http://localhost:${BRIDGE_HTTP_PORT}/`);
 startHttpServer();
+cicloDeSondagem();
+setInterval(cicloDeSondagem, 60000);
 resetOrphanedPrintingJobs()
   .catch((e) => log(`✗ resetOrphan: ${e.message}`))
   .finally(() => connectRealtime());

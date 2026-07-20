@@ -63,6 +63,8 @@ export function QuotationResponseDialog({
   const [minimumOrder, setMinimumOrder] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
   const [brand, setBrand] = useState("");
+  // "none" é o sentinela do Select (Radix não aceita item de valor vazio).
+  const [conservation, setConservation] = useState("none");
   const [notes, setNotes] = useState("");
 
   // Pré-preenche quando aberto a partir de uma resposta recebida por WhatsApp.
@@ -95,6 +97,7 @@ export function QuotationResponseDialog({
         minimum_order: minimumOrder ? parseFloat(minimumOrder) : undefined,
         payment_terms: paymentTerms || undefined,
         brand: brand || undefined,
+        conservation: conservation === "none" ? undefined : conservation,
         notes: notes || undefined,
         source: inboundMessageId ? "whatsapp" : "manual",
         inbound_message_id: inboundMessageId,
@@ -118,6 +121,7 @@ export function QuotationResponseDialog({
     setMinimumOrder("");
     setPaymentTerms("");
     setBrand("");
+    setConservation("none");
     setNotes("");
   };
 
@@ -261,6 +265,26 @@ export function QuotationResponseDialog({
                 onChange={(e) => setBrand(e.target.value)}
                 placeholder="Marca do produto"
               />
+              <p className="text-xs text-muted-foreground">
+                Registre uma resposta por marca: o mesmo fornecedor pode ofertar várias
+                e cada uma concorre sozinha no comparativo.
+              </p>
+            </div>
+
+            {/* Conservation */}
+            <div className="space-y-2">
+              <Label>Conservação</Label>
+              <Select value={conservation} onValueChange={setConservation}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Não informado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não informado</SelectItem>
+                  <SelectItem value="resfriado">Resfriado</SelectItem>
+                  <SelectItem value="congelado">Congelado</SelectItem>
+                  <SelectItem value="ambiente">Ambiente (seco)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Notes */}

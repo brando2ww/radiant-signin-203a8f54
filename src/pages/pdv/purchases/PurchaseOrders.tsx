@@ -15,6 +15,7 @@ import { ResponsivePageHeader } from "@/components/ui/responsive-page-header";
 import { usePDVPurchaseOrders } from "@/hooks/use-pdv-purchase-orders";
 import { PurchaseOrderCard } from "@/components/pdv/purchases/PurchaseOrderCard";
 import { PurchaseOrderDialog } from "@/components/pdv/purchases/PurchaseOrderDialog";
+import { ReceiptQRCard } from "@/components/pdv/purchases/ReceiptQRCard";
 import { formatCurrency } from "@/lib/whatsapp-message";
 
 export default function PurchaseOrders() {
@@ -88,6 +89,10 @@ export default function PurchaseOrders() {
           </Card>
         ))}
       </div>
+
+      {/* QR de recebimento: fica aqui porque é onde o pedido vive — quem
+          acompanha os pedidos é quem imprime e cola o código na doca. */}
+      <ReceiptQRCard />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">

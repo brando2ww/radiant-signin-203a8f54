@@ -11,12 +11,14 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import {
   Loader2, CheckCircle2, PackageX, Clock, Send, ChevronDown, ListChecks, CalendarClock,
+  Plus, X,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
-interface ItemResponse {
+interface Offer {
   unit_price?: number | null;
   brand?: string | null;
+  conservation?: string | null;
   delivery_days?: number | null;
   minimum_order?: number | null;
   payment_terms?: string | null;
@@ -28,7 +30,7 @@ interface LoadItem {
   ingredient_name: string;
   quantity: number;
   unit: string;
-  response: ItemResponse | null;
+  offers?: Offer[];
 }
 interface LoadData {
   status: "open" | "closed" | "invalid";
@@ -39,18 +41,31 @@ interface LoadData {
   items?: LoadItem[];
 }
 
-type FormRow = {
+/** Uma oferta = uma marca. O fornecedor pode mandar quantas quiser por item. */
+type OfferRow = {
+  key: string;
   unit_price: string;      // mascarado "1.234,56"
   brand: string;
+  conservation: string;    // "" | resfriado | congelado | ambiente
   delivery_days: string;   // inteiro
   minimum_order: string;   // mascarado
   payment_terms: string;
   expiration_date: string;
   notes: string;
 };
-const emptyRow = (): FormRow => ({
-  unit_price: "", brand: "", delivery_days: "", minimum_order: "",
-  payment_terms: "", expiration_date: "", notes: "",
+
+const CONSERVATIONS = [
+  { value: "resfriado", label: "Resfriado" },
+  { value: "congelado", label: "Congelado" },
+  { value: "ambiente", label: "Ambiente (seco)" },
+];
+
+let offerSeq = 0;
+const emptyOffer = (base?: Partial<OfferRow>): OfferRow => ({
+  key: `offer-${++offerSeq}`,
+  unit_price: "", brand: "", conservation: "", delivery_days: "",
+  minimum_order: "", payment_terms: "", expiration_date: "", notes: "",
+  ...base,
 });
 
 // ---- máscaras ----
@@ -69,13 +84,15 @@ const maskInt = (raw: string): string => raw.replace(/\D/g, "");
 const currencyFromNumber = (n: number | null | undefined): string =>
   n == null ? "" : Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const isFilled = (o: OfferRow) => o.unit_price.trim() !== "";
+
 export default function PublicSupplierQuotation() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<LoadData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [form, setForm] = useState<Record<string, FormRow>>({});
+  const [form, setForm] = useState<Record<string, OfferRow[]>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const load = async () => {
@@ -87,20 +104,23 @@ export default function PublicSupplierQuotation() {
       if (error) throw error;
       const d = res as LoadData;
       setData(d);
-      const initial: Record<string, FormRow> = {};
+      const initial: Record<string, OfferRow[]> = {};
       (d.items ?? []).forEach((it) => {
-        const r = it.response;
-        initial[it.id] = r
-          ? {
-              unit_price: currencyFromNumber(r.unit_price),
-              brand: r.brand ?? "",
-              delivery_days: r.delivery_days != null ? String(r.delivery_days) : "",
-              minimum_order: currencyFromNumber(r.minimum_order),
-              payment_terms: r.payment_terms ?? "",
-              expiration_date: r.expiration_date ?? "",
-              notes: r.notes ?? "",
-            }
-          : emptyRow();
+        const saved = it.offers ?? [];
+        initial[it.id] = saved.length
+          ? saved.map((r) =>
+              emptyOffer({
+                unit_price: currencyFromNumber(r.unit_price),
+                brand: r.brand ?? "",
+                conservation: r.conservation ?? "",
+                delivery_days: r.delivery_days != null ? String(r.delivery_days) : "",
+                minimum_order: currencyFromNumber(r.minimum_order),
+                payment_terms: r.payment_terms ?? "",
+                expiration_date: r.expiration_date ?? "",
+                notes: r.notes ?? "",
+              }),
+            )
+          : [emptyOffer()];
       });
       setForm(initial);
     } catch {
@@ -133,56 +153,88 @@ export default function PublicSupplierQuotation() {
   const brandColor = data?.business?.color || "#0ea5e9";
   const initial = (data?.business?.name || "?").trim().charAt(0).toUpperCase();
 
-  const setField = (itemId: string, field: keyof FormRow, value: string) =>
-    setForm((f) => ({ ...f, [itemId]: { ...(f[itemId] ?? emptyRow()), [field]: value } }));
+  const setField = (itemId: string, key: string, field: keyof OfferRow, value: string) =>
+    setForm((f) => ({
+      ...f,
+      [itemId]: (f[itemId] ?? []).map((o) => (o.key === key ? { ...o, [field]: value } : o)),
+    }));
 
-  // Copia um campo (ex.: prazo/pagamento) para TODOS os itens de uma vez.
-  const applyToAll = (field: keyof FormRow, value: string) =>
+  // Nova marca do mesmo item: repete o que costuma ser igual entre marcas
+  // (prazo, pagamento, mínimo) e deixa em branco o que muda.
+  const addOffer = (itemId: string) =>
     setForm((f) => {
-      const next = { ...f };
-      (data?.items ?? []).forEach((it) => {
-        next[it.id] = { ...(next[it.id] ?? emptyRow()), [field]: value };
+      const list = f[itemId] ?? [];
+      const last = list[list.length - 1];
+      return {
+        ...f,
+        [itemId]: [
+          ...list,
+          emptyOffer({
+            delivery_days: last?.delivery_days ?? "",
+            payment_terms: last?.payment_terms ?? "",
+            minimum_order: last?.minimum_order ?? "",
+          }),
+        ],
+      };
+    });
+
+  const removeOffer = (itemId: string, key: string) =>
+    setForm((f) => {
+      const rest = (f[itemId] ?? []).filter((o) => o.key !== key);
+      return { ...f, [itemId]: rest.length ? rest : [emptyOffer()] };
+    });
+
+  // Copia um campo (ex.: prazo/pagamento) para TODAS as ofertas de TODOS os itens.
+  const applyToAll = (field: keyof OfferRow, value: string) =>
+    setForm((f) => {
+      const next: Record<string, OfferRow[]> = {};
+      Object.entries(f).forEach(([itemId, list]) => {
+        next[itemId] = list.map((o) => ({ ...o, [field]: value }));
       });
       return next;
     });
 
   const items = data?.items ?? [];
   const filledCount = useMemo(
-    () => Object.values(form).filter((r) => r.unit_price.trim() !== "").length,
+    () => items.filter((it) => (form[it.id] ?? []).some(isFilled)).length,
+    [form, items],
+  );
+  const offerCount = useMemo(
+    () => Object.values(form).reduce((acc, list) => acc + list.filter(isFilled).length, 0),
     [form],
   );
   const progress = items.length ? Math.round((filledCount / items.length) * 100) : 0;
 
   const handleSubmit = async () => {
-    const responses = items
-      .filter((it) => (form[it.id]?.unit_price ?? "").trim() !== "")
-      .map((it) => {
-        const r = form[it.id];
-        return {
-          quotation_item_id: it.id,
-          unit_price: parseCurrency(r.unit_price),
-          brand: r.brand || null,
-          delivery_days: r.delivery_days || null,
-          minimum_order: r.minimum_order ? parseCurrency(r.minimum_order) : null,
-          payment_terms: r.payment_terms || null,
-          expiration_date: r.expiration_date || null,
-          notes: r.notes || null,
-        };
-      });
+    const responses = items.flatMap((it) =>
+      (form[it.id] ?? []).filter(isFilled).map((o) => ({
+        quotation_item_id: it.id,
+        unit_price: parseCurrency(o.unit_price),
+        brand: o.brand.trim() || null,
+        conservation: o.conservation || null,
+        delivery_days: o.delivery_days || null,
+        minimum_order: o.minimum_order ? parseCurrency(o.minimum_order) : null,
+        payment_terms: o.payment_terms || null,
+        expiration_date: o.expiration_date || null,
+        notes: o.notes || null,
+      })),
+    );
 
     if (responses.length === 0) {
       toast.error("Informe ao menos o preço de um item.");
       return;
     }
 
-    // Prazo de entrega e pagamento são obrigatórios nos itens respondidos.
-    const incomplete = items.find((it) => {
-      const r = form[it.id];
-      if (!r || !r.unit_price.trim()) return false;
-      return !r.delivery_days.trim() || !r.payment_terms.trim();
-    });
+    // Marca, prazo e pagamento são obrigatórios em toda oferta preenchida.
+    const incomplete = items.find((it) =>
+      (form[it.id] ?? [])
+        .filter(isFilled)
+        .some((o) => !o.brand.trim() || !o.delivery_days.trim() || !o.payment_terms.trim()),
+    );
     if (incomplete) {
-      toast.error(`Preencha o prazo de entrega e a forma de pagamento de "${incomplete.ingredient_name}".`);
+      toast.error(
+        `Em "${incomplete.ingredient_name}", preencha marca, prazo de entrega e forma de pagamento em todas as ofertas.`,
+      );
       return;
     }
 
@@ -242,8 +294,9 @@ export default function PublicSupplierQuotation() {
   }
 
   const closed = data.status === "closed";
+  // deadline é DATE ("yyyy-MM-dd"): new Date() leria como UTC e voltaria um dia.
   const deadlineStr = data.quotation?.deadline
-    ? format(new Date(data.quotation.deadline), "dd/MM/yyyy")
+    ? format(parseISO(data.quotation.deadline), "dd/MM/yyyy")
     : null;
 
   return (
@@ -285,8 +338,13 @@ export default function PublicSupplierQuotation() {
                 <p className="text-muted-foreground mt-0.5">
                   {data.business?.name} pediu seu orçamento para{" "}
                   <strong>{items.length} {items.length === 1 ? "item" : "itens"}</strong>. Em cada
-                  um, informe <strong>preço</strong>, <strong>prazo de entrega</strong> e{" "}
-                  <strong>forma de pagamento</strong>. Marca, validade e pedido mínimo são opcionais.
+                  oferta, informe <strong>marca</strong>, <strong>preço</strong>,{" "}
+                  <strong>prazo de entrega</strong> e <strong>forma de pagamento</strong>.
+                </p>
+                <p className="text-muted-foreground mt-1.5">
+                  Trabalha com <strong>mais de uma marca</strong> no mesmo item? Use{" "}
+                  <strong>"Adicionar outra marca"</strong> e mande todas — cada uma é avaliada
+                  separadamente.
                 </p>
               </div>
             </div>
@@ -328,13 +386,12 @@ export default function PublicSupplierQuotation() {
           </CardContent></Card>
         ) : (
           items.map((it, i) => {
-            const r = form[it.id] ?? emptyRow();
-            const isOpenDetails = !!expanded[it.id];
+            const offers = form[it.id] ?? [];
             const qty = it.quantity;
-            const total = parseCurrency(r.unit_price);
+            const anyFilled = offers.some(isFilled);
             return (
-              <Card key={it.id} className={r.unit_price ? "ring-1 ring-inset" : ""}
-                style={r.unit_price ? { ["--tw-ring-color" as any]: brandColor } : undefined}>
+              <Card key={it.id} className={anyFilled ? "ring-1 ring-inset" : ""}
+                style={anyFilled ? { ["--tw-ring-color" as any]: brandColor } : undefined}>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -349,92 +406,37 @@ export default function PublicSupplierQuotation() {
                     <Badge variant="outline" className="shrink-0">{qty} {it.unit}</Badge>
                   </div>
 
-                  {/* Preço (destaque) — obrigatório */}
-                  <div className="space-y-1">
-                    <Label className="text-xs font-medium">Preço por {it.unit} *</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
-                      <Input
-                        inputMode="numeric"
-                        placeholder="0,00"
-                        value={r.unit_price}
-                        disabled={closed}
-                        onChange={(e) => setField(it.id, "unit_price", maskCurrency(e.target.value))}
-                        className="pl-9 h-11 text-base font-medium"
-                      />
-                    </div>
-                    {total != null && (
-                      <p className="text-xs text-muted-foreground">
-                        Total estimado: <strong>{(total * qty).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong> ({qty} {it.unit})
-                      </p>
-                    )}
-                  </div>
+                  {offers.map((o, oi) => (
+                    <OfferFields
+                      key={o.key}
+                      offer={o}
+                      index={oi}
+                      totalOffers={offers.length}
+                      item={it}
+                      itemCount={items.length}
+                      closed={closed}
+                      brandColor={brandColor}
+                      expanded={!!expanded[o.key]}
+                      onToggleExpanded={() =>
+                        setExpanded((e) => ({ ...e, [o.key]: !e[o.key] }))
+                      }
+                      onChange={(field, value) => setField(it.id, o.key, field, value)}
+                      onRemove={() => removeOffer(it.id, o.key)}
+                      onApplyToAll={applyToAll}
+                    />
+                  ))}
 
-                  {/* Prazo de entrega + Pagamento — obrigatórios */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Prazo de entrega (dias) *</Label>
-                      <Input inputMode="numeric" placeholder="Ex: 3" value={r.delivery_days} disabled={closed}
-                        onChange={(e) => setField(it.id, "delivery_days", maskInt(e.target.value))} />
-                      {items.length > 1 && r.delivery_days.trim() !== "" && (
-                        <button type="button" className="text-[11px] text-primary hover:underline"
-                          onClick={() => applyToAll("delivery_days", r.delivery_days)}>
-                          aplicar a todos
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-medium">Pagamento *</Label>
-                      <Input placeholder="Ex: à vista, 30 dias" value={r.payment_terms} disabled={closed}
-                        onChange={(e) => setField(it.id, "payment_terms", e.target.value)} />
-                      {items.length > 1 && r.payment_terms.trim() !== "" && (
-                        <button type="button" className="text-[11px] text-primary hover:underline"
-                          onClick={() => applyToAll("payment_terms", r.payment_terms)}>
-                          aplicar a todos
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Extras opcionais recolhíveis */}
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setExpanded((e) => ({ ...e, [it.id]: !isOpenDetails }))}
-                  >
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpenDetails ? "rotate-180" : ""}`} />
-                    {isOpenDetails
-                      ? "Ocultar campos extras"
-                      : "Preencher também (opcional): marca, pedido mínimo, validade, observação"}
-                  </button>
-
-                  {isOpenDetails && (
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Marca</Label>
-                        <Input value={r.brand} disabled={closed}
-                          onChange={(e) => setField(it.id, "brand", e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Pedido mínimo</Label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
-                          <Input inputMode="numeric" value={r.minimum_order} disabled={closed}
-                            className="pl-8"
-                            onChange={(e) => setField(it.id, "minimum_order", maskCurrency(e.target.value))} />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Validade</Label>
-                        <Input type="date" value={r.expiration_date} disabled={closed}
-                          onChange={(e) => setField(it.id, "expiration_date", e.target.value)} />
-                      </div>
-                      <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Observação</Label>
-                        <Textarea rows={2} value={r.notes} disabled={closed}
-                          onChange={(e) => setField(it.id, "notes", e.target.value)} />
-                      </div>
-                    </div>
+                  {!closed && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-dashed"
+                      onClick={() => addOffer(it.id)}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Adicionar outra marca de {it.ingredient_name}
+                    </Button>
                   )}
                 </CardContent>
               </Card>
@@ -452,6 +454,7 @@ export default function PublicSupplierQuotation() {
           <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between gap-3">
             <span className="text-sm text-muted-foreground">
               {filledCount} de {items.length} preenchidos
+              {offerCount > filledCount && ` · ${offerCount} ofertas`}
             </span>
             <Button
               onClick={handleSubmit}
@@ -462,6 +465,186 @@ export default function PublicSupplierQuotation() {
               {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
               Enviar orçamento
             </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Bloco de uma oferta (uma marca) dentro de um item. */
+function OfferFields({
+  offer: o,
+  index,
+  totalOffers,
+  item,
+  itemCount,
+  closed,
+  brandColor,
+  expanded,
+  onToggleExpanded,
+  onChange,
+  onRemove,
+  onApplyToAll,
+}: {
+  offer: OfferRow;
+  index: number;
+  totalOffers: number;
+  item: LoadItem;
+  itemCount: number;
+  closed: boolean;
+  brandColor: string;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onChange: (field: keyof OfferRow, value: string) => void;
+  onRemove: () => void;
+  onApplyToAll: (field: keyof OfferRow, value: string) => void;
+}) {
+  const total = parseCurrency(o.unit_price);
+
+  return (
+    <div className={totalOffers > 1 ? "rounded-lg border bg-muted/20 p-3 space-y-3" : "space-y-3"}>
+      {totalOffers > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">
+            {index + 1}ª marca{o.brand ? ` · ${o.brand}` : ""}
+          </span>
+          {!closed && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+              title="Remover esta marca"
+              onClick={onRemove}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Marca + Preço — obrigatórios */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs font-medium">Marca *</Label>
+          <Input
+            placeholder="Ex: Friboi"
+            value={o.brand}
+            disabled={closed}
+            onChange={(e) => onChange("brand", e.target.value)}
+            className="h-11"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs font-medium">Preço por {item.unit} *</Label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+            <Input
+              inputMode="numeric"
+              placeholder="0,00"
+              value={o.unit_price}
+              disabled={closed}
+              onChange={(e) => onChange("unit_price", maskCurrency(e.target.value))}
+              className="pl-9 h-11 text-base font-medium"
+            />
+          </div>
+        </div>
+      </div>
+      {total != null && (
+        <p className="text-xs text-muted-foreground -mt-1">
+          Total estimado:{" "}
+          <strong>
+            {(total * item.quantity).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+          </strong>{" "}
+          ({item.quantity} {item.unit})
+        </p>
+      )}
+
+      {/* Conservação — opcional */}
+      <div className="space-y-1">
+        <Label className="text-xs font-medium">Conservação</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {CONSERVATIONS.map((c) => {
+            const active = o.conservation === c.value;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                disabled={closed}
+                // Clicar de novo limpa: o campo é opcional e itens secos não têm
+                // essa dimensão.
+                onClick={() => onChange("conservation", active ? "" : c.value)}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                  active ? "text-white border-transparent" : "hover:bg-muted"
+                }`}
+                style={active ? { backgroundColor: brandColor } : undefined}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Prazo de entrega + Pagamento — obrigatórios */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs font-medium">Prazo de entrega (dias) *</Label>
+          <Input inputMode="numeric" placeholder="Ex: 3" value={o.delivery_days} disabled={closed}
+            onChange={(e) => onChange("delivery_days", maskInt(e.target.value))} />
+          {(itemCount > 1 || totalOffers > 1) && o.delivery_days.trim() !== "" && (
+            <button type="button" className="text-[11px] text-primary hover:underline"
+              onClick={() => onApplyToAll("delivery_days", o.delivery_days)}>
+              aplicar a todos
+            </button>
+          )}
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs font-medium">Pagamento *</Label>
+          <Input placeholder="Ex: à vista, 30 dias" value={o.payment_terms} disabled={closed}
+            onChange={(e) => onChange("payment_terms", e.target.value)} />
+          {(itemCount > 1 || totalOffers > 1) && o.payment_terms.trim() !== "" && (
+            <button type="button" className="text-[11px] text-primary hover:underline"
+              onClick={() => onApplyToAll("payment_terms", o.payment_terms)}>
+              aplicar a todos
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Extras opcionais recolhíveis */}
+      <button
+        type="button"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={onToggleExpanded}
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        {expanded
+          ? "Ocultar campos extras"
+          : "Preencher também (opcional): validade, pedido mínimo, observação"}
+      </button>
+
+      {expanded && (
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <div className="space-y-1">
+            <Label className="text-xs">Validade</Label>
+            <Input type="date" value={o.expiration_date} disabled={closed}
+              onChange={(e) => onChange("expiration_date", e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Pedido mínimo</Label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">R$</span>
+              <Input inputMode="numeric" value={o.minimum_order} disabled={closed}
+                className="pl-8"
+                onChange={(e) => onChange("minimum_order", maskCurrency(e.target.value))} />
+            </div>
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label className="text-xs">Observação</Label>
+            <Textarea rows={2} value={o.notes} disabled={closed}
+              onChange={(e) => onChange("notes", e.target.value)} />
           </div>
         </div>
       )}

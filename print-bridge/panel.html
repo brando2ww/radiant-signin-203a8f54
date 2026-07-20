@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Velara · Impressão</title>
+<style>
+  :root{
+    --bg:#0B1120; --panel:#111A2E; --panel-2:#0F1728; --line:#1E2A44;
+    --ink:#E6EDF7; --dim:#8A9AB5; --ok:#22C55E; --bad:#EF4444; --warn:#F59E0B;
+    --brand:#E6EDF7;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    display:flex; align-items:center; gap:12px;
+    padding:14px 18px; border-bottom:1px solid var(--line); background:var(--panel-2);
+    position:sticky; top:0; z-index:5;
+  }
+  .mark{width:26px;height:26px;flex:0 0 26px}
+  .title{font-weight:600;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:12px}
+  .spacer{flex:1}
+  .pill{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;
+    border:1px solid var(--line); background:var(--panel);
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:0 0 8px}
+  .dot.ok{background:var(--ok);box-shadow:0 0 0 0 rgba(34,197,94,.5);animation:pulse 2s infinite}
+  .dot.bad{background:var(--bad)}
+  .dot.warn{background:var(--warn)}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)}
+    70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}
+    100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}
+  }
+  .tabs{display:flex;gap:4px;padding:12px 18px 0}
+  .tab{
+    padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;color:var(--dim);
+    font-weight:600;font-size:13px;border:1px solid transparent;border-bottom:none;
+  }
+  .tab.active{background:var(--panel);color:var(--ink);border-color:var(--line)}
+  main{padding:0 18px 18px}
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;margin-top:12px;
+  }
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .stat b{display:block;font-size:22px;font-weight:650;letter-spacing:-.5px}
+  .stat span{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .prt{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .prt:last-child{border-bottom:none}
+  .prt .who{flex:1;min-width:0}
+  .prt .name{font-weight:600}
+  .prt .meta{color:var(--dim);font-size:12px;margin-top:2px;word-break:break-all}
+  .prt .err{color:#FCA5A5;font-size:12px;margin-top:3px}
+  .badge{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  button{
+    font:inherit;font-weight:600;font-size:12px;cursor:pointer;color:var(--ink);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;
+  }
+  button:hover{border-color:#33415F}
+  .log{
+    font-family:"Cascadia Mono",Consolas,monospace;font-size:12px;
+    max-height:62vh;overflow:auto;
+  }
+  .log div{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04);white-space:pre-wrap;word-break:break-word}
+  .log time{color:var(--dim);margin-right:9px}
+  .hide{display:none}
+  .empty{color:var(--dim);text-align:center;padding:26px 0}
+  footer{color:var(--dim);font-size:11px;padding:0 18px 18px;display:flex;gap:14px}
+</style>
+</head>
+<body>
+<header>
+  <svg class="mark" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+    <rect x="6" y="6" width="88" height="88" rx="26" stroke="currentColor" stroke-width="9"/>
+    <path d="M22 30 L44 47 L22 64 Q27 47 22 30 Z" fill="currentColor"/>
+    <path d="M78 30 L56 47 L78 64 Q73 47 78 30 Z" fill="currentColor"/>
+    <circle cx="50" cy="47" r="10" stroke="currentColor" stroke-width="7"/>
+  </svg>
+  <div>
+    <div class="title">Impressão Velara</div>
+    <div class="sub" id="estab">—</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill"><span class="dot" id="conn-dot"></span><span id="conn-txt">conectando</span></span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="geral">Geral</div>
+  <div class="tab" data-tab="detalhes">Detalhes</div>
+</div>
+
+<main>
+  <section id="tab-geral">
+    <div class="stats">
+      <div class="stat"><b id="s-fila">—</b><span>Na fila</span></div>
+      <div class="stat"><b id="s-ok">—</b><span>Impressos</span></div>
+      <div class="stat"><b id="s-fail">—</b><span>Falhas</span></div>
+      <div class="stat"><b id="s-ultimo">—</b><span>Última impressão</span></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <strong style="font-size:13px">Impressoras</strong>
+        <div class="spacer" style="flex:1"></div>
+        <button id="btn-testar-todas">Testar todas</button>
+      </div>
+      <div id="lista"><div class="empty">Carregando…</div></div>
+    </div>
+  </section>
+
+  <section id="tab-detalhes" class="hide">
+    <div class="card">
+      <div style="display:flex;align-items:center;margin-bottom:8px">
+        <strong style="font-size:13px">Eventos recentes</strong>
+        <div class="spacer" style="flex:1"></div>
+        <button id="btn-copiar">Copiar diagnóstico</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span id="f-versao">—</span>
+  <span id="f-inicio">—</span>
+</footer>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let ultimo = null;
+
+function quando(iso){
+  if(!iso) return "—";
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return "agora";
+  if (s < 3600) return `há ${Math.floor(s/60)} min`;
+  if (s < 86400) return `há ${Math.floor(s/3600)} h`;
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+
+function pinta(d){
+  ultimo = d;
+  $("#estab").textContent = d.establishment || "—";
+  $("#conn-dot").className = "dot " + (d.connected ? "ok" : "bad");
+  $("#conn-txt").textContent = d.connected ? "conectado" : "sem conexão";
+  $("#s-fila").textContent = d.pending_jobs_count ?? "—";
+  $("#s-ok").textContent = d.jobs_processed ?? 0;
+  $("#s-fail").textContent = d.jobs_failed ?? 0;
+  $("#s-ultimo").textContent = quando(d.last_print_at);
+  $("#f-versao").textContent = "Versão " + (d.version || "?");
+  $("#f-inicio").textContent = "No ar desde " + new Date(d.started_at).toLocaleString("pt-BR");
+
+  const alvo = $("#lista");
+  if (!d.printers || !d.printers.length){
+    alvo.innerHTML = '<div class="empty">Nenhuma impressora configurada.<br>Configure em Configurações → Centros de Produção.</div>';
+  } else {
+    alvo.innerHTML = d.printers.map((p) => {
+      const cls = p.online === true ? "ok" : p.online === false ? "bad" : "warn";
+      const txt = p.online === true ? "responde" : p.online === false ? "não responde" : "não verificada";
+      return `<div class="prt">
+        <span class="dot ${cls}"></span>
+        <div class="who">
+          <div class="name">${(p.centers||[]).join(", ") || p.target}</div>
+          <div class="meta">${p.target} <span class="badge">${p.kind}</span> · ${txt} · última impressão ${quando(p.last_print_at)}</div>
+          ${p.last_error ? `<div class="err">${p.last_error}</div>` : ""}
+        </div>
+        <button data-testar="${encodeURIComponent(p.target)}">Testar</button>
+      </div>`;
+    }).join("");
+  }
+
+  $("#log").innerHTML = (d.log||[])
+    .map((l) => `<div><time>${new Date(l.at).toLocaleTimeString("pt-BR")}</time>${l.msg.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</div>`)
+    .join("");
+}
+
+async function atualiza(){
+  try{
+    const r = await fetch("/status", {cache:"no-store"});
+    pinta(await r.json());
+  }catch(e){
+    $("#conn-dot").className = "dot bad";
+    $("#conn-txt").textContent = "serviço parado";
+  }
+}
+
+async function testar(alvo){
+  const ip = decodeURIComponent(alvo);
+  const ehIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(ip);
+  await fetch("/test-print", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(ehIp ? {ip, port:9100, centerName:"Teste"} : {printerName:ip, centerName:"Teste"}),
+  }).catch(()=>{});
+  setTimeout(atualiza, 800);
+}
+
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-testar]");
+  if (t) return testar(t.dataset.testar);
+
+  const tab = ev.target.closest(".tab");
+  if (tab){
+    document.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === tab));
+    $("#tab-geral").classList.toggle("hide", tab.dataset.tab !== "geral");
+    $("#tab-detalhes").classList.toggle("hide", tab.dataset.tab !== "detalhes");
+  }
+
+  if (ev.target.id === "btn-testar-todas" && ultimo){
+    (ultimo.printers||[]).forEach(p => testar(encodeURIComponent(p.target)));
+  }
+
+  if (ev.target.id === "btn-copiar" && ultimo){
+    const txt = [
+      `Velara Print Bridge ${ultimo.version}`,
+      `Estabelecimento: ${ultimo.establishment}`,
+      `Conexão: ${ultimo.subscription_status}`,
+      `No ar desde: ${ultimo.started_at}`,
+      `Fila: ${ultimo.pending_jobs_count} · Impressos: ${ultimo.jobs_processed} · Falhas: ${ultimo.jobs_failed}`,
+      "",
+      "IMPRESSORAS:",
+      ...(ultimo.printers||[]).map(p => `- ${(p.centers||[]).join(", ")} [${p.target}] ${p.online===true?"OK":p.online===false?"FORA":"?"} ${p.last_error||""}`),
+      "",
+      "ULTIMOS EVENTOS:",
+      ...(ultimo.log||[]).slice(0,40).map(l => `${l.at} ${l.msg}`),
+    ].join("\n");
+    navigator.clipboard.writeText(txt).then(() => {
+      ev.target.textContent = "Copiado!";
+      setTimeout(() => ev.target.textContent = "Copiar diagnóstico", 1600);
+    });
+  }
+});
+
+atualiza();
+setInterval(atualiza, 3000);
+</script>
+</body>
+</html>

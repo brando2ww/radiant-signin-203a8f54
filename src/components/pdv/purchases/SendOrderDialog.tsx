@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { QuotationRequest } from "@/hooks/use-pdv-quotations";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
-import { generateWinnerOrderMessage, WinnerOrderItem } from "@/lib/whatsapp-message";
+import { conservationLabel, generateWinnerOrderMessage, WinnerOrderItem } from "@/lib/whatsapp-message";
 import { formatBRL } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,6 +72,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
         unit: item.unit,
         unitPrice: Number(win.unit_price) || 0,
         brand: win.brand,
+        conservation: win.conservation,
         deliveryDays: win.delivery_days,
         paymentTerms: win.payment_terms,
       };
@@ -155,7 +156,10 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
               ${o.items
                 .map(
                   (i) => `<tr>
-                    <td>${esc(i.ingredientName)}${i.brand ? ` <small>(${esc(i.brand)})</small>` : ""}</td>
+                    <td>${esc(i.ingredientName)}${[i.brand, conservationLabel(i.conservation)]
+                      .filter(Boolean)
+                      .map((s) => ` <small>(${esc(String(s))})</small>`)
+                      .join("")}</td>
                     <td class="num">${i.quantity} ${esc(i.unit)}</td>
                     <td class="num">${formatBRL(i.unitPrice)}</td>
                     <td class="num">${formatBRL(i.quantity * i.unitPrice)}</td>
@@ -366,9 +370,14 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                         <tr key={`${o.supplierId}-${idx}`}>
                           <td className="px-3 py-2">
                             {i.ingredientName}
-                            {i.brand && (
-                              <span className="text-muted-foreground"> · {i.brand}</span>
-                            )}
+                            {[i.brand, conservationLabel(i.conservation)]
+                              .filter(Boolean)
+                              .map((s) => (
+                                <span key={String(s)} className="text-muted-foreground">
+                                  {" "}
+                                  · {s}
+                                </span>
+                              ))}
                           </td>
                           <td className="whitespace-nowrap px-3 py-2 text-right">
                             {i.quantity} {i.unit}

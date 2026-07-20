@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { parseISO } from "date-fns";
 import { MessageCircle, Check, Loader2, Copy, Link2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -10,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { QuotationRequest } from "@/hooks/use-pdv-quotations";
 import { usePDVIngredientSuppliers } from "@/hooks/use-pdv-ingredient-suppliers";
@@ -191,12 +191,16 @@ export function WhatsAppSendDialog({
   };
 
   const buildSuppliersPayload = (onlySelectedWithPhone: boolean) => {
-    const deadline = quotation.deadline ? new Date(quotation.deadline) : new Date();
+    // deadline é uma coluna DATE ("yyyy-MM-dd"): new Date() a lê como UTC e
+    // volta um dia em BRT. parseISO mantém a data no fuso local.
+    const deadline = quotation.deadline ? parseISO(quotation.deadline) : new Date();
     const chosen = suppliersWithItems.filter(
       (s) => selectedSuppliers.has(s.id) && (onlySelectedWithPhone ? s.phone : true)
     );
     return chosen.map((supplier) => {
-      const message = quotation.message_template || generateQuotationMessage(
+      // A mensagem é montada por fornecedor, a partir dos itens que ELE foi
+      // convidado a cotar. Nunca a lista inteira da cotação.
+      const message = generateQuotationMessage(
         supplier.items.map((item) => ({
           ingredientName: item.ingredientName,
           quantity: item.quantity,
@@ -287,8 +291,8 @@ export function WhatsAppSendDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <WhatsAppIcon className="h-5 w-5 text-green-600" />
             Enviar Cotação via WhatsApp
@@ -299,7 +303,8 @@ export function WhatsAppSendDialog({
           </p>
         </DialogHeader>
 
-        <div className="space-y-4">
+        {/* Área rolável única: cabeçalho e rodapé ficam fixos, o miolo desce. */}
+        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
           {suppliersWithItems.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -327,8 +332,7 @@ export function WhatsAppSendDialog({
                 </Button>
               </div>
 
-              <ScrollArea className="max-h-[300px]">
-                <div className="space-y-2">
+              <div className="space-y-2">
                   {suppliersWithItems.map((supplier) => {
                     const isSelected = selectedSuppliers.has(supplier.id);
                     const hasPhone = !!supplier.phone;
@@ -376,8 +380,7 @@ export function WhatsAppSendDialog({
                       </div>
                     );
                   })}
-                </div>
-              </ScrollArea>
+              </div>
 
               {links.length > 0 && (
                 <div className="rounded-lg border p-3 space-y-2">
@@ -415,7 +418,7 @@ export function WhatsAppSendDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-2">
+        <DialogFooter className="gap-2 sm:gap-2 shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isGenerating}>
             Fechar
           </Button>

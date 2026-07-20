@@ -190,22 +190,38 @@ export async function dispatchDeliveryPrintJobs(
     return { jobs: 0 };
   }
 
-  // Enfileira comanda caixa para centros com print_complete=true (fire-and-forget)
-  dispatchCaixaJobs(orderId, options).catch((e) =>
-    console.error("Erro ao enfileirar comanda_caixa:", e)
-  );
+  // Enfileira comanda caixa para centros com print_complete=true (fire-and-forget).
+  //
+  // Antes isto exigia `options.auto`, ou seja, só saía na impressão automática —
+  // que depende de uma aba do painel viva escutando o Realtime. Na prática nunca
+  // saiu: 845 pedidos de delivery no histórico e zero comanda de caixa gerada,
+  // mesmo com o recurso ligado. Agora vale também na impressão manual do pedido
+  // inteiro. Reimprimir só uma bancada (centerIdFilter definido) segue sem gerar
+  // caixa, e o dedup por (source_kind, source_item_id) impede segunda via.
+  if (centerIdFilter === undefined) {
+    dispatchCaixaJobs(orderId).catch((e) =>
+      console.error("Erro ao enfileirar comanda_caixa:", e)
+    );
+  }
 
   return { jobs: jobs.length };
 }
 
-async function dispatchCaixaJobs(orderId: string, options?: { auto?: boolean }) {
-  if (!options?.auto) return;
+async function dispatchCaixaJobs(orderId: string) {
 
-  const { data: orderRow } = await (supabase as any)
+  // As colunas sao `discount` e `change_for`. Pedir `discount_amount`/
+  // `change_amount` fazia o PostgREST devolver 400, `orderRow` vinha vazio e a
+  // funcao desistia calada — era por isso que a comanda de caixa nunca saiu,
+  // em nenhum cliente, em centenas de pedidos.
+  const { data: orderRow, error: orderError } = await (supabase as any)
     .from("delivery_orders")
-    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,subtotal,delivery_fee,discount_amount,total,payment_method,payment_status,change_amount,notes")
+    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,delivery_address_id,subtotal,delivery_fee,discount,total,payment_method,payment_status,change_for,notes")
     .eq("id", orderId)
     .single();
+  if (orderError) {
+    console.error("comanda_caixa: falha ao carregar o pedido:", orderError);
+    return;
+  }
   if (!orderRow) return;
 
   const { data: centers } = await (supabase as any)
@@ -224,6 +240,21 @@ async function dispatchCaixaJobs(orderId: string, options?: { auto?: boolean }) 
     .eq("source_item_id", orderId)
     .limit(1);
   if (existing && existing.length > 0) return;
+
+  // Complemento e referencia nao cabem no `delivery_address_text`, que e uma
+  // linha unica. Sao justamente o que o entregador precisa para achar a casa,
+  // entao vao separados no cupom.
+  let complemento: string | null = null;
+  let referencia: string | null = null;
+  if (orderRow.delivery_address_id) {
+    const { data: addr } = await (supabase as any)
+      .from("delivery_addresses")
+      .select("complement,reference")
+      .eq("id", orderRow.delivery_address_id)
+      .maybeSingle();
+    complemento = addr?.complement?.trim() || null;
+    referencia = addr?.reference?.trim() || null;
+  }
 
   const allRows = await fetchOrderItems(orderId);
   const itemsPayload = allRows.map((r: any) => ({
@@ -253,13 +284,17 @@ async function dispatchCaixaJobs(orderId: string, options?: { auto?: boolean }) 
       customer_phone: orderRow.customer_phone,
       order_type: orderRow.order_type,
       delivery_address: orderRow.delivery_address_text,
+      delivery_complement: complemento,
+      delivery_reference: referencia,
       subtotal: orderRow.subtotal,
       delivery_fee: orderRow.delivery_fee,
-      discount_amount: orderRow.discount_amount,
+      // A bridge le `discount_amount`/`change_amount` no payload; no banco as
+      // colunas tem outro nome. A traducao acontece aqui.
+      discount_amount: orderRow.discount,
       total: orderRow.total,
       payment_method: orderRow.payment_method,
       payment_status: orderRow.payment_status,
-      change_amount: orderRow.change_amount,
+      change_amount: orderRow.change_for,
       notes: orderRow.notes,
       items: itemsPayload,
     },

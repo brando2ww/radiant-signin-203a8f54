@@ -17,6 +17,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 const OPEN_STATUSES = ["pending", "in_progress"];
+const CONSERVATIONS = ["resfriado", "congelado", "ambiente"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -81,15 +82,17 @@ Deno.serve(async (req) => {
 
       const itemIds = items.map((it: any) => it.id);
 
-      // Respostas já enviadas por este fornecedor (para pré-preencher edição).
-      let responsesByItem: Record<string, any> = {};
+      // Ofertas já enviadas por este fornecedor (para pré-preencher edição).
+      // Pode haver VÁRIAS por item — uma por marca ofertada.
+      const offersByItem: Record<string, any[]> = {};
       if (itemIds.length > 0) {
         const { data: resps } = await service
           .from("pdv_quotation_responses")
-          .select("quotation_item_id, unit_price, brand, delivery_days, minimum_order, payment_terms, expiration_date, notes")
+          .select("id, quotation_item_id, unit_price, brand, conservation, delivery_days, minimum_order, payment_terms, expiration_date, notes")
           .eq("supplier_id", link.supplier_id)
-          .in("quotation_item_id", itemIds);
-        for (const r of resps ?? []) responsesByItem[r.quotation_item_id] = r;
+          .in("quotation_item_id", itemIds)
+          .order("created_at", { ascending: true });
+        for (const r of resps ?? []) (offersByItem[r.quotation_item_id] ??= []).push(r);
       }
 
       return json({
@@ -98,13 +101,19 @@ Deno.serve(async (req) => {
         supplier: { name: supplier?.name ?? null },
         quotation: { request_number: quotation.request_number, deadline: quotation.deadline },
         alreadySubmitted: link.status === "submitted",
-        items: items.map((it: any) => ({
-          id: it.id,
-          ingredient_name: it.ingredient?.name ?? "Item",
-          quantity: it.quantity_needed,
-          unit: it.unit,
-          response: responsesByItem[it.id] ?? null,
-        })),
+        items: items.map((it: any) => {
+          const offers = offersByItem[it.id] ?? [];
+          return {
+            id: it.id,
+            ingredient_name: it.ingredient?.name ?? "Item",
+            quantity: it.quantity_needed,
+            unit: it.unit,
+            offers,
+            // Compat: link já aberto no celular do fornecedor com a página
+            // antiga (uma oferta por item) continua carregando.
+            response: offers[0] ?? null,
+          };
+        }),
       });
     }
 
@@ -127,36 +136,61 @@ Deno.serve(async (req) => {
         }
       }
 
-      let saved = 0;
+      // Agrupa as ofertas por item. Um item pode receber várias (uma por marca),
+      // então a limpeza do que existia é feita por item UMA vez, antes de
+      // inserir — apagar dentro do loop faria a 2ª oferta matar a 1ª.
+      const offersByItem = new Map<string, any[]>();
       for (const resp of responses) {
         const itemId = resp?.quotation_item_id;
         if (!itemId || !validItems.has(itemId)) continue; // anti-adulteração
         const unitPrice = resp?.unit_price === "" || resp?.unit_price == null ? null : Number(resp.unit_price);
         if (unitPrice == null || Number.isNaN(unitPrice)) continue; // preço é obrigatório
 
+        const brand = typeof resp?.brand === "string" && resp.brand.trim() ? resp.brand.trim() : null;
+        const conservation = CONSERVATIONS.includes(resp?.conservation) ? resp.conservation : null;
+
+        const list = offersByItem.get(itemId) ?? [];
+        list.push({ ...resp, unitPrice, brand, conservation });
+        offersByItem.set(itemId, list);
+      }
+
+      // Com 2+ ofertas no mesmo item, a marca é a única coisa que as distingue
+      // no comparativo. Sem ela o lojista vê linhas iguais e escolhe às cegas.
+      for (const offers of offersByItem.values()) {
+        if (offers.length > 1 && offers.some((o) => !o.brand)) {
+          return json({ error: "brand_required" }, 400);
+        }
+      }
+
+      let saved = 0;
+      for (const [itemId, offers] of offersByItem) {
         const qty = validItems.get(itemId) ?? 0;
 
-        // Substitui a resposta anterior deste (item, fornecedor) — idempotente p/ edição.
+        // Substitui TODAS as ofertas anteriores deste (item, fornecedor)
+        // — idempotente p/ edição.
         await service
           .from("pdv_quotation_responses")
           .delete()
           .eq("quotation_item_id", itemId)
           .eq("supplier_id", link.supplier_id);
 
-        const { error: insErr } = await service.from("pdv_quotation_responses").insert({
-          quotation_item_id: itemId,
-          supplier_id: link.supplier_id,
-          unit_price: unitPrice,
-          total_price: unitPrice * qty,
-          brand: resp?.brand || null,
-          delivery_days: resp?.delivery_days ? parseInt(resp.delivery_days) : null,
-          minimum_order: resp?.minimum_order ? Number(resp.minimum_order) : null,
-          payment_terms: resp?.payment_terms || null,
-          expiration_date: resp?.expiration_date || null,
-          notes: resp?.notes || null,
-          source: "link",
-        });
-        if (!insErr) saved++;
+        const { error: insErr } = await service.from("pdv_quotation_responses").insert(
+          offers.map((o) => ({
+            quotation_item_id: itemId,
+            supplier_id: link.supplier_id,
+            unit_price: o.unitPrice,
+            total_price: o.unitPrice * qty,
+            brand: o.brand,
+            conservation: o.conservation,
+            delivery_days: o.delivery_days ? parseInt(o.delivery_days) : null,
+            minimum_order: o.minimum_order ? Number(o.minimum_order) : null,
+            payment_terms: o.payment_terms || null,
+            expiration_date: o.expiration_date || null,
+            notes: o.notes || null,
+            source: "link",
+          })),
+        );
+        if (!insErr) saved += offers.length;
       }
 
       await service

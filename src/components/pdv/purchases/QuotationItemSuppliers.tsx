@@ -27,6 +27,8 @@ interface SupplierItem {
   };
   is_preferred: boolean;
   is_direct: boolean;
+  /** Vinculado ao insumo (principal ou em pdv_ingredient_suppliers), não só um ativo qualquer da loja. */
+  is_linked: boolean;
 }
 
 /** Número de contato do fornecedor: prioriza WhatsApp, cai para telefone. */
@@ -91,6 +93,7 @@ export function QuotationItemSuppliers({
         supplier: directSupplier,
         is_preferred: true, // Direct supplier is primary
         is_direct: true,
+        is_linked: true,
       });
     }
     
@@ -106,6 +109,7 @@ export function QuotationItemSuppliers({
             supplier: is.supplier!,
             is_preferred: is.is_preferred,
             is_direct: false,
+            is_linked: true,
           });
         }
       });
@@ -127,6 +131,7 @@ export function QuotationItemSuppliers({
           },
           is_preferred: false,
           is_direct: false,
+          is_linked: false,
         });
       }
     });
@@ -134,17 +139,20 @@ export function QuotationItemSuppliers({
     return result;
   }, [ingredientData, ingredientSuppliers, availableSuppliers, ingredientId]);
 
-  // Auto-select preferred/direct suppliers on first load
+  // Auto-seleciona, na primeira carga, TODOS os fornecedores vinculados ao insumo
+  // (principal + os cadastrados em "Fornecedores" no produto), não só o preferido.
+  // Os demais fornecedores da loja entram na lista mas ficam desmarcados.
   useEffect(() => {
+    if (isLoading) return;
     if (suppliers.length > 0 && selectedSuppliers.length === 0) {
-      const preferredIds = suppliers
-        .filter((s) => (s.is_preferred || s.is_direct) && supplierContactNumber(s.supplier))
+      const linkedIds = suppliers
+        .filter((s) => s.is_linked && supplierContactNumber(s.supplier))
         .map((s) => s.supplier_id);
-      if (preferredIds.length > 0) {
-        onSuppliersChange(preferredIds);
+      if (linkedIds.length > 0) {
+        onSuppliersChange(linkedIds);
       }
     }
-  }, [suppliers, selectedSuppliers.length, onSuppliersChange]);
+  }, [isLoading, suppliers, selectedSuppliers.length, onSuppliersChange]);
 
   const handleToggle = (supplierId: string) => {
     if (selectedSuppliers.includes(supplierId)) {
@@ -270,6 +278,9 @@ export function QuotationItemSuppliers({
                   )}
                   {link.is_preferred && !link.is_direct && (
                     <Badge variant="secondary" className="text-[10px] py-0 px-1">Preferido</Badge>
+                  )}
+                  {link.is_linked && !link.is_direct && !link.is_preferred && (
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1">Do produto</Badge>
                   )}
                   {!hasPhone && (
                     <Badge variant="outline" className="text-[10px] py-0 px-1 text-amber-600">Sem WhatsApp</Badge>

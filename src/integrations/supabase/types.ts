@@ -6164,6 +6164,7 @@ export type Database = {
       pdv_quotation_responses: {
         Row: {
           brand: string | null
+          conservation: string | null
           created_at: string | null
           delivery_days: number | null
           expiration_date: string | null
@@ -6181,6 +6182,7 @@ export type Database = {
         }
         Insert: {
           brand?: string | null
+          conservation?: string | null
           created_at?: string | null
           delivery_days?: number | null
           expiration_date?: string | null
@@ -6198,6 +6200,7 @@ export type Database = {
         }
         Update: {
           brand?: string | null
+          conservation?: string | null
           created_at?: string | null
           delivery_days?: number | null
           expiration_date?: string | null
@@ -6229,6 +6232,74 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pdv_receipt_events: {
+        Row: {
+          actor_name: string | null
+          actor_user_id: string | null
+          created_at: string
+          id: string
+          payload: Json | null
+          purchase_order_id: string
+          result: Json | null
+          user_id: string
+        }
+        Insert: {
+          actor_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          purchase_order_id: string
+          result?: Json | null
+          user_id: string
+        }
+        Update: {
+          actor_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          purchase_order_id?: string
+          result?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_receipt_events_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_receipt_links: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          revoked_at: string | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          revoked_at?: string | null
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          revoked_at?: string | null
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       pdv_sectors: {
         Row: {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Star,
@@ -55,12 +55,19 @@ interface ComparisonResponse {
   minimumOrder: number | null;
   paymentTerms: string | null;
   brand: string | null;
+  conservation: string | null;
   origin: string | null;
   notes: string | null;
   isWinner: boolean;
   score: number;
   breakdown: ScoreBreakdown;
 }
+
+const CONSERVATION_LABELS: Record<string, string> = {
+  resfriado: "Resfriado",
+  congelado: "Congelado",
+  ambiente: "Ambiente (seco)",
+};
 
 interface ComparisonRow {
   itemId: string;
@@ -104,11 +111,11 @@ function calculateScore(
   if (response.expirationDate) {
     const expirations = allResponses
       .filter((r) => r.expirationDate)
-      .map((r) => new Date(r.expirationDate!).getTime());
+      .map((r) => parseISO(r.expirationDate!).getTime());
     if (expirations.length > 0) {
       const minExp = Math.min(...expirations);
       const maxExp = Math.max(...expirations);
-      const thisExp = new Date(response.expirationDate).getTime();
+      const thisExp = parseISO(response.expirationDate).getTime();
       expirationScore =
         maxExp === minExp ? 100 : ((thisExp - minExp) / (maxExp - minExp)) * 100;
     }
@@ -204,7 +211,7 @@ function ResponseDetails({ response }: { response: ComparisonResponse }) {
     {
       label: "Validade",
       value: response.expirationDate
-        ? format(new Date(response.expirationDate), "dd/MM/yyyy", { locale: ptBR })
+        ? format(parseISO(response.expirationDate), "dd/MM/yyyy", { locale: ptBR })
         : null,
     },
     {
@@ -214,10 +221,16 @@ function ResponseDetails({ response }: { response: ComparisonResponse }) {
     },
     {
       label: "Pedido mínimo",
-      value: response.minimumOrder !== null ? String(response.minimumOrder) : null,
+      value: response.minimumOrder !== null ? formatCurrency(response.minimumOrder) : null,
     },
     { label: "Condições de pagamento", value: response.paymentTerms },
     { label: "Marca", value: response.brand },
+    {
+      label: "Conservação",
+      value: response.conservation
+        ? (CONSERVATION_LABELS[response.conservation] ?? response.conservation)
+        : null,
+    },
     { label: "Origem", value: response.origin },
     { label: "Observações", value: response.notes },
   ];
@@ -259,6 +272,7 @@ export function QuotationComparisonDialog({
           minimumOrder: r.minimum_order,
           paymentTerms: r.payment_terms,
           brand: r.brand,
+          conservation: r.conservation,
           origin: r.origin,
           notes: r.notes,
           isWinner: r.is_winner,
@@ -389,10 +403,24 @@ export function QuotationComparisonDialog({
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <div className="mb-1 flex items-center gap-2">
+                            <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="truncate font-medium">
                                 {response.supplierName}
                               </span>
+                              {/* Um mesmo fornecedor pode aparecer várias vezes,
+                                  uma por marca — sem estes selos as linhas ficam
+                                  indistinguíveis. */}
+                              {response.brand && (
+                                <Badge variant="secondary" className="text-xs font-normal">
+                                  {response.brand}
+                                </Badge>
+                              )}
+                              {response.conservation && (
+                                <Badge variant="outline" className="text-xs font-normal">
+                                  {CONSERVATION_LABELS[response.conservation] ??
+                                    response.conservation}
+                                </Badge>
+                              )}
                               {response.isWinner && (
                                 <Badge variant="outline" className="text-xs">
                                   <Check className="mr-1 h-3 w-3" />
@@ -423,7 +451,7 @@ export function QuotationComparisonDialog({
                               <span>
                                 {response.expirationDate
                                   ? format(
-                                      new Date(response.expirationDate),
+                                      parseISO(response.expirationDate),
                                       "dd/MM/yy",
                                       { locale: ptBR }
                                     )

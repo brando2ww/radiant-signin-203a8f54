@@ -30,3 +30,13 @@ dist-ssr
 # build artifacts (não versionar binários pesados)
 print-bridge/VelaraPrintBridge.zip
 print-bridge/dist/*.exe
+
+# Print Bridge — artefatos de build (binarios grandes, gerados por build.sh)
+print-bridge/dist-installer/
+print-bridge/installer/output/
+print-bridge/installer/payload/
+print-bridge/installer/vendor/
+print-bridge/tray/*.exe
+print-bridge/tray/*.ico
+print-bridge/.env
+supabase/.temp/
