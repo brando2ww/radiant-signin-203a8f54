@@ -41,7 +41,7 @@ const integrations: IntegrationItem[] = [
   {
     slug: "deliverymuch",
     name: "DeliveryMuch",
-    description: "Receba pedidos da plataforma DeliveryMuch com aceite automático e controle de status direto pelo PDV.",
+    description: "Conecte a loja à plataforma DeliveryMuch. Recebimento de pedidos pelo PDV em implantação.",
     fallbackIcon: Truck,
     category: "Delivery",
     categoryColor: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",

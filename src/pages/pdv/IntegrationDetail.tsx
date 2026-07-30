@@ -82,7 +82,7 @@ const integrations: Record<string, IntegrationData> = {
     fallbackIcon: Truck,
     category: "Delivery",
     description:
-      "A DeliveryMuch é uma plataforma de delivery regional por franquia. Com esta integração, seu PDV recebe pedidos automaticamente, gerencia status, controla disponibilidade online e ajusta tempos de entrega — tudo sem precisar do aplicativo Eugênio separado.",
+      "A DeliveryMuch é uma plataforma de delivery regional por franquia. A conexão da loja ao PDV já está disponível. O recebimento automático de pedidos, o controle de disponibilidade e o ajuste de tempos de entrega estão em implantação e serão liberados por aqui mesmo.",
     features: [
       { icon: ShoppingBag, title: "Recebimento de pedidos", description: "Pedidos chegam automaticamente no PDV em tempo real, sem precisar do app Eugênio." },
       { icon: CheckCircle2, title: "Aceite automático", description: "Configure para aceitar pedidos automaticamente ou revise cada um antes de confirmar." },
@@ -93,8 +93,10 @@ const integrations: Record<string, IntegrationData> = {
     ],
     steps: [
       "Solicite credenciais de homologação pelo e-mail suporte.tech@deliverymuch.com.br, informando que usa a Velara PDV.",
-      "Após receber as credenciais de dev, insira seu e-mail e senha de restaurante DeliveryMuch no campo abaixo.",
-      "Clique em 'Conectar'. Seu UUID de restaurante será extraído automaticamente do token.",
+      "Escolha o ambiente (homologação enquanto a integração está em teste, produção depois de aprovada).",
+      "Informe o usuário e a senha da loja na DeliveryMuch e clique em 'Conectar loja'. A senha não fica guardada.",
+      "Se o login administrar mais de uma unidade, escolha qual delas corresponde a este PDV.",
+      "Use 'Testar conexão' para confirmar que a plataforma está respondendo.",
       "Após a homologação aprovada pelo DeliveryMuch, solicite as credenciais de produção para ir ao ar.",
     ],
     component: DeliveryMuchIntegrationCard,

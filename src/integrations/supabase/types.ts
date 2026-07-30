@@ -1271,6 +1271,153 @@ export type Database = {
           },
         ]
       }
+      deliverymuch_product_map: {
+        Row: {
+          created_at: string
+          delivery_product_id: string | null
+          external_name: string | null
+          external_product_id: string
+          id: string
+          last_seen_at: string
+          production_center_id: string | null
+          status: string
+          times_seen: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_product_id?: string | null
+          external_name?: string | null
+          external_product_id: string
+          id?: string
+          last_seen_at?: string
+          production_center_id?: string | null
+          status?: string
+          times_seen?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_product_id?: string | null
+          external_name?: string | null
+          external_product_id?: string
+          id?: string
+          last_seen_at?: string
+          production_center_id?: string | null
+          status?: string
+          times_seen?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deliverymuch_payment_map: {
+        Row: {
+          created_at: string
+          external_key: string
+          id: string
+          is_prepaid: boolean
+          label: string | null
+          payment_method: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_key: string
+          id?: string
+          is_prepaid?: boolean
+          label?: string | null
+          payment_method: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          external_key?: string
+          id?: string
+          is_prepaid?: boolean
+          label?: string | null
+          payment_method?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deliverymuch_shadow_orders: {
+        Row: {
+          external_code: string | null
+          external_order_id: string
+          external_stage: string | null
+          external_status: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          payload: Json
+          preview: Json | null
+          user_id: string
+        }
+        Insert: {
+          external_code?: string | null
+          external_order_id: string
+          external_stage?: string | null
+          external_status?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload: Json
+          preview?: Json | null
+          user_id: string
+        }
+        Update: {
+          external_code?: string | null
+          external_order_id?: string
+          external_stage?: string | null
+          external_status?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload?: Json
+          preview?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deliverymuch_sync_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          http_status: number | null
+          id: number
+          message: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          http_status?: number | null
+          id?: number
+          message?: string | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          http_status?: number | null
+          id?: number
+          message?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       delivery_addresses: {
         Row: {
           city: string
@@ -6370,14 +6517,24 @@ export type Database = {
           ifood_refresh_token: string | null
           ifood_sync_menu: boolean | null
           ifood_token_expires_at: string | null
-          deliverymuch_enabled: boolean | null
-          deliverymuch_email: string | null
-          deliverymuch_restaurant_uuid: string | null
-          deliverymuch_access_token: string | null
-          deliverymuch_token_expires_at: string | null
-          deliverymuch_auto_accept: boolean | null
-          deliverymuch_delivery_time_min: number | null
-          deliverymuch_pickup_time_min: number | null
+          deliverymuch_enabled: boolean
+          deliverymuch_username: string | null
+          deliverymuch_company_uuid: string | null
+          deliverymuch_companies: Json
+          deliverymuch_env: string
+          deliverymuch_auto_accept: boolean
+          deliverymuch_delivery_time_min: number
+          deliverymuch_pickup_time_min: number
+          deliverymuch_connected_at: string | null
+          deliverymuch_last_sync_at: string | null
+          deliverymuch_last_error: string | null
+          deliverymuch_last_error_at: string | null
+          deliverymuch_paused: boolean
+          deliverymuch_default_production_center_id: string | null
+          deliverymuch_require_open_cashier: boolean
+          deliverymuch_alert_minutes: number
+          deliverymuch_last_poll_at: string | null
+          deliverymuch_shadow_mode: boolean
           integrate_with_delivery: boolean | null
           max_tables_per_order: number | null
           min_order_value: number | null
@@ -6442,14 +6599,24 @@ export type Database = {
           ifood_refresh_token?: string | null
           ifood_sync_menu?: boolean | null
           ifood_token_expires_at?: string | null
-          deliverymuch_enabled?: boolean | null
-          deliverymuch_email?: string | null
-          deliverymuch_restaurant_uuid?: string | null
-          deliverymuch_access_token?: string | null
-          deliverymuch_token_expires_at?: string | null
-          deliverymuch_auto_accept?: boolean | null
-          deliverymuch_delivery_time_min?: number | null
-          deliverymuch_pickup_time_min?: number | null
+          deliverymuch_enabled?: boolean
+          deliverymuch_username?: string | null
+          deliverymuch_company_uuid?: string | null
+          deliverymuch_companies?: Json
+          deliverymuch_env?: string
+          deliverymuch_auto_accept?: boolean
+          deliverymuch_delivery_time_min?: number
+          deliverymuch_pickup_time_min?: number
+          deliverymuch_connected_at?: string | null
+          deliverymuch_last_sync_at?: string | null
+          deliverymuch_last_error?: string | null
+          deliverymuch_last_error_at?: string | null
+          deliverymuch_paused?: boolean
+          deliverymuch_default_production_center_id?: string | null
+          deliverymuch_require_open_cashier?: boolean
+          deliverymuch_alert_minutes?: number
+          deliverymuch_last_poll_at?: string | null
+          deliverymuch_shadow_mode?: boolean
           integrate_with_delivery?: boolean | null
           max_tables_per_order?: number | null
           min_order_value?: number | null
@@ -6514,14 +6681,24 @@ export type Database = {
           ifood_refresh_token?: string | null
           ifood_sync_menu?: boolean | null
           ifood_token_expires_at?: string | null
-          deliverymuch_enabled?: boolean | null
-          deliverymuch_email?: string | null
-          deliverymuch_restaurant_uuid?: string | null
-          deliverymuch_access_token?: string | null
-          deliverymuch_token_expires_at?: string | null
-          deliverymuch_auto_accept?: boolean | null
-          deliverymuch_delivery_time_min?: number | null
-          deliverymuch_pickup_time_min?: number | null
+          deliverymuch_enabled?: boolean
+          deliverymuch_username?: string | null
+          deliverymuch_company_uuid?: string | null
+          deliverymuch_companies?: Json
+          deliverymuch_env?: string
+          deliverymuch_auto_accept?: boolean
+          deliverymuch_delivery_time_min?: number
+          deliverymuch_pickup_time_min?: number
+          deliverymuch_connected_at?: string | null
+          deliverymuch_last_sync_at?: string | null
+          deliverymuch_last_error?: string | null
+          deliverymuch_last_error_at?: string | null
+          deliverymuch_paused?: boolean
+          deliverymuch_default_production_center_id?: string | null
+          deliverymuch_require_open_cashier?: boolean
+          deliverymuch_alert_minutes?: number
+          deliverymuch_last_poll_at?: string | null
+          deliverymuch_shadow_mode?: boolean
           integrate_with_delivery?: boolean | null
           max_tables_per_order?: number | null
           min_order_value?: number | null
