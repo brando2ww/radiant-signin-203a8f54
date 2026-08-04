@@ -47,8 +47,14 @@ const psq = (valor) => "'" + String(valor).replace(/'/g, "''") + "'";
 function preparar() {
   // Porta de arquivo + driver de texto puro: os bytes RAW que a bridge manda
   // caem num arquivo, então dá para conferir byte a byte o que "foi impresso".
+  //
+  // O driver "Generic / Text Only" existe no repositório de drivers do Windows
+  // mas não vem instalado no runner: é preciso pedir a instalação antes.
   ps(`
     $ErrorActionPreference='Stop'
+    if (-not (Get-PrinterDriver -Name 'Generic / Text Only' -ErrorAction SilentlyContinue)) {
+      Add-PrinterDriver -Name 'Generic / Text Only'
+    }
     if (Get-Printer -Name ${psq(IMPRESSORA)} -ErrorAction SilentlyContinue) { Remove-Printer -Name ${psq(IMPRESSORA)} }
     if (-not (Get-PrinterPort -Name ${psq(SAIDA)} -ErrorAction SilentlyContinue)) {
       Add-PrinterPort -Name ${psq(SAIDA)}
@@ -151,6 +157,10 @@ async function main() {
 
 main().catch((e) => {
   limpar();
-  console.error("erro fatal:", e);
+  console.error("erro fatal:", e.message);
+  try {
+    console.error("\nDrivers disponíveis neste Windows:");
+    console.error(ps("Get-PrinterDriver | Select-Object -ExpandProperty Name"));
+  } catch (_) {}
   process.exit(1);
 });
