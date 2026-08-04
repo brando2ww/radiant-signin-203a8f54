@@ -62,13 +62,22 @@ async function refreshConfigured() {
     lista = await db.centersFromHistory();
     origem = "histórico";
   }
+  // O cadastro é a autoridade sobre qual centro usa qual impressora. Sem
+  // substituir a lista, um centro que MUDA de impressora fica listado nas duas
+  // para sempre — foi o que aconteceu no La Vecchia quando o "Caixa Principal"
+  // voltou da impressora da cozinha para a do balcão. Painel que engana é
+  // exatamente o que estamos tentando extinguir.
+  const doCadastro = new Map();
   for (const c of lista) {
     const alvo = String(c.printer_ip || "").trim();
     if (!alvo) continue;
     const e = entry(alvo);
-    if (c.name) e.centers.add(c.name);
     e.port = c.printer_port || e.port || 9100;
+    if (!doCadastro.has(e.target)) doCadastro.set(e.target, new Set());
+    if (c.name) doCadastro.get(e.target).add(c.name);
   }
+  for (const [alvo, nomes] of doCadastro) entry(alvo).centers = nomes;
+
   return { origem, total: lista.length };
 }
 
