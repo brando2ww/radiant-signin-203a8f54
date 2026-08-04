@@ -245,6 +245,17 @@ begin
     Env.Add('ESTABLISHMENT_NAME=' + Trim(PageDados.Values[0]));
     Env.Add('TENANT_USER_ID=' + Trim(PageDados.Values[1]));
     Env.Add('BRIDGE_HTTP_PORT=' + Trim(PageDados.Values[2]));
+    Env.Add('');
+    { Valvulas de escape, escritas com o valor padrao para que o conserto em
+      campo seja trocar 1 por 0 e reiniciar o servico — e nao lembrar o nome da
+      variavel. Sao as duas verificacoes que podem, em teoria, dar
+      falso-negativo num driver ou numa impressora fora do padrao. }
+    Env.Add('# Troque para 0 e reinicie o servico se a impressora de REDE');
+    Env.Add('# recusar cupom dizendo SEM PAPEL com papel na bandeja.');
+    Env.Add('TCP_STATUS_CHECK=1');
+    Env.Add('# Troque para 0 e reinicie o servico se a impressora USB/Windows');
+    Env.Add('# imprimir mas o sistema insistir que nao imprimiu.');
+    Env.Add('WINDOWS_SPOOL_VERIFY=1');
     Env.SaveToFile(ExpandConstant('{app}\.env'));
   finally
     Env.Free;
