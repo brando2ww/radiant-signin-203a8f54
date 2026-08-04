@@ -97,6 +97,19 @@ jobs:
           CGO_ENABLED: "0"
         run: go build -ldflags "-H windowsgui -s -w" -o velara-tray.exe .
 
+      # O nssm.exe é binário e não fica versionado (.gitignore). Localmente o
+      # build.sh já baixa quando falta; aqui é sempre.
+      - name: Baixar o NSSM
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer/vendor | Out-Null
+          if (-not (Test-Path installer/vendor/nssm.exe)) {
+            Invoke-WebRequest -Uri https://nssm.cc/release/nssm-2.24.zip -OutFile nssm.zip
+            Expand-Archive nssm.zip -DestinationPath nssm-tmp -Force
+            Copy-Item nssm-tmp/nssm-2.24/win64/nssm.exe installer/vendor/nssm.exe
+            Remove-Item -Recurse -Force nssm.zip, nssm-tmp
+          }
+
       - name: Montar o payload
         shell: pwsh
         run: |
