@@ -31,7 +31,11 @@ const winSpool = require("../lib/win-spool");
 const receipts = require("../lib/receipts");
 
 const IMPRESSORA = "VelaraTesteCI";
-const SAIDA = path.join(process.env.BRIDGE_DATA_DIR, "saida.prn");
+// A porta de arquivo NÃO pode ficar no temp do usuário: o serviço de spooler
+// roda como SYSTEM e não enxerga %LOCALAPPDATA% do runner — o job entrava na
+// fila e morria com "Error | Printing / Error".
+const PASTA_SAIDA = process.platform === "win32" ? "C:\\velara-ci" : os.tmpdir();
+const SAIDA = path.join(PASTA_SAIDA, "saida.prn");
 
 const ps = (script) =>
   execFileSync("powershell", ["-NonInteractive", "-NoProfile", "-Command", script], {
@@ -45,6 +49,7 @@ const ps = (script) =>
 const psq = (valor) => "'" + String(valor).replace(/'/g, "''") + "'";
 
 function preparar() {
+  fs.mkdirSync(PASTA_SAIDA, { recursive: true });
   // Porta de arquivo + driver de texto puro: os bytes RAW que a bridge manda
   // caem num arquivo, então dá para conferir byte a byte o que "foi impresso".
   //
@@ -106,7 +111,7 @@ async function main() {
   });
 
   await teste("impressora pausada estoura o timeout em vez de mentir que imprimiu", async () => {
-    ps(`Suspend-Printer -Name ${psq(IMPRESSORA)}`);
+    ps(`$ErrorActionPreference='Stop'; Suspend-Printer -Name ${psq(IMPRESSORA)}; Start-Sleep -Milliseconds 500`);
     try {
       await assert.rejects(
         () => winSpool.rawPrint(IMPRESSORA, cupom),
