@@ -1,11 +1,14 @@
 {
   "name": "velara-print-bridge",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Serviço local que escuta o Supabase Realtime e imprime pedidos nas impressoras térmicas (TCP/IP, COM port, USB, Windows Printer).",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
+    "selftest": "node server.js --selftest",
+    "test": "node --test test/",
+    "fake-printer": "node tools/fake-printer.js",
     "test-print": "node test-print.js",
     "setup": "node setup.js",
     "build:win": "pkg server.js --targets node20-win-x64 --output dist/velara-print-bridge.exe --compress GZip",
@@ -24,7 +27,7 @@
     "@yao-pkg/pkg": "^5.12.0"
   },
   "pkg": {
-    "assets": ["panel.html"],
-    "scripts": []
+    "assets": ["panel.html", "package.json"],
+    "scripts": ["lib/**/*.js"]
   }
 }

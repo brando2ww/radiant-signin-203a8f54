@@ -106,6 +106,14 @@
       <div class="stat"><b id="s-ok">—</b><span>Impressos</span></div>
       <div class="stat"><b id="s-fail">—</b><span>Falhas</span></div>
       <div class="stat"><b id="s-ultimo">—</b><span>Última impressão</span></div>
+      <div class="stat hide" id="box-presos" title="Pedidos antigos demais para sair sozinhos. Clique para imprimir agora.">
+        <b id="s-presos">0</b><span>Antigos parados</span>
+      </div>
+    </div>
+
+    <div class="card hide" id="box-relogio">
+      <strong style="font-size:13px">Relógio fora do horário</strong>
+      <div class="meta" id="txt-relogio" style="margin-top:4px"></div>
     </div>
 
     <div class="card">
@@ -139,6 +147,12 @@
 const $ = (s) => document.querySelector(s);
 let ultimo = null;
 
+// A bridge injeta o token ao servir esta página. Impressão e reimpressão
+// passaram a exigi-lo: antes, qualquer site aberto no navegador do caixa
+// conseguia disparar cupom.
+const TOKEN = "__BRIDGE_TOKEN__";
+const comToken = (extra) => Object.assign({"Content-Type":"application/json","X-Bridge-Token":TOKEN}, extra||{});
+
 function quando(iso){
   if(!iso) return "—";
   const s = Math.floor((Date.now() - new Date(iso)) / 1000);
@@ -151,9 +165,33 @@ function quando(iso){
 function pinta(d){
   ultimo = d;
   $("#estab").textContent = d.establishment || "—";
-  $("#conn-dot").className = "dot " + (d.connected ? "ok" : "bad");
-  $("#conn-txt").textContent = d.connected ? "conectado" : "sem conexão";
+  // Verde deixou de significar "o socket diz que está inscrito" e passou a
+  // significar "trabalhou ou conferiu a fila agora há pouco". Foi um painel
+  // verde durante uma queda inteira que deixou a falha do KOTEN invisível por
+  // dois dias. O amarelo é o caso novo: imprimindo, mas sem a via instantânea.
+  const saude = d.healthy === undefined ? d.connected : d.healthy;
+  const classe = !saude ? "bad" : (d.realtime_ok === false ? "warn" : "ok");
+  const texto = !saude
+    ? "sem conexão"
+    : (d.realtime_ok === false ? "imprimindo (modo lento)" : "conectado");
+  $("#conn-dot").className = "dot " + classe;
+  $("#conn-txt").textContent = texto;
   $("#s-fila").textContent = d.pending_jobs_count ?? "—";
+  // Presos = pendentes velhos demais para o reprocesso pegar. Informativo:
+  // não é trabalho na fila, é resíduo — mostrar junto assustaria à toa.
+  const presos = d.stuck_jobs_count || 0;
+  $("#s-presos").textContent = presos;
+  $("#box-presos").classList.toggle("hide", presos === 0);
+
+  // Relógio errado envenena qualquer medição de atraso e ainda quebra TLS.
+  const skew = d.clock_skew_ms;
+  const skewRuim = skew != null && Math.abs(skew) > 60000;
+  $("#box-relogio").classList.toggle("hide", !skewRuim);
+  if (skewRuim){
+    $("#txt-relogio").textContent =
+      `Este computador está ${Math.round(skew/1000)}s ${skew > 0 ? "adiantado" : "atrasado"} em relação ao servidor. `
+      + `Corrija em Configurações do Windows → Hora e Idioma → Data e Hora.`;
+  }
   $("#s-ok").textContent = d.jobs_processed ?? 0;
   $("#s-fail").textContent = d.jobs_failed ?? 0;
   $("#s-ultimo").textContent = quando(d.last_print_at);
@@ -165,13 +203,18 @@ function pinta(d){
     alvo.innerHTML = '<div class="empty">Nenhuma impressora configurada.<br>Configure em Configurações → Centros de Produção.</div>';
   } else {
     alvo.innerHTML = d.printers.map((p) => {
-      const cls = p.online === true ? "ok" : p.online === false ? "bad" : "warn";
-      const txt = p.online === true ? "responde" : p.online === false ? "não responde" : "não verificada";
+      const emQuarentena = p.quarantined_until && new Date(p.quarantined_until) > new Date();
+      const cls = emQuarentena ? "warn" : p.online === true ? "ok" : p.online === false ? "bad" : "warn";
+      // Quarentena: a impressora falhou seguidas vezes e está de molho por
+      // alguns minutos, enquanto as outras seguem imprimindo normalmente.
+      const txt = emQuarentena
+        ? `em quarentena até ${new Date(p.quarantined_until).toLocaleTimeString("pt-BR")}`
+        : p.online === true ? "responde" : p.online === false ? "não responde" : "não verificada";
       return `<div class="prt">
         <span class="dot ${cls}"></span>
         <div class="who">
           <div class="name">${(p.centers||[]).join(", ") || p.target}</div>
-          <div class="meta">${p.target} <span class="badge">${p.kind}</span> · ${txt} · última impressão ${quando(p.last_print_at)}</div>
+          <div class="meta">${p.target} <span class="badge">${p.kind}</span> · ${txt}${p.queued ? ` · <b>${p.queued} preso(s) na fila do Windows</b>` : ""}${p.queue_depth ? ` · ${p.queue_depth} aguardando` : ""} · última impressão ${quando(p.last_print_at)}</div>
           ${p.last_error ? `<div class="err">${p.last_error}</div>` : ""}
         </div>
         <button data-testar="${encodeURIComponent(p.target)}">Testar</button>
@@ -198,15 +241,31 @@ async function testar(alvo){
   const ip = decodeURIComponent(alvo);
   const ehIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(ip);
   await fetch("/test-print", {
-    method:"POST", headers:{"Content-Type":"application/json"},
+    method:"POST", headers: comToken(),
     body: JSON.stringify(ehIp ? {ip, port:9100, centerName:"Teste"} : {printerName:ip, centerName:"Teste"}),
   }).catch(()=>{});
   setTimeout(atualiza, 800);
 }
 
+// Os "antigos parados" ficam fora da janela de impressão automática de
+// propósito: ninguém quer cupom de pedido entregue anteontem saindo no meio do
+// movimento. Mas eles precisavam de uma saída — antes eram só um número morto.
+async function imprimirAntigos(){
+  const r = await fetch("/stuck", {cache:"no-store"}).then(x=>x.json()).catch(()=>({jobs:[]}));
+  const jobs = r.jobs || [];
+  if (!jobs.length) return;
+  if (!confirm(`Imprimir agora ${jobs.length} pedido(s) antigo(s) que ficaram para trás?`)) return;
+  for (const j of jobs){
+    await fetch("/reprint", {method:"POST", headers: comToken(), body: JSON.stringify({jobId: j.id})}).catch(()=>{});
+  }
+  setTimeout(atualiza, 1200);
+}
+
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-testar]");
   if (t) return testar(t.dataset.testar);
+
+  if (ev.target.closest("#box-presos")) return imprimirAntigos();
 
   const tab = ev.target.closest(".tab");
   if (tab){
@@ -223,12 +282,15 @@ document.addEventListener("click", (ev) => {
     const txt = [
       `Velara Print Bridge ${ultimo.version}`,
       `Estabelecimento: ${ultimo.establishment}`,
-      `Conexão: ${ultimo.subscription_status}`,
+      `Instalação: ${ultimo.install_id || "?"}`,
+      `Saúde: ${ultimo.healthy ? "ok" : "DEGRADADA"} · Realtime: ${ultimo.subscription_status} · última reconciliação: ${ultimo.poll_last_ok_at || "—"}`,
+      `Relógio: ${ultimo.clock_skew_ms == null ? "não medido" : ultimo.clock_skew_ms + "ms de diferença"}`,
+      `Diário: ${ultimo.journal_ok ? "ok" : "INDISPONÍVEL"}${ultimo.pending_confirms ? ` · ${ultimo.pending_confirms} impressão(ões) aguardando confirmação` : ""}`,
       `No ar desde: ${ultimo.started_at}`,
-      `Fila: ${ultimo.pending_jobs_count} · Impressos: ${ultimo.jobs_processed} · Falhas: ${ultimo.jobs_failed}`,
+      `Fila: ${ultimo.pending_jobs_count} · Antigos parados: ${ultimo.stuck_jobs_count} · Impressos: ${ultimo.jobs_processed} · Falhas: ${ultimo.jobs_failed}`,
       "",
       "IMPRESSORAS:",
-      ...(ultimo.printers||[]).map(p => `- ${(p.centers||[]).join(", ")} [${p.target}] ${p.online===true?"OK":p.online===false?"FORA":"?"} ${p.last_error||""}`),
+      ...(ultimo.printers||[]).map(p => `- ${(p.centers||[]).join(", ")} [${p.target}] ${p.online===true?"OK":p.online===false?"FORA":"?"}${p.queued?` fila=${p.queued}`:""} ${p.last_error||""}`),
       "",
       "ULTIMOS EVENTOS:",
       ...(ultimo.log||[]).slice(0,40).map(l => `${l.at} ${l.msg}`),

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 import { usePrinterStatus, type PrinterStatusMap } from "@/hooks/use-printer-status";
+import { bridgeHeaders } from "@/lib/bridge-token";
 
 const ICON_MAP: Record<string, any> = {
   ChefHat, Wine, Coffee, Cake, Pizza, Soup, Sandwich, IceCream, Beer, Utensils,
@@ -75,7 +76,7 @@ export function ProductionCentersTab() {
       const isTcpIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(printerTarget.trim());
       const res = await fetch(`${BRIDGE_URL}/test-print`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await bridgeHeaders(),
         body: JSON.stringify(
           isTcpIp
             ? { ip: printerTarget, port: center.printer_port ?? 9100, centerName: center.name }

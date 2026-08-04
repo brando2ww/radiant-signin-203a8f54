@@ -14,29 +14,62 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/getlantern/systray"
 )
 
 const (
-	porta    = "7777"
-	intervalo = 20 * time.Second
+	portaPadrao = "7777"
+	intervalo   = 20 * time.Second
 )
 
+// porta é lida do .env ao lado do executável. Ficava fixa em 7777, então quem
+// escolhesse outra porta no instalador terminava com o ícone permanentemente
+// vermelho — o serviço imprimindo e o ícone dizendo que estava parado.
+var porta = descobrirPorta()
+
+func descobrirPorta() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return portaPadrao
+	}
+	dados, err := os.ReadFile(filepath.Join(filepath.Dir(exe), ".env"))
+	if err != nil {
+		return portaPadrao
+	}
+	for _, linha := range strings.Split(string(dados), "\n") {
+		linha = strings.TrimSpace(linha)
+		if valor, ok := strings.CutPrefix(linha, "BRIDGE_HTTP_PORT="); ok {
+			valor = strings.Trim(strings.TrimSpace(valor), `"'`)
+			if valor != "" {
+				return valor
+			}
+		}
+	}
+	return portaPadrao
+}
+
 type impressora struct {
-	Target    string   `json:"target"`
-	Centers   []string `json:"centers"`
-	Online    *bool    `json:"online"`
-	LastError string   `json:"last_error"`
+	Target           string   `json:"target"`
+	Centers          []string `json:"centers"`
+	Online           *bool    `json:"online"`
+	LastError        string   `json:"last_error"`
+	QuarantinedUntil string   `json:"quarantined_until"`
 }
 
 type status struct {
-	Version       string       `json:"version"`
-	Establishment string       `json:"establishment"`
-	Connected     bool         `json:"connected"`
-	Pending       int          `json:"pending_jobs_count"`
-	Printers      []impressora `json:"printers"`
+	Version       string `json:"version"`
+	Establishment string `json:"establishment"`
+	Connected     bool   `json:"connected"`
+	// Healthy = trabalhou ou conferiu a fila do banco agora há pouco. Vem da
+	// versão 2 da ponte; nas anteriores fica false e caímos em Connected.
+	Healthy    *bool        `json:"healthy"`
+	RealtimeOk *bool        `json:"realtime_ok"`
+	Pending    int          `json:"pending_jobs_count"`
+	Printers   []impressora `json:"printers"`
 }
 
 var (
@@ -119,8 +152,20 @@ func atualizar(s *status, err error) {
 		}
 	}
 
+	// Saudável = imprimiu ou conferiu a fila há pouco. A versão 1.x não
+	// reportava isso e pintava de verde só porque o socket dizia estar
+	// inscrito — foi assim que uma queda inteira passou despercebida.
+	saudavel := s.Connected
+	if s.Healthy != nil {
+		saudavel = *s.Healthy
+	}
+	// Sem Realtime a impressão continua saindo pelo reconciliador, só que com
+	// até 20s de atraso. Isso é amarelo, não vermelho: chamar de "parado" o que
+	// está funcionando ensina o dono a ignorar o ícone.
+	semRealtime := s.RealtimeOk != nil && !*s.RealtimeOk
+
 	switch {
-	case !s.Connected:
+	case !saudavel:
 		systray.SetIcon(iconeVermelho)
 		systray.SetTooltip("Velara — sem conexao com o servidor")
 		itemEstado.SetTitle("Sem conexao")
@@ -138,6 +183,13 @@ func atualizar(s *status, err error) {
 		systray.SetTooltip("Velara — impressora fora: " + lista)
 		itemEstado.SetTitle("Fora do ar: " + lista)
 		notificar("fora:"+lista, "Impressora sem resposta", lista+" nao esta respondendo. Verifique cabo, energia e papel.")
+
+	case semRealtime:
+		// Estado intermediário que não existia: imprimindo, porém pela rede de
+		// segurança. Vale avisar sem alarmar.
+		systray.SetIcon(iconeCinza)
+		systray.SetTooltip("Velara — imprimindo em modo lento\nO aviso instantaneo caiu; os pedidos saem em ate 20s")
+		itemEstado.SetTitle("Imprimindo (modo lento)")
 
 	default:
 		systray.SetIcon(iconeVerde)

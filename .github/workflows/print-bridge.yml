@@ -1,0 +1,127 @@
+name: Print Bridge
+
+# Compila o serviço de impressão e o instalador em Windows de verdade.
+#
+# Por que isto existe: o instalador era compilado por Wine dentro do Docker, a
+# partir do macOS, com três tentativas por causa de uma falha intermitente do
+# próprio Wine. Pior que isso, o PowerShell que verifica o spooler — o código
+# que decide se um cupom saiu ou não, e que serve dois restaurantes — nunca
+# tinha rodado num Windows. Aqui ele roda a cada push.
+
+on:
+  push:
+    paths:
+      - "print-bridge/**"
+      - ".github/workflows/print-bridge.yml"
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Anexar o instalador como artefato de release"
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    working-directory: print-bridge
+
+jobs:
+  testes:
+    name: Testes (sem impressora)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - name: Testes de unidade (recibos, diário, fila, quarentena)
+        run: npm test
+
+  windows:
+    name: Impressão em Windows real
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+
+      # "Microsoft Print to PDF" já vem instalada no runner: é uma impressora
+      # de verdade do ponto de vista do spooler, com fila, status e job id.
+      - name: Conferir a impressora de teste
+        shell: pwsh
+        run: Get-Printer | Select-Object Name, PrinterStatus | Format-Table
+
+      - name: Caminho de impressão do Windows
+        shell: pwsh
+        env:
+          SUPABASE_URL: https://exemplo.supabase.co
+          SUPABASE_ANON_KEY: chave-de-teste
+        run: node test/windows-print.test.js
+
+  instalador:
+    name: Instalador
+    runs-on: windows-latest
+    needs: [testes, windows]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: print-bridge/tray/go.sum
+
+      - run: npm ci --ignore-scripts
+
+      - name: Compilar o serviço (pkg)
+        run: npm run build:win
+
+      - name: Conferir a versão do binário
+        shell: pwsh
+        run: |
+          $esperada = (Get-Content package.json | ConvertFrom-Json).version
+          $obtida = (& .\dist\velara-print-bridge.exe --version).Trim()
+          if ($esperada -ne $obtida) {
+            throw "package.json diz $esperada mas o .exe diz $obtida"
+          }
+          "Versão $obtida" | Write-Host
+
+      - name: Compilar o ícone de bandeja
+        working-directory: print-bridge/tray
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "0"
+        run: go build -ldflags "-H windowsgui -s -w" -o velara-tray.exe .
+
+      - name: Montar o payload
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path installer/payload | Out-Null
+          Copy-Item dist/velara-print-bridge.exe installer/payload/
+          Copy-Item tray/velara-tray.exe installer/payload/
+          Copy-Item installer/vendor/nssm.exe installer/payload/
+
+      # ISCC nativo: sem Wine, sem retry, sem procurar "Successful compile" no
+      # log. Se falhar, falha com o erro real.
+      - name: Compilar com Inno Setup
+        shell: pwsh
+        working-directory: print-bridge/installer
+        env:
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if (-not $env:SUPABASE_ANON_KEY) { throw "segredo SUPABASE_ANON_KEY não configurado no repositório" }
+          $versao = (Get-Content ../package.json | ConvertFrom-Json).version
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/dSupabaseAnonKey=$env:SUPABASE_ANON_KEY" `
+            "/dAppVersion=$versao" `
+            VelaraPrintBridge.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VelaraPrintBridgeSetup
+          path: print-bridge/installer/output/*.exe
+          if-no-files-found: error

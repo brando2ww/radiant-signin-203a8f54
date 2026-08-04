@@ -13,10 +13,17 @@ ROOT="$(cd ../.. && pwd)"
 echo "→ Montando payload..."
 rm -rf payload && mkdir -p payload
 
-# O .exe do servico: compila se nao existir ou se o server.js for mais novo.
+# O .exe do servico: compila se nao existir ou se qualquer fonte for mais nova.
+# Olhar so o server.js nao serve mais — desde a 2.0 a logica vive em lib/, e um
+# instalador embrulhando binario velho e exatamente o problema que estamos
+# tentando extinguir.
 BRIDGE_EXE="../dist/velara-print-bridge.exe"
-if [[ ! -f "$BRIDGE_EXE" || "../server.js" -nt "$BRIDGE_EXE" ]]; then
-  echo "→ server.js mudou, recompilando o binario..."
+FONTE_NOVA=""
+if [[ -f "$BRIDGE_EXE" ]]; then
+  FONTE_NOVA=$(find ../server.js ../package.json ../panel.html ../lib -newer "$BRIDGE_EXE" -type f 2>/dev/null | head -1)
+fi
+if [[ ! -f "$BRIDGE_EXE" || -n "$FONTE_NOVA" ]]; then
+  echo "→ Fonte mudou (${FONTE_NOVA:-primeira compilacao}), recompilando o binario..."
   (cd .. && npm run build:win)
 fi
 cp "$BRIDGE_EXE" payload/
@@ -49,6 +56,17 @@ if [[ -z "$ANON" ]]; then
   exit 1
 fi
 
+# Uma versao so, a do package.json. O .exe compilado tem de concordar com ela:
+# um instalador que diz 2.0.0 embrulhando um binario 1.5.0 e como o cliente
+# ficava — rodando algo que ninguem sabia identificar.
+VERSAO=$(node -p "require('$ROOT/print-bridge/package.json').version")
+VERSAO_EXE=$("$BRIDGE_EXE" --version 2>/dev/null || echo "")
+if [[ -n "$VERSAO_EXE" && "$VERSAO_EXE" != "$VERSAO" ]]; then
+  echo "✗ O .exe informa versao $VERSAO_EXE, mas o package.json diz $VERSAO" >&2
+  exit 1
+fi
+echo "→ Versao: $VERSAO"
+
 mkdir -p ../dist-installer
 
 echo "→ Compilando com Inno Setup (Docker)..."
@@ -71,7 +89,7 @@ for TENTATIVA in 1 2 3; do
   # do shell, com a saida num arquivo, para poder vigiar e matar se travar.
   : > "$LOGFILE"
   docker run --name "$CONTAINER" -v "$PWD:/work" -w /work \
-    amake/innosetup:latest "/dSupabaseAnonKey=$ANON" VelaraPrintBridge.iss \
+    amake/innosetup:latest "/dSupabaseAnonKey=$ANON" "/dAppVersion=$VERSAO" VelaraPrintBridge.iss \
     > "$LOGFILE" 2>&1 &
   DOCKER_PID=$!
 

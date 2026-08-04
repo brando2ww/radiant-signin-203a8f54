@@ -9,7 +9,12 @@
 ; ============================================================================
 
 #define AppName        "Velara Print Bridge"
-#define AppVersion     "1.4.0"
+; A versao e UMA so, a do package.json, injetada pelo build (/dAppVersion=...).
+; Antes conviviam tres numeros diferentes (server.js 1.5.0, package.json 1.1.0,
+; este arquivo 1.4.1) e ninguem sabia o que rodava no cliente.
+#ifndef AppVersion
+  #define AppVersion   "0.0.0-dev"
+#endif
 #define AppPublisher   "Velara"
 #define AppURL         "https://pdv.velaraia.app"
 #define ServiceName    "VelaraPrintBridge"
@@ -250,7 +255,7 @@ end;
   O servico le o .env no boot; se ele subir antes, morre na primeira linha. }
 procedure ConfiguraServico();
 var
-  Rc: Integer;
+  Rc, I: Integer;
 begin
   RemoveServicoAnterior();
 
@@ -269,7 +274,33 @@ begin
   Nssm('set {#ServiceName} AppRotateBytes 5242880');
   Nssm('set {#ServiceName} AppRotateOnline 1');
 
-  Rc := Nssm('start {#ServiceName}');
+  { Recuperacao: o servico tem de voltar sozinho. AppExit/AppThrottle cobrem o
+    processo que morre; o sc failure cobre o caso de ele ser morto de fora
+    (antivirus, desligamento sujo), que o NSSM sozinho nao pega. }
+  Nssm('set {#ServiceName} AppExit Default Restart');
+  Nssm('set {#ServiceName} AppThrottle 10000');
+  Nssm('set {#ServiceName} AppStopMethodConsole 5000');
+  Nssm('set {#ServiceName} AppNoConsole 1');
+  Exec(ExpandConstant('{cmd}'),
+       '/C sc failure {#ServiceName} reset= 86400 actions= restart/5000/restart/10000/restart/30000'
+       + ' && sc failureflag {#ServiceName} 1',
+       '', SW_HIDE, ewWaitUntilTerminated, Rc);
+
+  Nssm('start {#ServiceName}');
+
+  { O nssm devolve erro se o servico demora a responder, mesmo tendo subido —
+    foi o que aconteceu no KOTEN: alarme de falha com o servico rodando. Entao
+    perguntamos ao Windows, e damos tempo para o boot (Realtime + Supabase). }
+  Rc := 1;
+  for I := 1 to 12 do
+  begin
+    Sleep(1000);
+    Exec(ExpandConstant('{cmd}'),
+         '/C sc query {#ServiceName} | find "RUNNING"',
+         '', SW_HIDE, ewWaitUntilTerminated, Rc);
+    if Rc = 0 then Break;
+  end;
+
   if Rc <> 0 then
     MsgBox('O servico foi instalado, mas nao iniciou de primeira.' + #13#10#13#10 +
            'Abra services.msc e inicie "{#AppName}" manualmente.' + #13#10 +
@@ -277,8 +308,64 @@ begin
            ExpandConstant('{app}\logs\error.log'), mbInformation, MB_OK);
 end;
 
+{ Diagnostico apos a instalacao.
+
+  Ate aqui o assistente aceitava um codigo de estabelecimento com formato
+  valido mas inexistente, e a bridge subia muda: ninguem descobria que estava
+  errado ate faltar cupom na cozinha. Agora perguntamos ao proprio servico o
+  que ele conseguiu enxergar — servidor, estabelecimento, impressoras
+  cadastradas e relogio — e mostramos na tela, em portugues. }
+function LeSelfTest(): String;
+var
+  Http: Variant;
+  I: Integer;
+begin
+  Result := '';
+  for I := 1 to 10 do
+  begin
+    try
+      Http := CreateOleObject('WinHttp.WinHttpRequest.5.1');
+      Http.Open('GET', 'http://localhost:' + PageDados.Values[2] + '/selftest?formato=texto', False);
+      Http.SetTimeouts(3000, 5000, 5000, 40000);
+      Http.Send('');
+      if Http.Status = 200 then
+      begin
+        Result := Http.ResponseText;
+        Exit;
+      end;
+    except
+      { servico ainda subindo }
+    end;
+    Sleep(2000);
+  end;
+end;
+
+procedure MostraDiagnostico();
+var
+  Texto: String;
+begin
+  Texto := LeSelfTest();
+  if Texto = '' then
+  begin
+    MsgBox('O servico foi instalado, mas nao respondeu ao teste de diagnostico.' + #13#10#13#10 +
+           'Abra o painel em http://localhost:' + PageDados.Values[2] + '/ para conferir.',
+           mbInformation, MB_OK);
+    Exit;
+  end;
+
+  if Pos('FALHA', Texto) > 0 then
+    MsgBox('Diagnostico da instalacao:' + #13#10#13#10 + Texto + #13#10 +
+           'Ha itens com FALHA. Confira o codigo do estabelecimento e a internet do local.',
+           mbError, MB_OK)
+  else
+    MsgBox('Diagnostico da instalacao:' + #13#10#13#10 + Texto, mbInformation, MB_OK);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
+  begin
     ConfiguraServico();
+    MostraDiagnostico();
+  end;
 end;
