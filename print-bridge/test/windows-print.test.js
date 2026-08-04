@@ -111,7 +111,12 @@ async function main() {
   });
 
   await teste("impressora pausada estoura o timeout em vez de mentir que imprimiu", async () => {
-    ps(`$ErrorActionPreference='Stop'; Suspend-Printer -Name ${psq(IMPRESSORA)}; Start-Sleep -Milliseconds 500`);
+    // Não existe cmdlet Suspend-Printer: pausar a IMPRESSORA (e não um job)
+    // é método do WMI. Pausada é justamente o estado que fazia o banco
+    // registrar `printed` sem sair papel.
+    ps(`$ErrorActionPreference='Stop'
+        Get-CimInstance Win32_Printer -Filter ${psq("Name='" + IMPRESSORA + "'")} | Invoke-CimMethod -MethodName Pause | Out-Null
+        Start-Sleep -Milliseconds 500`);
     try {
       await assert.rejects(
         () => winSpool.rawPrint(IMPRESSORA, cupom),
@@ -132,7 +137,7 @@ async function main() {
       ).trim();
       assert.equal(presos, "0", `sobraram ${presos} job(s) presos na fila`);
     } finally {
-      ps(`Resume-Printer -Name ${psq(IMPRESSORA)}`);
+      ps(`Get-CimInstance Win32_Printer -Filter ${psq("Name='" + IMPRESSORA + "'")} | Invoke-CimMethod -MethodName Resume | Out-Null`);
     }
   });
 
