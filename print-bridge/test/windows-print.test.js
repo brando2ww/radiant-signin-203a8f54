@@ -39,22 +39,27 @@ const ps = (script) =>
     timeout: 60000,
   });
 
+// String literal do PowerShell. Entre aspas simples a barra invertida é
+// literal: escapá-la produz um caminho com \\ dentro, e o Add-PrinterPort
+// responde 0x8007007b (nome inválido). Só a aspa simples precisa ser dobrada.
+const psq = (valor) => "'" + String(valor).replace(/'/g, "''") + "'";
+
 function preparar() {
   // Porta de arquivo + driver de texto puro: os bytes RAW que a bridge manda
   // caem num arquivo, então dá para conferir byte a byte o que "foi impresso".
   ps(`
     $ErrorActionPreference='Stop'
-    if (Get-Printer -Name '${IMPRESSORA}' -ErrorAction SilentlyContinue) { Remove-Printer -Name '${IMPRESSORA}' }
-    if (-not (Get-PrinterPort -Name '${SAIDA.replace(/\\/g, "\\\\")}' -ErrorAction SilentlyContinue)) {
-      Add-PrinterPort -Name '${SAIDA.replace(/\\/g, "\\\\")}'
+    if (Get-Printer -Name ${psq(IMPRESSORA)} -ErrorAction SilentlyContinue) { Remove-Printer -Name ${psq(IMPRESSORA)} }
+    if (-not (Get-PrinterPort -Name ${psq(SAIDA)} -ErrorAction SilentlyContinue)) {
+      Add-PrinterPort -Name ${psq(SAIDA)}
     }
-    Add-Printer -Name '${IMPRESSORA}' -DriverName 'Generic / Text Only' -PortName '${SAIDA.replace(/\\/g, "\\\\")}'
+    Add-Printer -Name ${psq(IMPRESSORA)} -DriverName 'Generic / Text Only' -PortName ${psq(SAIDA)}
   `);
 }
 
 function limpar() {
   try {
-    ps(`Remove-Printer -Name '${IMPRESSORA}' -ErrorAction SilentlyContinue`);
+    ps(`Remove-Printer -Name ${psq(IMPRESSORA)} -ErrorAction SilentlyContinue`);
   } catch (_) {}
 }
 
@@ -95,7 +100,7 @@ async function main() {
   });
 
   await teste("impressora pausada estoura o timeout em vez de mentir que imprimiu", async () => {
-    ps(`Suspend-Printer -Name '${IMPRESSORA}'`);
+    ps(`Suspend-Printer -Name ${psq(IMPRESSORA)}`);
     try {
       await assert.rejects(
         () => winSpool.rawPrint(IMPRESSORA, cupom),
@@ -112,11 +117,11 @@ async function main() {
       // O job preso tem de ser cancelado, senão o retry empilha cópias e todas
       // saem juntas quando alguém retomar a impressora.
       const presos = ps(
-        `@(Get-CimInstance Win32_PrintJob | Where-Object { $_.Name -like '${IMPRESSORA},*' }).Count`,
+        `@(Get-CimInstance Win32_PrintJob | Where-Object { $_.Name -like ${psq(IMPRESSORA + ",*")} }).Count`,
       ).trim();
       assert.equal(presos, "0", `sobraram ${presos} job(s) presos na fila`);
     } finally {
-      ps(`Resume-Printer -Name '${IMPRESSORA}'`);
+      ps(`Resume-Printer -Name ${psq(IMPRESSORA)}`);
     }
   });
 
