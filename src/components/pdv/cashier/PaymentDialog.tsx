@@ -77,6 +77,8 @@ import {
 } from "@/components/ui/tooltip";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNFCeEmission } from "@/hooks/use-nfce-emission";
+import { useFiscalConfig } from "@/hooks/use-fiscal-config";
+import { dispatchDanfePrintJob } from "@/lib/danfe-print";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { printNonFiscalReceipt, printDanfeFromUrl } from "@/lib/print-fiscal-receipt";
 import { formatTableLabel } from "@/utils/formatTableNumber";
@@ -86,7 +88,7 @@ import { RedeemCouponDialog, type AppliedCouponReward } from "@/components/pdv/c
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
 import { CancelComandaDialog, type CancelCategory } from "./CancelComandaDialog";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, formatCpf, isValidCpf } from "@/lib/format";
 
 interface PaymentDialogProps {
   open: boolean;
@@ -198,6 +200,13 @@ export function PaymentDialog({
     | { kind: "success"; chave: string; danfe?: string }
     | { kind: "error"; message: string; missing?: string[] }
   >({ kind: "idle" });
+  // CPF na nota — opcional, informado pelo cliente no momento do pagamento.
+  const [cpfNota, setCpfNota] = useState("");
+  // CPF vazio é válido (consumidor não identificado); preenchido, tem que fechar.
+  const isCpfValido = cpfNota.trim() === "" || isValidCpf(cpfNota);
+  // Evita que o efeito de auto-emissão dispare duas vezes no mesmo pagamento
+  // (React 18 monta o efeito duas vezes em dev, e o dialog re-renderiza).
+  const autoEmitFiredRef = useRef(false);
 
   const { registerPayment, isRegisteringPayment, registerTablePayment, isRegisteringTablePayment, registerPartialPayment, isRegisteringPartialPayment, registerExtraPaymentLine, isRegisteringExtraPaymentLine } = usePDVPayments();
   const {
@@ -216,6 +225,10 @@ export function PaymentDialog({
   const { products: productsList } = usePDVProducts();
   const { emitNFCe, isEmitting } = useNFCeEmission();
   const { settings } = usePDVSettings();
+  // A emissão real usa `tenant_fiscal_config` (FocusNFE). As colunas
+  // `pdv_settings.nfe_csc_*` são da integração antiga (Nuvem Fiscal) e ficaram
+  // vazias, o que mantinha o botão de NFC-e desabilitado para sempre.
+  const { config: fiscalConfig } = useFiscalConfig();
   
   const { registerCreditSale, isRegisteringCreditSale } = useEmployeeConsumption();
   const { registerDeliveryPayment, registerDeliveryExtraPaymentLine, isRegistering: isRegisteringDelivery } = usePDVDeliveryCheckout();
@@ -260,6 +273,7 @@ export function PaymentDialog({
     setShowSuccess(false);
     setSuccessData(null);
     setNfceState({ kind: "idle" });
+    setCpfNota("");
     printSnapshotRef.current = null;
   };
 
@@ -1070,24 +1084,56 @@ export function PaymentDialog({
     });
   };
 
+  /**
+   * Monta as linhas de pagamento da nota.
+   *
+   * Pagamento misto (o operador divide entre dinheiro e cartão, por exemplo)
+   * precisa ir com uma linha por forma — antes ia só uma, e a soma não batia
+   * com o total da nota, o que é rejeição na SEFAZ.
+   */
+  const buildPagamentosNFCe = () => {
+    const metodoParaCodigo = (m: PaymentMethod, tipo?: CardType) =>
+      m === "cartao" ? (tipo === "credito" ? "cartao_credito" : "cartao_debito") : m;
+
+    if (splitEnabled && splitPayments.length > 0) {
+      return splitPayments.map((p) => ({
+        forma_pagamento: metodoParaCodigo(p.method, p.cardType),
+        valor: parseFloat(p.amount) || 0,
+        parcelas: p.method === "cartao" ? (parseInt(p.installments) || 1) : 1,
+      }));
+    }
+
+    return [{
+      forma_pagamento: metodoParaCodigo(selectedMethod, cardType),
+      // Em dinheiro o operador digita o valor entregue pelo cliente; a nota
+      // registra o valor da venda, não o valor com troco.
+      valor: total,
+      parcelas: selectedMethod === "cartao" ? (parseInt(installments) || 1) : 1,
+    }];
+  };
+
   const handleEmitNFCe = async () => {
     try {
-      // Buscar dados fiscais dos produtos
+      // Dados fiscais dos produtos.
+      // As colunas corretas em `pdv_products` são `origin` e `tax_unit` — o
+      // código pedia `origem`/`unit`, que não existem, e como o erro era
+      // descartado TODO item saía com NCM "00000000" (rejeição garantida).
       const productIds = Array.from(new Set(displayItems.map((i) => i.product_id).filter(Boolean)));
-      let productMap: Record<string, any> = {};
+      const productMap: Record<string, any> = {};
       if (productIds.length) {
-        const { data: prods } = await supabase
+        const { data: prods, error: prodErr } = await supabase
           .from("pdv_products")
-          .select("id, ncm, cfop, cest, origem, ean, unit")
+          .select(
+            "id, ncm, cfop, cest, origin, ean, tax_unit, cst_icms, csosn, icms_rate, pis_cst, pis_rate, cofins_cst, cofins_rate",
+          )
           .in("id", productIds as string[]);
+        if (prodErr) throw new Error(`Falha ao ler dados fiscais dos produtos: ${prodErr.message}`);
         (prods || []).forEach((p: any) => { productMap[p.id] = p; });
       }
 
+      const num = (v: any) => (v == null || v === "" ? null : Number(v));
+
       const result = await emitNFCe({
-        comanda_id: comanda?.id || null,
-        table_id: table?.id || null,
-        order_id: comanda?.order_id || null,
-        cashier_session_id: null,
         items: displayItems.map((i) => {
           const p = productMap[i.product_id] || {};
           return {
@@ -1099,21 +1145,46 @@ export function PaymentDialog({
             ncm: p.ncm,
             cfop: p.cfop,
             cest: p.cest,
-            origem: p.origem,
+            origem: p.origin,
             ean: p.ean,
-            unidade: p.unit,
+            unidade: p.tax_unit,
+            csosn: p.csosn,
+            cst_icms: p.cst_icms,
+            icms_rate: num(p.icms_rate),
+            pis_cst: p.pis_cst,
+            pis_rate: num(p.pis_rate),
+            cofins_cst: p.cofins_cst,
+            cofins_rate: num(p.cofins_rate),
           };
         }),
         valor_desconto: discountAmount || 0,
         valor_servico: serviceFeeAmount || 0,
-        forma_pagamento: selectedMethod === "cartao" ? (cardType === "credito" ? "cartao_credito" : "cartao_debito") : selectedMethod,
-        valor_pago: selectedMethod === "dinheiro" ? cashReceivedNum : total,
-        troco: changeAmount || 0,
-        parcelas: selectedMethod === "cartao" ? parseInt(installments) : 1,
+        valor_frete: isDelivery ? (deliveryFeeAmount || 0) : 0,
+        pagamentos: buildPagamentosNFCe(),
+        customer: {
+          cpf: isCpfValido && cpfNota ? cpfNota.replace(/\D/g, "") : undefined,
+          name: isDelivery ? (deliveryOrder?.customer_name ?? undefined) : undefined,
+        },
+        // Delivery é entrega a domicílio (presença 4), não venda no balcão.
+        presencial: !isDelivery || isPickupDelivery,
+        // Sem o vínculo a nota nasce órfã e não dá para achar a venda depois.
+        ...(isDelivery
+          ? { origem_tipo: "delivery_order", origem_id: deliveryOrder!.id }
+          : comanda?.id
+            ? { origem_tipo: "comanda", origem_id: comanda.id }
+            : table?.id
+              ? { origem_tipo: "table", origem_id: table.id }
+              : {}),
       });
 
       if (result.success && result.chave_acesso) {
         setNfceState({ kind: "success", chave: result.chave_acesso, danfe: result.danfe_url });
+        // Cupom sai na térmica do caixa automaticamente.
+        if (result.emission_id) {
+          dispatchDanfePrintJob(result.emission_id).catch((e) =>
+            console.warn("Falha ao enfileirar impressão do DANFE:", e)
+          );
+        }
       } else {
         setNfceState({
           kind: "error",
@@ -1128,9 +1199,31 @@ export function PaymentDialog({
 
   const isProcessing = isRegisteringPayment || isRegisteringTablePayment || isRegisteringPartialPayment || isRegisteringExtraPaymentLine || isRegisteringCreditSale || isRegisteringDelivery;
 
+  // A emissão depende da integração FocusNFE estar ativa — empresa cadastrada e
+  // NFC-e habilitada. `pdv_settings.nfe_enable_nfce` continua valendo como
+  // chave de "quero emitir" do estabelecimento.
+  const nfceEnabled = !!settings?.nfe_enable_nfce;
+  const nfceConfigured = nfceEnabled
+    && !!fiscalConfig?.focusnfe_empresa_id
+    && !!fiscalConfig?.habilita_nfce;
+  const nfceAutoEmit = nfceConfigured && !!settings?.nfe_auto_emit;
+
+  // Auto-emissão: dispara sozinha assim que o pagamento é confirmado.
+  // Uma falha aqui nunca desfaz a venda — o erro aparece na tela e a nota fica
+  // registrada como rejeitada para o gerente resolver depois.
+  useEffect(() => {
+    if (!showSuccess) {
+      autoEmitFiredRef.current = false;
+      return;
+    }
+    if (!nfceAutoEmit || autoEmitFiredRef.current) return;
+    if (nfceState.kind !== "idle") return;
+    autoEmitFiredRef.current = true;
+    void handleEmitNFCe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSuccess, nfceAutoEmit]);
+
   if (showSuccess) {
-    const nfceEnabled = !!settings?.nfe_enable_nfce;
-    const nfceConfigured = nfceEnabled && !!settings?.nfe_certificate_url && !!settings?.nfe_csc_id && !!settings?.nfe_csc_token;
     return (
       <Dialog modal={false} open={open} onOpenChange={(o) => { if (!o) handleFinish(); }}>
         <DialogContent hideOverlay className="sm:max-w-md">
@@ -1160,6 +1253,9 @@ export function PaymentDialog({
                   NFC-e autorizada
                 </div>
                 <p className="text-[11px] font-mono break-all text-muted-foreground">{nfceState.chave}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  O cupom sai automaticamente na impressora do caixa.
+                </p>
                 {nfceState.danfe && (
                   <Button
                     variant="outline"
@@ -1168,7 +1264,7 @@ export function PaymentDialog({
                     onClick={() => printDanfeFromUrl(nfceState.danfe!)}
                   >
                     <Printer className="h-4 w-4 mr-2" />
-                    Imprimir DANFE NFC-e
+                    Reimprimir DANFE (PDF)
                   </Button>
                 )}
               </div>
@@ -1189,13 +1285,20 @@ export function PaymentDialog({
               </div>
             )}
 
+            {isEmitting && nfceState.kind === "idle" && (
+              <div className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Emitindo NFC-e...
+              </div>
+            )}
+
             <div className="w-full space-y-2 pt-2">
               <Button
                 className="w-full"
                 size="lg"
                 onClick={handleEmitNFCe}
                 disabled={isEmitting || nfceState.kind === "success" || !nfceConfigured}
-                title={!nfceConfigured ? "Configure NFC-e em Integrações > NF Automática" : undefined}
+                title={!nfceConfigured ? "Ative a NFC-e em Configurações > Fiscal" : undefined}
               >
                 {isEmitting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1207,7 +1310,9 @@ export function PaymentDialog({
 
               {!nfceConfigured && (
                 <p className="text-[11px] text-center text-muted-foreground -mt-1">
-                  {!nfceEnabled ? "NFC-e desabilitada nas configurações" : "Configure certificado e CSC em Integrações > NF Automática"}
+                  {!nfceEnabled
+                    ? "NFC-e desabilitada nas configurações"
+                    : "Integração fiscal não ativada — cadastre a empresa em Configurações > Fiscal"}
                 </p>
               )}
 
@@ -1267,14 +1372,16 @@ export function PaymentDialog({
   return (
     <>
     <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+      {/* Coluna flex: só o miolo rola. O rodapé é `shrink-0`, então o botão de
+          confirmar fica sempre visível — antes ele era recortado em telas baixas. */}
       <DialogContent
         ref={paymentContentRef}
         hideOverlay
-        className="sm:max-w-5xl max-h-[90vh] overflow-hidden"
+        className="sm:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
             Pagamento - {title}
@@ -1284,6 +1391,7 @@ export function PaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="grid md:grid-cols-2 gap-6">
           {/* Left Column - Order Summary */}
           <div className="flex flex-col gap-4 max-h-[65vh]">
@@ -2337,6 +2445,29 @@ export function PaymentDialog({
           </div>
         </div>
 
+        {/* CPF na nota — só faz sentido quando a emissão está ativa */}
+        {nfceConfigured && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-3">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Label htmlFor="cpf-nota" className="text-sm font-medium">
+              CPF na nota
+              <span className="ml-1 font-normal text-muted-foreground">(opcional)</span>
+            </Label>
+            <Input
+              id="cpf-nota"
+              value={cpfNota}
+              onChange={(e) => setCpfNota(formatCpf(e.target.value))}
+              placeholder="000.000.000-00"
+              inputMode="numeric"
+              className="h-9 w-[180px]"
+            />
+            {cpfNota && !isCpfValido && (
+              <span className="text-xs text-destructive">CPF inválido</span>
+            )}
+          </div>
+        )}
+        </div>
+
         {/* Footer */}
         {splitCashChangeExceeds && (
           <div className="mt-4 flex items-start gap-2 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-destructive text-sm">
@@ -2347,7 +2478,7 @@ export function PaymentDialog({
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between gap-2 pt-4 border-t mt-4">
+        <div className="shrink-0 flex items-center justify-between gap-2 pt-4 border-t mt-4">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"

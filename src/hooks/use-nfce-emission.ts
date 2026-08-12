@@ -7,29 +7,45 @@ export interface EmitNFCeItem {
   product_name: string;
   quantity: number;
   unit_price: number;
-  subtotal: number;
+  subtotal?: number;
   ncm?: string | null;
   cfop?: string | null;
   cest?: string | null;
-  origem?: number | null;
+  origem?: string | number | null;
   ean?: string | null;
   unidade?: string | null;
+  csosn?: string | null;
+  cst_icms?: string | null;
+  icms_rate?: number | null;
+  pis_cst?: string | null;
+  pis_rate?: number | null;
+  cofins_cst?: string | null;
+  cofins_rate?: number | null;
+}
+
+export interface EmitNFCePagamento {
+  /** Aceita o rótulo do PDV ("dinheiro", "pix") ou o código do SEFAZ ("01"). */
+  forma_pagamento: string;
+  valor: number;
+  parcelas?: number | null;
+  bandeira?: string | null;
 }
 
 export interface EmitNFCeParams {
-  user_id?: string; // owner id (when caller is staff)
-  comanda_id?: string | null;
-  table_id?: string | null;
-  order_id?: string | null;
-  cashier_session_id?: string | null;
   items: EmitNFCeItem[];
   valor_desconto?: number;
+  /** Taxa de serviço; só entra na nota se o estabelecimento tiver optado. */
   valor_servico?: number;
-  forma_pagamento: string;
-  valor_pago?: number;
-  troco?: number;
-  parcelas?: number;
+  /** Taxa de entrega do delivery. */
+  valor_frete?: number;
+  pagamentos: EmitNFCePagamento[];
   customer?: { cpf?: string; email?: string; name?: string };
+  /** false = entrega a domicílio (presença 4 na NFC-e). */
+  presencial?: boolean;
+  /** Vínculo com a venda: comanda | table | delivery_order. */
+  origem_tipo?: string;
+  origem_id?: string;
+  informacoes_adicionais?: string;
 }
 
 export interface EmitNFCeResult {
@@ -38,6 +54,10 @@ export interface EmitNFCeResult {
   chave_acesso?: string;
   protocolo?: string;
   numero?: number;
+  serie?: string;
+  qrcode?: string;
+  url_consulta?: string;
+  valor_total?: number;
   danfe_url?: string;
   emission_id?: string;
   motivo?: string;

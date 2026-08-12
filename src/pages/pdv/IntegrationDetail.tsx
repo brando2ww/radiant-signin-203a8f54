@@ -57,21 +57,23 @@ const integrations: Record<string, IntegrationData> = {
     title: "iFood",
     logo: ifoodLogo,
     category: "Delivery",
+    // Em implantação. Esta página anunciava seis funcionalidades das quais
+    // nenhuma existia, e o passo a passo mandava colar Client ID e Secret em
+    // campos que o formulário nunca teve. Só fica aqui o que está construído
+    // ou em construção declarada: prometer função inexistente é o tipo de
+    // coisa que reprova numa avaliação do próprio iFood.
     description:
-      "O iFood é a maior plataforma de delivery do Brasil, com mais de 80 milhões de pedidos por mês. Com esta integração, seu PDV recebe pedidos automaticamente, sincroniza o cardápio em tempo real e atualiza o status de cada pedido sem precisar acessar o portal do iFood. Reduza erros manuais, acelere o preparo e centralize toda a operação em um único sistema.",
+      "O iFood é a maior plataforma de delivery do Brasil. Esta integração está em implantação: o objetivo é que o pedido do iFood entre direto na tela de Delivery do Velara, imprima comanda e seja confirmado, despachado e cancelado pelo PDV, sem tablet separado.",
     features: [
-      { icon: ShoppingBag, title: "Recebimento de pedidos", description: "Pedidos do iFood chegam automaticamente no PDV em tempo real, sem necessidade de tablet separado." },
-      { icon: RefreshCw, title: "Sincronização de cardápio", description: "Alterações de preço, disponibilidade e descrição são enviadas automaticamente para o iFood." },
-      { icon: CheckCircle2, title: "Aceite automático", description: "Configure para aceitar pedidos automaticamente ou revise cada um antes de confirmar." },
-      { icon: Clock, title: "Gestão de horários", description: "Defina horários de funcionamento e pausas diretamente pelo PDV." },
-      { icon: Zap, title: "Atualização de status", description: "O status do pedido (em preparo, saiu para entrega, entregue) é atualizado automaticamente." },
-      { icon: BarChart3, title: "Relatórios de vendas", description: "Acompanhe faturamento, ticket médio e volume de pedidos do iFood no painel de relatórios." },
+      { icon: ShoppingBag, title: "Recebimento de pedidos", description: "Em construção. O pedido do iFood entra na fila de Delivery junto com os pedidos próprios." },
+      { icon: CheckCircle2, title: "Confirmar e despachar", description: "Em construção. Confirmar, despachar e marcar pronto para retirada pela própria tela do PDV." },
+      { icon: Zap, title: "Status sincronizado", description: "Em construção. A mudança feita no PDV é enviada ao iFood, e o que muda no iFood aparece no PDV." },
     ],
     steps: [
-      "Acesse o Portal do Parceiro iFood (merchant.ifood.com.br) e faça login com sua conta de restaurante.",
-      "No menu lateral, vá em Integrações → API e gere um novo Client ID e Client Secret.",
-      "Copie as credenciais e cole nos campos de conexão abaixo.",
-      "Clique em 'Conectar' e autorize o acesso. Seu PDV começará a receber pedidos automaticamente.",
+      "Autorize a Velara na sua conta do iFood, pelo Portal do Parceiro.",
+      "Nesta página, clique em 'Buscar lojas disponíveis'.",
+      "Vincule a sua loja à conta do Velara.",
+      "Use 'Testar conexão' para conferir que o iFood responde e ver se a loja está aberta.",
     ],
     component: IFoodIntegrationCard,
     docsUrl: "https://developer.ifood.com.br",

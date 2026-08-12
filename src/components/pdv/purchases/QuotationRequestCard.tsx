@@ -13,6 +13,7 @@ import {
   Trash2,
   Eye,
   PackageCheck,
+  Pencil,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ import { WhatsAppSendDialog } from "./WhatsAppSendDialog";
 import { QuotationResponseDialog } from "./QuotationResponseDialog";
 import { QuotationComparisonDialog } from "./QuotationComparisonDialog";
 import { SendOrderDialog } from "./SendOrderDialog";
+import { QuotationRequestDialog } from "./QuotationRequestDialog";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 
 interface QuotationRequestCardProps {
@@ -75,6 +77,7 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
   const [responseOpen, setResponseOpen] = useState(false);
   const [comparisonOpen, setComparisonOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const status = statusConfig[quotation.status];
   const StatusIcon = status.icon;
@@ -98,6 +101,14 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
       (item) => item.responses?.map((r) => r.supplier_id) || []
     ) || []
   ).size;
+
+  // Editar mexe nos itens e nos vínculos de fornecedor. Depois que alguém
+  // respondeu, os preços recebidos estão pendurados nesses itens, então a
+  // edição fica travada para não invalidar a cotação já em curso.
+  const canEdit =
+    totalResponses === 0 &&
+    quotation.status !== "completed" &&
+    quotation.status !== "cancelled";
 
   // Há vencedor selecionado? (habilita o envio do PEDIDO)
   const hasWinner = quotation.items?.some(
@@ -146,6 +157,12 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {canEdit && (
+                  <DropdownMenuItem onClick={() => deferMenuAction(() => setEditOpen(true))}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar Cotação
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => deferMenuAction(() => setComparisonOpen(true))}>
                   <Eye className="h-4 w-4 mr-2" />
                   Ver Comparativo
@@ -318,6 +335,16 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
         onOpenChange={setOrderOpen}
         quotation={quotation}
       />
+
+      {/* Edição da cotação. Só monta quando abre: o diálogo dispara a busca dos
+          fornecedores vinculados, e são muitos cards nesta tela. */}
+      {editOpen && (
+        <QuotationRequestDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          quotation={quotation}
+        />
+      )}
     </>
   );
 }

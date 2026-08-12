@@ -3,6 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect } from "react";
 import { dispatchDeliveryPrintJobs } from "@/lib/delivery-print";
+import { emitNFCeForDeliveryOrder } from "@/lib/delivery-nfce";
+import {
+  SOURCE_FUNCTION,
+  isMarketplace,
+  marketplaceAction,
+  unsupportedTransitionMessage,
+} from "@/lib/marketplace-orders";
 
 export interface DeliveryOrder {
   id: string;
@@ -134,6 +141,45 @@ export const useUpdateOrderStatus = () => {
       id: string;
       status: DeliveryOrder["status"];
     }) => {
+      // Pedido de marketplace: quem manda no status é a plataforma. Gravar
+      // direto no banco deixaria o PDV dizendo "em preparo" enquanto o iFood
+      // segue esperando a confirmação — e em minutos o pedido é cancelado e a
+      // loja cai. A edge function da integração chama a plataforma primeiro e
+      // só depois atualiza o status local.
+      const { data: current } = await supabase
+        .from("delivery_orders")
+        .select("source, order_type")
+        .eq("id", id)
+        .single();
+
+      const source = ((current as any)?.source ?? "own") as string;
+
+      if (isMarketplace(source)) {
+        const fn = SOURCE_FUNCTION[source as keyof typeof SOURCE_FUNCTION];
+        const action = marketplaceAction(source, status, (current as any)?.order_type);
+
+        if (!fn) throw new Error(`Integração desconhecida para a origem "${source}".`);
+        if (!action) throw new Error(unsupportedTransitionMessage(source, status));
+
+        const { data: result, error: fnError } = await supabase.functions.invoke(fn, {
+          body: { action, orderId: id },
+        });
+        if (fnError) throw fnError;
+        if ((result as any)?.error) throw new Error((result as any).error);
+
+        // A baixa de estoque continua sendo do PDV, não da plataforma. É
+        // idempotente no servidor, então repetir não duplica consumo.
+        if (action === "confirm" || action === "accept") {
+          const { error: consumeErr } = await supabase.rpc(
+            "consume_ingredients_for_delivery_order",
+            { p_order_id: id },
+          );
+          if (consumeErr) console.error("Erro ao baixar estoque (delivery externo):", consumeErr);
+        }
+
+        return result;
+      }
+
       const updates: any = { status };
 
       // Atualizar timestamps conforme o status
@@ -191,38 +237,12 @@ export const useUpdateOrderStatus = () => {
         // `useReprintOrder`.
       }
 
-      // Auto-emissão NFC-e quando pedido é concluído e pago
+      // Auto-emissão NFC-e quando pedido é concluído e pago.
+      // Falha aqui nunca desfaz o pedido — a nota fica registrada como
+      // rejeitada e aparece para o gerente no banner de pendências fiscais.
       if (status === "completed" && data?.payment_status === "paid") {
         try {
-          const { data: settings } = await supabase
-            .from("delivery_settings" as any)
-            .select("nfce_auto_emit")
-            .eq("user_id", data.user_id)
-            .maybeSingle();
-          if ((settings as any)?.nfce_auto_emit) {
-            const { data: items } = await supabase
-              .from("delivery_order_items")
-              .select("product_name, quantity, unit_price")
-              .eq("order_id", id);
-            if (items && items.length > 0) {
-              await supabase.functions.invoke("focusnfe-emitir-nfce", {
-                body: {
-                  items: items.map((i: any) => ({
-                    product_name: i.product_name,
-                    quantity: Number(i.quantity),
-                    unit_price: Number(i.unit_price),
-                  })),
-                  forma_pagamento:
-                    data.payment_method === "pix" ? "17"
-                    : data.payment_method === "credit" || data.payment_method === "credito" ? "03"
-                    : data.payment_method === "debit" || data.payment_method === "debito" ? "04"
-                    : "01",
-                  origem_tipo: "delivery_order",
-                  origem_id: id,
-                },
-              });
-            }
-          }
+          await emitNFCeForDeliveryOrder(data);
         } catch (e) {
           console.warn("Auto-emissão NFC-e falhou:", e);
         }

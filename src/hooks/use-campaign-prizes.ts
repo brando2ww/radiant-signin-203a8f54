@@ -142,14 +142,6 @@ export function pickPrize(prizes: CampaignPrize[]): CampaignPrize {
   return prizes[prizes.length - 1];
 }
 
-// Generate coupon code
-function generateCouponCode(): string {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const l = Array.from({ length: 3 }, () => letters[Math.floor(Math.random() * letters.length)]).join("");
-  const n = String(Math.floor(1000 + Math.random() * 9000));
-  return `${l}-${n}`;
-}
-
 // Register a win
 export const useRegisterPrizeWin = () => {
   return useMutation({
@@ -159,45 +151,38 @@ export const useRegisterPrizeWin = () => {
       evaluationId: string;
       customerName: string;
       customerWhatsapp: string;
-      couponValidityDays: number;
     }) => {
-      const code = generateCouponCode();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + data.couponValidityDays);
-      const expiresAtISO = expiresAt.toISOString();
+      // Emissão atômica no servidor: gera o código, grava o cupom e incrementa o contador do
+      // prêmio na mesma transação, e devolve o código já confirmado. Antes o código era sorteado
+      // aqui e mostrado ao cliente sem confirmação — quando o INSERT falhava (prêmio apagado no
+      // painel enquanto o cliente respondia), o cupom simplesmente sumia.
+      const { data: rows, error } = await supabase.rpc("register_prize_win" as any, {
+        p_campaign_id: data.campaignId,
+        p_prize_id: data.prizeId,
+        p_evaluation_id: data.evaluationId,
+        p_customer_name: data.customerName,
+        p_customer_whatsapp: data.customerWhatsapp,
+      });
 
-      // Avoid .select().single() after insert: the public evaluation page is unauthenticated,
-      // so the SELECT RLS policy ("Owner can read wins") blocks RETURNING, causing PostgREST
-      // to return 406 and roll back the entire transaction.
-      const { error } = await supabase
-        .from("campaign_prize_wins")
-        .insert({
+      const win = (Array.isArray(rows) ? rows[0] : rows) as
+        | { coupon_code?: string; coupon_expires_at?: string }
+        | null;
+
+      if (error || !win?.coupon_code || !win?.coupon_expires_at) {
+        const reason = error?.message || "register_prize_win não retornou cupom";
+        // Deixa rastro: sem isto o cliente fica sem cupom e ninguém fica sabendo.
+        await supabase.from("campaign_prize_win_failures" as any).insert({
           campaign_id: data.campaignId,
           prize_id: data.prizeId,
           evaluation_id: data.evaluationId,
           customer_name: data.customerName,
           customer_whatsapp: data.customerWhatsapp,
-          coupon_code: code,
-          coupon_expires_at: expiresAtISO,
-        });
+          reason,
+        } as any);
+        throw new Error(reason);
+      }
 
-      if (error) throw error;
-
-      await supabase.rpc("increment_prize_redeemed_count" as any, { prize_id: data.prizeId });
-
-      return {
-        id: crypto.randomUUID(),
-        campaign_id: data.campaignId,
-        prize_id: data.prizeId,
-        evaluation_id: data.evaluationId,
-        customer_name: data.customerName,
-        customer_whatsapp: data.customerWhatsapp,
-        coupon_code: code,
-        coupon_expires_at: expiresAtISO,
-        is_redeemed: false,
-        redeemed_at: null,
-        created_at: new Date().toISOString(),
-      } as CampaignPrizeWin;
+      return { coupon_code: win.coupon_code, coupon_expires_at: win.coupon_expires_at };
     },
   });
 };

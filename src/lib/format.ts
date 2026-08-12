@@ -51,3 +51,38 @@ export function formatBRLCompact(
   return brlCompactFormatter.format(Number.isFinite(n) ? n : 0);
 }
 
+
+/**
+ * Máscara de CPF conforme o usuário digita: "12345678909" → "123.456.789-09".
+ * Ignora tudo que não é dígito e trunca em 11, então colar um CPF já formatado
+ * (ou com espaços) funciona sem tratamento extra.
+ */
+export function formatCpf(value: string): string {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+/**
+ * Valida CPF pelos dígitos verificadores.
+ *
+ * Na NFC-e o CPF vai para a SEFAZ, que rejeita a nota inteira se o número for
+ * inválido — vale barrar no caixa em vez de perder a venda no fim do fluxo.
+ */
+export function isValidCpf(value: string): boolean {
+  const d = value.replace(/\D/g, "");
+  if (d.length !== 11) return false;
+  // Sequências repetidas (000.000.000-00, 111...) passam no cálculo mas não existem.
+  if (/^(\d)\1{10}$/.test(d)) return false;
+
+  const dv = (len: number) => {
+    let soma = 0;
+    for (let i = 0; i < len; i++) soma += Number(d[i]) * (len + 1 - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+
+  return dv(9) === Number(d[9]) && dv(10) === Number(d[10]);
+}

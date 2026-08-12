@@ -39,6 +39,10 @@ export interface PurchaseOrder {
   payment_terms: string | null;
   notes: string | null;
   whatsapp_sent_at: string | null;
+  /** Encerrado com itens faltando, por decisão do gestor. */
+  closed_incomplete?: boolean;
+  /** Justificativa obrigatória quando closed_incomplete. */
+  closure_reason?: string | null;
   created_at: string;
   updated_at: string;
   supplier?: {
@@ -248,24 +252,40 @@ export function usePDVPurchaseOrders() {
     mutationFn: async ({
       orderId,
       items,
+      closeIncomplete,
+      closeReason,
     }: {
       orderId: string;
       items: Array<{ item_id: string; quantity: number }>;
+      /** Encerra o pedido mesmo faltando mercadoria (fornecedor não entregará). */
+      closeIncomplete?: boolean;
+      closeReason?: string;
     }) => {
       const { data, error } = await (supabase as any).rpc('pdv_receive_purchase_order', {
         p_order_id: orderId,
         p_items: items,
+        p_close_incomplete: closeIncomplete ?? false,
+        p_close_reason: closeReason ?? null,
       });
 
       if (error) throw error;
-      return data as { status: string; items_moved: number; items_pending: number };
+      return data as {
+        status: string;
+        items_moved: number;
+        items_pending: number;
+        closed_incomplete?: boolean;
+      };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['pdv-purchase-orders'] });
       queryClient.invalidateQueries({ queryKey: ['pdv-ingredients'] });
       queryClient.invalidateQueries({ queryKey: ['pdv-stock-movements'] });
 
-      if (result?.status === 'partial') {
+      if (result?.closed_incomplete) {
+        toast.success(
+          `Pedido encerrado com ${result.items_pending} item(ns) não entregue(s). O motivo ficou registrado.`
+        );
+      } else if (result?.status === 'partial') {
         toast.success(
           `Recebimento parcial registrado. ${result.items_pending} item(ns) ainda em falta.`
         );

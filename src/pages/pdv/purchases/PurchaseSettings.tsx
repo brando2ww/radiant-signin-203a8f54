@@ -18,6 +18,7 @@ const TEMPLATE_VARS = [
   { key: "{prazo_resposta}", label: "Prazo de resposta" },
   { key: "{estabelecimento_nome}", label: "Nome do estabelecimento" },
   { key: "{data_cotacao}", label: "Data da cotação" },
+  { key: "{itens}", label: "Lista de itens da cotação" },
 ];
 
 function SectionWrapper({ id, title, description, icon: Icon, children }: {
@@ -202,7 +203,7 @@ export function PurchaseSettingsContent() {
               <Textarea
                 value={state.defaultMessageTemplate}
                 onChange={(e) => patch({ defaultMessageTemplate: e.target.value })}
-                placeholder={`Olá, {fornecedor_nome}.\n\nTemos uma nova cotação disponível:\n\nCotação: {cotacao_numero}\nEstabelecimento: {estabelecimento_nome}\nPrazo de resposta: {prazo_resposta}\n\nObrigado.`}
+                placeholder={`Olá, {fornecedor_nome}.\n\nTemos uma nova cotação disponível:\n\nCotação: {cotacao_numero}\nEstabelecimento: {estabelecimento_nome}\nPrazo de resposta: {prazo_resposta}\n\n{itens}\n\nObrigado.`}
                 className="min-h-[140px] font-mono text-sm"
                 maxLength={1000}
               />
@@ -225,6 +226,14 @@ export function PurchaseSettingsContent() {
                   ))}
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Seu texto substitui o encerramento da mensagem. A saudação com o nome do
+                estabelecimento, a referência da cotação e a lista de produtos continuam
+                automáticas. Para escrever a mensagem inteira do zero, use a variável{" "}
+                <span className="font-mono">{"{itens}"}</span>: com ela, nada é acrescentado
+                além do link do formulário, que vai sempre no final. Campo vazio usa a
+                mensagem padrão do sistema.
+              </p>
               <p className="text-xs text-muted-foreground text-right">
                 {state.defaultMessageTemplate.length}/1000
               </p>

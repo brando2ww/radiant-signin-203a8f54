@@ -132,7 +132,22 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                   <StatusIcon className="h-3 w-3 mr-1" />
                   {status.label}
                 </Badge>
+                {/* "Recebido" sozinho esconderia que faltou mercadoria. */}
+                {order.closed_incomplete && (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-400 text-amber-700"
+                    title={order.closure_reason || undefined}
+                  >
+                    Encerrado incompleto
+                  </Badge>
+                )}
               </div>
+              {order.closed_incomplete && order.closure_reason && (
+                <p className="mb-1 text-xs text-amber-700">
+                  Motivo: {order.closure_reason}
+                </p>
+              )}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3 w-3" />
                 {format(new Date(order.order_date), "dd/MM/yyyy", { locale: ptBR })}

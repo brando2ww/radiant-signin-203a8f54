@@ -32,7 +32,7 @@ export function CancelNFCeDialog({ coupon, open, onClose }: Props) {
 
   const submit = async () => {
     if (reason.length < 15) return;
-    await cancel.mutateAsync({ emission_id: coupon.id, justificativa: reason });
+    await cancel.mutateAsync({ ref: coupon.referencia_focusnfe, justificativa: reason });
     setReason("");
     onClose();
   };

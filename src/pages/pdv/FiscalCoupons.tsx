@@ -113,8 +113,8 @@ export default function FiscalCoupons() {
         isLoading={isLoading}
         onView={(c) => setDetailCoupon(c)}
         onCancel={(c) => setCancelCoupon(c)}
-        onCheckStatus={(c) => checkStatus.mutate({ emission_id: c.id })}
-        onResend={(c) => resend.mutate({ emission_id: c.id })}
+        onCheckStatus={(c) => checkStatus.mutate({ ref: c.referencia_focusnfe })}
+        onResend={(c) => resend.mutate({ nota_id: c.id })}
       />
 
       <FiscalCouponDetailDialog

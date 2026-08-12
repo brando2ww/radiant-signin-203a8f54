@@ -45,6 +45,13 @@ export const useDeliveryOrdersWatcher = () => {
             if (processedIds.current.has(newOrder.id)) return;
             processedIds.current.add(newOrder.id);
             const alreadyAutoAccepted = newOrder.status === "preparing";
+            // Pedido de marketplace não pode ser aceito aqui. Quem aceita é a
+            // edge function da integração, que só muda o status local depois
+            // que a plataforma confirmou. Marcar "preparando" sem confirmar no
+            // iFood faz a plataforma cancelar o pedido e derrubar a loja. O
+            // gatilho do banco (auto_accept_delivery_order) já respeita essa
+            // regra desde a migration da DeliveryMuch; no browser ela faltava.
+            const isExternal = (newOrder.source ?? "own") !== "own";
 
             // Notificação
             try {
@@ -110,6 +117,13 @@ export const useDeliveryOrdersWatcher = () => {
                   ? "Pedido auto-confirmado e em preparo"
                   : "Pedido auto-confirmado",
               );
+              queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
+              return;
+            }
+
+            // O aceite de pedido externo é da integração, não daqui. A
+            // impressão e a notificação acima valem para qualquer origem.
+            if (isExternal) {
               queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
               return;
             }

@@ -34,7 +34,8 @@ import { PaymentDialog } from "./PaymentDialog";
 import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
-import { type DeliveryOrder, useUpdateOrderStatus } from "@/hooks/use-delivery-orders";
+import { type DeliveryOrder, useUpdateOrderStatus, useReprintOrder } from "@/hooks/use-delivery-orders";
+import { useProductionCenters } from "@/hooks/use-production-centers";
 import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { AlertTriangle } from "lucide-react";
@@ -93,6 +94,8 @@ export function SalonQueuePanel({
   const delivery = usePDVDeliveryQueue();
   const { registerDeliveryPayment } = usePDVDeliveryCheckout();
   const updateOrderStatus = useUpdateOrderStatus();
+  const reprintOrder = useReprintOrder();
+  const { centers: productionCenters } = useProductionCenters();
   const { drawerBalance } = usePDVCashier();
   const { data: deliverySettings } = useDeliverySettings();
   const overdueMinutes = deliverySettings?.payment_overdue_minutes ?? 30;
@@ -124,7 +127,25 @@ export function SalonQueuePanel({
     updateOrderStatus.mutate({ id: order.id, status: next });
   };
 
+  // O botão "Caixa"/"Retirada" do card mandava a comanda pelo `window.print()`
+  // do navegador. Numa impressora térmica instalada como RAW isso sai
+  // deformado (o CSS se perde e os acentos caem na code page da impressora) e,
+  // pior, não passa pela fila do print-bridge — ou seja, não tem retry nem
+  // registro em `pdv_print_jobs`.
+  //
+  // Quando o estabelecimento tem um centro configurado para imprimir a comanda
+  // completa (`print_complete`), esse mesmo clique agora enfileira as DUAS
+  // comandas — a do caixa e as de produção — pelas impressoras térmicas de
+  // verdade. Quem não usa esse recurso continua no recibo do navegador, sem
+  // mudança de comportamento.
+  const centrosComandaCompleta = productionCenters.filter(
+    (c) => c.print_complete && c.printer_ip,
+  );
   const handlePrintMotoboy = (order: DeliveryOrder) => {
+    if (centrosComandaCompleta.length > 0) {
+      reprintOrder.mutate({ orderId: order.id });
+      return;
+    }
     printMotoboyReceipt(order);
   };
 

@@ -165,8 +165,12 @@ export function usePDVIngredients() {
     ingredients: ingredients || [],
     isLoading,
     createIngredient: createIngredient.mutate,
+    // Versão await: quem cria o insumo precisa encadear o vínculo de
+    // fornecedores e só encerrar o formulário se as DUAS etapas passarem.
+    createIngredientAsync: createIngredient.mutateAsync,
     isCreating: createIngredient.isPending,
     updateIngredient: updateIngredient.mutate,
+    updateIngredientAsync: updateIngredient.mutateAsync,
     isUpdating: updateIngredient.isPending,
     deleteIngredient: deleteIngredient.mutate,
     isDeleting: deleteIngredient.isPending,

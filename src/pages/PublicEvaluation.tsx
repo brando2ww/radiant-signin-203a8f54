@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Star, CheckCircle2, ClipboardList, BarChart3, User, Sparkles, Send, ExternalLink } from "lucide-react";
+import { Star, CheckCircle2, ClipboardList, BarChart3, User, Sparkles, Send, ExternalLink, AlertTriangle } from "lucide-react";
 import {
   usePublicCampaign,
   usePublicCampaignQuestions,
@@ -18,7 +18,7 @@ import { usePublicCampaignPrizes, useRegisterPrizeWin, type CampaignPrize } from
 import { SpinWheel } from "@/components/public-evaluation/SpinWheel";
 import { PrizeResult } from "@/components/public-evaluation/PrizeResult";
 
-type Phase = "roulette" | "form" | "coupon" | "google_redirect" | "done";
+type Phase = "roulette" | "form" | "coupon" | "coupon_error" | "google_redirect" | "done";
 
 function ProgressBar({ value }: { value: number }) {
   return (
@@ -273,7 +273,6 @@ export default function PublicEvaluation() {
                 evaluationId: result.id,
                 customerName: name.trim(),
                 customerWhatsapp: phone,
-                couponValidityDays: wonPrize.coupon_validity_days,
               },
               {
                 onSuccess: (win) => {
@@ -281,10 +280,9 @@ export default function PublicEvaluation() {
                   setPendingRedirect(shouldRedirect);
                   setPhase("coupon");
                 },
-                onError: () => {
-                  if (shouldRedirect) setPhase("google_redirect");
-                  else setPhase("done");
-                },
+                // Nunca fingir sucesso: o cliente girou a roleta e ganhou, então precisa saber
+                // que o cupom não saiu para poder chamar o atendente na hora.
+                onError: () => setPhase("coupon_error"),
               }
             );
           } else if (shouldRedirect) {
@@ -318,6 +316,28 @@ export default function PublicEvaluation() {
             <GoogleCountdownRedirect url={googleReviewUrl} />
           )}
 
+        </div>
+      </div>
+    );
+  }
+
+  // === PHASE: COUPON ERROR ===
+  if (currentPhase === "coupon_error") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: bgColor }}>
+        <div className="text-center space-y-5 max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {Logo}
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-amber-50 mx-auto">
+            <AlertTriangle className="h-10 w-10 text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-semibold text-foreground">Sua avaliação foi registrada</h1>
+          <p className="text-muted-foreground leading-relaxed text-sm">
+            Mas não conseguimos emitir o cupom{wonPrize ? ` de ${wonPrize.name}` : ""} agora.
+            Mostre esta tela ao atendente para receber seu prêmio.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {name.trim()} · {phone}
+          </p>
         </div>
       </div>
     );

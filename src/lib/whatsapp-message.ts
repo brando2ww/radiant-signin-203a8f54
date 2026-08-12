@@ -102,39 +102,78 @@ export function generateWinnerOrderMessage(
   return m;
 }
 
+/** Contexto do template configurado em Compras > Configurações. */
+export interface QuotationTemplateContext {
+  /** default_message_template do pdv_purchase_settings. Vazio = texto padrão. */
+  template?: string | null;
+  supplierName?: string;
+  quotationDate?: Date;
+}
+
+/** Troca {variavel} pelo valor. O que não conhecemos fica como está, para o
+ *  usuário enxergar que digitou uma variável inexistente em vez de sumir. */
+function renderTemplateVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (original, key: string) =>
+    key in vars ? vars[key] : original
+  );
+}
+
 /**
- * Gera mensagem de solicitação de cotação
+ * Gera mensagem de solicitação de cotação.
+ *
+ * Três comportamentos, nesta ordem:
+ * 1. Sem template configurado: mensagem padrão do sistema, como sempre foi.
+ * 2. Template SEM {itens}: mantém a abertura (saudação com o nome da casa,
+ *    referência e lista de produtos) e troca só o encerramento pelo template.
+ *    É o caso comum, em que o lojista escreve prazo e assinatura.
+ * 3. Template COM {itens}: o template é a mensagem inteira e manda em tudo,
+ *    inclusive na posição da lista.
+ *
+ * O link público do formulário é anexado depois, pela edge send-quotation-whatsapp.
  */
 export function generateQuotationMessage(
   items: QuotationItem[],
   deadline: Date,
   businessName?: string,
-  requestNumber?: string
+  requestNumber?: string,
+  ctx?: QuotationTemplateContext
 ): string {
   const formattedDeadline = deadline.toLocaleDateString('pt-BR');
-  
-  let message = `Olá! `;
-  
+
+  const itemsList = items
+    .map((item, index) => `${index + 1}. ${item.ingredientName}: ${item.quantity} ${item.unit}`)
+    .join('\n');
+
+  let header = `Olá! `;
   if (businessName) {
-    message += `Aqui é do *${businessName}*.\n`;
+    header += `Aqui é do *${businessName}*.\n`;
   }
-  
   if (requestNumber) {
-    message += `📋 *Ref.: ${requestNumber}*\n\n`;
+    header += `📋 *Ref.: ${requestNumber}*\n\n`;
   } else {
-    message += `\n`;
+    header += `\n`;
   }
-  
-  message += `Estamos solicitando cotação para os seguintes produtos:\n\n`;
+  header += `Estamos solicitando cotação para os seguintes produtos:\n\n`;
+  header += `${itemsList}\n`;
 
-  items.forEach((item, index) => {
-    message += `${index + 1}. ${item.ingredientName}: ${item.quantity} ${item.unit}\n`;
-  });
+  const template = ctx?.template?.trim();
+  if (template) {
+    const rendered = renderTemplateVars(template, {
+      fornecedor_nome: ctx?.supplierName ?? '',
+      cotacao_numero: requestNumber ?? '',
+      prazo_resposta: formattedDeadline,
+      estabelecimento_nome: businessName ?? '',
+      data_cotacao: (ctx?.quotationDate ?? new Date()).toLocaleDateString('pt-BR'),
+      itens: itemsList,
+    });
 
+    return template.includes('{itens}') ? rendered : `${header}\n${rendered}`;
+  }
+
+  let message = header;
   message += `\nPreencha os preços pelo link abaixo (é rápido e não precisa responder por aqui).\n`;
   message += `Aguardamos retorno até ${formattedDeadline}.\n`;
   message += `Obrigado!`;
-  // O link público do formulário é anexado pela edge send-quotation-whatsapp.
   return message;
 }
 

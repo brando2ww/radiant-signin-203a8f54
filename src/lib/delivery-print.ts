@@ -199,7 +199,7 @@ export async function dispatchDeliveryPrintJobs(
   // inteiro. Reimprimir só uma bancada (centerIdFilter definido) segue sem gerar
   // caixa, e o dedup por (source_kind, source_item_id) impede segunda via.
   if (centerIdFilter === undefined) {
-    dispatchCaixaJobs(orderId).catch((e) =>
+    dispatchCaixaJobs(orderId, options?.auto === true).catch((e) =>
       console.error("Erro ao enfileirar comanda_caixa:", e)
     );
   }
@@ -207,7 +207,15 @@ export async function dispatchDeliveryPrintJobs(
   return { jobs: jobs.length };
 }
 
-async function dispatchCaixaJobs(orderId: string) {
+/**
+ * @param auto  `true` = disparo automático (Realtime), onde o dedup por pedido
+ *   é essencial porque várias abas recebem o mesmo evento. `false` = o operador
+ *   clicou em imprimir, e aí a comanda do caixa tem de sair SEMPRE — igual à de
+ *   produção, que já escapava do dedup zerando `source_item_id`. Sem essa
+ *   simetria, reimprimir um pedido soltava só o cupom da cozinha e o do caixa
+ *   ficava para trás (relatado no La Vecchia em 31/07/2026).
+ */
+async function dispatchCaixaJobs(orderId: string, auto: boolean) {
 
   // As colunas sao `discount` e `change_for`. Pedir `discount_amount`/
   // `change_amount` fazia o PostgREST devolver 400, `orderRow` vinha vazio e a
@@ -232,14 +240,18 @@ async function dispatchCaixaJobs(orderId: string) {
     .eq("print_complete", true);
   if (!centers || centers.length === 0) return;
 
-  // Dedup: abortar se já existe job comanda_caixa p/ este pedido
-  const { data: existing } = await supabase
-    .from("pdv_print_jobs")
-    .select("id")
-    .eq("source_kind", "comanda_caixa")
-    .eq("source_item_id", orderId)
-    .limit(1);
-  if (existing && existing.length > 0) return;
+  // Dedup só no caminho automático (ver docstring). Na reimpressão manual
+  // pulamos a checagem e zeramos `source_item_id` mais abaixo, para escapar do
+  // índice único parcial pdv_print_jobs_comanda_caixa_order_center_uniq.
+  if (auto) {
+    const { data: existing } = await supabase
+      .from("pdv_print_jobs")
+      .select("id")
+      .eq("source_kind", "comanda_caixa")
+      .eq("source_item_id", orderId)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+  }
 
   // Complemento e referencia nao cabem no `delivery_address_text`, que e uma
   // linha unica. Sao justamente o que o entregador precisa para achar a casa,
@@ -269,7 +281,7 @@ async function dispatchCaixaJobs(orderId: string) {
   const caixaJobs = (centers as any[]).map((center) => ({
     tenant_user_id: orderRow.user_id,
     source_kind: "comanda_caixa",
-    source_item_id: orderId,
+    source_item_id: auto ? orderId : null,
     center_id: center.id,
     center_name: center.name,
     printer_ip: center.printer_ip,

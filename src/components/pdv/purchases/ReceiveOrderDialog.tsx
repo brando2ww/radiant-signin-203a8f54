@@ -9,6 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, PackageCheck, AlertCircle } from "lucide-react";
 import { PurchaseOrder, usePDVPurchaseOrders } from "@/hooks/use-pdv-purchase-orders";
@@ -64,6 +66,34 @@ export function ReceiveOrderDialog({
     [items, quantities]
   );
 
+  // Só o que veio A MENOS permite encerrar o pedido. Item recebido a mais também
+  // é divergência, mas não deixa pendência para o fornecedor entregar.
+  const missing = useMemo(
+    () =>
+      items.filter(
+        (item) => round3((quantities[item.id] ?? 0) - Number(item.quantity)) < 0
+      ),
+    [items, quantities]
+  );
+
+  // Encerrar o pedido faltando mercadoria: o fornecedor avisou que não entrega o
+  // resto, então manter o pedido pendente para sempre só suja a fila.
+  const [closeIncomplete, setCloseIncomplete] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setCloseIncomplete(false);
+    setCloseReason("");
+  }, [open]);
+
+  // Se o usuário corrigir as quantidades e não faltar mais nada, a opção some.
+  useEffect(() => {
+    if (missing.length === 0 && closeIncomplete) setCloseIncomplete(false);
+  }, [missing.length, closeIncomplete]);
+
+  const reasonMissing = closeIncomplete && closeReason.trim().length === 0;
+
   const handleConfirm = () => {
     receiveOrder.mutate(
       {
@@ -72,6 +102,8 @@ export function ReceiveOrderDialog({
           item_id: item.id,
           quantity: round3(quantities[item.id] ?? 0),
         })),
+        closeIncomplete,
+        closeReason: closeIncomplete ? closeReason.trim() : undefined,
       },
       { onSuccess: () => onOpenChange(false) }
     );
@@ -161,12 +193,51 @@ export function ReceiveOrderDialog({
         )}
 
         {divergent.length > 0 && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>
-              {divergent.length} item(ns) com quantidade diferente da pedida. O pedido
-              ficará marcado como <strong>parcial</strong> enquanto faltar mercadoria.
-            </p>
+          <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                {divergent.length} item(ns) com quantidade diferente da pedida.
+                {missing.length > 0 ? (
+                  <>
+                    {" "}O pedido ficará marcado como <strong>parcial</strong> enquanto
+                    faltar mercadoria.
+                  </>
+                ) : null}
+              </p>
+            </div>
+
+            {missing.length > 0 && (
+              <div className="space-y-2 border-t border-amber-300/70 pt-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={closeIncomplete}
+                    onCheckedChange={(v) => setCloseIncomplete(v === true)}
+                    className="mt-0.5 border-amber-500 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                  />
+                  <span>
+                    O fornecedor não vai entregar o restante.{" "}
+                    <strong>Encerrar o pedido assim mesmo.</strong>
+                  </span>
+                </label>
+
+                {closeIncomplete && (
+                  <div className="space-y-1 pl-6">
+                    <Textarea
+                      value={closeReason}
+                      onChange={(e) => setCloseReason(e.target.value)}
+                      placeholder="Por que o pedido está sendo encerrado incompleto? Ex.: fornecedor sem estoque, item descontinuado, compra concluída em outro fornecedor."
+                      maxLength={500}
+                      className="min-h-[72px] bg-white text-foreground"
+                    />
+                    <p className="text-[11px] text-amber-700">
+                      A justificativa é obrigatória e fica registrada no pedido. As
+                      quantidades acima continuam sendo as que entram no estoque.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -185,14 +256,15 @@ export function ReceiveOrderDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={receiveOrder.isPending || items.length === 0}
+            disabled={receiveOrder.isPending || items.length === 0 || reasonMissing}
+            title={reasonMissing ? "Descreva o motivo do encerramento" : undefined}
           >
             {receiveOrder.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
               <PackageCheck className="mr-2 h-4 w-4" />
             )}
-            Confirmar recebimento
+            {closeIncomplete ? "Receber e encerrar pedido" : "Confirmar recebimento"}
           </Button>
         </DialogFooter>
       </DialogContent>

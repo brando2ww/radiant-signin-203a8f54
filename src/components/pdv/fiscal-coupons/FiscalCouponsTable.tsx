@@ -14,12 +14,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Eye, FileDown, RefreshCw, Send, Ban, Copy, FileText } from "lucide-react";
+import { MoreVertical, Eye, FileDown, RefreshCw, Send, Ban, Copy, FileText, Printer } from "lucide-react";
 import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
 import { toast } from "sonner";
 import { FiscalCouponStatusBadge } from "./FiscalCouponStatusBadge";
+import { dispatchDanfePrintJob } from "@/lib/danfe-print";
 import type { FiscalCoupon } from "@/hooks/use-fiscal-coupons";
 
 interface Props {
@@ -98,6 +99,22 @@ export function FiscalCouponsTable({ coupons, isLoading, onView, onCancel, onChe
                           toast.success("Chave copiada");
                         }}>
                           <Copy className="w-4 h-4 mr-2" /> Copiar chave de acesso
+                        </DropdownMenuItem>
+                      )}
+                      {c.status === "autorizada" && (
+                        <DropdownMenuItem onClick={async () => {
+                          try {
+                            const r = await dispatchDanfePrintJob(c.id, { reimpressao: true });
+                            toast[r.jobs > 0 ? "success" : "info"](
+                              r.jobs > 0
+                                ? "Cupom enviado para a impressora do caixa"
+                                : `Não foi possível imprimir: ${r.reason}`,
+                            );
+                          } catch (e: any) {
+                            toast.error(e.message || "Falha ao enviar para a impressora");
+                          }
+                        }}>
+                          <Printer className="w-4 h-4 mr-2" /> Reimprimir no caixa
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuSeparator />

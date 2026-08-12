@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import { QuotationRequest } from "@/hooks/use-pdv-quotations";
 import { usePDVIngredientSuppliers } from "@/hooks/use-pdv-ingredient-suppliers";
 import { generateQuotationMessage } from "@/lib/whatsapp-message";
+import { usePurchaseSettings } from "@/hooks/use-purchase-settings";
+import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -49,6 +51,10 @@ export function WhatsAppSendDialog({
   quotation,
 }: WhatsAppSendDialogProps) {
   const { ingredientSuppliers } = usePDVIngredientSuppliers();
+  // Template escrito em Compras > Configurações e nome do estabelecimento:
+  // é o que substitui o texto fixo que ia para o fornecedor.
+  const { settings: purchaseSettings } = usePurchaseSettings();
+  const { settings: businessSettings } = useBusinessSettings();
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -207,8 +213,13 @@ export function WhatsAppSendDialog({
           unit: item.unit,
         })),
         deadline,
-        undefined,
-        quotation.request_number || undefined
+        businessSettings?.business_name || undefined,
+        quotation.request_number || undefined,
+        {
+          template: purchaseSettings?.defaultMessageTemplate,
+          supplierName: supplier.name,
+          quotationDate: quotation.created_at ? parseISO(quotation.created_at) : undefined,
+        }
       );
       return {
         supplierId: supplier.id,
