@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveGlobalChannel, sendText, isChannelError } from '../_shared/whatsapp/index.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,66 +62,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get Evolution API credentials
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')
-
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      console.error("Evolution não configurado");
+    // Canal da plataforma (número da Velara).
+    const channel = resolveGlobalChannel()
+    if (isChannelError(channel)) {
       return new Response(
-        JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME')
-
-    if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
-      console.error('Evolution API credentials not configured')
-      return new Response(
-        JSON.stringify({ error: 'Configuração da Evolution API não encontrada' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: channel.error.errorMessage, code: channel.error.errorCode }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Verificar se o número é um WhatsApp válido antes de enviar
-    const checkResponse = await fetch(
-      `${evolutionApiUrl}/chat/whatsappNumbers/${evolutionInstanceName}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': evolutionApiKey,
-        },
-        body: JSON.stringify({
-          numbers: [formattedPhone],
-        }),
-      }
-    )
-
-    if (!checkResponse.ok) {
-      console.error('Error checking WhatsApp number:', await checkResponse.text())
-      return new Response(
-        JSON.stringify({ error: 'Erro ao verificar número do WhatsApp' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const checkResult = await checkResponse.json()
-    console.log('WhatsApp check result:', JSON.stringify(checkResult))
-
-    // Verifica se o número existe no WhatsApp
-    const numberInfo = checkResult[0]
-    if (!numberInfo?.exists) {
-      console.log(`Number ${formattedPhone} is not registered on WhatsApp`)
-      return new Response(
-        JSON.stringify({ error: 'Este número não está cadastrado no WhatsApp. Verifique o número e tente novamente.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    console.log(`Number ${formattedPhone} verified on WhatsApp, proceeding to send message...`)
-
-    // Send WhatsApp message via Evolution API
+    // A checagem prévia "este número tem WhatsApp?" (POST /chat/whatsappNumbers)
+    // saiu: é exclusiva do Evolution e não tem equivalente na API oficial. O
+    // erro agora vem do próprio envio, que é o comportamento que vale nos dois
+    // provedores.
     const messageText = `Olá! Aqui é a Velara, sua assistente financeira.
 
 Seu código de verificação é: *${verificationCode}*
@@ -132,27 +86,21 @@ Se você não solicitou este código, por favor ignore esta mensagem.
 Atenciosamente,
 Equipe Velara`
 
-    const sendMessageResponse = await fetch(
-      `${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': evolutionApiKey,
-        },
-        body: JSON.stringify({
-          number: numberInfo.jid,
-          text: messageText,
-        }),
-      }
-    )
+    const outcome = await sendText(supabase, channel, formattedPhone, messageText, {
+      purpose: 'phone_verification',
+      redactBody: true,
+    })
 
-    if (!sendMessageResponse.ok) {
-      const errorText = await sendMessageResponse.text()
-      console.error('Error sending WhatsApp message:', errorText)
+    if (!outcome.ok) {
+      console.error('Error sending WhatsApp message:', outcome.errorMessage)
       return new Response(
-        JSON.stringify({ error: 'Erro ao enviar mensagem no WhatsApp' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          error: outcome.errorCode === 'invalid_number'
+            ? 'Número inválido. Verifique e tente novamente.'
+            : 'Erro ao enviar mensagem no WhatsApp',
+        }),
+        { status: outcome.errorCode === 'invalid_number' ? 400 : 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 

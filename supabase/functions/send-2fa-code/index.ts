@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveGlobalChannel, sendText, isChannelError } from '../_shared/whatsapp/index.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,24 +75,15 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Send via Evolution API
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')
-
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      console.error("Evolution não configurado");
+    // Canal da plataforma: 2FA sai de um número da Velara, não do
+    // estabelecimento. Fica no Evolution mesmo depois da API oficial entrar —
+    // se um template de autenticação for reprovado ou pausado pela Meta,
+    // ninguém consegue entrar no sistema.
+    const channel = resolveGlobalChannel()
+    if (isChannelError(channel)) {
       return new Response(
-        JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME')
-
-    if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
-      console.error('Evolution API credentials not configured')
-      return new Response(
-        JSON.stringify({ error: 'Serviço de mensagens não configurado' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: channel.error.errorMessage, code: channel.error.errorCode }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -104,23 +96,14 @@ Seu código de autenticação é: *${code}*
 
 _Velara - Sua plataforma financeira_`
 
-    const sendMessageUrl = `${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`
-    
-    const messageResponse = await fetch(sendMessageUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
-      },
-      body: JSON.stringify({
-        number: `55${phoneNumber}`,
-        text: message,
-      }),
+    // redactBody: o corpo carrega o código de 6 dígitos.
+    const outcome = await sendText(supabase, channel, phoneNumber, message, {
+      purpose: 'two_factor',
+      redactBody: true,
     })
 
-    if (!messageResponse.ok) {
-      const errorText = await messageResponse.text()
-      console.error('Error sending WhatsApp message:', errorText)
+    if (!outcome.ok) {
+      console.error('Error sending WhatsApp message:', outcome.errorMessage)
       return new Response(
         JSON.stringify({ error: 'Erro ao enviar código via WhatsApp' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

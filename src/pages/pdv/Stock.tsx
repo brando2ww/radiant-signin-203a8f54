@@ -53,7 +53,9 @@ export default function PDVStock() {
     let low = 0;
     let critical = 0;
     ingredients.forEach((ing) => {
-      if (ing.current_stock <= ing.min_stock) {
+      // Só conta quem TEM mínimo definido: mínimo 0 com estoque 0 não é falta,
+      // é insumo sem configuração — ver comentário em IngredientCard.
+      if (ing.min_stock > 0 && ing.current_stock <= ing.min_stock) {
         low++;
         if (ing.current_stock < ing.min_stock * 0.5) {
           critical++;
@@ -70,8 +72,9 @@ export default function PDVStock() {
         ingredient.name.toLowerCase().includes(search.toLowerCase()) ||
         ingredient.supplier?.name?.toLowerCase().includes(search.toLowerCase());
 
-      const isLowStock = ingredient.current_stock <= ingredient.min_stock;
-      const isCritical = ingredient.current_stock < ingredient.min_stock * 0.5;
+      const hasMinimum = ingredient.min_stock > 0;
+      const isLowStock = hasMinimum && ingredient.current_stock <= ingredient.min_stock;
+      const isCritical = hasMinimum && ingredient.current_stock < ingredient.min_stock * 0.5;
 
       const matchesStatus =
         stockStatus === "all" ||
@@ -251,6 +254,7 @@ export default function PDVStock() {
         filteredCount={filteredIngredients.length}
         lowStockCount={lowStockCount}
         criticalStockCount={criticalStockCount}
+        noMinimumCount={ingredients.filter((i) => !(i.min_stock > 0)).length}
       />
 
       {filteredIngredients.length === 0 ? (

@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  resolveTenantChannel, sendText, toWhatsAppNumber, isChannelError,
+} from '../_shared/whatsapp/index.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,45 +95,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Find user's connected WhatsApp instance
-    const { data: connection, error: connError } = await supabase
-      .from('whatsapp_connections')
-      .select('instance_name, connection_status')
-      .eq('user_id', user.id)
-      .eq('connection_status', 'open')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (connError || !connection) {
+    // Uma resolução só, com fallback para o dono do estabelecimento e o guard
+    // de configuração do provedor. Antes eram três blocos aqui, dois deles
+    // checando a mesma condição.
+    const resolved = await resolveTenantChannel(supabase, user.id)
+    if (isChannelError(resolved)) {
       return new Response(
-        JSON.stringify({
-          error: 'Nenhuma conexão WhatsApp ativa encontrada. Conecte o WhatsApp nas configurações antes de enviar cotações.',
-          code: 'NO_WHATSAPP_CONNECTION'
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: resolved.error.errorMessage, code: resolved.error.errorCode }),
+        { status: resolved.error.errorCode === 'no_connection' ? 400 : 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+    const channel = resolved
 
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')
-
-
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      console.error("Evolution não configurado");
-      return new Response(
-        JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'Configuração da Evolution API não encontrada' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    const instanceName = connection.instance_name
     const sent: string[] = []
     const errors: { supplierId: string; phone: string; error: string }[] = []
 
@@ -157,40 +134,23 @@ Deno.serve(async (req) => {
         : 'Olá! Segue nossa solicitação de cotação.'
       const fullMessage = `${baseMessage}\n\n👉 *Preencha seu orçamento aqui:*\n${url}`
 
-      // Format phone: digits only + ensure Brazil country code (55)
-      let formattedPhone = phone.replace(/\D/g, '')
-      if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) {
-        formattedPhone = '55' + formattedPhone
-      }
+      const formattedPhone = toWhatsAppNumber(phone)
 
-      try {
-        const response = await fetch(
-          `${evolutionApiUrl}/message/sendText/${instanceName}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': evolutionApiKey,
-            },
-            body: JSON.stringify({
-              number: formattedPhone,
-              text: fullMessage,
-            }),
-          }
-        )
+      const outcome = await sendText(supabase, channel, phone, fullMessage, {
+        purpose: 'quotation',
+        entityType: 'quotation_request',
+        entityId: quotationId,
+        supplierId,
+      })
 
-        const responseText = await response.text()
-
-        if (!response.ok) {
-          console.error(`Error sending to ${formattedPhone}:`, responseText)
-          errors.push({ supplierId, phone: formattedPhone, error: `API error: ${response.status}` })
-        } else {
-          console.log(`Message sent to ${formattedPhone}`)
-          sent.push(supplierId)
-        }
-      } catch (err) {
-        console.error(`Exception sending to ${formattedPhone}:`, err)
-        errors.push({ supplierId, phone: formattedPhone, error: String(err) })
+      if (outcome.ok) {
+        sent.push(supplierId)
+      } else {
+        errors.push({
+          supplierId,
+          phone: formattedPhone,
+          error: outcome.errorMessage ?? outcome.errorCode ?? 'Falha no envio',
+        })
       }
     }
 

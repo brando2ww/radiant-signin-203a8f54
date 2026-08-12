@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ShoppingCart, Package, Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,13 @@ interface LowStockItem {
 }
 
 export default function ShoppingList() {
+  const navigate = useNavigate();
   const { ingredients, isLoading } = usePDVIngredients();
+  // Quantos insumos têm régua: separa "está tudo em dia" de "ninguém configurou".
+  const ingredientsWithMinimum = useMemo(
+    () => ingredients.filter((i) => (i.min_stock || 0) > 0).length,
+    [ingredients],
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -177,16 +184,38 @@ export default function ShoppingList() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Package className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              {searchQuery
-                ? "Nenhum item encontrado"
-                : "Estoque em dia!"}
-            </h3>
-            <p className="text-muted-foreground text-center">
-              {searchQuery
-                ? "Tente ajustar a busca"
-                : "Todos os ingredientes estão acima do estoque mínimo"}
-            </p>
+            {/* A lista só consegue sugerir reposição de quem tem mínimo
+                definido. Dizer "estoque em dia" quando NENHUM insumo tem
+                mínimo é mentira confortável: o gestor acha que está tudo certo
+                justamente porque a régua nunca foi criada. */}
+            {searchQuery ? (
+              <>
+                <h3 className="text-lg font-semibold mb-2">Nenhum item encontrado</h3>
+                <p className="text-muted-foreground text-center">Tente ajustar a busca</p>
+              </>
+            ) : ingredientsWithMinimum === 0 ? (
+              <>
+                <h3 className="text-lg font-semibold mb-2">
+                  Nenhum insumo tem estoque mínimo definido
+                </h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  Esta lista mostra o que caiu abaixo do mínimo · sem essa régua ela não tem
+                  como sugerir reposição. Defina o estoque mínimo dos insumos em Estoque, e
+                  eles passam a aparecer aqui sozinhos.
+                </p>
+                <Button variant="outline" className="mt-4" onClick={() => navigate("/pdv/estoque")}>
+                  Ir para Estoque
+                </Button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold mb-2">Estoque em dia!</h3>
+                <p className="text-muted-foreground text-center">
+                  Todos os {ingredientsWithMinimum} insumo(s) com mínimo definido estão acima
+                  dele.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (

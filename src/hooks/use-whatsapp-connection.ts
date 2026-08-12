@@ -24,6 +24,8 @@ export interface WhatsAppConnection {
 export interface QRCodeResponse {
   status: 'pending' | 'connected';
   qrcode?: string;
+  /** Código de 8 caracteres do fluxo "vincular com número de telefone". */
+  pairingCode?: string;
   profile_name?: string | null;
   profile_picture_url?: string | null;
   phone_number?: string | null;
@@ -32,6 +34,8 @@ export interface QRCodeResponse {
 export interface StatusResponse {
   status: string;
   qrcode?: string;
+  /** Código de 8 caracteres do fluxo "vincular com número de telefone". */
+  pairingCode?: string;
   message?: string;
   profile_name?: string | null;
   profile_picture_url?: string | null;
@@ -47,6 +51,7 @@ export function useWhatsAppConnection() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [pollError, setPollError] = useState<string | null>(null);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -54,9 +59,19 @@ export function useWhatsAppConnection() {
   const currentInstanceRef = useRef<string>('');
   const consecutiveErrorsRef = useRef(0);
 
+  /**
+   * O namespace de instâncias do Evolution é GLOBAL, não por estabelecimento.
+   * Sem o id do usuário no nome, dois clientes que digitassem "Restaurante"
+   * apontariam para a MESMA instância — e o webhook de entrada, que resolve o
+   * estabelecimento pelo nome da instância, descartava a mensagem em silêncio.
+   *
+   * Só vale para conexões novas: renomear instância já conectada equivale a
+   * recriar no Evolution, o que obrigaria o cliente a ler o QR de novo.
+   */
   const generateInstanceName = (connectionName: string) => {
     if (!user) return '';
-    return connectionName.trim().replace(/[^\w\s-]/g, '').slice(0, 50);
+    const slug = connectionName.trim().replace(/[^\w\s-]/g, '').slice(0, 32);
+    return `${slug}-${user.id.slice(0, 8)}`;
   };
 
   // Fetch current connection from database
@@ -89,6 +104,7 @@ export function useWhatsAppConnection() {
       consecutiveErrorsRef.current = 0;
       setPollError(null);
 
+      setPairingCode(null);
       const { data, error } = await supabase.functions.invoke('whatsapp-qrcode/generate', {
         body: {
           userId: user.id,
@@ -104,8 +120,9 @@ export function useWhatsAppConnection() {
       if (data.status === 'connected') {
         toast.success('WhatsApp já está conectado!');
         queryClient.invalidateQueries({ queryKey: ['whatsapp-connection'] });
-      } else if (data.qrcode) {
-        setQrCode(data.qrcode);
+      } else if (data.qrcode || data.pairingCode) {
+        setQrCode(data.qrcode ?? null);
+        setPairingCode(data.pairingCode ?? null);
         startPolling();
       }
     },
@@ -155,9 +172,10 @@ export function useWhatsAppConnection() {
         setQrCode(null);
         toast.success('WhatsApp conectado com sucesso!');
         queryClient.invalidateQueries({ queryKey: ['whatsapp-connection'] });
-      } else if (status.status === 'pending' && status.qrcode) {
+      } else if (status.status === 'pending' && (status.qrcode || status.pairingCode)) {
         // Backend sent a refreshed QR code
-        setQrCode(status.qrcode);
+        setQrCode(status.qrcode ?? null);
+        setPairingCode(status.pairingCode ?? null);
       } else if (status.status === 'stale' || status.status === 'disconnected') {
         stopPolling();
         setQrCode(null);
@@ -205,7 +223,7 @@ export function useWhatsAppConnection() {
   useEffect(() => { return () => { stopPolling(); }; }, [stopPolling]);
 
   return {
-    connection, isLoading, isConnected, qrCode, isPolling, pollError,
+    connection, isLoading, isConnected, qrCode, pairingCode, isPolling, pollError,
     isGenerating: generateQRCode.isPending,
     isDisconnecting: disconnect.isPending,
     generateQRCode: generateQRCode.mutate,

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveTenantChannel, sendText, toWhatsAppNumber, isChannelError } from "../_shared/whatsapp/index.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,27 +15,17 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const evoUrl = Deno.env.get("EVOLUTION_API_URL")!;
-    const evoKey = Deno.env.get("EVOLUTION_API_KEY")!;
-
-    if (!evoUrl || !evoKey) {
-      console.error("Evolution não configurado");
-      return new Response(
-        JSON.stringify({ error: "WhatsApp não está configurado no servidor. Solicite ativação ao suporte.", code: "evolution_not_configured" }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const { user_id, date } = await req.json();
 
     // If called via cron (no user_id), process all enabled tenants
     if (!user_id) {
-      return await handleCron(supabase, evoUrl, evoKey);
+      return await handleCron(supabase);
     }
 
     const today = date || new Date().toISOString().split("T")[0];
-    const result = await sendReportForUser(supabase, evoUrl, evoKey, user_id, today);
+    const result = await sendReportForUser(supabase, user_id, today);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -48,7 +39,7 @@ Deno.serve(async (req) => {
   }
 });
 
-async function handleCron(supabase: any, evoUrl: string, evoKey: string) {
+async function handleCron(supabase: any) {
   const now = new Date();
   const currentHour = String(now.getHours()).padStart(2, "0");
   const currentMinute = String(now.getMinutes()).padStart(2, "0");
@@ -75,7 +66,7 @@ async function handleCron(supabase: any, evoUrl: string, evoKey: string) {
     // Check if current time matches (exact hour match)
     if (reportTime.substring(0, 2) === currentHour) {
       try {
-        const r = await sendReportForUser(supabase, evoUrl, evoKey, s.user_id, today);
+        const r = await sendReportForUser(supabase, s.user_id, today);
         results.push({ user_id: s.user_id, ...r });
       } catch (e: any) {
         results.push({ user_id: s.user_id, error: e.message });
@@ -90,8 +81,6 @@ async function handleCron(supabase: any, evoUrl: string, evoKey: string) {
 
 async function sendReportForUser(
   supabase: any,
-  evoUrl: string,
-  evoKey: string,
   userId: string,
   date: string
 ) {
@@ -107,40 +96,13 @@ async function sendReportForUser(
     throw new Error("Número de telefone para relatório não configurado");
   }
 
-  // 2. Get WhatsApp connection (check own user + establishment owner)
-  let conn = null;
-  const { data: ownConn } = await supabase
-    .from("whatsapp_connections")
-    .select("instance_name")
-    .eq("user_id", userId)
-    .eq("connection_status", "open")
-    .maybeSingle();
-
-  conn = ownConn;
-
-  if (!conn) {
-    // Check if user is an establishment user and use owner's connection
-    const { data: estUser } = await supabase
-      .from("establishment_users")
-      .select("establishment_owner_id")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (estUser?.establishment_owner_id) {
-      const { data: ownerConn } = await supabase
-        .from("whatsapp_connections")
-        .select("instance_name")
-        .eq("user_id", estUser.establishment_owner_id)
-        .eq("connection_status", "open")
-        .maybeSingle();
-      conn = ownerConn;
-    }
+  // 2. Canal de envio. O fallback para a conexão do dono do estabelecimento,
+  //    que antes era feito na mão aqui, agora é regra do resolver.
+  const resolved = await resolveTenantChannel(supabase, userId);
+  if (isChannelError(resolved)) {
+    throw new Error(resolved.error.errorMessage ?? "WhatsApp não está conectado.");
   }
-
-  if (!conn) {
-    throw new Error("WhatsApp não está conectado. Conecte primeiro nas configurações.");
-  }
+  const channel = resolved;
 
   // 3. Get task instances for the date
   const { data: tasks, error: tasksErr } = await supabase
@@ -166,74 +128,24 @@ async function sendReportForUser(
   // 5. Build message chunks
   const messages = buildReportMessages(tasks, shifts, date);
 
-  // 6. Validate destination and send via Evolution API
-  let phone = settings.whatsapp_report_phone.replace(/\D/g, "");
-  if (!phone.startsWith("55")) {
-    phone = "55" + phone;
-  }
+  // 6. Envio
+  const phone = toWhatsAppNumber(settings.whatsapp_report_phone);
   console.log("Sending report to phone:", phone, "parts:", messages.length);
-  const instanceName = encodeURIComponent(conn.instance_name);
-  const numberCheckUrl = `${evoUrl}/chat/whatsappNumbers/${instanceName}`;
-  const sendUrl = `${evoUrl}/message/sendText/${instanceName}`;
-  console.log("Evolution number check URL:", numberCheckUrl);
-  console.log("Evolution send URL:", sendUrl);
 
-  const numberCheckResponse = await fetch(numberCheckUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: evoKey,
-    },
-    body: JSON.stringify({ numbers: [phone] }),
-  });
-
-  if (!numberCheckResponse.ok) {
-    const errorText = await numberCheckResponse.text();
-    console.error("Error checking WhatsApp number:", errorText);
-    throw new Error("Erro ao verificar número do WhatsApp antes do envio.");
-  }
-
-  const numberCheckResult = await numberCheckResponse.json();
-  console.log("WhatsApp number check result:", JSON.stringify(numberCheckResult));
-  const numberInfo = Array.isArray(numberCheckResult) ? numberCheckResult[0] : numberCheckResult;
-
-  if (!numberInfo?.exists) {
-    throw new Error(
-      `O número ${settings.whatsapp_report_phone} não foi encontrado no WhatsApp. Verifique se o número está correto e possui WhatsApp ativo.`
-    );
-  }
-
+  // A validação prévia do número (POST /chat/whatsappNumbers) foi removida: é
+  // específica do Evolution, não existe na API oficial da Meta, e o próprio
+  // envio já devolve o erro. Manter a checagem faria o comportamento divergir
+  // entre os dois provedores.
   for (let partIndex = 0; partIndex < messages.length; partIndex++) {
-    const text = messages[partIndex];
-    const evoResponse = await fetch(sendUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: evoKey,
-      },
-      body: JSON.stringify({
-        number: phone,
-        text,
-      }),
+    const outcome = await sendText(supabase, channel, phone, messages[partIndex], {
+      purpose: "tasks_report",
     });
 
-    const responseBody = await evoResponse.text();
-    console.log(`Evolution API response (part ${partIndex + 1}/${messages.length}):`, evoResponse.status, responseBody);
-
-    try {
-      const parsed = JSON.parse(responseBody);
-      const msgs = parsed?.response?.message || (Array.isArray(parsed) ? parsed : [parsed]);
-      if (Array.isArray(msgs) && msgs.some((m: any) => m.exists === false)) {
-        throw new Error(
-          `O número ${settings.whatsapp_report_phone} não foi encontrado no WhatsApp. Verifique se o número está correto e possui WhatsApp ativo.`
-        );
-      }
-    } catch (parseErr: any) {
-      if (parseErr.message.includes("não foi encontrado")) throw parseErr;
-    }
-
-    if (!evoResponse.ok) {
-      throw new Error(`Falha ao enviar mensagem via WhatsApp (status ${evoResponse.status})`);
+    if (!outcome.ok) {
+      throw new Error(
+        outcome.errorMessage ??
+          `Falha ao enviar o relatório pelo WhatsApp (parte ${partIndex + 1} de ${messages.length}).`
+      );
     }
 
     if (partIndex < messages.length - 1) {

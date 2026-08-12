@@ -332,6 +332,47 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_prize_win_failures: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          customer_name: string | null
+          customer_whatsapp: string | null
+          evaluation_id: string | null
+          id: string
+          prize_id: string | null
+          reason: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          customer_name?: string | null
+          customer_whatsapp?: string | null
+          evaluation_id?: string | null
+          id?: string
+          prize_id?: string | null
+          reason: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          customer_name?: string | null
+          customer_whatsapp?: string | null
+          evaluation_id?: string | null
+          id?: string
+          prize_id?: string | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_prize_win_failures_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "evaluation_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_prize_wins: {
         Row: {
           campaign_id: string
@@ -1271,153 +1312,6 @@ export type Database = {
           },
         ]
       }
-      deliverymuch_product_map: {
-        Row: {
-          created_at: string
-          delivery_product_id: string | null
-          external_name: string | null
-          external_product_id: string
-          id: string
-          last_seen_at: string
-          production_center_id: string | null
-          status: string
-          times_seen: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          delivery_product_id?: string | null
-          external_name?: string | null
-          external_product_id: string
-          id?: string
-          last_seen_at?: string
-          production_center_id?: string | null
-          status?: string
-          times_seen?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          delivery_product_id?: string | null
-          external_name?: string | null
-          external_product_id?: string
-          id?: string
-          last_seen_at?: string
-          production_center_id?: string | null
-          status?: string
-          times_seen?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      deliverymuch_payment_map: {
-        Row: {
-          created_at: string
-          external_key: string
-          id: string
-          is_prepaid: boolean
-          label: string | null
-          payment_method: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          external_key: string
-          id?: string
-          is_prepaid?: boolean
-          label?: string | null
-          payment_method: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          external_key?: string
-          id?: string
-          is_prepaid?: boolean
-          label?: string | null
-          payment_method?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      deliverymuch_shadow_orders: {
-        Row: {
-          external_code: string | null
-          external_order_id: string
-          external_stage: string | null
-          external_status: string | null
-          first_seen_at: string
-          id: string
-          last_seen_at: string
-          payload: Json
-          preview: Json | null
-          user_id: string
-        }
-        Insert: {
-          external_code?: string | null
-          external_order_id: string
-          external_stage?: string | null
-          external_status?: string | null
-          first_seen_at?: string
-          id?: string
-          last_seen_at?: string
-          payload: Json
-          preview?: Json | null
-          user_id: string
-        }
-        Update: {
-          external_code?: string | null
-          external_order_id?: string
-          external_stage?: string | null
-          external_status?: string | null
-          first_seen_at?: string
-          id?: string
-          last_seen_at?: string
-          payload?: Json
-          preview?: Json | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      deliverymuch_sync_log: {
-        Row: {
-          action: string
-          created_at: string
-          details: Json | null
-          http_status: number | null
-          id: number
-          message: string | null
-          status: string
-          user_id: string
-        }
-        Insert: {
-          action: string
-          created_at?: string
-          details?: Json | null
-          http_status?: number | null
-          id?: number
-          message?: string | null
-          status: string
-          user_id: string
-        }
-        Update: {
-          action?: string
-          created_at?: string
-          details?: Json | null
-          http_status?: number | null
-          id?: number
-          message?: string | null
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       delivery_addresses: {
         Row: {
           city: string
@@ -1661,6 +1555,13 @@ export type Database = {
             columns: ["current_order_id"]
             isOneToOne: false
             referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_drivers_current_order_fk"
+            columns: ["current_order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deliverymuch_pending_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1907,6 +1808,9 @@ export type Database = {
       }
       delivery_order_items: {
         Row: {
+          external_name: string | null
+          external_options: Json | null
+          external_product_id: string | null
           id: string
           notes: string | null
           order_id: string
@@ -1918,6 +1822,9 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          external_name?: string | null
+          external_options?: Json | null
+          external_product_id?: string | null
           id?: string
           notes?: string | null
           order_id: string
@@ -1929,6 +1836,9 @@ export type Database = {
           unit_price: number
         }
         Update: {
+          external_name?: string | null
+          external_options?: Json | null
+          external_product_id?: string | null
           id?: string
           notes?: string | null
           order_id?: string
@@ -1945,6 +1855,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deliverymuch_pending_orders"
             referencedColumns: ["id"]
           },
           {
@@ -1988,6 +1905,12 @@ export type Database = {
           driver_assigned_at: string | null
           driver_id: string | null
           estimated_time: number | null
+          external_code: string | null
+          external_order_id: string | null
+          external_payload: Json | null
+          external_stage: string | null
+          external_status: string | null
+          external_synced_at: string | null
           id: string
           idempotency_key: string | null
           notes: string | null
@@ -1996,6 +1919,8 @@ export type Database = {
           payment_method: string
           payment_status: string | null
           ready_at: string | null
+          scheduled_for: string | null
+          source: string
           status: string
           subtotal: number
           ticket_number: number | null
@@ -2027,6 +1952,12 @@ export type Database = {
           driver_assigned_at?: string | null
           driver_id?: string | null
           estimated_time?: number | null
+          external_code?: string | null
+          external_order_id?: string | null
+          external_payload?: Json | null
+          external_stage?: string | null
+          external_status?: string | null
+          external_synced_at?: string | null
           id?: string
           idempotency_key?: string | null
           notes?: string | null
@@ -2035,6 +1966,8 @@ export type Database = {
           payment_method: string
           payment_status?: string | null
           ready_at?: string | null
+          scheduled_for?: string | null
+          source?: string
           status?: string
           subtotal: number
           ticket_number?: number | null
@@ -2066,6 +1999,12 @@ export type Database = {
           driver_assigned_at?: string | null
           driver_id?: string | null
           estimated_time?: number | null
+          external_code?: string | null
+          external_order_id?: string | null
+          external_payload?: Json | null
+          external_stage?: string | null
+          external_status?: string | null
+          external_synced_at?: string | null
           id?: string
           idempotency_key?: string | null
           notes?: string | null
@@ -2074,6 +2013,8 @@ export type Database = {
           payment_method?: string
           payment_status?: string | null
           ready_at?: string | null
+          scheduled_for?: string | null
+          source?: string
           status?: string
           subtotal?: number
           ticket_number?: number | null
@@ -2375,6 +2316,13 @@ export type Database = {
             referencedRelation: "delivery_orders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "delivery_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "vw_deliverymuch_pending_orders"
+            referencedColumns: ["id"]
+          },
         ]
       }
       delivery_settings: {
@@ -2399,6 +2347,7 @@ export type Database = {
           max_delivery_distance: number | null
           meta_pixel_id: string | null
           min_order_value: number | null
+          nfce_auto_emit: boolean
           payment_overdue_minutes: number
           pix_key: string | null
           updated_at: string
@@ -2426,6 +2375,7 @@ export type Database = {
           max_delivery_distance?: number | null
           meta_pixel_id?: string | null
           min_order_value?: number | null
+          nfce_auto_emit?: boolean
           payment_overdue_minutes?: number
           pix_key?: string | null
           updated_at?: string
@@ -2453,11 +2403,210 @@ export type Database = {
           max_delivery_distance?: number | null
           meta_pixel_id?: string | null
           min_order_value?: number | null
+          nfce_auto_emit?: boolean
           payment_overdue_minutes?: number
           pix_key?: string | null
           updated_at?: string
           user_id?: string
           whatsapp_notifications?: boolean | null
+        }
+        Relationships: []
+      }
+      deliverymuch_credentials: {
+        Row: {
+          access_token: string | null
+          claims: Json | null
+          created_at: string
+          refresh_token: string | null
+          scope: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          access_token?: string | null
+          claims?: Json | null
+          created_at?: string
+          refresh_token?: string | null
+          scope?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          access_token?: string | null
+          claims?: Json | null
+          created_at?: string
+          refresh_token?: string | null
+          scope?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      deliverymuch_payment_map: {
+        Row: {
+          created_at: string
+          external_key: string
+          id: string
+          is_prepaid: boolean
+          label: string | null
+          payment_method: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          external_key: string
+          id?: string
+          is_prepaid?: boolean
+          label?: string | null
+          payment_method: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          external_key?: string
+          id?: string
+          is_prepaid?: boolean
+          label?: string | null
+          payment_method?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deliverymuch_product_map: {
+        Row: {
+          created_at: string
+          delivery_product_id: string | null
+          external_name: string | null
+          external_product_id: string
+          id: string
+          last_seen_at: string
+          production_center_id: string | null
+          status: string
+          times_seen: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_product_id?: string | null
+          external_name?: string | null
+          external_product_id: string
+          id?: string
+          last_seen_at?: string
+          production_center_id?: string | null
+          status?: string
+          times_seen?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_product_id?: string | null
+          external_name?: string | null
+          external_product_id?: string
+          id?: string
+          last_seen_at?: string
+          production_center_id?: string | null
+          status?: string
+          times_seen?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliverymuch_product_map_delivery_product_id_fkey"
+            columns: ["delivery_product_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliverymuch_product_map_production_center_id_fkey"
+            columns: ["production_center_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_production_centers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deliverymuch_shadow_orders: {
+        Row: {
+          external_code: string | null
+          external_order_id: string
+          external_stage: string | null
+          external_status: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          payload: Json
+          preview: Json | null
+          user_id: string
+        }
+        Insert: {
+          external_code?: string | null
+          external_order_id: string
+          external_stage?: string | null
+          external_status?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload: Json
+          preview?: Json | null
+          user_id: string
+        }
+        Update: {
+          external_code?: string | null
+          external_order_id?: string
+          external_stage?: string | null
+          external_status?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          payload?: Json
+          preview?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      deliverymuch_sync_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          http_status: number | null
+          id: number
+          message: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          http_status?: number | null
+          id?: number
+          message?: string | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          http_status?: number | null
+          id?: number
+          message?: string | null
+          status?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -2701,6 +2850,39 @@ export type Database = {
         }
         Relationships: []
       }
+      food99_webhook_events: {
+        Row: {
+          event_type: string | null
+          external_order_id: string | null
+          headers: Json | null
+          id: string
+          payload: Json
+          processed: boolean
+          received_at: string
+          user_id: string | null
+        }
+        Insert: {
+          event_type?: string | null
+          external_order_id?: string | null
+          headers?: Json | null
+          id?: string
+          payload: Json
+          processed?: boolean
+          received_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          event_type?: string | null
+          external_order_id?: string | null
+          headers?: Json | null
+          id?: string
+          payload?: Json
+          processed?: boolean
+          received_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       goals: {
         Row: {
           bank_account_id: string | null
@@ -2783,6 +2965,223 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      nfe_mde_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string
+          focus_response: Json | null
+          id: string
+          invoice_id: string
+          protocol: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          focus_response?: Json | null
+          id?: string
+          invoice_id: string
+          protocol?: string | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          focus_response?: Json | null
+          id?: string
+          invoice_id?: string
+          protocol?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfe_mde_events_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nfe_mde_query_logs: {
+        Row: {
+          cnpj: string
+          created_at: string
+          error_message: string | null
+          found_count: number
+          id: string
+          new_count: number
+          status: string
+          user_id: string
+          version_after: string | null
+          version_before: string | null
+        }
+        Insert: {
+          cnpj: string
+          created_at?: string
+          error_message?: string | null
+          found_count?: number
+          id?: string
+          new_count?: number
+          status: string
+          user_id: string
+          version_after?: string | null
+          version_before?: string | null
+        }
+        Update: {
+          cnpj?: string
+          created_at?: string
+          error_message?: string | null
+          found_count?: number
+          id?: string
+          new_count?: number
+          status?: string
+          user_id?: string
+          version_after?: string | null
+          version_before?: string | null
+        }
+        Relationships: []
+      }
+      notas_fiscais: {
+        Row: {
+          ambiente: string | null
+          caminho_danfe: string | null
+          caminho_xml: string | null
+          cancelada_em: string | null
+          cancelamento_justificativa: string | null
+          chave_acesso: string | null
+          created_at: string
+          destinatario_documento: string | null
+          destinatario_email: string | null
+          destinatario_nome: string | null
+          emitida_em: string | null
+          id: string
+          mensagem_sefaz: string | null
+          numero: string | null
+          origem_id: string | null
+          origem_tipo: string | null
+          payload_enviado: Json | null
+          protocolo: string | null
+          qrcode: string | null
+          referencia_focusnfe: string | null
+          resposta_api: Json | null
+          serie: string | null
+          status: string
+          tipo: string
+          updated_at: string
+          url_consulta: string | null
+          user_id: string
+          valor_total: number | null
+        }
+        Insert: {
+          ambiente?: string | null
+          caminho_danfe?: string | null
+          caminho_xml?: string | null
+          cancelada_em?: string | null
+          cancelamento_justificativa?: string | null
+          chave_acesso?: string | null
+          created_at?: string
+          destinatario_documento?: string | null
+          destinatario_email?: string | null
+          destinatario_nome?: string | null
+          emitida_em?: string | null
+          id?: string
+          mensagem_sefaz?: string | null
+          numero?: string | null
+          origem_id?: string | null
+          origem_tipo?: string | null
+          payload_enviado?: Json | null
+          protocolo?: string | null
+          qrcode?: string | null
+          referencia_focusnfe?: string | null
+          resposta_api?: Json | null
+          serie?: string | null
+          status?: string
+          tipo: string
+          updated_at?: string
+          url_consulta?: string | null
+          user_id: string
+          valor_total?: number | null
+        }
+        Update: {
+          ambiente?: string | null
+          caminho_danfe?: string | null
+          caminho_xml?: string | null
+          cancelada_em?: string | null
+          cancelamento_justificativa?: string | null
+          chave_acesso?: string | null
+          created_at?: string
+          destinatario_documento?: string | null
+          destinatario_email?: string | null
+          destinatario_nome?: string | null
+          emitida_em?: string | null
+          id?: string
+          mensagem_sefaz?: string | null
+          numero?: string | null
+          origem_id?: string | null
+          origem_tipo?: string | null
+          payload_enviado?: Json | null
+          protocolo?: string | null
+          qrcode?: string | null
+          referencia_focusnfe?: string | null
+          resposta_api?: Json | null
+          serie?: string | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+          url_consulta?: string | null
+          user_id?: string
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
+      notas_fiscais_cartas_correcao: {
+        Row: {
+          correcao: string
+          created_at: string
+          id: string
+          nota_id: string
+          protocolo: string | null
+          sequencia: number
+          status: string | null
+          xml_url: string | null
+        }
+        Insert: {
+          correcao: string
+          created_at?: string
+          id?: string
+          nota_id: string
+          protocolo?: string | null
+          sequencia: number
+          status?: string | null
+          xml_url?: string | null
+        }
+        Update: {
+          correcao?: string
+          created_at?: string
+          id?: string
+          nota_id?: string
+          protocolo?: string | null
+          sequencia?: number
+          status?: string | null
+          xml_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notas_fiscais_cartas_correcao_nota_id_fkey"
+            columns: ["nota_id"]
+            isOneToOne: false
+            referencedRelation: "notas_fiscais"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operational_task_instances: {
         Row: {
@@ -3459,10 +3858,55 @@ export type Database = {
           },
         ]
       }
+      pdv_cashier_close_drafts: {
+        Row: {
+          cashier_session_id: string
+          declared_cash: number | null
+          declared_credit: number | null
+          declared_debit: number | null
+          declared_fiado: number | null
+          declared_pix: number | null
+          declared_voucher: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cashier_session_id: string
+          declared_cash?: number | null
+          declared_credit?: number | null
+          declared_debit?: number | null
+          declared_fiado?: number | null
+          declared_pix?: number | null
+          declared_voucher?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cashier_session_id?: string
+          declared_cash?: number | null
+          declared_credit?: number | null
+          declared_debit?: number | null
+          declared_fiado?: number | null
+          declared_pix?: number | null
+          declared_voucher?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_cashier_close_drafts_cashier_session_id_fkey"
+            columns: ["cashier_session_id"]
+            isOneToOne: true
+            referencedRelation: "pdv_cashier_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdv_cashier_movements: {
         Row: {
           amount: number
           cashier_session_id: string
+          comanda_id: string | null
           created_at: string
           delivery_order_id: string | null
           description: string | null
@@ -3476,6 +3920,7 @@ export type Database = {
         Insert: {
           amount: number
           cashier_session_id: string
+          comanda_id?: string | null
           created_at?: string
           delivery_order_id?: string | null
           description?: string | null
@@ -3489,6 +3934,7 @@ export type Database = {
         Update: {
           amount?: number
           cashier_session_id?: string
+          comanda_id?: string | null
           created_at?: string
           delivery_order_id?: string | null
           description?: string | null
@@ -3508,10 +3954,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pdv_cashier_movements_comanda_id_fkey"
+            columns: ["comanda_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_comandas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pdv_cashier_movements_delivery_order_id_fkey"
             columns: ["delivery_order_id"]
             isOneToOne: false
             referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_cashier_movements_delivery_order_id_fkey"
+            columns: ["delivery_order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deliverymuch_pending_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -4220,6 +4680,83 @@ export type Database = {
           },
         ]
       }
+      pdv_financial_settings: {
+        Row: {
+          alert_due_date_days_before: number
+          alert_due_date_email: string | null
+          alert_due_date_enabled: boolean
+          created_at: string | null
+          default_accounting_regime: string
+          default_bank_account_id: string | null
+          default_cost_center_id: string | null
+          default_payable_chart_account_id: string | null
+          default_receivable_chart_account_id: string | null
+          id: string
+          overdue_tolerance_days: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          alert_due_date_days_before?: number
+          alert_due_date_email?: string | null
+          alert_due_date_enabled?: boolean
+          created_at?: string | null
+          default_accounting_regime?: string
+          default_bank_account_id?: string | null
+          default_cost_center_id?: string | null
+          default_payable_chart_account_id?: string | null
+          default_receivable_chart_account_id?: string | null
+          id?: string
+          overdue_tolerance_days?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          alert_due_date_days_before?: number
+          alert_due_date_email?: string | null
+          alert_due_date_enabled?: boolean
+          created_at?: string | null
+          default_accounting_regime?: string
+          default_bank_account_id?: string | null
+          default_cost_center_id?: string | null
+          default_payable_chart_account_id?: string | null
+          default_receivable_chart_account_id?: string | null
+          id?: string
+          overdue_tolerance_days?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_financial_settings_default_bank_account_id_fkey"
+            columns: ["default_bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_financial_settings_default_cost_center_id_fkey"
+            columns: ["default_cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_financial_settings_default_payable_chart_account_id_fkey"
+            columns: ["default_payable_chart_account_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_financial_settings_default_receivable_chart_account_id_fkey"
+            columns: ["default_receivable_chart_account_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pdv_financial_transactions: {
         Row: {
           amount: number
@@ -4824,6 +5361,9 @@ export type Database = {
           invoice_key: string
           invoice_number: string
           invoice_type: string
+          mde_queried_at: string | null
+          mde_raw_payload: Json | null
+          mde_status: string | null
           notes: string | null
           operation_type: string
           other_expenses: number | null
@@ -4854,6 +5394,9 @@ export type Database = {
           invoice_key: string
           invoice_number: string
           invoice_type: string
+          mde_queried_at?: string | null
+          mde_raw_payload?: Json | null
+          mde_status?: string | null
           notes?: string | null
           operation_type: string
           other_expenses?: number | null
@@ -4884,6 +5427,9 @@ export type Database = {
           invoice_key?: string
           invoice_number?: string
           invoice_type?: string
+          mde_queried_at?: string | null
+          mde_raw_payload?: Json | null
+          mde_status?: string | null
           notes?: string | null
           operation_type?: string
           other_expenses?: number | null
@@ -5341,6 +5887,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pdv_orders_delivery_order_id_fkey"
+            columns: ["delivery_order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deliverymuch_pending_orders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pdv_orders_table_id_fkey"
             columns: ["table_id"]
             isOneToOne: false
@@ -5518,19 +6071,125 @@ export type Database = {
           },
         ]
       }
+      pdv_print_bridge_devices: {
+        Row: {
+          enrolled_at: string
+          hostname: string | null
+          install_id: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          secret_hash: string
+          tenant_user_id: string
+        }
+        Insert: {
+          enrolled_at?: string
+          hostname?: string | null
+          install_id: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          secret_hash: string
+          tenant_user_id: string
+        }
+        Update: {
+          enrolled_at?: string
+          hostname?: string | null
+          install_id?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          secret_hash?: string
+          tenant_user_id?: string
+        }
+        Relationships: []
+      }
+      pdv_print_bridge_status: {
+        Row: {
+          clock_skew_ms: number | null
+          created_at: string
+          establishment_name: string | null
+          hostname: string | null
+          install_id: string
+          jobs_failed: number
+          jobs_processed: number
+          last_seen_at: string
+          last_update_error: string | null
+          panel_token: string | null
+          pending_count: number | null
+          pid: number | null
+          poll_last_ok_at: string | null
+          printers: Json
+          realtime_last_event_at: string | null
+          realtime_status: string | null
+          started_at: string | null
+          stuck_count: number | null
+          tenant_user_id: string
+          update_state: string | null
+          version: string | null
+        }
+        Insert: {
+          clock_skew_ms?: number | null
+          created_at?: string
+          establishment_name?: string | null
+          hostname?: string | null
+          install_id: string
+          jobs_failed?: number
+          jobs_processed?: number
+          last_seen_at?: string
+          last_update_error?: string | null
+          panel_token?: string | null
+          pending_count?: number | null
+          pid?: number | null
+          poll_last_ok_at?: string | null
+          printers?: Json
+          realtime_last_event_at?: string | null
+          realtime_status?: string | null
+          started_at?: string | null
+          stuck_count?: number | null
+          tenant_user_id: string
+          update_state?: string | null
+          version?: string | null
+        }
+        Update: {
+          clock_skew_ms?: number | null
+          created_at?: string
+          establishment_name?: string | null
+          hostname?: string | null
+          install_id?: string
+          jobs_failed?: number
+          jobs_processed?: number
+          last_seen_at?: string
+          last_update_error?: string | null
+          panel_token?: string | null
+          pending_count?: number | null
+          pid?: number | null
+          poll_last_ok_at?: string | null
+          printers?: Json
+          realtime_last_event_at?: string | null
+          realtime_status?: string | null
+          started_at?: string | null
+          stuck_count?: number | null
+          tenant_user_id?: string
+          update_state?: string | null
+          version?: string | null
+        }
+        Relationships: []
+      }
       pdv_print_jobs: {
         Row: {
           attempts: number
           center_id: string | null
           center_name: string | null
+          claimed_at: string | null
+          claimed_by: string | null
           created_at: string
           error_message: string | null
           id: string
+          last_attempt_error: string | null
           payload: Json
           printed_at: string | null
+          printed_by: string | null
           printer_ip: string | null
           printer_port: number | null
-          source_item_id: string
+          source_item_id: string | null
           source_kind: string
           status: string
           tenant_user_id: string
@@ -5539,14 +6198,18 @@ export type Database = {
           attempts?: number
           center_id?: string | null
           center_name?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
+          last_attempt_error?: string | null
           payload: Json
           printed_at?: string | null
+          printed_by?: string | null
           printer_ip?: string | null
           printer_port?: number | null
-          source_item_id: string
+          source_item_id?: string | null
           source_kind: string
           status?: string
           tenant_user_id: string
@@ -5555,14 +6218,18 @@ export type Database = {
           attempts?: number
           center_id?: string | null
           center_name?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
+          last_attempt_error?: string | null
           payload?: Json
           printed_at?: string | null
+          printed_by?: string | null
           printer_ip?: string | null
           printer_port?: number | null
-          source_item_id?: string
+          source_item_id?: string | null
           source_kind?: string
           status?: string
           tenant_user_id?: string
@@ -5899,6 +6566,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          print_complete: boolean
           printer_ip: string | null
           printer_name: string | null
           printer_port: number | null
@@ -5914,6 +6582,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          print_complete?: boolean
           printer_ip?: string | null
           printer_name?: string | null
           printer_port?: number | null
@@ -5929,6 +6598,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          print_complete?: boolean
           printer_ip?: string | null
           printer_name?: string | null
           printer_port?: number | null
@@ -6113,6 +6783,8 @@ export type Database = {
       pdv_purchase_orders: {
         Row: {
           actual_delivery: string | null
+          closed_incomplete: boolean
+          closure_reason: string | null
           created_at: string | null
           discount: number | null
           expected_delivery: string | null
@@ -6133,6 +6805,8 @@ export type Database = {
         }
         Insert: {
           actual_delivery?: string | null
+          closed_incomplete?: boolean
+          closure_reason?: string | null
           created_at?: string | null
           discount?: number | null
           expected_delivery?: string | null
@@ -6153,6 +6827,8 @@ export type Database = {
         }
         Update: {
           actual_delivery?: string | null
+          closed_incomplete?: boolean
+          closure_reason?: string | null
           created_at?: string | null
           discount?: number | null
           expected_delivery?: string | null
@@ -6181,6 +6857,117 @@ export type Database = {
           },
           {
             foreignKeyName: "pdv_purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_purchase_settings: {
+        Row: {
+          created_at: string | null
+          default_deadline_days: number
+          default_message_template: string | null
+          id: string
+          min_suppliers: number
+          order_digits: number
+          order_prefix: string
+          quotation_digits: number
+          quotation_prefix: string
+          require_manager_approval: boolean
+          updated_at: string | null
+          user_id: string
+          whatsapp_enabled: boolean
+          whatsapp_send_mode: string
+          whatsapp_test_phone: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_deadline_days?: number
+          default_message_template?: string | null
+          id?: string
+          min_suppliers?: number
+          order_digits?: number
+          order_prefix?: string
+          quotation_digits?: number
+          quotation_prefix?: string
+          require_manager_approval?: boolean
+          updated_at?: string | null
+          user_id: string
+          whatsapp_enabled?: boolean
+          whatsapp_send_mode?: string
+          whatsapp_test_phone?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_deadline_days?: number
+          default_message_template?: string | null
+          id?: string
+          min_suppliers?: number
+          order_digits?: number
+          order_prefix?: string
+          quotation_digits?: number
+          quotation_prefix?: string
+          require_manager_approval?: boolean
+          updated_at?: string | null
+          user_id?: string
+          whatsapp_enabled?: boolean
+          whatsapp_send_mode?: string
+          whatsapp_test_phone?: string | null
+        }
+        Relationships: []
+      }
+      pdv_quotation_inbound_messages: {
+        Row: {
+          body: string | null
+          created_at: string
+          from_phone: string
+          id: string
+          instance_name: string | null
+          parsed: Json | null
+          quotation_request_id: string | null
+          received_at: string
+          status: string
+          supplier_id: string | null
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          from_phone: string
+          id?: string
+          instance_name?: string | null
+          parsed?: Json | null
+          quotation_request_id?: string | null
+          received_at?: string
+          status?: string
+          supplier_id?: string | null
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          from_phone?: string
+          id?: string
+          instance_name?: string | null
+          parsed?: Json | null
+          quotation_request_id?: string | null
+          received_at?: string
+          status?: string
+          supplier_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_quotation_inbound_messages_quotation_request_id_fkey"
+            columns: ["quotation_request_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_quotation_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_quotation_inbound_messages_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "pdv_suppliers"
@@ -6312,19 +7099,21 @@ export type Database = {
         Row: {
           brand: string | null
           conservation: string | null
+          corrected_at: string | null
           created_at: string | null
           delivery_days: number | null
           expiration_date: string | null
           id: string
+          inbound_message_id: string | null
           is_winner: boolean | null
           minimum_order: number | null
           notes: string | null
-          corrected_at: string | null
-          original_unit_price: number | null
           origin: string | null
+          original_unit_price: number | null
           payment_terms: string | null
           quotation_item_id: string
           received_at: string | null
+          source: string | null
           supplier_id: string
           total_price: number | null
           unavailable_reason: string | null
@@ -6333,19 +7122,21 @@ export type Database = {
         Insert: {
           brand?: string | null
           conservation?: string | null
+          corrected_at?: string | null
           created_at?: string | null
           delivery_days?: number | null
           expiration_date?: string | null
           id?: string
+          inbound_message_id?: string | null
           is_winner?: boolean | null
           minimum_order?: number | null
           notes?: string | null
-          corrected_at?: string | null
-          original_unit_price?: number | null
           origin?: string | null
+          original_unit_price?: number | null
           payment_terms?: string | null
           quotation_item_id: string
           received_at?: string | null
+          source?: string | null
           supplier_id: string
           total_price?: number | null
           unavailable_reason?: string | null
@@ -6354,25 +7145,34 @@ export type Database = {
         Update: {
           brand?: string | null
           conservation?: string | null
+          corrected_at?: string | null
           created_at?: string | null
           delivery_days?: number | null
           expiration_date?: string | null
           id?: string
+          inbound_message_id?: string | null
           is_winner?: boolean | null
           minimum_order?: number | null
           notes?: string | null
-          corrected_at?: string | null
-          original_unit_price?: number | null
           origin?: string | null
+          original_unit_price?: number | null
           payment_terms?: string | null
           quotation_item_id?: string
           received_at?: string | null
+          source?: string | null
           supplier_id?: string
           total_price?: number | null
           unavailable_reason?: string | null
           unit_price?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "pdv_quotation_responses_inbound_message_id_fkey"
+            columns: ["inbound_message_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_quotation_inbound_messages"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pdv_quotation_responses_quotation_item_id_fkey"
             columns: ["quotation_item_id"]
@@ -6382,6 +7182,57 @@ export type Database = {
           },
           {
             foreignKeyName: "pdv_quotation_responses_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_quotation_supplier_links: {
+        Row: {
+          created_at: string
+          id: string
+          quotation_request_id: string
+          sent_at: string | null
+          status: string
+          submitted_at: string | null
+          supplier_id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          quotation_request_id: string
+          sent_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          supplier_id: string
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          quotation_request_id?: string
+          sent_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          supplier_id?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_quotation_supplier_links_quotation_request_id_fkey"
+            columns: ["quotation_request_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_quotation_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_quotation_supplier_links_supplier_id_fkey"
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "pdv_suppliers"
@@ -6514,6 +7365,24 @@ export type Database = {
           created_at: string | null
           default_preparation_time: number | null
           delivery_fee: number | null
+          deliverymuch_alert_minutes: number
+          deliverymuch_auto_accept: boolean
+          deliverymuch_companies: Json
+          deliverymuch_company_uuid: string | null
+          deliverymuch_connected_at: string | null
+          deliverymuch_default_production_center_id: string | null
+          deliverymuch_delivery_time_min: number
+          deliverymuch_enabled: boolean
+          deliverymuch_env: string
+          deliverymuch_last_error: string | null
+          deliverymuch_last_error_at: string | null
+          deliverymuch_last_poll_at: string | null
+          deliverymuch_last_sync_at: string | null
+          deliverymuch_paused: boolean
+          deliverymuch_pickup_time_min: number
+          deliverymuch_require_open_cashier: boolean
+          deliverymuch_shadow_mode: boolean
+          deliverymuch_username: string | null
           enable_desktop_notifications: boolean | null
           enable_multiple_payments: boolean | null
           enable_service_fee: boolean | null
@@ -6526,24 +7395,6 @@ export type Database = {
           ifood_refresh_token: string | null
           ifood_sync_menu: boolean | null
           ifood_token_expires_at: string | null
-          deliverymuch_enabled: boolean
-          deliverymuch_username: string | null
-          deliverymuch_company_uuid: string | null
-          deliverymuch_companies: Json
-          deliverymuch_env: string
-          deliverymuch_auto_accept: boolean
-          deliverymuch_delivery_time_min: number
-          deliverymuch_pickup_time_min: number
-          deliverymuch_connected_at: string | null
-          deliverymuch_last_sync_at: string | null
-          deliverymuch_last_error: string | null
-          deliverymuch_last_error_at: string | null
-          deliverymuch_paused: boolean
-          deliverymuch_default_production_center_id: string | null
-          deliverymuch_require_open_cashier: boolean
-          deliverymuch_alert_minutes: number
-          deliverymuch_last_poll_at: string | null
-          deliverymuch_shadow_mode: boolean
           integrate_with_delivery: boolean | null
           max_tables_per_order: number | null
           min_order_value: number | null
@@ -6564,6 +7415,7 @@ export type Database = {
           nfe_email_customer: boolean | null
           nfe_enable_nfce: boolean | null
           nfe_endereco_fiscal: Json | null
+          nfe_incluir_taxa_servico: boolean
           nfe_inscricao_municipal: string | null
           nfe_nome_fantasia: string | null
           nfe_numero_inicial: number | null
@@ -6596,6 +7448,24 @@ export type Database = {
           created_at?: string | null
           default_preparation_time?: number | null
           delivery_fee?: number | null
+          deliverymuch_alert_minutes?: number
+          deliverymuch_auto_accept?: boolean
+          deliverymuch_companies?: Json
+          deliverymuch_company_uuid?: string | null
+          deliverymuch_connected_at?: string | null
+          deliverymuch_default_production_center_id?: string | null
+          deliverymuch_delivery_time_min?: number
+          deliverymuch_enabled?: boolean
+          deliverymuch_env?: string
+          deliverymuch_last_error?: string | null
+          deliverymuch_last_error_at?: string | null
+          deliverymuch_last_poll_at?: string | null
+          deliverymuch_last_sync_at?: string | null
+          deliverymuch_paused?: boolean
+          deliverymuch_pickup_time_min?: number
+          deliverymuch_require_open_cashier?: boolean
+          deliverymuch_shadow_mode?: boolean
+          deliverymuch_username?: string | null
           enable_desktop_notifications?: boolean | null
           enable_multiple_payments?: boolean | null
           enable_service_fee?: boolean | null
@@ -6608,24 +7478,6 @@ export type Database = {
           ifood_refresh_token?: string | null
           ifood_sync_menu?: boolean | null
           ifood_token_expires_at?: string | null
-          deliverymuch_enabled?: boolean
-          deliverymuch_username?: string | null
-          deliverymuch_company_uuid?: string | null
-          deliverymuch_companies?: Json
-          deliverymuch_env?: string
-          deliverymuch_auto_accept?: boolean
-          deliverymuch_delivery_time_min?: number
-          deliverymuch_pickup_time_min?: number
-          deliverymuch_connected_at?: string | null
-          deliverymuch_last_sync_at?: string | null
-          deliverymuch_last_error?: string | null
-          deliverymuch_last_error_at?: string | null
-          deliverymuch_paused?: boolean
-          deliverymuch_default_production_center_id?: string | null
-          deliverymuch_require_open_cashier?: boolean
-          deliverymuch_alert_minutes?: number
-          deliverymuch_last_poll_at?: string | null
-          deliverymuch_shadow_mode?: boolean
           integrate_with_delivery?: boolean | null
           max_tables_per_order?: number | null
           min_order_value?: number | null
@@ -6646,6 +7498,7 @@ export type Database = {
           nfe_email_customer?: boolean | null
           nfe_enable_nfce?: boolean | null
           nfe_endereco_fiscal?: Json | null
+          nfe_incluir_taxa_servico?: boolean
           nfe_inscricao_municipal?: string | null
           nfe_nome_fantasia?: string | null
           nfe_numero_inicial?: number | null
@@ -6678,6 +7531,24 @@ export type Database = {
           created_at?: string | null
           default_preparation_time?: number | null
           delivery_fee?: number | null
+          deliverymuch_alert_minutes?: number
+          deliverymuch_auto_accept?: boolean
+          deliverymuch_companies?: Json
+          deliverymuch_company_uuid?: string | null
+          deliverymuch_connected_at?: string | null
+          deliverymuch_default_production_center_id?: string | null
+          deliverymuch_delivery_time_min?: number
+          deliverymuch_enabled?: boolean
+          deliverymuch_env?: string
+          deliverymuch_last_error?: string | null
+          deliverymuch_last_error_at?: string | null
+          deliverymuch_last_poll_at?: string | null
+          deliverymuch_last_sync_at?: string | null
+          deliverymuch_paused?: boolean
+          deliverymuch_pickup_time_min?: number
+          deliverymuch_require_open_cashier?: boolean
+          deliverymuch_shadow_mode?: boolean
+          deliverymuch_username?: string | null
           enable_desktop_notifications?: boolean | null
           enable_multiple_payments?: boolean | null
           enable_service_fee?: boolean | null
@@ -6690,24 +7561,6 @@ export type Database = {
           ifood_refresh_token?: string | null
           ifood_sync_menu?: boolean | null
           ifood_token_expires_at?: string | null
-          deliverymuch_enabled?: boolean
-          deliverymuch_username?: string | null
-          deliverymuch_company_uuid?: string | null
-          deliverymuch_companies?: Json
-          deliverymuch_env?: string
-          deliverymuch_auto_accept?: boolean
-          deliverymuch_delivery_time_min?: number
-          deliverymuch_pickup_time_min?: number
-          deliverymuch_connected_at?: string | null
-          deliverymuch_last_sync_at?: string | null
-          deliverymuch_last_error?: string | null
-          deliverymuch_last_error_at?: string | null
-          deliverymuch_paused?: boolean
-          deliverymuch_default_production_center_id?: string | null
-          deliverymuch_require_open_cashier?: boolean
-          deliverymuch_alert_minutes?: number
-          deliverymuch_last_poll_at?: string | null
-          deliverymuch_shadow_mode?: boolean
           integrate_with_delivery?: boolean | null
           max_tables_per_order?: number | null
           min_order_value?: number | null
@@ -6728,6 +7581,7 @@ export type Database = {
           nfe_email_customer?: boolean | null
           nfe_enable_nfce?: boolean | null
           nfe_endereco_fiscal?: Json | null
+          nfe_incluir_taxa_servico?: boolean
           nfe_inscricao_municipal?: string | null
           nfe_nome_fantasia?: string | null
           nfe_numero_inicial?: number | null
@@ -6746,7 +7600,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pdv_settings_deliverymuch_default_production_center_id_fkey"
+            columns: ["deliverymuch_default_production_center_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_production_centers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pdv_stock_movements: {
         Row: {
@@ -6756,6 +7618,7 @@ export type Database = {
           id: string
           ingredient_id: string
           order_item_id: string | null
+          purchase_order_item_id: string | null
           quantity: number
           reason: string | null
           type: Database["public"]["Enums"]["pdv_stock_movement_type"]
@@ -6768,6 +7631,7 @@ export type Database = {
           id?: string
           ingredient_id: string
           order_item_id?: string | null
+          purchase_order_item_id?: string | null
           quantity: number
           reason?: string | null
           type: Database["public"]["Enums"]["pdv_stock_movement_type"]
@@ -6780,6 +7644,7 @@ export type Database = {
           id?: string
           ingredient_id?: string
           order_item_id?: string | null
+          purchase_order_item_id?: string | null
           quantity?: number
           reason?: string | null
           type?: Database["public"]["Enums"]["pdv_stock_movement_type"]
@@ -6821,6 +7686,13 @@ export type Database = {
             referencedRelation: "vw_print_bridge_order_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pdv_stock_movements_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_purchase_order_items"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pdv_suppliers: {
@@ -6845,7 +7717,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_billing_address: boolean | null
-          minimum_order?: number | null
+          minimum_order: number | null
           municipal_registration: string | null
           name: string
           neighborhood: string | null
@@ -7276,6 +8148,127 @@ export type Database = {
           },
         ]
       }
+      stripe_customers: {
+        Row: {
+          created_at: string
+          id: string
+          owner_user_id: string
+          stripe_customer_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_user_id: string
+          stripe_customer_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_user_id?: string
+          stripe_customer_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stripe_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_type: string
+          id: string
+          status: string
+          stripe_event_id: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          status?: string
+          stripe_event_id: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          status?: string
+          stripe_event_id?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_items: {
+        Row: {
+          created_at: string
+          id: string
+          module_key: string
+          status: string
+          stripe_price_id: string
+          stripe_subscription_item_id: string
+          subscription_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          module_key: string
+          status?: string
+          stripe_price_id: string
+          stripe_subscription_item_id: string
+          subscription_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          module_key?: string
+          status?: string
+          stripe_price_id?: string
+          stripe_subscription_item_id?: string
+          subscription_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_items_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       super_admins: {
         Row: {
           created_at: string
@@ -7378,6 +8371,8 @@ export type Database = {
           id_token_nfce_producao: number | null
           inscricao_estadual: string | null
           inscricao_municipal: string | null
+          last_mde_query_at: string | null
+          last_mde_version: string
           last_test_at: string | null
           last_test_message: string | null
           last_test_status: string | null
@@ -7421,6 +8416,8 @@ export type Database = {
           id_token_nfce_producao?: number | null
           inscricao_estadual?: string | null
           inscricao_municipal?: string | null
+          last_mde_query_at?: string | null
+          last_mde_version?: string
           last_test_at?: string | null
           last_test_message?: string | null
           last_test_status?: string | null
@@ -7464,6 +8461,8 @@ export type Database = {
           id_token_nfce_producao?: number | null
           inscricao_estadual?: string | null
           inscricao_municipal?: string | null
+          last_mde_query_at?: string | null
+          last_mde_version?: string
           last_test_at?: string | null
           last_test_message?: string | null
           last_test_status?: string | null
@@ -7550,6 +8549,56 @@ export type Database = {
           },
         ]
       }
+      tenant_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          plan_key: string | null
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_key?: string | null
+          status: string
+          stripe_customer_id: string
+          stripe_subscription_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          plan_key?: string | null
+          status?: string
+          stripe_customer_id?: string
+          stripe_subscription_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
@@ -7560,6 +8609,7 @@ export type Database = {
           name: string
           owner_user_id: string | null
           parent_tenant_id: string | null
+          stripe_customer_id: string | null
           updated_at: string
         }
         Insert: {
@@ -7571,6 +8621,7 @@ export type Database = {
           name: string
           owner_user_id?: string | null
           parent_tenant_id?: string | null
+          stripe_customer_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -7582,6 +8633,7 @@ export type Database = {
           name?: string
           owner_user_id?: string | null
           parent_tenant_id?: string | null
+          stripe_customer_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7683,6 +8735,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      upsell_dismissals: {
+        Row: {
+          created_at: string
+          dismissed_until: string
+          id: string
+          offer_key: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dismissed_until: string
+          id?: string
+          offer_key: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dismissed_until?: string
+          id?: string
+          offer_key?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upsell_dismissals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_modules: {
         Row: {
@@ -7900,6 +8987,101 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_messages: {
+        Row: {
+          billable: boolean | null
+          body: string | null
+          connection_id: string | null
+          conversation_category: string | null
+          conversation_id: string | null
+          created_at: string
+          direction: string
+          entity_id: string | null
+          entity_type: string | null
+          error_code: string | null
+          error_message: string | null
+          from_phone: string | null
+          id: string
+          kind: string
+          pricing: Json | null
+          provider: string
+          provider_message_id: string | null
+          purpose: string | null
+          status: string
+          status_at: string | null
+          supplier_id: string | null
+          template_language: string | null
+          template_name: string | null
+          template_variables: Json | null
+          to_phone: string | null
+          user_id: string | null
+        }
+        Insert: {
+          billable?: boolean | null
+          body?: string | null
+          connection_id?: string | null
+          conversation_category?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          direction: string
+          entity_id?: string | null
+          entity_type?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          from_phone?: string | null
+          id?: string
+          kind?: string
+          pricing?: Json | null
+          provider: string
+          provider_message_id?: string | null
+          purpose?: string | null
+          status?: string
+          status_at?: string | null
+          supplier_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_variables?: Json | null
+          to_phone?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          billable?: boolean | null
+          body?: string | null
+          connection_id?: string | null
+          conversation_category?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          direction?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          from_phone?: string | null
+          id?: string
+          kind?: string
+          pricing?: Json | null
+          provider?: string
+          provider_message_id?: string | null
+          purpose?: string | null
+          status?: string
+          status_at?: string | null
+          supplier_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
+          template_variables?: Json | null
+          to_phone?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_notification_preferences: {
         Row: {
           bills_days_before: number
@@ -8045,6 +9227,45 @@ export type Database = {
       }
     }
     Views: {
+      vw_deliverymuch_pending_orders: {
+        Row: {
+          created_at: string | null
+          customer_name: string | null
+          external_code: string | null
+          external_order_id: string | null
+          id: string | null
+          minutes_waiting: number | null
+          order_number: string | null
+          order_type: string | null
+          total: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_name?: string | null
+          external_code?: string | null
+          external_order_id?: string | null
+          id?: string | null
+          minutes_waiting?: never
+          order_number?: string | null
+          order_type?: string | null
+          total?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_name?: string | null
+          external_code?: string | null
+          external_order_id?: string | null
+          id?: string | null
+          minutes_waiting?: never
+          order_number?: string | null
+          order_type?: string | null
+          total?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       vw_print_bridge_comanda_items: {
         Row: {
           center_name: string | null
@@ -8137,6 +9358,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deliverymuch_pending_orders"
             referencedColumns: ["id"]
           },
           {
@@ -8255,6 +9483,7 @@ export type Database = {
         Returns: Json
       }
       earn_points_for_order: { Args: { _order_id: string }; Returns: undefined }
+      enqueue_delivery_prints_sweep: { Args: never; Returns: number }
       expire_loyalty_points: { Args: never; Returns: number }
       get_admin_dashboard_stats: {
         Args: { p_end: string; p_start: string }
@@ -8327,6 +9556,7 @@ export type Database = {
         }
         Returns: Json
       }
+      pdv_cleanup_old_cashier_sessions: { Args: never; Returns: number }
       pdv_close_attendance: {
         Args: {
           p_close_whole_table?: boolean
@@ -8356,6 +9586,27 @@ export type Database = {
           comanda_number: string
         }[]
       }
+      pdv_receive_purchase_order: {
+        Args: {
+          p_close_incomplete?: boolean
+          p_close_reason?: string
+          p_items: Json
+          p_order_id: string
+        }
+        Returns: Json
+      }
+      pdv_receive_purchase_order_core: {
+        Args: {
+          p_actor?: string
+          p_channel?: string
+          p_close_incomplete?: boolean
+          p_close_reason?: string
+          p_items: Json
+          p_order_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       pdv_recompute_session_totals: {
         Args: { p_session_id: string }
         Returns: undefined
@@ -8373,10 +9624,24 @@ export type Database = {
         Returns: Json
       }
       pdv_resolve_owner: { Args: { _user_id: string }; Returns: string }
-      pdv_settle_employee_consumption: {
-        Args: { p_amount: number; p_employee_id: string; p_session_id?: string }
-        Returns: Json
-      }
+      pdv_settle_employee_consumption:
+        | {
+            Args: {
+              p_amount: number
+              p_employee_id: string
+              p_session_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_amount: number
+              p_employee_id: string
+              p_payment_method?: string
+              p_session_id?: string
+            }
+            Returns: Json
+          }
       pdv_split_comanda_item: {
         Args: { p_item_id: string; p_qty: number }
         Returns: string
@@ -8411,6 +9676,99 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      print_bridge_assert_device: {
+        Args: { p_install_id: string; p_secret: string; p_tenant: string }
+        Returns: undefined
+      }
+      print_bridge_centers: {
+        Args: { p_tenant: string }
+        Returns: {
+          id: string
+          name: string
+          print_complete: boolean
+          printer_ip: string
+          printer_port: number
+        }[]
+      }
+      print_bridge_claim_batch: {
+        Args: {
+          p_device?: string
+          p_lease_seconds?: number
+          p_limit?: number
+          p_max_age_minutes?: number
+          p_max_attempts?: number
+          p_tenant: string
+        }
+        Returns: {
+          attempts: number
+          center_id: string | null
+          center_name: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          last_attempt_error: string | null
+          payload: Json
+          printed_at: string | null
+          printed_by: string | null
+          printer_ip: string | null
+          printer_port: number | null
+          source_item_id: string | null
+          source_kind: string
+          status: string
+          tenant_user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "pdv_print_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      print_bridge_claim_one: {
+        Args: { p_device?: string; p_job_id: string; p_max_attempts?: number }
+        Returns: {
+          attempts: number
+          center_id: string | null
+          center_name: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          last_attempt_error: string | null
+          payload: Json
+          printed_at: string | null
+          printed_by: string | null
+          printer_ip: string | null
+          printer_port: number | null
+          source_item_id: string | null
+          source_kind: string
+          status: string
+          tenant_user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "pdv_print_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      print_bridge_renew_lease: {
+        Args: { p_device?: string; p_job_id: string }
+        Returns: undefined
+      }
+      print_bridge_sync: {
+        Args: {
+          p_install_id: string
+          p_secret: string
+          p_state?: Json
+          p_tenant: string
+        }
+        Returns: Json
+      }
+      prune_deliverymuch_sync_log: { Args: never; Returns: number }
       redeem_cashback: {
         Args: { _order_id: string; _points: number; _user_id: string }
         Returns: Json
@@ -8422,6 +9780,19 @@ export type Database = {
       refund_points_for_order: {
         Args: { _order_id: string }
         Returns: undefined
+      }
+      register_prize_win: {
+        Args: {
+          p_campaign_id: string
+          p_customer_name: string
+          p_customer_whatsapp: string
+          p_evaluation_id: string
+          p_prize_id: string
+        }
+        Returns: {
+          coupon_code: string
+          coupon_expires_at: string
+        }[]
       }
       resolve_business_slug: { Args: { _slug: string }; Returns: string }
     }

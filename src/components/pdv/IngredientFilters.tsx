@@ -18,6 +18,7 @@ interface IngredientFiltersProps {
   filteredCount: number;
   lowStockCount: number;
   criticalStockCount: number;
+  noMinimumCount?: number;
   categories?: string[];
   selectedCategory?: string;
   onCategoryChange?: (value: string) => void;
@@ -32,6 +33,7 @@ export function IngredientFilters({
   filteredCount,
   lowStockCount,
   criticalStockCount,
+  noMinimumCount = 0,
   categories = [],
   selectedCategory,
   onCategoryChange,
@@ -88,6 +90,13 @@ export function IngredientFilters({
         {lowStockCount > 0 && (
           <Badge variant="secondary" className="border-yellow-500">
             {lowStockCount} com estoque baixo
+          </Badge>
+        )}
+        {/* Insumo sem mínimo nunca entra na Lista de Compras nem dispara alerta
+            de falta — é o dado que explica uma lista de compras vazia. */}
+        {noMinimumCount > 0 && (
+          <Badge variant="outline" title="Estes insumos não geram alerta de falta nem entram na Lista de Compras">
+            {noMinimumCount} sem estoque mínimo definido
           </Badge>
         )}
       </div>

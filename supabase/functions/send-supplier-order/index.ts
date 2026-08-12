@@ -3,6 +3,7 @@
 // dispara pela mesma instância Evolution usada nas cotações. Marca a cotação como
 // 'completed' ao final.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { resolveTenantChannel, sendText, isChannelError } from '../_shared/whatsapp/index.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,31 +41,16 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey)
 
-    const { data: connection } = await supabase
-      .from('whatsapp_connections')
-      .select('instance_name, connection_status')
-      .eq('user_id', user.id)
-      .eq('connection_status', 'open')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (!connection) {
-      return new Response(JSON.stringify({
-        error: 'Nenhuma conexão WhatsApp ativa. Conecte o WhatsApp nas configurações.',
-        code: 'NO_WHATSAPP_CONNECTION',
-      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    const resolved = await resolveTenantChannel(supabase, user.id)
+    if (isChannelError(resolved)) {
+      return new Response(
+        JSON.stringify({ error: resolved.error.errorMessage, code: resolved.error.errorCode }),
+        { status: resolved.error.errorCode === 'no_connection' ? 400 : 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+    const channel = resolved
 
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')
-    if (!evolutionApiUrl || !evolutionApiKey) {
-      return new Response(JSON.stringify({ error: 'WhatsApp não configurado no servidor.', code: 'evolution_not_configured' }), {
-        status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const instanceName = connection.instance_name
     const sent: string[] = []
     const errors: { supplierId: string; error: string }[] = []
     const createdOrders: string[] = []
@@ -84,21 +70,13 @@ Deno.serve(async (req) => {
         errors.push({ supplierId, error: 'Telefone ou mensagem ausente' })
         continue
       }
-      let formattedPhone = String(phone).replace(/\D/g, '')
-      if (!formattedPhone.startsWith('55') && formattedPhone.length >= 10) formattedPhone = '55' + formattedPhone
-
-      let delivered = false
-      try {
-        const resp = await fetch(`${evolutionApiUrl}/message/sendText/${instanceName}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', apikey: evolutionApiKey },
-          body: JSON.stringify({ number: formattedPhone, text: message }),
-        })
-        if (resp.ok) { delivered = true; sent.push(supplierId) }
-        else errors.push({ supplierId, error: `API error: ${resp.status}` })
-      } catch (err) {
-        errors.push({ supplierId, error: String(err) })
-      }
+      const outcome = await sendText(supabase, channel, String(phone), message, {
+        purpose: 'supplier_order',
+        supplierId,
+      })
+      const delivered = outcome.ok
+      if (delivered) sent.push(supplierId)
+      else errors.push({ supplierId, error: outcome.errorMessage ?? outcome.errorCode ?? 'Falha no envio' })
 
       // Registra o PEDIDO DE COMPRA (mesmo se o WhatsApp falhar: fica como 'draft').
       const items: any[] = Array.isArray(order.items) ? order.items : []

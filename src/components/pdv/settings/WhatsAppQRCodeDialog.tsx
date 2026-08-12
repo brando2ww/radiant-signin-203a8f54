@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle2, RefreshCw, Smartphone, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, RefreshCw, Smartphone, AlertTriangle, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -18,7 +19,7 @@ type DialogStep = 'form' | 'generating' | 'qrcode' | 'connected';
 
 export function WhatsAppQRCodeDialog({ open, onOpenChange }: WhatsAppQRCodeDialogProps) {
   const {
-    connection, isConnected, qrCode, isPolling, pollError,
+    connection, isConnected, qrCode, pairingCode, isPolling, pollError,
     isGenerating, isDisconnecting,
     generateQRCode, disconnect, stopPolling, setQrCode, setPollError
   } = useWhatsAppConnection();
@@ -53,7 +54,7 @@ export function WhatsAppQRCodeDialog({ open, onOpenChange }: WhatsAppQRCodeDialo
   };
 
   // Update step when QR code is received
-  if (qrCode && step === 'generating') {
+  if ((qrCode || pairingCode) && step === 'generating') {
     setStep('qrcode');
   }
 
@@ -142,7 +143,7 @@ export function WhatsAppQRCodeDialog({ open, onOpenChange }: WhatsAppQRCodeDialo
   }
 
   // Generating view
-  if (step === 'generating' && !qrCode && !pollError) {
+  if (step === 'generating' && !qrCode && !pairingCode && !pollError) {
     return (
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-md">
@@ -227,6 +228,36 @@ export function WhatsAppQRCodeDialog({ open, onOpenChange }: WhatsAppQRCodeDialo
                   <li>Aponte a câmera para este QR Code</li>
                 </ol>
               </div>
+
+              {/* Caminho alternativo. O WhatsApp passou a pedir confirmação por
+                  chave de acesso ao autorizar dispositivo pelo QR, e tem celular
+                  que não fecha a conexão por ali. O código sempre veio na mesma
+                  resposta do servidor, só não era exibido. */}
+              {pairingCode && (
+                <div className="w-full space-y-2 rounded-lg border border-dashed p-4 text-sm">
+                  <p className="font-medium">O QR não funcionou? Use o código:</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded bg-muted px-3 py-2 text-center text-lg font-bold tracking-[0.2em]">
+                      {pairingCode}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Copiar código"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pairingCode);
+                        toast.success("Código copiado");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <ol className="list-inside list-decimal space-y-1 text-muted-foreground">
+                    <li>Na mesma tela, toque em <span className="font-medium">Vincular com número de telefone</span></li>
+                    <li>Digite o código acima</li>
+                  </ol>
+                </div>
+              )}
 
               {qrCode && (
                 <p className="text-xs text-muted-foreground">O QR Code expira em 2 minutos</p>

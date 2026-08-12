@@ -27,8 +27,13 @@ export function IngredientCard({ ingredient, onEdit, onDelete, onAdjustStock }: 
     ? (ingredient.current_stock / ingredient.min_stock) * 100 
     : 100;
   
-  const isLowStock = ingredient.current_stock <= ingredient.min_stock;
-  const isCriticalStock = ingredient.current_stock < ingredient.min_stock * 0.5;
+  // Sem mínimo definido não existe "estoque baixo": com min_stock = 0, a
+  // comparação `estoque <= mínimo` marcava como baixo todo insumo zerado que
+  // ninguém configurou — eram 68 dos 176 insumos num cliente, 84 em outro, o
+  // que transformava o alerta em ruído e escondia a falta de verdade.
+  const hasMinimum = ingredient.min_stock > 0;
+  const isLowStock = hasMinimum && ingredient.current_stock <= ingredient.min_stock;
+  const isCriticalStock = hasMinimum && ingredient.current_stock < ingredient.min_stock * 0.5;
   
   const lossImpact = ingredient.unit_cost * (ingredient.loss_percentage / 100);
 

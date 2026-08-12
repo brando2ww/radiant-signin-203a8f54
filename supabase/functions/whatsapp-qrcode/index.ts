@@ -54,15 +54,35 @@ async function deleteFromEvolution(baseUrl: string, apiKey: string, instanceName
   await evoFetch(`${baseUrl}/instance/delete/${enc}`, apiKey, { method: 'DELETE' }, 0)
 }
 
-// Helper: try to get QR code via /connect endpoint
-async function fetchQRCode(baseUrl: string, apiKey: string, instanceName: string): Promise<string | null> {
+/**
+ * Busca o vínculo em /instance/connect.
+ *
+ * O Evolution devolve DUAS formas de parear na mesma resposta: o QR
+ * (`base64`/`code`) e um `pairingCode` de 8 caracteres. Só o QR era usado. Desde
+ * que o WhatsApp passou a exigir passkey ao autorizar dispositivo por QR, tem
+ * cliente que não consegue fechar a conexão por esse caminho — e o código, que
+ * usa o fluxo "vincular com número de telefone", passa.
+ */
+async function fetchConnect(
+  baseUrl: string,
+  apiKey: string,
+  instanceName: string,
+): Promise<{ qrcode: string | null; pairingCode: string | null }> {
   const enc = encodeURIComponent(instanceName)
   const res = await evoFetch(`${baseUrl}/instance/connect/${enc}`, apiKey, {}, 1)
-  if (!res.ok) return null
-  const b64 = res.data?.base64 || res.data?.qrcode?.base64 || res.data?.code || null
-  if (!b64) return null
-  // Remove data URI prefix if present
-  return typeof b64 === 'string' ? b64.split(',').pop() || b64 : null
+  if (!res.ok) return { qrcode: null, pairingCode: null }
+
+  const raw = res.data?.base64 || res.data?.qrcode?.base64 || res.data?.code || null
+  // Remove o prefixo data URI, quando vem
+  const qrcode = typeof raw === 'string' ? raw.split(',').pop() || raw : null
+  const pairingCode = res.data?.pairingCode || res.data?.qrcode?.pairingCode || null
+
+  return { qrcode, pairingCode }
+}
+
+// Compat: quem só precisa do QR
+async function fetchQRCode(baseUrl: string, apiKey: string, instanceName: string): Promise<string | null> {
+  return (await fetchConnect(baseUrl, apiKey, instanceName)).qrcode
 }
 
 // Small delay helper
@@ -195,15 +215,15 @@ Deno.serve(async (req) => {
       // 4. If no QR in create, try /connect up to 3 times
       for (let i = 0; i < 3; i++) {
         await delay(1500)
-        const qr = await fetchQRCode(evolutionApiUrl, evolutionApiKey, instanceName)
-        if (qr) {
+        const conn = await fetchConnect(evolutionApiUrl, evolutionApiKey, instanceName)
+        if (conn.qrcode || conn.pairingCode) {
           await supabase.from('whatsapp_connections').upsert({
             user_id: userId, instance_name: instanceName,
             connection_name: connectionName || null,
             phone_number: phoneNumber || null,
             connection_status: 'connecting'
           }, { onConflict: 'user_id,instance_name' })
-          return json({ status: 'pending', qrcode: qr })
+          return json({ status: 'pending', qrcode: conn.qrcode, pairingCode: conn.pairingCode })
         }
       }
 
@@ -246,9 +266,9 @@ Deno.serve(async (req) => {
 
       // Still connecting → try to fetch a fresh QR code
       if (instStatus === 'connecting' || instStatus === 'close') {
-        const qr = await fetchQRCode(evolutionApiUrl, evolutionApiKey, instanceName)
-        if (qr) {
-          return json({ status: 'pending', qrcode: qr })
+        const fresh = await fetchConnect(evolutionApiUrl, evolutionApiKey, instanceName)
+        if (fresh.qrcode || fresh.pairingCode) {
+          return json({ status: 'pending', qrcode: fresh.qrcode, pairingCode: fresh.pairingCode })
         }
 
         // Check if the connection has been stuck for too long (> 3 min)
