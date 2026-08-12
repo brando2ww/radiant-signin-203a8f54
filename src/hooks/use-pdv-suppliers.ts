@@ -31,6 +31,8 @@ export interface PDVSupplier {
   delivery_time?: number | null;
   delivery_time_unit?: string | null;
   credit_limit?: number | null;
+  /** Valor mínimo de pedido. 0 = não tem. null = ainda não informado. */
+  minimum_order?: number | null;
   preferred_payment_method?: string | null;
   category?: string | null;
   contacts?: any;
@@ -113,6 +115,9 @@ export function useUpdateSupplier() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pdv-suppliers'] });
+      // O comparativo lê o pedido mínimo pelo join da cotação: sem invalidar
+      // aqui, mudar o mínimo só faria efeito depois de recarregar a página.
+      queryClient.invalidateQueries({ queryKey: ['pdv-quotations'] });
       toast.success('Fornecedor atualizado com sucesso!');
     },
     onError: (error) => {

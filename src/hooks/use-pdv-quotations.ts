@@ -35,6 +35,14 @@ export interface QuotationResponse {
   conservation: string | null;
   origin: string | null;
   notes: string | null;
+  /**
+   * sem_estoque | nao_trabalha | em_falta. Preenchido = o fornecedor declarou
+   * que não pode ofertar; a linha vem sem preço e fica fora do comparativo.
+   */
+  unavailable_reason: string | null;
+  /** Preço como o fornecedor enviou, quando o comprador corrigiu o unit_price. */
+  original_unit_price: number | null;
+  corrected_at: string | null;
   is_winner: boolean;
   received_at: string;
   created_at: string;
@@ -43,6 +51,8 @@ export interface QuotationResponse {
     name: string;
     phone: string | null;
     whatsapp?: string | null;
+    /** Pedido mínimo do fornecedor. 0 = não tem. null = não informado. */
+    minimum_order?: number | null;
   };
 }
 
@@ -64,6 +74,21 @@ export interface CreateQuotationData {
   notes?: string;
   message_template?: string;
   items: {
+    ingredient_id: string;
+    quantity_needed: number;
+    unit: string;
+    notes?: string;
+    selected_suppliers?: string[];
+  }[];
+}
+
+export interface UpdateQuotationData {
+  id: string;
+  deadline?: string;
+  notes?: string;
+  items: {
+    /** Presente = item que já existe no banco. Ausente = item novo. */
+    id?: string;
     ingredient_id: string;
     quantity_needed: number;
     unit: string;
@@ -119,7 +144,7 @@ export function usePDVQuotations() {
             ingredient:pdv_ingredients(id, name, unit),
             responses:pdv_quotation_responses(
               *,
-              supplier:pdv_suppliers(id, name, phone, whatsapp)
+              supplier:pdv_suppliers(id, name, phone, whatsapp, minimum_order)
             )
           )
         `)
@@ -307,6 +332,160 @@ export function usePDVQuotations() {
     },
   });
 
+  // Edita uma cotação já criada: mexer em quantidade, trocar/remover item ou
+  // acrescentar item novo antes que os fornecedores respondam.
+  //
+  // É uma reconciliação, não um "apaga tudo e recria": os vínculos de
+  // fornecedor carregam `sent_at` (quem já recebeu o link) e as respostas
+  // penduram no id do item. Recriar zeraria as duas coisas.
+  const updateQuotation = useMutation({
+    mutationFn: async (data: UpdateQuotationData) => {
+      if (!user) throw new Error('Usuário não autenticado');
+
+      const { error: requestError } = await supabase
+        .from('pdv_quotation_requests')
+        .update({
+          deadline: data.deadline,
+          notes: data.notes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', data.id);
+
+      if (requestError) throw requestError;
+
+      const { data: currentItems, error: currentError } = await supabase
+        .from('pdv_quotation_items')
+        .select('id, responses:pdv_quotation_responses(id)')
+        .eq('quotation_request_id', data.id);
+
+      if (currentError) throw currentError;
+
+      const keptIds = new Set(
+        data.items.map((i) => i.id).filter((id): id is string => !!id)
+      );
+      const removedItems = (currentItems || []).filter((i) => !keptIds.has(i.id));
+
+      // Item com resposta guarda o preço que o fornecedor mandou. Apagar
+      // destruiria a cotação recebida — melhor falhar alto do que perder.
+      if (removedItems.some((i) => (i.responses?.length || 0) > 0)) {
+        throw new Error(
+          'Não dá para remover um item que já recebeu resposta de fornecedor.'
+        );
+      }
+
+      if (removedItems.length > 0) {
+        const { error } = await supabase
+          .from('pdv_quotation_items')
+          .delete()
+          .in('id', removedItems.map((i) => i.id));
+        if (error) throw error;
+      }
+
+      // Itens que continuam: atualiza em vez de recriar, preservando o id.
+      for (const item of data.items) {
+        if (!item.id) continue;
+        const { error } = await supabase
+          .from('pdv_quotation_items')
+          .update({
+            ingredient_id: item.ingredient_id,
+            quantity_needed: item.quantity_needed,
+            unit: item.unit,
+            notes: item.notes,
+          })
+          .eq('id', item.id);
+        if (error) throw error;
+      }
+
+      // Itens novos, um a um: o insert em lote não garante a ordem de retorno,
+      // e a lista pode repetir o mesmo ingrediente — casar pelo ingredient_id
+      // atribuiria os fornecedores à linha errada.
+      const itemSupplierTargets: { itemId: string; supplierIds: string[] }[] =
+        data.items
+          .filter((i) => i.id)
+          .map((i) => ({ itemId: i.id as string, supplierIds: i.selected_suppliers || [] }));
+
+      for (const item of data.items) {
+        if (item.id) continue;
+        const { data: created, error } = await supabase
+          .from('pdv_quotation_items')
+          .insert({
+            quotation_request_id: data.id,
+            ingredient_id: item.ingredient_id,
+            quantity_needed: item.quantity_needed,
+            unit: item.unit,
+            notes: item.notes,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        itemSupplierTargets.push({
+          itemId: created.id,
+          supplierIds: item.selected_suppliers || [],
+        });
+      }
+
+      // Fornecedores por item: diff, para não zerar o sent_at de quem já recebeu.
+      const itemIds = itemSupplierTargets.map((t) => t.itemId);
+      if (itemIds.length > 0) {
+        const { data: existingLinks, error: linksError } = await supabase
+          .from('pdv_quotation_item_suppliers')
+          .select('id, quotation_item_id, supplier_id')
+          .in('quotation_item_id', itemIds);
+
+        if (linksError) throw linksError;
+
+        const linkIdsToRemove: string[] = [];
+        const linksToAdd: { quotation_item_id: string; supplier_id: string }[] = [];
+
+        for (const target of itemSupplierTargets) {
+          const current = (existingLinks || []).filter(
+            (l) => l.quotation_item_id === target.itemId
+          );
+          const desired = new Set(target.supplierIds);
+
+          current
+            .filter((l) => !desired.has(l.supplier_id))
+            .forEach((l) => linkIdsToRemove.push(l.id));
+
+          const currentIds = new Set(current.map((l) => l.supplier_id));
+          target.supplierIds
+            .filter((supplierId) => !currentIds.has(supplierId))
+            .forEach((supplierId) =>
+              linksToAdd.push({
+                quotation_item_id: target.itemId,
+                supplier_id: supplierId,
+              })
+            );
+        }
+
+        if (linkIdsToRemove.length > 0) {
+          const { error } = await supabase
+            .from('pdv_quotation_item_suppliers')
+            .delete()
+            .in('id', linkIdsToRemove);
+          if (error) throw error;
+        }
+
+        if (linksToAdd.length > 0) {
+          const { error } = await supabase
+            .from('pdv_quotation_item_suppliers')
+            .insert(linksToAdd);
+          if (error) throw error;
+        }
+      }
+
+      return { id: data.id };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pdv-quotations'] });
+      queryClient.invalidateQueries({ queryKey: ['quotation-item-suppliers'] });
+      toast.success('Cotação atualizada!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Erro ao atualizar cotação');
+    },
+  });
+
   // Delete quotation
   const deleteQuotation = useMutation({
     mutationFn: async (id: string) => {
@@ -339,6 +518,7 @@ export function usePDVQuotations() {
     isLoading,
     stats,
     createQuotation,
+    updateQuotation,
     updateStatus,
     addResponse,
     updateResponse,

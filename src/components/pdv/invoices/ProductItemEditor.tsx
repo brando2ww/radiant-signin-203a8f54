@@ -1,4 +1,6 @@
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -9,9 +11,11 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 interface ProductItemEditorProps {
   item: EditableInvoiceItem;
   onUpdate: (updates: Partial<EditableInvoiceItem>) => void;
+  /** Ausente quando o item não pode ser removido (nota com um item só). */
+  onRemove?: () => void;
 }
 
-export function ProductItemEditor({ item, onUpdate }: ProductItemEditorProps) {
+export function ProductItemEditor({ item, onUpdate, onRemove }: ProductItemEditorProps) {
   const handleFieldChange = (field: keyof EditableInvoiceItem, value: any) => {
     onUpdate({ [field]: value });
   };
@@ -54,6 +58,18 @@ export function ProductItemEditor({ item, onUpdate }: ProductItemEditorProps) {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold">Item {item.itemNumber}</h4>
+            {onRemove && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                title="Remover este item"
+                onClick={onRemove}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
 
           <div className="grid grid-cols-3 gap-3">

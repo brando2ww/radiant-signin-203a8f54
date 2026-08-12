@@ -24,9 +24,9 @@ export default function PDVStock() {
   const {
     ingredients,
     isLoading,
-    createIngredient,
+    createIngredientAsync,
     isCreating,
-    updateIngredient,
+    updateIngredientAsync,
     isUpdating,
     deleteIngredient,
     isDeleting,
@@ -39,10 +39,14 @@ export default function PDVStock() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<any>(null);
   const [deleteDialog, setDeleteDialog] = useState<string | null>(null);
+  // Cobre as duas etapas da gravação (insumo + vínculos). `isCreating` sozinho
+  // volta a false entre elas e reabriria a janela para um clique duplo.
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filtros
   const [search, setSearch] = useState("");
   const [stockStatus, setStockStatus] = useState("all");
+  const [category, setCategory] = useState("all");
 
   // Contadores
   const { lowStockCount, criticalStockCount } = useMemo(() => {
@@ -75,9 +79,19 @@ export default function PDVStock() {
         (stockStatus === "low" && isLowStock && !isCritical) ||
         (stockStatus === "critical" && isCritical);
 
-      return matchesSearch && matchesStatus;
+      const matchesCategory = category === "all" || ingredient.category === category;
+
+      return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [ingredients, search, stockStatus]);
+  }, [ingredients, search, stockStatus, category]);
+
+  // Só as categorias que existem nos insumos cadastrados: lista fixa mostraria
+  // opções que não filtram nada.
+  const categories = useMemo(
+    () =>
+      [...new Set(ingredients.map((i) => i.category).filter(Boolean))].sort() as string[],
+    [ingredients],
+  );
 
   // Sincroniza vínculos pdv_ingredient_suppliers
   const syncSupplierLinks = async (
@@ -127,28 +141,44 @@ export default function PDVStock() {
     setDialogOpen(true);
   };
 
-  const handleSubmit = (data: any) => {
+  // Salvar insumo são DUAS gravações: a linha em pdv_ingredients e os vínculos
+  // em pdv_ingredient_suppliers. Antes, a segunda etapa rodava sem await depois
+  // de já ter fechado o diálogo: quando ela falhava, o insumo permanecia criado
+  // (sem fornecedores) mas a tela só mostrava o erro. O usuário tentava de novo
+  // e nascia um insumo duplicado, um com fornecedores e outro sem.
+  //
+  // Agora o fluxo é sequencial e, se a etapa 1 já passou, o insumo criado vira
+  // o "selecionado": tentar de novo ATUALIZA aquele registro em vez de inserir
+  // outro. O diálogo só fecha quando as duas etapas terminam.
+  const handleSubmit = async (data: any) => {
+    if (isSaving) return;
     const { _supplierIds = [], _preferredSupplierId, ...ingredientData } = data;
 
-    if (selectedIngredient) {
-      updateIngredient(
-        { id: selectedIngredient.id, updates: ingredientData },
-        {
-          onSuccess: () => {
-            syncSupplierLinks(selectedIngredient.id, _supplierIds, _preferredSupplierId);
-            setDialogOpen(false);
-          },
-        }
-      );
-    } else {
-      createIngredient(ingredientData, {
-        onSuccess: (newIngredient: any) => {
-          if (newIngredient?.id && _supplierIds.length > 0) {
-            syncSupplierLinks(newIngredient.id, _supplierIds, _preferredSupplierId);
-          }
-          setDialogOpen(false);
-        },
-      });
+    setIsSaving(true);
+    try {
+      let ingredientId: string | undefined = selectedIngredient?.id;
+
+      if (ingredientId) {
+        await updateIngredientAsync({ id: ingredientId, updates: ingredientData });
+      } else {
+        const created: any = await createIngredientAsync(ingredientData);
+        ingredientId = created?.id;
+        // A partir daqui o insumo existe. Se o vínculo abaixo falhar, a próxima
+        // tentativa precisa editar este id, nunca criar outro.
+        if (created) setSelectedIngredient(created);
+      }
+
+      if (ingredientId) {
+        await syncSupplierLinks(ingredientId, _supplierIds, _preferredSupplierId);
+      }
+
+      setDialogOpen(false);
+      setSelectedIngredient(null);
+    } catch {
+      // As mutations já mostram o toast do erro real. Aqui só garantimos que o
+      // diálogo continua aberto, com o insumo já vinculado ao registro criado.
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -214,6 +244,9 @@ export default function PDVStock() {
         onSearchChange={setSearch}
         stockStatus={stockStatus}
         onStockStatusChange={setStockStatus}
+        categories={categories}
+        selectedCategory={category}
+        onCategoryChange={setCategory}
         totalIngredients={ingredients.length}
         filteredCount={filteredIngredients.length}
         lowStockCount={lowStockCount}
@@ -265,7 +298,7 @@ export default function PDVStock() {
         onOpenChange={setDialogOpen}
         ingredient={selectedIngredient}
         onSubmit={handleSubmit}
-        isSubmitting={isCreating || isUpdating}
+        isSubmitting={isSaving || isCreating || isUpdating}
       />
 
       <AlertDialog open={!!deleteDialog} onOpenChange={() => setDeleteDialog(null)}>

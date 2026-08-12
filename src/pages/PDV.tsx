@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { PDVHeaderNav } from "@/components/pdv/PDVHeaderNav";
 import { PrinterAlertBanner } from "@/components/pdv/PrinterAlertBanner";
+import { FiscalAlertBanner } from "@/components/pdv/FiscalAlertBanner";
 import { PDVUserMenu } from "@/components/pdv/PDVUserMenu";
 import { PDVNotifications } from "@/components/pdv/PDVNotifications";
 import { CashierStatus } from "@/components/pdv/CashierStatus";
@@ -46,6 +47,7 @@ import DeliveryDrivers from "./pdv/delivery/Drivers";
 import ComandasPage from "./pdv/Comandas";
 import Quotations from "./pdv/purchases/Quotations";
 import PurchaseOrders from "./pdv/purchases/PurchaseOrders";
+import PurchaseReports from "./pdv/purchases/PurchaseReports";
 import ShoppingList from "./pdv/purchases/ShoppingList";
 import PurchaseSettings from "./pdv/purchases/PurchaseSettings";
 import FinancialSettings from "./pdv/financial/FinancialSettings";
@@ -114,6 +116,7 @@ export default function PDV() {
         </header>
 
         <PrinterAlertBanner />
+        <FiscalAlertBanner />
 
         <main className={isFixedHeight ? "flex-1 h-[calc(100vh-3.5rem)] overflow-hidden" : "flex-1 overflow-auto"}>
           <RouteModuleGuard>
@@ -173,6 +176,7 @@ export default function PDV() {
               <Route path="compras/cotacoes" element={<RoleRoute path="/pdv/compras/cotacoes" canAccess={canAccess} defaultRoute={defaultRoute}><Quotations /></RoleRoute>} />
               <Route path="compras/pedidos" element={<RoleRoute path="/pdv/compras/pedidos" canAccess={canAccess} defaultRoute={defaultRoute}><PurchaseOrders /></RoleRoute>} />
               <Route path="compras/lista" element={<RoleRoute path="/pdv/compras/lista" canAccess={canAccess} defaultRoute={defaultRoute}><ShoppingList /></RoleRoute>} />
+              <Route path="compras/relatorios" element={<RoleRoute path="/pdv/compras/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><PurchaseReports /></RoleRoute>} />
               <Route path="compras/configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/compras" replace />} />
               <Route path="compras/importacao-nfe" element={<RoleRoute path="/pdv/compras/importacao-nfe" canAccess={canAccess} defaultRoute={defaultRoute}><NfeImport /></RoleRoute>} />
               

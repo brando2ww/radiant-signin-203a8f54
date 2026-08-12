@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useLayoutEffect, useEffect, useCallback } from "react";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -128,6 +128,7 @@ const sectionItems: Section[] = [
       { title: "Pedidos de Compra", url: "/pdv/compras/pedidos",        icon: ClipboardCheck },
       { title: "Fornecedores",      url: "/pdv/fornecedores",           icon: Truck },
       { title: "Importação NF-e",  url: "/pdv/compras/importacao-nfe", icon: FileText },
+      { title: "Relatórios",        url: "/pdv/compras/relatorios",     icon: FileBarChart },
     ],
   },
   {
@@ -196,6 +197,59 @@ export function PDVHeaderNav() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAccess, hasModule, tenantId]);
 
+  // Modo compacto (só ícones). O breakpoint fixo não servia: o que decide se a
+  // barra cabe é quantas seções o tenant tem e o tamanho dos títulos, não a
+  // largura da tela. Então medimos: se a lista com rótulos não couber no
+  // espaço disponível, os rótulos somem antes que qualquer item seja cortado.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  // Largura da lista COM rótulos. Guardada porque, uma vez compacto, não dá
+  // mais para medi-la — e é ela que diz quando podemos voltar ao normal.
+  const naturalWidthRef = useRef<number | null>(null);
+  const compactRef = useRef(false);
+  const [compact, setCompact] = useState(false);
+
+  const measure = useCallback(() => {
+    const container = containerRef.current;
+    const list = listRef.current;
+    if (!container || !list) return;
+
+    const available = container.clientWidth;
+    if (available === 0) return;
+
+    if (!compactRef.current) {
+      naturalWidthRef.current = list.scrollWidth;
+    }
+    const natural = naturalWidthRef.current;
+    if (natural == null) return;
+
+    const next = natural > available;
+    if (next !== compactRef.current) {
+      compactRef.current = next;
+      setCompact(next);
+    }
+  }, []);
+
+  // Mudou o conjunto de seções (módulos do tenant, permissões): a largura
+  // natural anterior não vale mais, então volta ao normal para remedir.
+  useLayoutEffect(() => {
+    naturalWidthRef.current = null;
+    compactRef.current = false;
+    setCompact(false);
+  }, [filteredSections.length]);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [measure, compact, filteredSections.length]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [measure]);
+
   const visibleAnnouncements = announcements.filter(
     (a) => !dismissedAnnouncements.includes(a.id)
   );
@@ -230,8 +284,9 @@ export function PDVHeaderNav() {
   );
 
   return (
+    <div ref={containerRef} className="w-full min-w-0">
     <NavigationMenu>
-      <NavigationMenuList>
+      <NavigationMenuList ref={listRef}>
         {filteredSections.map((section, index) => {
           const isSectionActive = section.items.some(
             (item) => pathname === item.url || pathname.startsWith(item.url + "/")
@@ -250,6 +305,9 @@ export function PDVHeaderNav() {
                 <NavigationMenuLink asChild>
                   <NavLink
                     to={only.url}
+                    // Sem rótulo visível, o ícone sozinho não diz o que é.
+                    title={compact ? only.title : undefined}
+                    aria-label={compact ? only.title : undefined}
                     className={cn(
                       "inline-flex h-10 w-max items-center justify-center gap-2 rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors",
                       "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
@@ -257,7 +315,7 @@ export function PDVHeaderNav() {
                     )}
                   >
                     <OnlyIcon className="h-4 w-4" />
-                    <span className="hidden xl:inline">{only.title}</span>
+                    {!compact && <span>{only.title}</span>}
                   </NavLink>
                 </NavigationMenuLink>
               </NavigationMenuItem>
@@ -267,13 +325,15 @@ export function PDVHeaderNav() {
           return (
             <NavigationMenuItem key={section.title} className="relative">
               <NavigationMenuTrigger
+                title={compact ? section.title : undefined}
+                aria-label={compact ? section.title : undefined}
                 className={cn(
                   "gap-2",
                   isSectionActive && "bg-accent text-accent-foreground"
                 )}
               >
                 <SectionIcon className="h-4 w-4" />
-                <span className="hidden xl:inline">{section.title}</span>
+                {!compact && <span>{section.title}</span>}
               </NavigationMenuTrigger>
               <NavigationMenuContent
                 className={cn(
@@ -321,5 +381,6 @@ export function PDVHeaderNav() {
         })}
       </NavigationMenuList>
     </NavigationMenu>
+    </div>
   );
 }

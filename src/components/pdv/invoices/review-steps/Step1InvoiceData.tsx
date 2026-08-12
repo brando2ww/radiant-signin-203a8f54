@@ -39,10 +39,30 @@ export function Step1InvoiceData({ data, onUpdate }: Step1InvoiceDataProps) {
       {/* Identificação */}
       <div className="space-y-4">
         <div>
-          <Label>Chave de Acesso NFe</Label>
-          <p className="text-xs font-mono bg-muted p-2 rounded mt-1 break-all">
-            {formatNFeKey(data.invoiceKey)}
-          </p>
+          <Label htmlFor="invoice-key">Chave de Acesso NFe</Label>
+          {/* Veio de XML: a chave é a identidade da nota, não se edita.
+              Lançamento manual (cupom, nota digitada): fica editável e pode
+              ficar em branco — cupom fiscal muitas vezes nem tem. */}
+          {data.invoiceKey ? (
+            <p className="text-xs font-mono bg-muted p-2 rounded mt-1 break-all">
+              {formatNFeKey(data.invoiceKey)}
+            </p>
+          ) : (
+            <>
+              <Input
+                id="invoice-key"
+                className="mt-1 font-mono text-xs"
+                placeholder="44 dígitos (opcional)"
+                inputMode="numeric"
+                maxLength={44}
+                value={data.invoiceKey}
+                onChange={(e) => onUpdate({ invoiceKey: e.target.value.replace(/\D/g, "") })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Opcional no lançamento manual.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-4">

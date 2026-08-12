@@ -6319,12 +6319,15 @@ export type Database = {
           is_winner: boolean | null
           minimum_order: number | null
           notes: string | null
+          corrected_at: string | null
+          original_unit_price: number | null
           origin: string | null
           payment_terms: string | null
           quotation_item_id: string
           received_at: string | null
           supplier_id: string
           total_price: number | null
+          unavailable_reason: string | null
           unit_price: number | null
         }
         Insert: {
@@ -6337,12 +6340,15 @@ export type Database = {
           is_winner?: boolean | null
           minimum_order?: number | null
           notes?: string | null
+          corrected_at?: string | null
+          original_unit_price?: number | null
           origin?: string | null
           payment_terms?: string | null
           quotation_item_id: string
           received_at?: string | null
           supplier_id: string
           total_price?: number | null
+          unavailable_reason?: string | null
           unit_price?: number | null
         }
         Update: {
@@ -6355,12 +6361,15 @@ export type Database = {
           is_winner?: boolean | null
           minimum_order?: number | null
           notes?: string | null
+          corrected_at?: string | null
+          original_unit_price?: number | null
           origin?: string | null
           payment_terms?: string | null
           quotation_item_id?: string
           received_at?: string | null
           supplier_id?: string
           total_price?: number | null
+          unavailable_reason?: string | null
           unit_price?: number | null
         }
         Relationships: [
@@ -6836,6 +6845,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_billing_address: boolean | null
+          minimum_order?: number | null
           municipal_registration: string | null
           name: string
           neighborhood: string | null
@@ -6871,6 +6881,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_billing_address?: boolean | null
+          minimum_order?: number | null
           municipal_registration?: string | null
           name: string
           neighborhood?: string | null
@@ -6906,6 +6917,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_billing_address?: boolean | null
+          minimum_order?: number | null
           municipal_registration?: string | null
           name?: string
           neighborhood?: string | null

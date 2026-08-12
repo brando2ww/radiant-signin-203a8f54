@@ -19,16 +19,27 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { usePDVQuotations } from "@/hooks/use-pdv-quotations";
+import { usePDVQuotations, type QuotationRequest } from "@/hooks/use-pdv-quotations";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { usePDVIngredients } from "@/hooks/use-pdv-ingredients";
 import { usePDVIngredientSuppliers } from "@/hooks/use-pdv-ingredient-suppliers";
+import { usePurchaseSettings } from "@/hooks/use-purchase-settings";
+import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { generateQuotationMessage } from "@/lib/whatsapp-message";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { QuotationItemSuppliers } from "./QuotationItemSuppliers";
 import { IngredientCombobox } from "./IngredientCombobox";
+import { toast } from "sonner";
 
 interface QuotationItem {
+  // Chave estável só de UI. Como itens novos entram no TOPO da lista, o índice
+  // do array deixa de identificar a linha (todo mundo desce um) e o React
+  // reaproveitaria o DOM errado se a key fosse o índice.
+  _uid: string;
+  /** id no banco. Só existe ao editar; item novo não tem. */
+  id?: string;
   ingredient_id: string;
   ingredient_name: string;
   quantity_needed: number;
@@ -40,28 +51,88 @@ interface QuotationItem {
 interface QuotationRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  preselectedItems?: Omit<QuotationItem, "selected_suppliers">[];
+  preselectedItems?: Omit<QuotationItem, "selected_suppliers" | "_uid" | "id">[];
+  /** Passada = o diálogo edita essa cotação em vez de criar uma nova. */
+  quotation?: QuotationRequest;
 }
+
+let itemUidCounter = 0;
+const nextItemUid = () => `item-${++itemUidCounter}`;
 
 export function QuotationRequestDialog({
   open,
   onOpenChange,
   preselectedItems,
+  quotation,
 }: QuotationRequestDialogProps) {
-  const { createQuotation } = usePDVQuotations();
+  const { createQuotation, updateQuotation } = usePDVQuotations();
   const { ingredients } = usePDVIngredients();
   const { availableSuppliers } = usePDVIngredientSuppliers();
+  const { settings: purchaseSettings } = usePurchaseSettings();
+  const { settings: businessSettings } = useBusinessSettings();
+
+  const isEditing = !!quotation;
+  const isSaving = createQuotation.isPending || updateQuotation.isPending;
 
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [deadline, setDeadline] = useState<Date>(addDays(new Date(), 3));
   const [notes, setNotes] = useState("");
 
+  // Quais fornecedores já estão vinculados a cada item. Não vem na query da
+  // lista de cotações, então busca sob demanda — só quando o diálogo abre.
+  const { data: existingLinks, isLoading: loadingLinks } = useQuery({
+    queryKey: ["quotation-item-suppliers", quotation?.id, "edit"],
+    queryFn: async () => {
+      const itemIds = quotation?.items?.map((i) => i.id) || [];
+      if (itemIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("pdv_quotation_item_suppliers")
+        .select("quotation_item_id, supplier_id")
+        .in("quotation_item_id", itemIds);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!quotation?.items?.length,
+  });
+
+  // Hidrata o formulário com a cotação em edição. Depende de `existingLinks`
+  // para não montar a lista sem os fornecedores e depois salvá-la vazia.
+  useEffect(() => {
+    if (!open || !quotation || existingLinks === undefined) return;
+    setItems(
+      (quotation.items || []).map((item) => ({
+        _uid: nextItemUid(),
+        id: item.id,
+        ingredient_id: item.ingredient_id,
+        ingredient_name: item.ingredient?.name || "",
+        quantity_needed: item.quantity_needed,
+        unit: item.unit,
+        notes: item.notes || undefined,
+        selected_suppliers: existingLinks
+          .filter((l) => l.quotation_item_id === item.id)
+          .map((l) => l.supplier_id),
+      }))
+    );
+    setDeadline(quotation.deadline ? new Date(quotation.deadline) : addDays(new Date(), 3));
+    setNotes(quotation.notes || "");
+    // Reidratar a cada mudança de `items`/`existingLinks` apagaria o que o
+    // usuário acabou de digitar; o gatilho é abrir o diálogo nesta cotação.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, quotation?.id, existingLinks === undefined]);
+
   // Initialize with preselected items
   useEffect(() => {
+    if (isEditing) return;
     if (open && preselectedItems && preselectedItems.length > 0) {
-      setItems(preselectedItems.map((item) => ({ ...item, selected_suppliers: [] })));
+      setItems(
+        preselectedItems.map((item) => ({
+          ...item,
+          _uid: nextItemUid(),
+          selected_suppliers: [],
+        }))
+      );
     }
-  }, [open, preselectedItems]);
+  }, [open, preselectedItems, isEditing]);
 
   // Prévia da mensagem. Cada fornecedor recebe SÓ os itens que foi convidado a
   // cotar, então não existe uma mensagem única: a prévia usa o primeiro
@@ -77,30 +148,50 @@ export function QuotationRequestDialog({
       item.selected_suppliers.includes(supplierId)
     );
 
+    const supplierName =
+      availableSuppliers.find((s) => s.id === supplierId)?.name ?? "Fornecedor";
+
     return {
-      supplierName:
-        availableSuppliers.find((s) => s.id === supplierId)?.name ?? "Fornecedor",
+      supplierName,
+      // A prévia precisa usar o mesmo template do envio, senão mostra um texto
+      // que o fornecedor nunca vai receber.
       text: generateQuotationMessage(
         supplierItems.map((item) => ({
           ingredientName: item.ingredient_name,
           quantity: item.quantity_needed,
           unit: item.unit,
         })),
-        deadline
+        deadline,
+        businessSettings?.business_name || undefined,
+        quotation?.request_number || undefined,
+        {
+          template: purchaseSettings?.defaultMessageTemplate,
+          supplierName,
+        }
       ),
     };
-  }, [items, deadline, availableSuppliers]);
+  }, [
+    items,
+    deadline,
+    availableSuppliers,
+    purchaseSettings?.defaultMessageTemplate,
+    businessSettings?.business_name,
+    quotation?.request_number,
+  ]);
 
+  // O item novo entra no TOPO: com listas longas o usuário teria que rolar até
+  // o fim do dialog para preencher o que acabou de adicionar.
   const handleAddItem = () => {
     setItems([
-      ...items,
       {
+        _uid: nextItemUid(),
         ingredient_id: "",
         ingredient_name: "",
         quantity_needed: 1,
         unit: "un",
         selected_suppliers: [],
       },
+      ...items,
     ]);
   };
 
@@ -111,6 +202,16 @@ export function QuotationRequestDialog({
   const handleItemChange = (index: number, field: keyof QuotationItem, value: string | number | string[]) => {
     const newItems = [...items];
     if (field === "ingredient_id") {
+      // Insumo repetido geraria duas linhas do mesmo item na cotação e o
+      // fornecedor responderia duas vezes o mesmo preço — e o comparativo
+      // mostraria o item duplicado, cada um com seu vencedor.
+      const duplicate = items.some(
+        (it, i) => i !== index && it.ingredient_id === value,
+      );
+      if (duplicate) {
+        toast.error("Este insumo já está na cotação.");
+        return;
+      }
       const ingredient = ingredients.find((i) => i.id === value);
       if (ingredient) {
         newItems[index] = {
@@ -133,25 +234,54 @@ export function QuotationRequestDialog({
     if (items.length === 0 || items.some((item) => !item.ingredient_id)) {
       return;
     }
+    if (isSaving) return;
+
+    // Rede de segurança: cotação em edição pode ter vindo com duplicata gravada
+    // antes desta trava existir.
+    const ids = items.map((i) => i.ingredient_id);
+    if (new Set(ids).size !== ids.length) {
+      toast.error("Há insumos repetidos na lista. Remova as linhas duplicadas.");
+      return;
+    }
+
+    const payloadItems = items.map((item) => ({
+      ingredient_id: item.ingredient_id,
+      quantity_needed: item.quantity_needed,
+      unit: item.unit,
+      notes: item.notes,
+      selected_suppliers: item.selected_suppliers,
+    }));
+
+    const done = {
+      onSuccess: () => {
+        onOpenChange(false);
+        resetForm();
+      },
+    };
+
+    if (isEditing && quotation) {
+      updateQuotation.mutate(
+        {
+          id: quotation.id,
+          deadline: format(deadline, "yyyy-MM-dd"),
+          notes,
+          items: items.map((item, index) => ({
+            id: item.id,
+            ...payloadItems[index],
+          })),
+        },
+        done
+      );
+      return;
+    }
 
     createQuotation.mutate(
       {
         deadline: format(deadline, "yyyy-MM-dd"),
         notes,
-        items: items.map((item) => ({
-          ingredient_id: item.ingredient_id,
-          quantity_needed: item.quantity_needed,
-          unit: item.unit,
-          notes: item.notes,
-          selected_suppliers: item.selected_suppliers,
-        })),
+        items: payloadItems,
       },
-      {
-        onSuccess: () => {
-          onOpenChange(false);
-          resetForm();
-        },
-      }
+      done
     );
   };
 
@@ -166,17 +296,22 @@ export function QuotationRequestDialog({
     resetForm();
   };
 
-  // Count total selected suppliers
-  const totalSelectedSuppliers = items.reduce(
-    (acc, item) => acc + item.selected_suppliers.length,
-    0
-  );
+  // Fornecedores DISTINTOS: o mesmo fornecedor costuma ser escolhido em vários
+  // itens, e ele recebe UM link com todos os itens dele. Somar por item dizia
+  // "9 fornecedores" quando na verdade eram 4 pessoas recebendo mensagem.
+  const totalSelectedSuppliers = new Set(
+    items.flatMap((item) => item.selected_suppliers),
+  ).size;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="shrink-0">
-          <DialogTitle>Nova Solicitação de Cotação</DialogTitle>
+          <DialogTitle>
+            {isEditing
+              ? `Editar Cotação ${quotation?.request_number ?? ""}`.trim()
+              : "Nova Solicitação de Cotação"}
+          </DialogTitle>
         </DialogHeader>
 
         {/* Uma única área rolável: aninhar scroll no diálogo prende a roda do mouse. */}
@@ -232,14 +367,23 @@ export function QuotationRequestDialog({
                 <div className="space-y-3">
                   {items.map((item, index) => (
                     <div
-                      key={index}
+                      key={item._uid}
                       className="p-3 border rounded-md space-y-2"
                     >
                       <div className="grid grid-cols-12 gap-2 items-end">
                         <div className="col-span-5">
                           <Label className="text-xs">Ingrediente</Label>
+                          {/* Some da lista o que já foi escolhido em outra
+                              linha: bloquear só no clique deixaria o usuário
+                              procurar um item que ele não pode usar. */}
                           <IngredientCombobox
-                            ingredients={ingredients}
+                            ingredients={ingredients.filter(
+                              (ing) =>
+                                ing.id === item.ingredient_id ||
+                                !items.some(
+                                  (it, i) => i !== index && it.ingredient_id === ing.id,
+                                ),
+                            )}
                             value={item.ingredient_id}
                             onChange={(value) =>
                               handleItemChange(index, "ingredient_id", value)
@@ -327,9 +471,22 @@ export function QuotationRequestDialog({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={items.length === 0 || items.some((item) => !item.ingredient_id) || createQuotation.isPending}
+            disabled={
+              items.length === 0 ||
+              items.some((item) => !item.ingredient_id) ||
+              isSaving ||
+              // Salvar antes de saber quais fornecedores já estavam vinculados
+              // apagaria todos eles.
+              (isEditing && loadingLinks)
+            }
           >
-            {createQuotation.isPending ? "Criando..." : `Criar Cotação${totalSelectedSuppliers > 0 ? ` (${totalSelectedSuppliers} fornecedores)` : ""}`}
+            {isSaving
+              ? isEditing
+                ? "Salvando..."
+                : "Criando..."
+              : `${isEditing ? "Salvar Alterações" : "Criar Cotação"}${
+                  totalSelectedSuppliers > 0 ? ` (${totalSelectedSuppliers} fornecedores)` : ""
+                }`}
           </Button>
         </DialogFooter>
       </DialogContent>

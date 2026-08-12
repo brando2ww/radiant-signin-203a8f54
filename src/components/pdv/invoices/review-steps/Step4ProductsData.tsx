@@ -5,6 +5,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Check, Plus, Sparkles } from "lucide-react";
 import { EditableInvoiceData, EditableInvoiceItem } from "@/types/invoice";
 import { ProductItemEditor } from "../ProductItemEditor";
+import { blankEditableItem } from "@/lib/invoice/blank-invoice";
+import { formatBRL } from "@/lib/format";
 
 interface Step4ProductsDataProps {
   data: EditableInvoiceData;
@@ -16,6 +18,39 @@ export function Step4ProductsData({ data, onUpdate }: Step4ProductsDataProps) {
     const updatedItems = [...data.items];
     updatedItems[index] = { ...updatedItems[index], ...updates };
     onUpdate({ items: updatedItems });
+  };
+
+  // Lançamento manual nasce sem itens; e mesmo vindo de PDF o parser às vezes
+  // perde uma linha. Nos dois casos é preciso poder acrescentar na mão.
+  const handleAddItem = () => {
+    onUpdate({ items: [...data.items, blankEditableItem(data.items.length + 1)] });
+  };
+
+  const handleRemoveItem = (index: number) => {
+    onUpdate({
+      items: data.items
+        .filter((_, i) => i !== index)
+        // Renumera para o item nº bater com a posição na lista e na nota.
+        .map((item, i) => ({ ...item, itemNumber: i + 1 })),
+    });
+  };
+
+  const itemsSum = data.items.reduce(
+    (sum, i) => sum + (Number(i.totalValue) || Number(i.quantity) * Number(i.unitValue) || 0),
+    0,
+  );
+  const totalsDiverge = Math.abs(itemsSum - Number(data.totals.products || 0)) > 0.01;
+
+  const handleApplyItemsSum = () => {
+    const t = data.totals;
+    onUpdate({
+      totals: {
+        ...t,
+        products: itemsSum,
+        // O total da nota acompanha: produtos + acessórios - desconto.
+        invoice: itemsSum + (t.freight || 0) + (t.insurance || 0) + (t.otherExpenses || 0) - (t.discount || 0),
+      },
+    });
   };
 
   const linkedCount = data.items.filter((i) => i.linkAction.type === "link").length;
@@ -139,10 +174,41 @@ export function Step4ProductsData({ data, onUpdate }: Step4ProductsDataProps) {
               key={index}
               item={item}
               onUpdate={(updates) => handleItemUpdate(index, updates)}
+              onRemove={data.items.length > 1 ? () => handleRemoveItem(index) : undefined}
             />
           ))}
+          {data.items.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nenhum item. Adicione os produtos da nota abaixo.
+            </p>
+          )}
         </div>
       </ScrollArea>
+
+      <Button variant="outline" className="w-full border-dashed" onClick={handleAddItem}>
+        <Plus className="mr-2 h-4 w-4" />
+        Adicionar item
+      </Button>
+
+      {/* Os totais da nota são digitados no passo 1 (no XML vêm prontos). No
+          lançamento manual eles ficariam zerados enquanto os itens existem —
+          e a nota e o contas a pagar sairiam com R$ 0. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+        <span>
+          Soma dos itens:{" "}
+          <strong>{formatBRL(itemsSum)}</strong>
+          {totalsDiverge && (
+            <span className="ml-2 text-amber-700">
+              · total da nota informado: {formatBRL(data.totals.products)}
+            </span>
+          )}
+        </span>
+        {totalsDiverge && (
+          <Button variant="outline" size="sm" onClick={handleApplyItemsSum}>
+            Usar a soma dos itens como total
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

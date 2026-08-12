@@ -14,6 +14,7 @@ import {
   Printer,
   ClipboardCheck,
   ChevronLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { QuotationRequest } from "@/hooks/use-pdv-quotations";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
@@ -45,6 +46,8 @@ interface SupplierOrder {
   paymentTerms: string | null;
   maxDeliveryDays: number | null;
   total: number;
+  /** Pedido mínimo do fornecedor. 0 = não tem. null = não informado. */
+  minimumOrder: number | null;
   message: string;
 }
 
@@ -58,6 +61,8 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   const [messages, setMessages] = useState<Record<string, string>>({});
   // "review" = conferência do que foi escolhido; "send" = mensagens do WhatsApp
   const [step, setStep] = useState<"review" | "send">("review");
+  // Já assumiu o risco de fechar abaixo do pedido mínimo de algum fornecedor?
+  const [minimumAck, setMinimumAck] = useState(false);
 
   // Agrupa os itens VENCEDORES por fornecedor.
   const orders = useMemo<SupplierOrder[]>(() => {
@@ -100,6 +105,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
           paymentTerms: win.payment_terms ?? null,
           maxDeliveryDays: win.delivery_days ?? null,
           total: orderItem.quantity * orderItem.unitPrice,
+          minimumOrder: win.supplier.minimum_order ?? null,
           message: "",
         });
       }
@@ -125,6 +131,31 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
     () => orders.reduce((sum, o) => sum + o.total, 0),
     [orders]
   );
+
+  // Fornecedores cujo pedido não alcança o mínimo que eles aceitam entregar.
+  const belowMinimum = useMemo(
+    () =>
+      orders.filter((o) => o.minimumOrder != null && o.minimumOrder > 0 && o.total < o.minimumOrder),
+    [orders]
+  );
+  const isBelow = (o: SupplierOrder) =>
+    o.minimumOrder != null && o.minimumOrder > 0 && o.total < o.minimumOrder;
+
+  // Abaixo do mínimo o avanço custa dois cliques: o primeiro só assume o risco.
+  // Não bloqueia — negociar o mínimo por fora é comum e travar levaria o
+  // comprador a fechar o pedido fora do sistema.
+  const handleConfirm = () => {
+    if (belowMinimum.length > 0 && !minimumAck) {
+      setMinimumAck(true);
+      toast.warning(
+        belowMinimum.length === 1
+          ? `${belowMinimum[0].name} está abaixo do pedido mínimo. Clique de novo para seguir assim.`
+          : `${belowMinimum.length} fornecedores abaixo do pedido mínimo. Clique de novo para seguir assim.`,
+      );
+      return;
+    }
+    setStep("send");
+  };
 
   const handlePrint = () => {
     const win = window.open("", "_blank", "width=900,height=1000");
@@ -234,6 +265,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   useEffect(() => {
     if (!open) return;
     setStep("review");
+    setMinimumAck(false);
     const next: Record<string, string> = {};
     orders.forEach((o) => {
       next[o.supplierId] = generateWinnerOrderMessage(o.name, o.items, {
@@ -338,9 +370,35 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                 </div>
               )}
 
+              {belowMinimum.length > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  <div className="text-destructive">
+                    <p className="font-medium">
+                      {belowMinimum.length === 1
+                        ? "1 fornecedor abaixo do pedido mínimo"
+                        : `${belowMinimum.length} fornecedores abaixo do pedido mínimo`}
+                    </p>
+                    <p className="text-xs">
+                      Ele pode recusar a entrega. Volte ao comparativo para somar mais
+                      itens com ele, ou confirme assumindo o risco.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {orders.map((o) => (
-                <div key={o.supplierId} className="overflow-hidden rounded-lg border">
-                  <div className="flex items-center justify-between gap-2 border-b bg-muted/50 px-3 py-2">
+                <div
+                  key={o.supplierId}
+                  className={`overflow-hidden rounded-lg border ${
+                    isBelow(o) ? "border-destructive/50" : ""
+                  }`}
+                >
+                  <div
+                    className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${
+                      isBelow(o) ? "bg-destructive/5" : "bg-muted/50"
+                    }`}
+                  >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{o.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -350,8 +408,16 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                           : "não informada"}{" "}
                         · Pagamento: {o.paymentTerms || "não informado"}
                       </p>
+                      {isBelow(o) && (
+                        <p className="text-xs font-medium text-destructive">
+                          Pedido mínimo {formatBRL(o.minimumOrder!)} · faltam{" "}
+                          {formatBRL(o.minimumOrder! - o.total)}
+                        </p>
+                      )}
                     </div>
-                    <Badge variant="secondary">{formatBRL(o.total)}</Badge>
+                    <Badge variant={isBelow(o) ? "destructive" : "secondary"}>
+                      {formatBRL(o.total)}
+                    </Badge>
                   </div>
 
                   <table className="w-full text-sm">
@@ -451,10 +517,13 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => setStep("send")}
+                  onClick={handleConfirm}
                   disabled={orders.length === 0}
+                  variant={belowMinimum.length > 0 && !minimumAck ? "destructive" : "default"}
                 >
-                  Confirmar pedido
+                  {belowMinimum.length > 0 && !minimumAck
+                    ? "Confirmar mesmo assim"
+                    : "Confirmar pedido"}
                 </Button>
               </div>
             </>

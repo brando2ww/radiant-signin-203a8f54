@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, FileText, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { RefreshCw, FileText, AlertCircle, CheckCircle2, Clock, PlusCircle } from "lucide-react";
+import { QuickPurchaseDialog } from "@/components/pdv/purchases/QuickPurchaseDialog";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNfeMde, useMdeLastQuery } from "@/hooks/use-nfe-mde";
@@ -53,6 +54,10 @@ export default function NfeImport() {
   const { config } = useMdeLastQuery();
   const consultar = useNfeMdeConsultar();
   const [filterStatus, setFilterStatus] = useState<string>("todos");
+  // Compra avulsa (mercado, atacado, feira): assistente próprio de 3 passos, e
+  // não o de importação de nota — sem documento fiscal para conferir, o que
+  // importa é entrar no estoque rápido.
+  const [manualOpen, setManualOpen] = useState(false);
 
   const filtered =
     filterStatus === "todos"
@@ -70,14 +75,22 @@ export default function NfeImport() {
             NF-es emitidas contra o CNPJ do estabelecimento via Focus NFe MDe
           </p>
         </div>
-        <Button
-          onClick={() => consultar.mutate()}
-          disabled={consultar.isPending || !hasConfig}
-          className="gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${consultar.isPending ? "animate-spin" : ""}`} />
-          {consultar.isPending ? "Consultando..." : "Consultar agora"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {/* Nem toda entrada vem pelo MDe: cupom fiscal, nota de produtor e
+              compra em atacado costumam chegar em papel. */}
+          <Button variant="outline" className="gap-2" onClick={() => setManualOpen(true)}>
+            <PlusCircle className="h-4 w-4" />
+            Compra avulsa
+          </Button>
+          <Button
+            onClick={() => consultar.mutate()}
+            disabled={consultar.isPending || !hasConfig}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${consultar.isPending ? "animate-spin" : ""}`} />
+            {consultar.isPending ? "Consultando..." : "Consultar agora"}
+          </Button>
+        </div>
       </div>
 
       {/* Status da integração */}
@@ -201,6 +214,8 @@ export default function NfeImport() {
           </Table>
         </CardContent>
       </Card>
+
+      <QuickPurchaseDialog open={manualOpen} onOpenChange={setManualOpen} />
     </div>
   );
 }

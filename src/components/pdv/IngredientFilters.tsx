@@ -49,12 +49,13 @@ export function IngredientFilters({
           />
         </div>
         {categories.length > 0 && onCategoryChange && (
-          <Select value={selectedCategory} onValueChange={onCategoryChange}>
+          <Select value={selectedCategory ?? "all"} onValueChange={onCategoryChange}>
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
+            {/* Muitas categorias: sem altura máxima a lista estoura a tela. */}
+            <SelectContent className="max-h-72">
+              <SelectItem value="all">Todas as categorias</SelectItem>
               {categories.map((cat) => (
                 <SelectItem key={cat} value={cat}>
                   {cat}

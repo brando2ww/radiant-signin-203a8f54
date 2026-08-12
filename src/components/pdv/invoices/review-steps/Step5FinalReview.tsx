@@ -20,6 +20,13 @@ export function Step5FinalReview({ data }: Step5FinalReviewProps) {
 
   const hasWarnings = noneCount > 0;
 
+  const itemsSum = data.items.reduce(
+    (sum, i) => sum + (Number(i.totalValue) || Number(i.quantity) * Number(i.unitValue) || 0),
+    0,
+  );
+  const totalsWarning =
+    data.totals.invoice <= 0 || Math.abs(itemsSum - Number(data.totals.products || 0)) > 0.01;
+
   return (
     <div className="space-y-6">
       <div>
@@ -79,6 +86,15 @@ export function Step5FinalReview({ data }: Step5FinalReviewProps) {
               <div>
                 <Label className="text-xs text-muted-foreground">Total da Nota</Label>
                 <p className="text-lg font-semibold">{formatCurrency(data.totals.invoice)}</p>
+                {/* Nota com total zerado grava contas a pagar de R$ 0 e some do
+                    financeiro sem ninguém perceber. */}
+                {totalsWarning && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    {data.totals.invoice <= 0
+                      ? "Total zerado. Volte ao passo Produtos e aplique a soma dos itens."
+                      : `Diverge da soma dos itens (${formatCurrency(itemsSum)}).`}
+                  </p>
+                )}
               </div>
             </div>
           </div>

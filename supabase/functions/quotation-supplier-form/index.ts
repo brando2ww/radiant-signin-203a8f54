@@ -18,6 +18,9 @@ const json = (body: unknown, status = 200) =>
 
 const OPEN_STATUSES = ["pending", "in_progress"];
 const CONSERVATIONS = ["resfriado", "congelado", "ambiente"];
+// "Não tenho este item" é resposta válida: o lojista precisa saber que o
+// fornecedor viu e recusou, em vez de ficar esperando um preço que não vem.
+const UNAVAILABLE_REASONS = ["sem_estoque", "nao_trabalha", "em_falta"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -88,7 +91,7 @@ Deno.serve(async (req) => {
       if (itemIds.length > 0) {
         const { data: resps } = await service
           .from("pdv_quotation_responses")
-          .select("id, quotation_item_id, unit_price, brand, conservation, delivery_days, minimum_order, payment_terms, expiration_date, notes")
+          .select("id, quotation_item_id, unit_price, brand, conservation, delivery_days, minimum_order, payment_terms, expiration_date, notes, unavailable_reason")
           .eq("supplier_id", link.supplier_id)
           .in("quotation_item_id", itemIds)
           .order("created_at", { ascending: true });
@@ -140,9 +143,23 @@ Deno.serve(async (req) => {
       // então a limpeza do que existia é feita por item UMA vez, antes de
       // inserir — apagar dentro do loop faria a 2ª oferta matar a 1ª.
       const offersByItem = new Map<string, any[]>();
+      // Itens que o fornecedor declarou não ter (motivo, sem preço).
+      const unavailableByItem = new Map<string, { reason: string; notes: string | null }>();
       for (const resp of responses) {
         const itemId = resp?.quotation_item_id;
         if (!itemId || !validItems.has(itemId)) continue; // anti-adulteração
+
+        // Recusa vem antes do preço: item marcado como indisponível não tem oferta.
+        if (UNAVAILABLE_REASONS.includes(resp?.unavailable_reason)) {
+          unavailableByItem.set(itemId, {
+            reason: resp.unavailable_reason,
+            notes: typeof resp?.notes === "string" && resp.notes.trim() ? resp.notes.trim() : null,
+          });
+          offersByItem.delete(itemId);
+          continue;
+        }
+        if (unavailableByItem.has(itemId)) continue;
+
         const unitPrice = resp?.unit_price === "" || resp?.unit_price == null ? null : Number(resp.unit_price);
         if (unitPrice == null || Number.isNaN(unitPrice)) continue; // preço é obrigatório
 
@@ -191,6 +208,26 @@ Deno.serve(async (req) => {
           })),
         );
         if (!insErr) saved += offers.length;
+      }
+
+      // Recusas: mesma substituição idempotente, uma linha sem preço por item.
+      for (const [itemId, refusal] of unavailableByItem) {
+        await service
+          .from("pdv_quotation_responses")
+          .delete()
+          .eq("quotation_item_id", itemId)
+          .eq("supplier_id", link.supplier_id);
+
+        const { error: refErr } = await service.from("pdv_quotation_responses").insert({
+          quotation_item_id: itemId,
+          supplier_id: link.supplier_id,
+          unit_price: null,
+          total_price: null,
+          unavailable_reason: refusal.reason,
+          notes: refusal.notes,
+          source: "link",
+        });
+        if (!refErr) saved += 1;
       }
 
       await service

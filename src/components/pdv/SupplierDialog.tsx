@@ -45,6 +45,7 @@ import { CEPInput } from "@/components/ui/cep-input";
 import { PDVSupplier } from "@/hooks/use-pdv-suppliers";
 import { useCEPLookup } from "@/hooks/use-cep-lookup";
 import { Loader2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SUPPLIER_CATEGORIES } from "@/components/pdv/SupplierFilters";
 import { SupplierContactsTab, type SupplierContact } from "@/components/pdv/suppliers/SupplierContactsTab";
@@ -92,6 +93,7 @@ export function SupplierDialog({
       delivery_time: "",
       delivery_time_unit: "days",
       credit_limit: "",
+      minimum_order: "",
       preferred_payment_method: "",
       category: "",
       is_active: true,
@@ -101,6 +103,11 @@ export function SupplierDialog({
 
   const { lookupCEP, isLoading: isLoadingCEP } = useCEPLookup();
   const [documentType, setDocumentType] = useState<"cnpj" | "cpf">("cnpj");
+  // "" = ainda não respondeu (cadastro antigo). Salvar exige uma das duas.
+  const [minimumOrderMode, setMinimumOrderMode] = useState<"" | "yes" | "no">("");
+  // Controlada para o erro de pedido mínimo poder abrir a aba Comercial —
+  // senão o toast aponta para um campo que a pessoa não está vendo.
+  const [activeTab, setActiveTab] = useState("general");
   
   const isActive = watch("is_active");
   const isBillingAddress = watch("is_billing_address");
@@ -109,6 +116,7 @@ export function SupplierDialog({
   const cpfValue = watch("cpf");
 
   useEffect(() => {
+    setActiveTab("general");
     if (supplier) {
       const hasDocument = supplier.cnpj || supplier.cpf;
       const docType = supplier.cnpj ? "cnpj" : "cpf";
@@ -141,11 +149,19 @@ export function SupplierDialog({
         delivery_time: supplier.delivery_time?.toString() || "",
         delivery_time_unit: supplier.delivery_time_unit || "days",
         credit_limit: supplier.credit_limit?.toString() || "",
+        minimum_order:
+          supplier.minimum_order != null && Number(supplier.minimum_order) > 0
+            ? supplier.minimum_order.toString()
+            : "",
         preferred_payment_method: supplier.preferred_payment_method || "",
         category: supplier.category || "",
         is_active: supplier.is_active,
         contacts: Array.isArray((supplier as any).contacts) ? (supplier as any).contacts : [],
       });
+      // Cadastro anterior ao campo vem com null: fica sem resposta e o salvar cobra.
+      setMinimumOrderMode(
+        supplier.minimum_order == null ? "" : Number(supplier.minimum_order) > 0 ? "yes" : "no",
+      );
     } else {
       reset({
         name: "",
@@ -174,12 +190,14 @@ export function SupplierDialog({
         delivery_time: "",
         delivery_time_unit: "days",
         credit_limit: "",
+        minimum_order: "",
         preferred_payment_method: "",
         category: "",
         is_active: true,
         contacts: [],
       });
       setDocumentType("cnpj");
+      setMinimumOrderMode("");
     }
   }, [supplier, reset, open]);
 
@@ -197,6 +215,20 @@ export function SupplierDialog({
   };
 
   const handleFormSubmit = (data: any) => {
+    // Pedido mínimo é obrigatório: sem resposta o comparativo e o fechamento do
+    // pedido não têm como avisar que o fornecedor não atende o valor.
+    if (minimumOrderMode === "") {
+      setActiveTab("commercial");
+      toast.error("Informe o pedido mínimo do fornecedor (ou marque que não tem).");
+      return;
+    }
+    const minimumValue = minimumOrderMode === "no" ? 0 : parseFloat(data.minimum_order || "0");
+    if (minimumOrderMode === "yes" && !(minimumValue > 0)) {
+      setActiveTab("commercial");
+      toast.error("Informe o valor do pedido mínimo.");
+      return;
+    }
+
     const formData = {
       ...data,
       cnpj: documentType === "cnpj" ? data.cnpj : null,
@@ -204,6 +236,7 @@ export function SupplierDialog({
       category: data.category || null,
       delivery_time: data.delivery_time ? parseInt(data.delivery_time) : null,
       credit_limit: data.credit_limit ? parseFloat(data.credit_limit) : null,
+      minimum_order: minimumValue,
     };
     delete formData.document_type;
     onSubmit(formData);
@@ -253,7 +286,7 @@ export function SupplierDialog({
           className="flex-1 flex flex-col min-h-0"
         >
           <div className="flex-1 overflow-y-auto px-6 py-4">
-          <Tabs defaultValue="general" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="general">Dados Gerais</TabsTrigger>
               <TabsTrigger value="address">Endereço</TabsTrigger>
@@ -524,6 +557,49 @@ export function SupplierDialog({
                       <SelectItem value="90_dias">90 dias</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="rounded-lg border p-3 space-y-3">
+                  <div>
+                    <Label>Pedido mínimo *</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Valor abaixo do qual este fornecedor não entrega. O sistema
+                      avisa na comparação e no fechamento do pedido.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { value: "yes", label: "Tem pedido mínimo" },
+                      { value: "no", label: "Não tem pedido mínimo" },
+                    ].map((opt) => {
+                      const active = minimumOrderMode === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setMinimumOrderMode(opt.value as "yes" | "no");
+                            if (opt.value === "no") setValue("minimum_order", "");
+                          }}
+                          className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                            active
+                              ? "bg-primary text-primary-foreground border-transparent"
+                              : "hover:bg-muted"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {minimumOrderMode === "yes" && (
+                    <CurrencyInput
+                      value={watch("minimum_order")}
+                      onChange={(v) => setValue("minimum_order", v)}
+                    />
+                  )}
                 </div>
 
                 <div>
