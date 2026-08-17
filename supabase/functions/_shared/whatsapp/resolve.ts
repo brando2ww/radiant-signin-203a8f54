@@ -9,6 +9,7 @@
  */
 import type { Channel, ChannelError } from "./types.ts";
 import { evolutionEnv } from "./evolution.ts";
+import { sellGridEnv } from "./sellgrid.ts";
 
 const notConfigured = (): ChannelError => ({
   error: {
@@ -53,7 +54,22 @@ export async function resolveTenantChannel(
 
   if (!conn) return noConnection();
 
-  // Só existe Evolution hoje; a Cloud entra aqui na fase 1.
+  // SellGrid: canal da plataforma. Não há instância por cliente — a conexão só
+  // registra que este estabelecimento optou por enviar pelo número da Velara.
+  if (conn.provider === "sellgrid") {
+    if (!sellGridEnv()) {
+      return {
+        error: {
+          ok: false,
+          status: "failed",
+          errorCode: "sellgrid_not_configured",
+          errorMessage: "Envio pelo número da Velara não está configurado no servidor.",
+        },
+      };
+    }
+    return { provider: "sellgrid", ownerId, connectionId: conn.id };
+  }
+
   if (!env) return notConfigured();
 
   return {

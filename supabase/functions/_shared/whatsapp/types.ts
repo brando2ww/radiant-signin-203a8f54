@@ -1,7 +1,7 @@
 // Tipos da camada de WhatsApp. Um provedor a mais (Meta Cloud API) entra aqui
 // sem tocar em nenhum call site.
 
-export type Provider = "evolution" | "cloud";
+export type Provider = "evolution" | "sellgrid" | "cloud";
 
 /** Por onde a mensagem sai. Resolvido uma vez, por tenant ou global. */
 export interface Channel {

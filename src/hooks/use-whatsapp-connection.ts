@@ -19,6 +19,8 @@ export interface WhatsAppConnection {
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;
+  /** evolution = QR do próprio número · sellgrid = número oficial da Velara */
+  provider?: 'evolution' | 'sellgrid' | 'cloud';
 }
 
 export interface QRCodeResponse {
@@ -94,6 +96,33 @@ export function useWhatsAppConnection() {
   });
 
   const isConnected = connection?.connection_status === 'open';
+
+  /**
+   * Ativa o envio pelo número oficial da Velara (SellGrid). Não há QR nem
+   * instância: a linha só registra a escolha do estabelecimento, e o envio usa
+   * as credenciais da plataforma, guardadas no servidor.
+   */
+  const connectSellGrid = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error('Usuário não autenticado');
+      const { error } = await supabase
+        .from('whatsapp_connections')
+        .upsert({
+          user_id: user.id,
+          provider: 'sellgrid',
+          instance_name: null,
+          connection_name: 'Número oficial Velara',
+          connection_status: 'open',
+          connected_at: new Date().toISOString(),
+        } as never, { onConflict: 'user_id,provider' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-connection'] });
+      toast.success('Envio pelo número da Velara ativado.');
+    },
+    onError: (e: Error) => toast.error(e.message || 'Não foi possível ativar.'),
+  });
 
   // Generate QR Code
   const generateQRCode = useMutation({
@@ -224,6 +253,7 @@ export function useWhatsAppConnection() {
 
   return {
     connection, isLoading, isConnected, qrCode, pairingCode, isPolling, pollError,
+    connectSellGrid: connectSellGrid.mutate, isConnectingSellGrid: connectSellGrid.isPending,
     isGenerating: generateQRCode.isPending,
     isDisconnecting: disconnect.isPending,
     generateQRCode: generateQRCode.mutate,

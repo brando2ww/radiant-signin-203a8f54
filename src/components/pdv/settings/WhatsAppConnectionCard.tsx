@@ -19,8 +19,14 @@ export function WhatsAppConnectionCard() {
     isLoading,
     isConnected,
     isDisconnecting,
-    disconnect
+    disconnect,
+    connectSellGrid,
+    isConnectingSellGrid,
   } = useWhatsAppConnection();
+
+  // O webhook de entrada é do Evolution: no número da Velara as respostas ficam
+  // no atendimento da SellGrid, então o botão não faz sentido ali.
+  const isSellGrid = connection?.provider === 'sellgrid';
 
   const handleRegisterWebhook = async () => {
     setIsRegisteringWebhook(true);
@@ -85,6 +91,7 @@ export function WhatsAppConnectionCard() {
           
           {isConnected ? (
             <div className="flex items-center gap-2">
+              {!isSellGrid && (
               <Button
                 variant="outline"
                 size="sm"
@@ -104,6 +111,7 @@ export function WhatsAppConnectionCard() {
                   </>
                 )}
               </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => disconnect()}
@@ -119,13 +127,59 @@ export function WhatsAppConnectionCard() {
                 )}
               </Button>
             </div>
-          ) : (
-            <Button onClick={() => setShowQRDialog(true)} className="gap-2">
-              <ExternalLink className="h-4 w-4" />
-              Conectar
-            </Button>
-          )}
+          ) : null}
         </div>
+
+        {/* Duas formas de enviar, e a diferença entre elas não é técnica: é de
+            quem aparece como remetente e para onde vai a resposta. */}
+        {!isConnected && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="font-medium text-sm">Número oficial da Velara</p>
+              <p className="text-xs text-muted-foreground">
+                Ativa na hora, sem QR Code e sem usar o celular do restaurante. Indicado para
+                disparo em massa de cotações.
+              </p>
+              <p className="text-xs text-amber-700">
+                O fornecedor recebe do número da Velara · se ele responder no WhatsApp, a
+                resposta não chega aqui. Para cotação isso não atrapalha, porque ele responde
+                pelo link do formulário.
+              </p>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={() => connectSellGrid()}
+                disabled={isConnectingSellGrid}
+              >
+                {isConnectingSellGrid ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Ativando...
+                  </>
+                ) : (
+                  "Ativar número da Velara"
+                )}
+              </Button>
+            </div>
+
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="font-medium text-sm">Seu próprio número (QR Code)</p>
+              <p className="text-xs text-muted-foreground">
+                O fornecedor recebe do número do restaurante e a resposta chega no seu
+                WhatsApp. Exige ler o QR Code e manter o celular conectado.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => setShowQRDialog(true)}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Conectar por QR Code
+              </Button>
+            </div>
+          </div>
+        )}
 
         {isConnected && connection && (
           <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">

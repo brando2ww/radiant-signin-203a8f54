@@ -11,12 +11,14 @@
  */
 import type { Channel, MessageContext, SendOutcome } from "./types.ts";
 import { evolutionSendText } from "./evolution.ts";
+import { sellGridSendText } from "./sellgrid.ts";
 import { toWhatsAppNumber } from "./phone.ts";
 
 export * from "./types.ts";
 export { resolveTenantChannel, resolveGlobalChannel } from "./resolve.ts";
 export { toWhatsAppNumber, phoneSuffix } from "./phone.ts";
 export { evolutionEnv } from "./evolution.ts";
+export { sellGridEnv } from "./sellgrid.ts";
 
 export async function sendText(
   service: any,
@@ -25,15 +27,21 @@ export async function sendText(
   text: string,
   ctx: MessageContext,
 ): Promise<SendOutcome> {
+  // Id gerado antes do envio: a SellGrid exige externalKey e é por ele que a
+  // mensagem lá é casada com a linha daqui.
+  const externalKey = crypto.randomUUID();
+
   const outcome =
     ch.provider === "evolution"
       ? await evolutionSendText(ch, to, text)
-      : {
-          ok: false,
-          status: "failed" as const,
-          errorCode: "provider_unsupported",
-          errorMessage: "Provedor ainda não implementado.",
-        };
+      : ch.provider === "sellgrid"
+        ? await sellGridSendText(ch, to, text, externalKey)
+        : {
+            ok: false,
+            status: "failed" as const,
+            errorCode: "provider_unsupported",
+            errorMessage: "Provedor ainda não implementado.",
+          };
 
   await logMessage(service, ch, to, text, ctx, outcome);
   return outcome;
