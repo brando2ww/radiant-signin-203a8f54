@@ -42,44 +42,42 @@ export async function resolveTenantChannel(
   const env = evolutionEnv();
   const ownerId = await resolveOwner(service, userId);
 
-  const { data: conn } = await service
+  const { data: conns } = await service
     .from("whatsapp_connections")
     .select("id, instance_name, provider")
     .eq("user_id", ownerId)
-    .eq("connection_status", "open")
-    // Determinístico: quando houver mais de uma, a marcada como padrão manda.
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("connection_status", "open");
 
-  if (!conn) return noConnection();
+  const list = (conns ?? []) as Array<{ id: string; instance_name: string | null; provider: string }>;
 
-  // SellGrid: canal da plataforma. Não há instância por cliente — a conexão só
-  // registra que este estabelecimento optou por enviar pelo número da Velara.
-  if (conn.provider === "sellgrid") {
-    if (!sellGridEnv()) {
-      return {
-        error: {
-          ok: false,
-          status: "failed",
-          errorCode: "sellgrid_not_configured",
-          errorMessage: "Envio pelo número da Velara não está configurado no servidor.",
-        },
-      };
-    }
-    return { provider: "sellgrid", ownerId, connectionId: conn.id };
+  // O número PRÓPRIO do cliente vence sempre. Quem já conectou por QR continua
+  // enviando do número dele: trocar por baixo mudaria o remetente que o
+  // fornecedor conhece e faria as respostas dele pararem de chegar ao lojista.
+  const evolutionConn = list.find((c) => c.provider === "evolution");
+  if (evolutionConn) {
+    if (!env) return notConfigured();
+    return {
+      provider: "evolution",
+      ownerId,
+      connectionId: evolutionConn.id,
+      instanceName: evolutionConn.instance_name ?? undefined,
+      evolutionUrl: env.url,
+      evolutionKey: env.key,
+    };
   }
 
-  if (!env) return notConfigured();
+  // Sem número próprio: o número oficial da Velara é o padrão, mesmo que o
+  // estabelecimento nunca tenha configurado nada. A linha em
+  // whatsapp_connections deixa de ser pré-requisito — ela só existe para
+  // registrar a escolha de quem clicou.
+  const sellGridConn = list.find((c) => c.provider === "sellgrid");
+  if (sellGridEnv()) {
+    return { provider: "sellgrid", ownerId, connectionId: sellGridConn?.id ?? null };
+  }
 
-  return {
-    provider: "evolution",
-    ownerId,
-    connectionId: conn.id,
-    instanceName: conn.instance_name,
-    evolutionUrl: env.url,
-    evolutionKey: env.key,
-  };
+  // Sem número próprio E sem o canal da plataforma configurado: aí sim não há
+  // por onde enviar.
+  return list.length > 0 ? notConfigured() : noConnection();
 }
 
 /**

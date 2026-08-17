@@ -41,6 +41,35 @@ export function sellGridEnv(): SellGridEnv | null {
   };
 }
 
+/**
+ * O erro da Meta vem enterrado numa stack de Axios serializada. Estes dois
+ * ajudantes tiram dali o que serve para o lojista, e — importante — NUNCA
+ * devolvem a string crua: ela contém o access_token da conta WhatsApp da
+ * Velara, que a SellGrid ecoa na URL do erro.
+ */
+function metaErrorCode(inner: string): string {
+  if (/131047|re-?engagement/i.test(inner)) return "outside_24h_window";
+  if (/131026|not.*capable|invalid.*recipient/i.test(inner)) return "invalid_recipient";
+  if (/132\d{3}|template/i.test(inner)) return "template_error";
+  if (/status code 401|403/i.test(inner)) return "meta_auth";
+  return "send_failed";
+}
+
+function metaErrorMessage(inner: string): string {
+  switch (metaErrorCode(inner)) {
+    case "outside_24h_window":
+      return "A Meta recusou: fora da janela de 24h. Mensagem para quem não escreveu antes precisa de modelo aprovado.";
+    case "invalid_recipient":
+      return "Número não recebe mensagens no WhatsApp.";
+    case "template_error":
+      return "Problema no modelo de mensagem aprovado na Meta.";
+    case "meta_auth":
+      return "A conta WhatsApp da Velara recusou a autenticação. Verifique o token na SellGrid.";
+    default:
+      return "A Meta recusou o envio.";
+  }
+}
+
 export async function sellGridSendText(
   ch: Channel,
   to: string,
@@ -108,6 +137,25 @@ export async function sellGridSendText(
         msg = JSON.parse(raw)?.error ?? msg;
       } catch { /* resposta não-JSON */ }
       return { ok: false, status: "failed", errorCode: `http_${res.status}`, errorMessage: msg };
+    }
+
+    // ARMADILHA: a SellGrid responde HTTP 200 com success:true MESMO quando a
+    // Meta recusa a mensagem — o erro real vem embutido em data.message como
+    // "Message sent error: ...". Confiar no status HTTP faria o log marcar como
+    // enviada uma cotação que nunca chegou ao fornecedor.
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch { /* sem corpo JSON: trata como enviado */ }
+
+    const inner = String(parsed?.data?.message ?? "");
+    if (parsed?.success === false || inner.includes("Message sent error")) {
+      return {
+        ok: false,
+        status: "failed",
+        errorCode: metaErrorCode(inner),
+        errorMessage: metaErrorMessage(inner),
+      };
     }
 
     return { ok: true, status: "sent", providerMessageId: externalKey };
