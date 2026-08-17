@@ -198,17 +198,113 @@ export async function printCashierReport(params: PrintCashierReportParams) {
     ["Vendas a Prazo", totalFiado, declaredFiado],
   ];
 
-  const conferenceHtml = conferenceRows
-    .filter(([, expected, declared]) => expected > 0 || declared != null)
-    .map(([label, expected, declared]) => {
-      const d = declared != null ? declared - expected : null;
-      const status = d == null ? "—" : Math.abs(d) <= 0.5 ? "✓" : (d > 0 ? `+${formatBRL(d)}` : formatBRL(d));
-      return `<div class="row">
-        <span>${label}:</span>
-        <span><b>Esp ${formatBRL(expected)} | Decl ${declared != null ? formatBRL(declared) : "—"} | ${status}</b></span>
-      </div>`;
+  // Tolerância do papel. Diferente do TOL da tela (meio centavo): na conferência
+  // física, centavos de troco não são divergência que mereça justificativa.
+  const PRINT_TOL = 0.5;
+
+  // Composição das vendas por forma. Antes o total do sistema aparecia sozinho,
+  // sem como o conferente somar de cima para baixo e chegar nele.
+  const salesRows: Array<[string, number]> = [
+    ["Dinheiro", totalCash],
+    ["Crédito", totalCredit],
+    ["Débito", totalDebit],
+    ["PIX", totalPix],
+    ["Vale-refeição", totalVoucher],
+    ["Online (Delivery)", totalOnlineDelivery],
+    ["Vendas a Prazo", totalFiado],
+    ["Outros", Number((session as any)?.total_other) || 0],
+  ].filter(([, v]) => (v as number) > 0) as Array<[string, number]>;
+
+  const breakdownSum = salesRows.reduce((acc, [, v]) => acc + v, 0);
+
+  const salesBreakdownHtml = salesRows
+    .map(([label, v]) => {
+      const pct = totalSales > 0 ? (v / totalSales) * 100 : 0;
+      return `<div class="row"><span>${label} <small>(${pct.toFixed(0)}%)</small></span><span>${formatBRL(v)}</span></div>`;
     })
     .join("");
+
+  // Inclui o dinheiro na conferência: ele é a forma mais sujeita a diferença e
+  // ficava fora desta tabela, só no resumo da gaveta.
+  const allConferenceRows: Array<[string, number, number | null]> = [
+    ["Dinheiro", expectedCash, finalBalance],
+    ...conferenceRows,
+  ];
+
+  const visibleRows = allConferenceRows.filter(
+    ([, expected, declared]) => expected > 0 || (declared != null && declared > 0),
+  );
+
+  // Soma das diferenças. Três formas com R$ 5 de furo cada não aparecem em
+  // lugar nenhum hoje — só o total revela.
+  const totalDiff = visibleRows.reduce(
+    (acc, [, expected, declared]) => acc + (declared != null ? declared - expected : 0),
+    0,
+  );
+  const divergentCount = visibleRows.filter(
+    ([, expected, declared]) => declared != null && Math.abs(declared - expected) > PRINT_TOL,
+  ).length;
+
+  const conferenceHtml = visibleRows.length
+    ? `<table class="conf">
+    <tr>
+      <th>Forma</th><th class="num">Esperado</th><th class="num">Apurado</th><th class="num">Dif.</th>
+    </tr>
+    ${visibleRows
+      .map(([label, expected, declared]) => {
+        const d = declared != null ? declared - expected : null;
+        const flag =
+          d == null ? "—" : Math.abs(d) <= PRINT_TOL ? "OK" : `${d > 0 ? "+" : ""}${formatBRL(d)}`;
+        return `<tr>
+        <td>${label}</td>
+        <td class="num">${formatBRL(expected)}</td>
+        <td class="num">${declared != null ? formatBRL(declared) : "—"}</td>
+        <td class="num flag">${flag}</td>
+      </tr>`;
+      })
+      .join("")}
+    <tr class="sum">
+      <td>DIFERENÇA TOTAL</td>
+      <td class="num"></td>
+      <td class="num"></td>
+      <td class="num">${totalDiff > 0 ? "+" : ""}${formatBRL(totalDiff)}</td>
+    </tr>
+  </table>
+  ${divergentCount > 0
+      ? `<div class="row muted"><span>${divergentCount} forma(s) fora da tolerância de ${formatBRL(PRINT_TOL)}</span><span></span></div>`
+      : ""}`
+    : "";
+
+  // Nome da loja, quem abriu e quem fechou, e quantas vendas. Nada disso vinha
+  // no papel — e num documento cuja função é responsabilizar alguém pela gaveta,
+  // não ter o nome do operador é a falha mais séria.
+  let businessName = "";
+  let openedByName = "";
+  let closedByName = "";
+  let salesCount = 0;
+  try {
+    const ids = [session?.opened_by_user_id, session?.closed_by_user_id].filter(Boolean);
+    const [{ data: biz }, { data: people }, { count }] = await Promise.all([
+      supabase.from("business_settings").select("business_name").eq("user_id", session.user_id).maybeSingle(),
+      ids.length
+        ? supabase.from("profiles").select("id, full_name").in("id", ids as string[])
+        : Promise.resolve({ data: [] as any[] }),
+      session?.id
+        ? supabase
+            .from("pdv_orders")
+            .select("id", { count: "exact", head: true })
+            .eq("cashier_session_id", session.id)
+        : Promise.resolve({ count: 0 }),
+    ]);
+    businessName = biz?.business_name ?? "";
+    const nameOf = (id: string | null | undefined) =>
+      (people ?? []).find((p: any) => p.id === id)?.full_name ?? "";
+    openedByName = nameOf(session?.opened_by_user_id);
+    closedByName = nameOf(session?.closed_by_user_id);
+    salesCount = count ?? 0;
+  } catch {
+    // O demonstrativo sai mesmo sem esses complementos.
+  }
 
   // Busca apenas despesas financeiras vinculadas à sessão (cancelamentos e descontos ficam no demonstrativo digital).
   let expenses: Array<{ description: string; amount: number }> = [];
@@ -282,14 +378,14 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   const cancellationsHtml = `<div class="divider"></div>
 <div class="section">
   <div class="section-title">CANCELAMENTOS</div>
-  <div class="row total"><span>${cancelledOrders.length} cancelamento${cancelledOrders.length !== 1 ? "s" : ""}</span><span>${cancelledOrders.length > 0 ? `- ${formatBRL(cancTotal)}` : "R$ 0,00"}</span></div>
+  <div class="row total"><span>${cancelledOrders.length} cancelamento${cancelledOrders.length !== 1 ? "s" : ""}${totalSales > 0 && cancTotal > 0 ? ` <small>(${((cancTotal / totalSales) * 100).toFixed(1)}% das vendas)</small>` : ""}</span><span>${cancelledOrders.length > 0 ? `- ${formatBRL(cancTotal)}` : "R$ 0,00"}</span></div>
   ${cancelledOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}${o.reason ? ` — ${String(o.reason).slice(0, 30)}` : ""}</span><span>${formatBRL(o.amount)}</span></div>`).join("")}
 </div>`;
 
   const discountsHtml = `<div class="divider"></div>
 <div class="section">
   <div class="section-title">DESCONTOS CONCEDIDOS</div>
-  <div class="row total"><span>${discountedOrders.length} pedido${discountedOrders.length !== 1 ? "s" : ""}</span><span>${discountedOrders.length > 0 ? `- ${formatBRL(discTotal)}` : "R$ 0,00"}</span></div>
+  <div class="row total"><span>${discountedOrders.length} pedido${discountedOrders.length !== 1 ? "s" : ""}${totalSales > 0 && discTotal > 0 ? ` <small>(${((discTotal / totalSales) * 100).toFixed(1)}% das vendas)</small>` : ""}</span><span>${discountedOrders.length > 0 ? `- ${formatBRL(discTotal)}` : "R$ 0,00"}</span></div>
   ${discountedOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}</span><span>- ${formatBRL(o.discount)}</span></div>`).join("")}
 </div>`;
 
@@ -313,22 +409,45 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   @page { size: 80mm auto; margin: 4mm; }
   * { color: #000 !important; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #000; margin: 0; padding: 8px; line-height: 1.35; -webkit-print-color-adjust: exact; }
-  h1 { font-size: 16px; font-weight: 800; text-align: center; margin: 0 0 6px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; letter-spacing: 0.3px; }
+  h1 { font-size: 16px; font-weight: 800; text-align: center; margin: 0 0 2px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 6px 0; letter-spacing: 0.3px; }
+  .subtitle { text-align: center; font-size: 12px; font-weight: 700; margin: 4px 0 8px; }
   .section { margin: 8px 0; }
   .section-title { font-weight: 800; font-size: 13px; border-bottom: 1.5px solid #000; padding-bottom: 3px; margin-bottom: 5px; text-transform: uppercase; }
   .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 2px 0; }
-  .row > span:last-child { font-weight: 700; text-align: right; }
+  /* Dígito de largura fixa: sem isso as colunas de valor dançam a cada linha e
+     o conferente perde a régua vertical para somar de cima para baixo. */
+  .row > span:last-child { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .row.total { font-weight: 800; font-size: 14px; border-top: 1.5px solid #000; padding-top: 5px; margin-top: 5px; }
+  .row.muted > span { font-weight: 400; font-size: 12px; }
   .divider { border-top: 2px solid #000; margin: 7px 0; }
+  /* Caixa do número que o operador precisa enxergar de longe. */
+  .highlight { border: 2px solid #000; padding: 6px 8px; margin: 6px 0; }
+  .highlight .label { font-size: 11px; font-weight: 700; text-transform: uppercase; }
+  .highlight .value { font-size: 20px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .highlight.alert { border-width: 3px; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; font-size: 11px; font-weight: 800; border-bottom: 1.5px solid #000; padding: 3px 6px; text-transform: uppercase; }
+  /* Conferência em 4 colunas: forma, esperado, apurado, diferença. Antes era
+     tudo numa linha de texto corrido, que quebrava na bobina de 80mm. */
+  table.conf { font-size: 12px; }
+  table.conf th, table.conf td { padding: 3px 2px; }
+  table.conf td { border-bottom: 1px dotted #999; }
+  table.conf td.num, table.conf th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.conf tr.sum td { border-top: 1.5px solid #000; border-bottom: none; font-weight: 800; font-size: 13px; padding-top: 5px; }
+  .flag { font-weight: 800; }
+  .sign { margin-top: 18px; display: flex; gap: 10px; }
+  .sign > div { flex: 1; text-align: center; font-size: 10px; border-top: 1px solid #000; padding-top: 3px; }
   .footer { text-align: center; font-size: 11px; margin-top: 12px; border-top: 2px solid #000; padding-top: 6px; font-weight: 600; }
   .risk-badge { display: inline-block; padding: 3px 10px; font-weight: 800; font-size: 12px; border: 2px solid #000; margin-top: 4px; text-transform: uppercase; }
+  .criteria { font-size: 10px; text-align: center; margin-top: 3px; }
 </style></head><body>
 <h1>DEMONSTRATIVO DE CAIXA</h1>
+${businessName ? `<div class="subtitle">${businessName}</div>` : ""}
 <div class="section">
   <div class="row"><span>Abertura:</span><span>${openedAt}</span></div>
   <div class="row"><span>Fechamento:</span><span>${closedAt}</span></div>
+  ${openedByName ? `<div class="row"><span>Aberto por:</span><span>${openedByName}</span></div>` : ""}
+  ${closedByName ? `<div class="row"><span>Fechado por:</span><span>${closedByName}</span></div>` : ""}
 </div>
 <div class="divider"></div>
 <div class="section">
@@ -339,7 +458,10 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   <div class="row"><span>Sangrias:</span><span>- ${formatBRL(totalWithdrawals)}</span></div>
   <div class="row total"><span>Esperado na gaveta:</span><span>${formatBRL(expectedCash)}</span></div>
   <div class="row total"><span>Contado pelo operador:</span><span>${formatBRL(finalBalance)}</span></div>
-  <div class="row total"><span>Diferença:</span><span>${cashDiff >= 0 ? "+" : ""}${formatBRL(cashDiff)}</span></div>
+</div>
+<div class="highlight${Math.abs(cashDiff) > PRINT_TOL ? " alert" : ""}">
+  <div class="label">Diferença na gaveta ${Math.abs(cashDiff) <= PRINT_TOL ? "· confere" : cashDiff > 0 ? "· sobra" : "· falta"}</div>
+  <div class="value">${cashDiff > 0 ? "+" : ""}${formatBRL(cashDiff)}</div>
 </div>
 ${conferenceHtml ? `<div class="divider"></div>
 <div class="section">
@@ -348,7 +470,15 @@ ${conferenceHtml ? `<div class="divider"></div>
 </div>` : ""}
 <div class="divider"></div>
 <div class="section">
+  <div class="section-title">Composição das vendas</div>
+  ${salesBreakdownHtml}
   <div class="row total"><span>Total de Vendas (sistema):</span><span>${formatBRL(totalSales)}</span></div>
+  ${Math.abs(breakdownSum - totalSales) > PRINT_TOL
+    ? `<div class="row muted"><span>Não classificado por forma:</span><span>${formatBRL(totalSales - breakdownSum)}</span></div>`
+    : ""}
+  ${salesCount > 0
+    ? `<div class="row muted"><span>${salesCount} venda(s) · ticket médio</span><span>${formatBRL(totalSales / salesCount)}</span></div>`
+    : ""}
 </div>
 ${reinforcementsHtml}
 ${withdrawalsHtml}
@@ -363,6 +493,11 @@ ${finalNotes ? `
 </div>` : ""}
 <div class="section" style="text-align:center;margin-top:8px">
   <span class="risk-badge">Risco: ${riskLabels[finalRisk]}</span>
+  <div class="criteria">Classificação pela diferença na gaveta: ate R$ 5 confere · ate R$ 50 baixo · ate R$ 100 medio · ate R$ 200 alto</div>
+</div>
+<div class="sign">
+  <div>Operador${closedByName ? `<br/>${closedByName}` : ""}</div>
+  <div>Conferente</div>
 </div>
 <div class="footer">Documento gerado automaticamente<br/>${closedAt}</div>
 </body></html>`;
