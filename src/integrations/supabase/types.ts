@@ -4920,6 +4920,7 @@ export type Database = {
           id: string
           installment_number: number | null
           installment_total: number | null
+          invoice_id: string | null
           net_amount: number | null
           notes: string | null
           payment_date: string | null
@@ -4952,6 +4953,7 @@ export type Database = {
           id?: string
           installment_number?: number | null
           installment_total?: number | null
+          invoice_id?: string | null
           net_amount?: number | null
           notes?: string | null
           payment_date?: string | null
@@ -4984,6 +4986,7 @@ export type Database = {
           id?: string
           installment_number?: number | null
           installment_total?: number | null
+          invoice_id?: string | null
           net_amount?: number | null
           notes?: string | null
           payment_date?: string | null
@@ -5024,6 +5027,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "pdv_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_financial_transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -7915,6 +7925,8 @@ export type Database = {
           cpf: string | null
           created_at: string | null
           credit_limit: number | null
+          default_chart_account_id: string | null
+          default_cost_center_id: string | null
           delivery_time: number | null
           delivery_time_unit: string | null
           email: string | null
@@ -7951,6 +7963,8 @@ export type Database = {
           cpf?: string | null
           created_at?: string | null
           credit_limit?: number | null
+          default_chart_account_id?: string | null
+          default_cost_center_id?: string | null
           delivery_time?: number | null
           delivery_time_unit?: string | null
           email?: string | null
@@ -7987,6 +8001,8 @@ export type Database = {
           cpf?: string | null
           created_at?: string | null
           credit_limit?: number | null
+          default_chart_account_id?: string | null
+          default_cost_center_id?: string | null
           delivery_time?: number | null
           delivery_time_unit?: string | null
           email?: string | null
@@ -8010,7 +8026,22 @@ export type Database = {
           whatsapp?: string | null
           zip_code?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pdv_suppliers_default_chart_account_id_fkey"
+            columns: ["default_chart_account_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_suppliers_default_cost_center_id_fkey"
+            columns: ["default_cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_cost_centers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pdv_tables: {
         Row: {

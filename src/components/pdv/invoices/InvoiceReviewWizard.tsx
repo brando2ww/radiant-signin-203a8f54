@@ -211,33 +211,48 @@ export function InvoiceReviewWizard({
         }
       }
 
-      // 3) Financial transactions (parcelas)
+      // 3) Contas a pagar da nota
+      //
+      // Passa pelo mesmo caminho de parcelamento dos lançamentos manuais, em vez
+      // de um laço próprio: assim as parcelas nascem com group_id e podem ser
+      // editadas em conjunto, o arredondamento sobra na última (a soma bate com
+      // o total da nota) e cada uma cai no seu mês na DRE.
       const installments = editableData.financial.installments;
-      const installmentAmount = editableData.financial.amount / installments;
-      const transactionPromises = [];
-      for (let i = 0; i < installments; i++) {
-        const dueDate = parseISO(editableData.financial.due_date);
-        dueDate.setMonth(dueDate.getMonth() + i);
-        transactionPromises.push(
-          createTransaction({
-            transaction_type: "payable",
-            description:
-              installments > 1
-                ? `${editableData.financial.description} (${i + 1}/${installments})`
-                : editableData.financial.description,
-            amount: installmentAmount,
-            due_date: dueDate.toISOString(),
-            payment_date: editableData.financial.payment_date?.toISOString() || null,
-            status: editableData.financial.status,
-            supplier_id: supplierId,
-            payment_method: editableData.financial.payment_method || null,
-            document_number: editableData.invoiceKey,
-            notes: editableData.financial.notes || null,
-          })
-        );
+
+      // A conta contábil vem do padrão do fornecedor. Sem isso o lançamento
+      // nasce sem classificação e cai em "Sem classificação" na DRE — que é
+      // exatamente onde as notas importadas estavam parando.
+      let contaPadrao: string | null = null;
+      let centroPadrao: string | null = null;
+      if (supplierId) {
+        const { data: forn } = await supabase
+          .from("pdv_suppliers")
+          .select("default_chart_account_id, default_cost_center_id")
+          .eq("id", supplierId)
+          .maybeSingle();
+        contaPadrao = forn?.default_chart_account_id ?? null;
+        centroPadrao = forn?.default_cost_center_id ?? null;
       }
-      const transactions = await Promise.all(transactionPromises);
-      const firstTransactionId = transactions[0]?.id;
+
+      const primeira = await createTransaction({
+        transaction_type: "payable",
+        description: editableData.financial.description,
+        amount: editableData.financial.amount,
+        due_date: editableData.financial.due_date,
+        payment_date: editableData.financial.payment_date || null,
+        status: editableData.financial.status,
+        supplier_id: supplierId,
+        chart_account_id: contaPadrao,
+        cost_center_id: centroPadrao,
+        payment_method: editableData.financial.payment_method || null,
+        document_number: editableData.invoiceKey,
+        notes: editableData.financial.notes || null,
+        ...(installments > 1
+          ? { repeat_mode: "installments", installment_total: installments, installment_amount_is_total: true }
+          : {}),
+      } as any);
+      const firstTransactionId = (primeira as any)?.id;
+      const grupoParcelas = (primeira as any)?.group_id ?? null;
 
       // 4) Invoice header
       const invoiceRecord = await createInvoice.mutateAsync({
@@ -262,6 +277,19 @@ export function InvoiceReviewWizard({
         financial_transaction_id: firstTransactionId,
         notes: editableData.notes || null,
       });
+
+      // 4b) Liga TODAS as parcelas à nota, e não só a primeira. Uma nota tem
+      // muitas parcelas; sem isso, da segunda em diante ninguém sabia de onde
+      // o lançamento veio.
+      if (invoiceRecord?.id) {
+        const alvo = supabase
+          .from("pdv_financial_transactions")
+          .update({ invoice_id: invoiceRecord.id });
+        const { error: linkErr } = grupoParcelas
+          ? await alvo.eq("group_id", grupoParcelas)
+          : await alvo.eq("id", firstTransactionId);
+        if (linkErr) console.error("[nota] falha ao ligar parcelas à nota", linkErr);
+      }
 
       // 5) Invoice items
       const itemsToInsert = editableData.items.map((item, idx) => ({

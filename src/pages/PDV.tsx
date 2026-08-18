@@ -24,8 +24,6 @@ import PDVSettings from "./pdv/Settings";
 import Invoices from "./pdv/Invoices";
 import FiscalCoupons from "./pdv/FiscalCoupons";
 import FinancialTransactions from "./pdv/financial/FinancialTransactions";
-import AccountsPayable from "./pdv/financial/AccountsPayable";
-import AccountsReceivable from "./pdv/financial/AccountsReceivable";
 import CashFlow from "./pdv/financial/CashFlow";
 import ChartOfAccounts from "./pdv/financial/ChartOfAccounts";
 import CostCenters from "./pdv/financial/CostCenters";
@@ -126,8 +124,6 @@ export default function PDV() {
               
               {/* Financeiro */}
               <Route path="financeiro/lancamentos" element={<RoleRoute path="/pdv/financeiro/lancamentos" canAccess={canAccess} defaultRoute={defaultRoute}><FinancialTransactions /></RoleRoute>} />
-              <Route path="financeiro/contas-pagar" element={<RoleRoute path="/pdv/financeiro/contas-pagar" canAccess={canAccess} defaultRoute={defaultRoute}><AccountsPayable /></RoleRoute>} />
-              <Route path="financeiro/contas-receber" element={<RoleRoute path="/pdv/financeiro/contas-receber" canAccess={canAccess} defaultRoute={defaultRoute}><AccountsReceivable /></RoleRoute>} />
               <Route path="financeiro/fluxo-caixa" element={<RoleRoute path="/pdv/financeiro/fluxo-caixa" canAccess={canAccess} defaultRoute={defaultRoute}><CashFlow /></RoleRoute>} />
               <Route path="financeiro/plano-contas" element={<RoleRoute path="/pdv/financeiro/plano-contas" canAccess={canAccess} defaultRoute={defaultRoute}><ChartOfAccounts /></RoleRoute>} />
               <Route path="financeiro/centros-custo" element={<RoleRoute path="/pdv/financeiro/centros-custo" canAccess={canAccess} defaultRoute={defaultRoute}><CostCenters /></RoleRoute>} />

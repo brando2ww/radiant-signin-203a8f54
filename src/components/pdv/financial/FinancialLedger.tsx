@@ -3,13 +3,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { formatBRL } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Zap } from "lucide-react";
 import { QuickExpenseDialog } from "@/components/pdv/financial/QuickExpenseDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePDVFinancialTransactions, type TransactionFilters } from "@/hooks/use-pdv-financial-transactions";
-import { FinancialStatsCards } from "@/components/pdv/financial/FinancialStatsCards";
+import { LedgerSummary } from "@/components/pdv/financial/LedgerSummary";
+import { LedgerPeriodBar, descreverPeriodo } from "@/components/pdv/financial/LedgerPeriodBar";
+import { ActiveFilterChips } from "@/components/pdv/financial/ActiveFilterChips";
 import { PDVTransactionFilters } from "@/components/pdv/financial/PDVTransactionFilters";
 import { PDVTransactionList } from "@/components/pdv/financial/PDVTransactionList";
 import { PDVTransactionDialog } from "@/components/pdv/financial/PDVTransactionDialog";
@@ -135,6 +138,11 @@ export function FinancialLedger({ lockedType, title, subtitle }: Props) {
     }
   };
 
+  const totalDaLista = useMemo(
+    () => (transactions || []).reduce((soma: number, t: any) => soma + Number(t.amount || 0), 0),
+    [transactions],
+  );
+
   const handleNewTransaction = () => {
     setSelectedTransaction(undefined);
     setDialogOpen(true);
@@ -161,19 +169,28 @@ export function FinancialLedger({ lockedType, title, subtitle }: Props) {
         </div>
       </div>
 
-      <FinancialStatsCards stats={stats} isLoading={isLoading} />
+      <LedgerPeriodBar filters={filters} onChange={setFilters} />
 
-      <PaymentFeesReport />
+      <LedgerSummary
+        stats={stats}
+        isLoading={isLoading}
+        periodoLabel={descreverPeriodo(effectiveFilters)}
+        lockedType={lockedType}
+      />
+
+      <ActiveFilterChips filters={filters} onChange={setFilters} lockedType={lockedType} />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>Refine sua busca de lançamentos</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Mais filtros</CardTitle>
+          <CardDescription>Fornecedor, conta contábil, centro de custo e forma de pagamento</CardDescription>
         </CardHeader>
         <CardContent>
           <PDVTransactionFilters filters={filters} onFiltersChange={setFilters} />
         </CardContent>
       </Card>
+
+      <PaymentFeesReport />
 
       <Card>
         <CardHeader>
@@ -209,12 +226,26 @@ export function FinancialLedger({ lockedType, title, subtitle }: Props) {
                   <p className="text-muted-foreground">Carregando...</p>
                 </div>
               ) : (
-                <PDVTransactionList
-                  transactions={transactions}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onMarkAsPaid={handleMarkAsPaid}
-                />
+                <>
+                  <PDVTransactionList
+                    transactions={transactions}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onMarkAsPaid={handleMarkAsPaid}
+                  />
+                  {/* Somar o que está na tela é a primeira coisa que se faz na
+                      mão depois de filtrar. */}
+                  {transactions.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-sm">
+                      <span className="text-muted-foreground">
+                        {transactions.length} {transactions.length === 1 ? "lançamento" : "lançamentos"} nesta lista
+                      </span>
+                      <span className="font-semibold tabular-nums">
+                        Total: {formatBRL(totalDaLista)}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </TabsContent>
           </Tabs>

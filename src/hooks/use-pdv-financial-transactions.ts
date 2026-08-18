@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,64 +129,54 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
     enabled: !!user,
   });
 
-  const { data: stats } = useQuery({
-    queryKey: ["pdv-financial-stats", user?.id],
-    queryFn: async () => {
-      if (!user) throw new Error("Usuário não autenticado");
+  /**
+   * Os números do topo saem da MESMA lista que a tabela mostra.
+   *
+   * Antes eram uma consulta separada, sem filtro nenhum: você filtrava por
+   * fornecedor e a tabela mudava, mas os cartões continuavam mostrando o total
+   * geral. Duas verdades na mesma tela é o que fazia a página parecer errada.
+   */
+  const stats = useMemo<FinancialStats>(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    const s: FinancialStats = {
+      totalPayable: 0,
+      totalReceivable: 0,
+      totalOverdue: 0,
+      expectedBalance: 0,
+      pendingPayableCount: 0,
+      pendingReceivableCount: 0,
+      overdueCount: 0,
+      paidThisMonth: 0,
+      receivedThisMonth: 0,
+    };
 
-      const today = format(new Date(), "yyyy-MM-dd");
-      const firstDayOfMonth = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
+    (transactions || []).forEach((t: any) => {
+      const valor = Number(t.amount || 0);
+      const emAberto = t.status === "pending" || t.status === "overdue";
 
-      const { data: allTransactions, error } = await supabase
-        .from("pdv_financial_transactions")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (error) throw error;
-
-      const stats: FinancialStats = {
-        totalPayable: 0,
-        totalReceivable: 0,
-        totalOverdue: 0,
-        expectedBalance: 0,
-        pendingPayableCount: 0,
-        pendingReceivableCount: 0,
-        overdueCount: 0,
-        paidThisMonth: 0,
-        receivedThisMonth: 0,
-      };
-
-      allTransactions?.forEach(t => {
-        if (t.status === 'pending') {
-          if (t.transaction_type === 'payable') {
-            stats.totalPayable += Number(t.amount);
-            stats.pendingPayableCount++;
-          } else {
-            stats.totalReceivable += Number(t.amount);
-            stats.pendingReceivableCount++;
-          }
-
-          if (t.due_date < today) {
-            stats.totalOverdue += Number(t.amount);
-            stats.overdueCount++;
-          }
+      if (emAberto) {
+        if (t.transaction_type === "payable") {
+          s.totalPayable += valor;
+          s.pendingPayableCount++;
+        } else {
+          s.totalReceivable += valor;
+          s.pendingReceivableCount++;
         }
-
-        if (t.status === 'paid' && t.payment_date && t.payment_date >= firstDayOfMonth) {
-          if (t.transaction_type === 'payable') {
-            stats.paidThisMonth += Number(t.amount);
-          } else {
-            stats.receivedThisMonth += Number(t.amount);
-          }
+        if (t.due_date && t.due_date < hoje) {
+          s.totalOverdue += valor;
+          s.overdueCount++;
         }
-      });
+      }
 
-      stats.expectedBalance = stats.totalReceivable - stats.totalPayable;
+      if (t.status === "paid") {
+        if (t.transaction_type === "payable") s.paidThisMonth += valor;
+        else s.receivedThisMonth += valor;
+      }
+    });
 
-      return stats;
-    },
-    enabled: !!user,
-  });
+    s.expectedBalance = s.totalReceivable - s.totalPayable;
+    return s;
+  }, [transactions]);
 
   const createTransaction = useMutation({
     mutationFn: async (transaction: Omit<PDVFinancialTransaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
@@ -481,7 +472,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
 
   return {
     transactions: transactions || [],
-    stats: stats || {
+    stats: stats ?? {
       totalPayable: 0,
       totalReceivable: 0,
       totalOverdue: 0,

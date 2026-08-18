@@ -20,8 +20,6 @@ import {
   BarChart3,
   Settings2,
   FileText,
-  TrendingDown,
-  TrendingUp,
   ArrowLeftRight,
   FolderTree,
   Target,
@@ -150,8 +148,6 @@ const sectionItems: Section[] = [
     icon: DollarSign,
     items: [
       { title: "Lançamentos", url: "/pdv/financeiro/lancamentos", icon: FileText },
-      { title: "Contas a Pagar", url: "/pdv/financeiro/contas-pagar", icon: TrendingDown },
-      { title: "Contas a Receber", url: "/pdv/financeiro/contas-receber", icon: TrendingUp },
       { title: "Fluxo de Caixa", url: "/pdv/financeiro/fluxo-caixa", icon: ArrowLeftRight },
       { title: "Plano de Contas", url: "/pdv/financeiro/plano-contas", icon: FolderTree },
       { title: "Centros de Custo", url: "/pdv/financeiro/centros-custo", icon: Target },
