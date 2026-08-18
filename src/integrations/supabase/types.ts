@@ -4916,11 +4916,17 @@ export type Database = {
           fee_fixed_applied: number
           fee_percentage_applied: number
           gross_amount: number | null
+          group_id: string | null
           id: string
+          installment_number: number | null
+          installment_total: number | null
           net_amount: number | null
           notes: string | null
           payment_date: string | null
           payment_method: string | null
+          recurrence: string
+          recurrence_until: string | null
+          source_bill_id: string | null
           status: string | null
           supplier_id: string | null
           transaction_type: string
@@ -4942,11 +4948,17 @@ export type Database = {
           fee_fixed_applied?: number
           fee_percentage_applied?: number
           gross_amount?: number | null
+          group_id?: string | null
           id?: string
+          installment_number?: number | null
+          installment_total?: number | null
           net_amount?: number | null
           notes?: string | null
           payment_date?: string | null
           payment_method?: string | null
+          recurrence?: string
+          recurrence_until?: string | null
+          source_bill_id?: string | null
           status?: string | null
           supplier_id?: string | null
           transaction_type: string
@@ -4968,11 +4980,17 @@ export type Database = {
           fee_fixed_applied?: number
           fee_percentage_applied?: number
           gross_amount?: number | null
+          group_id?: string | null
           id?: string
+          installment_number?: number | null
+          installment_total?: number | null
           net_amount?: number | null
           notes?: string | null
           payment_date?: string | null
           payment_method?: string | null
+          recurrence?: string
+          recurrence_until?: string | null
+          source_bill_id?: string | null
           status?: string | null
           supplier_id?: string | null
           transaction_type?: string
@@ -9780,6 +9798,10 @@ export type Database = {
       pdv_ensure_counter_table: {
         Args: { _name: string; _owner: string }
         Returns: string
+      }
+      pdv_extend_recurring_transactions: {
+        Args: { _user_id: string }
+        Returns: number
       }
       pdv_finalize_paid_order: {
         Args: { p_order_id: string; p_reason?: string }

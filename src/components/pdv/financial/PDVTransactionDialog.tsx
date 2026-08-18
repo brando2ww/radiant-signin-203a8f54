@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { usePDVBankAccounts } from "@/hooks/use-pdv-bank-accounts";
 import { usePDVSuppliers } from "@/hooks/use-pdv-suppliers";
 import { usePDVCustomers } from "@/hooks/use-pdv-customers";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { formatBRL } from "@/lib/format";
 import type { PDVFinancialTransaction } from "@/hooks/use-pdv-financial-transactions";
 
 interface PDVTransactionDialogProps {
@@ -27,6 +28,8 @@ interface PDVTransactionDialogProps {
   onOpenChange: (open: boolean) => void;
   transaction?: PDVFinancialTransaction;
   onSubmit: (data: any) => Promise<void>;
+  /** Trava o tipo quando o diálogo abre de Contas a Pagar/Receber. */
+  lockedType?: 'payable' | 'receivable';
 }
 
 /** Grupo de quem não tem conta-pai, para a lista não ficar com contas soltas. */
@@ -38,7 +41,7 @@ const TIPO_CONTA: Record<string, string> = {
   liability: "Passivo",
 };
 
-export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit }: PDVTransactionDialogProps) {
+export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit, lockedType }: PDVTransactionDialogProps) {
   const { costCenters } = usePDVCostCenters();
   const { accounts } = usePDVChartOfAccounts();
   const { bankAccounts } = usePDVBankAccounts();
@@ -63,13 +66,22 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
           payment_method: t.payment_method || undefined,
           document_number: t.document_number || undefined,
           notes: t.notes || undefined,
+          repeat_mode: 'single',
+          installment_amount_is_total: true,
+          recurrence: (t as any).recurrence && (t as any).recurrence !== 'none'
+            ? (t as any).recurrence
+            : 'monthly',
+          recurrence_until: (t as any).recurrence_until ? parseISO((t as any).recurrence_until) : undefined,
         }
       : {
-          transaction_type: 'payable',
+          transaction_type: lockedType ?? 'payable',
           status: 'pending',
           amount: 0,
           description: '',
           due_date: new Date(),
+          repeat_mode: 'single',
+          installment_amount_is_total: true,
+          recurrence: 'monthly',
         };
 
   const form = useForm<PDVFinancialTransactionFormData>({
@@ -83,6 +95,26 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
   }, [open, transaction?.id]);
 
   const transactionType = form.watch('transaction_type');
+  const repeatMode = form.watch('repeat_mode');
+  const parcelas = Number(form.watch('installment_total') || 0);
+  const valorEhTotal = form.watch('installment_amount_is_total') !== false;
+  const valor = Number(form.watch('amount') || 0);
+
+  // Grupo já existente: o lançamento aberto é uma parcela ou uma ocorrência.
+  const grupoId = (transaction as any)?.group_id as string | undefined;
+  const [aplicarNoGrupo, setAplicarNoGrupo] = useState(false);
+
+  // Prévia do parcelamento. Sem ela o lojista só descobre o valor da parcela
+  // depois de salvar — e a diferença de arredondamento assusta.
+  const previaParcela = useMemo(() => {
+    if (repeatMode !== 'installments' || parcelas < 2 || valor <= 0) return null;
+    const cada = valorEhTotal ? Math.floor((valor / parcelas) * 100) / 100 : valor;
+    const ultima = valorEhTotal
+      ? Math.round((valor - cada * (parcelas - 1)) * 100) / 100
+      : valor;
+    const total = valorEhTotal ? valor : valor * parcelas;
+    return { cada, ultima, total, difere: Math.abs(ultima - cada) > 0.001 };
+  }, [repeatMode, parcelas, valor, valorEhTotal]);
   const status = form.watch('status');
   const paymentDate = form.watch('payment_date');
 
@@ -131,7 +163,11 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
 
   const handleSubmit = async (data: PDVFinancialTransactionFormData) => {
     try {
-      await onSubmit(transaction ? { id: transaction.id, ...data } : data);
+      await onSubmit(
+        transaction
+          ? { id: transaction.id, ...data, __applyToGroup: aplicarNoGrupo && !!grupoId, __groupId: grupoId }
+          : data,
+      );
       onOpenChange(false);
       form.reset(getDefaults());
     } catch (err: any) {
@@ -159,17 +195,17 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
               name="transaction_type"
               render={({ field }) => (
                 <FormItem className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className={cn("grid gap-2", lockedType ? "grid-cols-1" : "grid-cols-2")}>
                     {([
                       { v: 'payable', rotulo: 'Conta a Pagar', Icone: ArrowDownCircle, cor: 'text-destructive', borda: 'border-destructive bg-destructive/5' },
                       { v: 'receivable', rotulo: 'Conta a Receber', Icone: ArrowUpCircle, cor: 'text-success', borda: 'border-success bg-success/10' },
-                    ] as const).map(({ v, rotulo, Icone, cor, borda }) => {
+                    ] as const).filter((o) => !lockedType || o.v === lockedType).map(({ v, rotulo, Icone, cor, borda }) => {
                       const ativo = field.value === v;
                       return (
                         <button
                           key={v}
                           type="button"
-                          onClick={() => field.onChange(v)}
+                          onClick={() => !lockedType && field.onChange(v)}
                           className={cn(
                             "flex items-center justify-center gap-2 rounded-md border py-2 text-sm font-medium transition-colors",
                             ativo ? borda : "hover:bg-muted/50",
@@ -277,6 +313,174 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
                 )}
               />
             </div>
+
+            {/* Repetição. Parcelar divide um valor conhecido; recorrer repete o
+                mesmo valor. São coisas diferentes e o campo separa as duas. */}
+            {!transaction && (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <FormField
+                  control={form.control}
+                  name="repeat_mode"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1.5">
+                      <FormLabel>Repetição</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="single">Lançamento único</SelectItem>
+                          <SelectItem value="installments">Parcelado</SelectItem>
+                          <SelectItem value="recurring">Recorrente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {repeatMode === 'installments' && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="installment_total"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                          <FormLabel>Parcelas *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="2"
+                              max="120"
+                              placeholder="12"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="installment_amount_is_total"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                          <FormLabel>O valor informado é</FormLabel>
+                          <Select
+                            value={field.value === false ? 'each' : 'total'}
+                            onValueChange={(v) => field.onChange(v === 'total')}
+                          >
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="total">O total a parcelar</SelectItem>
+                              <SelectItem value="each">O valor de cada parcela</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+
+                {repeatMode === 'recurring' && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="recurrence"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                          <FormLabel>A cada</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="weekly">Semana</SelectItem>
+                              <SelectItem value="monthly">Mês</SelectItem>
+                              <SelectItem value="quarterly">Trimestre</SelectItem>
+                              <SelectItem value="yearly">Ano</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="recurrence_until"
+                      render={({ field }) => (
+                        <FormItem className="space-y-1.5">
+                          <FormLabel>Repetir até</FormLabel>
+                          <DatePickerDialog
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Sem data de fim"
+                            title="Repetir até"
+                          />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {previaParcela && (
+              <p className="-mt-1 text-xs text-muted-foreground">
+                {parcelas}× de <span className="font-medium text-foreground">{formatBRL(previaParcela.cada)}</span>
+                {previaParcela.difere && (
+                  <> · última de <span className="font-medium text-foreground">{formatBRL(previaParcela.ultima)}</span></>
+                )}
+                {" · "}total {formatBRL(previaParcela.total)}. Cada parcela cai no seu mês na DRE.
+              </p>
+            )}
+
+            {repeatMode === 'recurring' && !transaction && (
+              <p className="-mt-1 text-xs text-muted-foreground">
+                {form.watch('recurrence_until')
+                  ? "As ocorrências são geradas até a data escolhida."
+                  : "Sem data de fim, o sistema mantém 12 meses à frente e vai completando."}
+              </p>
+            )}
+
+            {/* Editando uma parcela de um grupo: a escolha precisa ser
+                explícita, porque as duas opções são legítimas. */}
+            {transaction && grupoId && (
+              <div className="rounded-md border border-dashed p-3 space-y-2">
+                <p className="text-sm font-medium">
+                  Este lançamento faz parte de um grupo
+                  {(transaction as any).installment_total
+                    ? ` de ${(transaction as any).installment_total} parcelas`
+                    : " recorrente"}.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { v: false, rot: "Alterar só este" },
+                    { v: true, rot: "Alterar este e os próximos em aberto" },
+                  ] as const).map((opt) => (
+                    <button
+                      key={String(opt.v)}
+                      type="button"
+                      onClick={() => setAplicarNoGrupo(opt.v)}
+                      className={cn(
+                        "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                        aplicarNoGrupo === opt.v ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                      )}
+                    >
+                      {opt.rot}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Parcelas já pagas nunca são alteradas.
+                </p>
+              </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField

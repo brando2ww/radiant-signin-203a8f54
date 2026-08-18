@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildPaymentSnapshot } from "@/lib/financial/build-payment-snapshot";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, addMonths } from "date-fns";
 
 export interface PDVFinancialTransaction {
   id: string;
@@ -208,22 +208,88 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         feeColumns = snap.columns as any;
       }
 
+      const repeticao = (transaction as any).repeat_mode ?? "single";
+      const parcelas = Number((transaction as any).installment_total ?? 0);
+      const valorEhTotal = (transaction as any).installment_amount_is_total !== false;
+      const recorrencia = (transaction as any).recurrence ?? "monthly";
+      const recorrenciaAte = (transaction as any).recurrence_until as Date | null | undefined;
+
+      // Os campos de controle do formulário não são colunas da tabela.
+      const base: any = { ...transaction };
+      delete base.repeat_mode;
+      delete base.installment_amount_is_total;
+      if (repeticao !== "installments") delete base.installment_total;
+
+      const venc = transaction.due_date as Date;
+      const comp = (transaction.competence_date as Date) || venc;
+      const dia = (d: Date) => format(d, "yyyy-MM-dd");
+
+      // ---- Parcelado: uma linha por vencimento, cada uma no seu mês ----------
+      if (repeticao === "installments" && parcelas >= 2) {
+        const total = Number(transaction.amount) || 0;
+        const cada = valorEhTotal ? Math.floor((total / parcelas) * 100) / 100 : total;
+        // A diferença de arredondamento vai toda para a última parcela, senão a
+        // soma das parcelas não bate com o total lançado.
+        const somaAnteriores = cada * (parcelas - 1);
+        const ultima = valorEhTotal ? Math.round((total - somaAnteriores) * 100) / 100 : total;
+
+        const grupo = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+        const linhas = Array.from({ length: parcelas }, (_, i) => ({
+          ...base,
+          ...feeColumns,
+          amount: i === parcelas - 1 ? ultima : cada,
+          gross_amount: i === parcelas - 1 ? ultima : cada,
+          net_amount: i === parcelas - 1 ? ultima : cada,
+          user_id: user.id,
+          description: `${transaction.description} (${i + 1}/${parcelas})`,
+          due_date: dia(addMonths(venc, i)),
+          competence_date: dia(addMonths(comp, i)),
+          payment_date: null,
+          // Só a primeira pode nascer paga; as outras ainda nem venceram.
+          status: i === 0 ? (transaction.status ?? "pending") : "pending",
+          group_id: grupo,
+          installment_number: i + 1,
+          installment_total: parcelas,
+          recurrence: "none",
+        }));
+
+        const { data, error } = await supabase
+          .from("pdv_financial_transactions")
+          .insert(linhas)
+          .select();
+        if (error) throw error;
+        return (data ?? [])[0];
+      }
+
+      // ---- Recorrente: a âncora, e o horizonte preenchido pelo banco --------
       const { data, error } = await supabase
         .from("pdv_financial_transactions")
         .insert([{
-          ...transaction,
+          ...base,
           ...feeColumns,
           user_id: user.id,
-          due_date: transaction.due_date ? format(transaction.due_date as Date, "yyyy-MM-dd") : undefined,
-          competence_date: transaction.competence_date
-            ? format(transaction.competence_date as Date, "yyyy-MM-dd")
-            : transaction.due_date ? format(transaction.due_date as Date, "yyyy-MM-dd") : undefined,
-          payment_date: transaction.payment_date ? format(transaction.payment_date as Date, "yyyy-MM-dd") : null,
+          due_date: dia(venc),
+          competence_date: dia(comp),
+          payment_date: transaction.payment_date ? dia(transaction.payment_date as Date) : null,
+          recurrence: repeticao === "recurring" ? recorrencia : "none",
+          recurrence_until:
+            repeticao === "recurring" && recorrenciaAte ? dia(recorrenciaAte) : null,
         }])
         .select()
         .single();
 
       if (error) throw error;
+
+      if (repeticao === "recurring") {
+        // Gera as ocorrências futuras até 12 meses à frente (ou até a data de
+        // fim). Uma falha aqui não desfaz o lançamento: a âncora existe e o
+        // horizonte é completado na próxima abertura do módulo.
+        const { error: extErr } = await supabase.rpc("pdv_extend_recurring_transactions", {
+          _user_id: user.id,
+        });
+        if (extErr) console.error("[financeiro] falha ao gerar recorrências", extErr);
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -263,6 +329,62 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
     onError: (error: any) => {
       toast.error("Erro ao atualizar lançamento: " + error.message);
     },
+  });
+
+  /**
+   * Edita o grupo inteiro: todas as parcelas ou ocorrências AINDA EM ABERTO.
+   *
+   * Parcela já paga é fato consumado — alterá-la reescreveria o passado e
+   * desalinharia a conciliação. Por isso o filtro por status, e não uma
+   * atualização cega pelo group_id.
+   */
+  const updateGroup = useMutation({
+    mutationFn: async ({ groupId, changes }: { groupId: string; changes: Record<string, any> }) => {
+      const payload: any = { ...changes };
+      // Nunca em lote: cada parcela tem o seu.
+      delete payload.due_date;
+      delete payload.competence_date;
+      delete payload.payment_date;
+      delete payload.status;
+      delete payload.installment_number;
+      delete payload.installment_total;
+      delete payload.group_id;
+
+      const { data, error } = await supabase
+        .from("pdv_financial_transactions")
+        .update(payload)
+        .eq("group_id", groupId)
+        .in("status", ["pending", "overdue"])
+        .select("id");
+      if (error) throw error;
+      return (data ?? []).length;
+    },
+    onSuccess: (qtd) => {
+      queryClient.invalidateQueries({ queryKey: ["pdv-financial-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-financial-stats"] });
+      toast.success(`${qtd} lançamento${qtd === 1 ? "" : "s"} do grupo atualizado${qtd === 1 ? "" : "s"}`);
+    },
+    onError: (error: any) => toast.error("Erro ao atualizar o grupo: " + error.message),
+  });
+
+  /** Remove as parcelas em aberto de um grupo; as pagas permanecem. */
+  const deleteGroup = useMutation({
+    mutationFn: async (groupId: string) => {
+      const { data, error } = await supabase
+        .from("pdv_financial_transactions")
+        .delete()
+        .eq("group_id", groupId)
+        .in("status", ["pending", "overdue"])
+        .select("id");
+      if (error) throw error;
+      return (data ?? []).length;
+    },
+    onSuccess: (qtd) => {
+      queryClient.invalidateQueries({ queryKey: ["pdv-financial-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-financial-stats"] });
+      toast.success(`${qtd} lançamento${qtd === 1 ? "" : "s"} em aberto removido${qtd === 1 ? "" : "s"}`);
+    },
+    onError: (error: any) => toast.error("Erro ao remover o grupo: " + error.message),
   });
 
   const deleteTransaction = useMutation({
@@ -373,6 +495,8 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
     isLoading,
     createTransaction: createTransaction.mutateAsync,
     updateTransaction: updateTransaction.mutateAsync,
+    updateGroup: updateGroup.mutateAsync,
+    deleteGroup: deleteGroup.mutateAsync,
     deleteTransaction: deleteTransaction.mutateAsync,
     markAsPaid: markAsPaid.mutateAsync,
     isCreating: createTransaction.isPending,
