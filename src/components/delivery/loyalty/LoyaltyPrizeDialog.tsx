@@ -10,7 +10,7 @@ import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,26 +122,30 @@ export function LoyaltyPrizeDialog({ open, onOpenChange, prize }: Props) {
           </div>
           <div className="space-y-2">
             <Label>Produto entregue no resgate</Label>
-            <Popover open={productOpen} onOpenChange={setProductOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  role="combobox"
-                  className="w-full justify-between font-normal"
-                >
-                  <span className="truncate">
-                    {selectedProduct
-                      ? `${selectedProduct.name}${selectedProduct.base_price != null ? ` · ${formatBRL(Number(selectedProduct.base_price))}` : ""}`
-                      : "Nenhum produto vinculado"}
-                  </span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-between font-normal"
+              onClick={() => setProductOpen(true)}
+            >
+              <span className="truncate">
+                {selectedProduct
+                  ? `${selectedProduct.name}${selectedProduct.base_price != null ? ` · ${formatBRL(Number(selectedProduct.base_price))}` : ""}`
+                  : "Nenhum produto vinculado"}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+
+            {/* Diálogo empilhado. Um Popover aqui dentro não abre: o Radix
+                mantém o foco preso no diálogo do prêmio. */}
+            <Dialog open={productOpen} onOpenChange={setProductOpen}>
+              <DialogContent className="p-0 sm:max-w-md">
+                <DialogHeader className="px-4 pt-4">
+                  <DialogTitle>Escolher produto</DialogTitle>
+                </DialogHeader>
                 <Command>
-                  <CommandInput placeholder="Buscar produto..." className="h-9" />
-                  <CommandList>
+                  <CommandInput placeholder="Buscar produto..." className="h-10" />
+                  <CommandList className="max-h-[50vh]">
                     <CommandEmpty>Nenhum produto encontrado.</CommandEmpty>
                     <CommandGroup>
                       <CommandItem
@@ -177,8 +181,8 @@ export function LoyaltyPrizeDialog({ open, onOpenChange, prize }: Props) {
                     </CommandGroup>
                   </CommandList>
                 </Command>
-              </PopoverContent>
-            </Popover>
+              </DialogContent>
+            </Dialog>
             <p className="text-xs text-muted-foreground">
               Sem produto vinculado, o resgate continua valendo mas alguém precisa honrar na mão.
             </p>
