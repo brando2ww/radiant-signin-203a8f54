@@ -41,7 +41,9 @@ export function useQuickExpense() {
         .from("pdv_financial_transactions")
         .insert([{
           user_id: user.id,
-          transaction_type: "expense",
+          // O módulo financeiro fala payable/receivable; 'expense' era o
+          // vocabulário antigo do banco e fazia a despesa sumir da DRE.
+          transaction_type: "payable",
           status: "paid",
           description: input.description,
           amount: input.amount,
@@ -52,6 +54,7 @@ export function useQuickExpense() {
           fee_amount: 0,
           due_date: dateStr,
           payment_date: dateStr,
+          competence_date: dateStr,
           chart_account_id: input.chart_account_id,
           cost_center_id: input.cost_center_id || null,
           payment_method: input.payment_method || null,

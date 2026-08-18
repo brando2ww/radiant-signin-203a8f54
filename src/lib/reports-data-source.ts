@@ -193,12 +193,24 @@ export async function fetchCashierSalesByPeriod(
   return out;
 }
 
-/** Maps any source value to one of three buckets used in dashboards. */
-export function channelOfSource(source: string | null | undefined): "salao" | "balcao" | "delivery" {
+export type SalesChannel = "salao" | "balcao" | "delivery" | "quitacao";
+
+/**
+ * Traduz o `source` gravado no movimento de caixa para o canal de venda.
+ *
+ * O banco grava 'salon'/'counter'/'delivery'/'delivery_online'/'quitacao_consumo'
+ * (ver o CHECK de pdv_cashier_movements.source). A versão anterior desta função
+ * conhecia só 'delivery' e 'balcao' e jogava todo o resto em salão — o que
+ * mandava o delivery pago online e a quitação de fiado para o canal errado.
+ */
+export function channelOfSource(source: string | null | undefined): SalesChannel {
   const s = (source || "").toLowerCase();
-  if (s === "delivery") return "delivery";
-  if (s === "balcao") return "balcao";
-  return "salao"; // 'salon', 'salao', empty, anything else
+  if (s === "delivery" || s === "delivery_online") return "delivery";
+  if (s === "counter" || s === "balcao") return "balcao";
+  // Quitação de fiado não é venda nova: a venda já entrou quando foi lançada
+  // a prazo. Entra no caixa, não no faturamento.
+  if (s === "quitacao_consumo" || s === "quitacao") return "quitacao";
+  return "salao"; // 'salon', 'salao', vazio, qualquer outro
 }
 
 // ===== Fuso horário: fecha dia/mês em America/São_Paulo (-03:00) =====
@@ -226,25 +238,37 @@ export function brtDateKey(iso: string): string {
 }
 
 export interface CashierSalesSummary {
+  /** Tudo que entrou no caixa, quitação de fiado inclusive. Use em fluxo de caixa. */
   total: number;
+  /** Faturamento: o total menos a quitação de fiado. Use em DRE e relatórios de venda. */
+  revenue: number;
   count: number;
-  bySource: Record<"salao" | "balcao" | "delivery", number>;
+  bySource: Record<SalesChannel, number>;
   byMethod: Record<string, number>;
 }
 
-/** Resume os movimentos de venda por canal e por forma de pagamento. */
+/**
+ * Resume os movimentos de venda por canal e por forma de pagamento.
+ *
+ * `total` e `revenue` são diferentes de propósito: quitar um fiado põe dinheiro
+ * na gaveta, mas a venda já foi contada no dia em que saiu a prazo. Somar os
+ * dois era contar a mesma venda duas vezes.
+ */
 export function summarizeCashierSales(movements: CashierMovement[]): CashierSalesSummary {
   const s: CashierSalesSummary = {
     total: 0,
+    revenue: 0,
     count: 0,
-    bySource: { salao: 0, balcao: 0, delivery: 0 },
+    bySource: { salao: 0, balcao: 0, delivery: 0, quitacao: 0 },
     byMethod: {},
   };
   for (const m of movements) {
     const amt = Number(m.amount || 0);
+    const canal = channelOfSource(m.source);
     s.total += amt;
+    if (canal !== "quitacao") s.revenue += amt;
     s.count += 1;
-    s.bySource[channelOfSource(m.source)] += amt;
+    s.bySource[canal] += amt;
     const method = m.payment_method || "outros";
     s.byMethod[method] = (s.byMethod[method] || 0) + amt;
   }

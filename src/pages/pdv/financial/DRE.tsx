@@ -29,8 +29,9 @@ export default function DRE() {
       `Período: ${format(selectedMonth, "MMMM yyyy", { locale: ptBR })}`,
       "",
       `RECEITA BRUTA;${fmt(data.grossRevenue)}`,
-      `  Vendas no PDV;${fmt(data.pdvSales)}`,
-      `  Vendas Delivery;${fmt(data.deliverySales)}`,
+      `  Salão;${fmt(data.salaoSales)}`,
+      `  Balcão;${fmt(data.balcaoSales)}`,
+      `  Delivery;${fmt(data.deliverySales)}`,
       `(-) DEDUÇÕES;${fmt(data.deductions)}`,
       `  Descontos;${fmt(data.totalDiscounts)}`,
       ...(data.loyaltyDiscounts > 0
@@ -39,7 +40,6 @@ export default function DRE() {
             `    Prêmios de fidelidade;${fmt(data.loyaltyDiscounts)}`,
           ]
         : []),
-      `  Cancelamentos;${fmt(data.totalCancellations)}`,
       `  Taxas de meios de pagamento;${fmt(data.paymentFees || 0)}`,
       `= RECEITA LÍQUIDA;${fmt(data.netRevenue)}`,
       `(-) CMV;${fmt(data.cmv)}`,
@@ -120,8 +120,9 @@ export default function DRE() {
               <div className="border-b pb-2">
                 <DRELine label="RECEITA BRUTA" value={data.grossRevenue} bold color="text-success" />
               </div>
-              <DRELine label="Vendas no PDV" value={data.pdvSales} indent />
-              <DRELine label="Vendas Delivery" value={data.deliverySales} indent />
+              <DRELine label="Salão" value={data.salaoSales} indent />
+              <DRELine label="Balcão" value={data.balcaoSales} indent />
+              <DRELine label="Delivery" value={data.deliverySales} indent />
 
               <div className="border-b pb-2 pt-2">
                 <DRELine label="(-) DEDUÇÕES" value={data.deductions} bold={false} color="text-destructive" />
@@ -138,10 +139,36 @@ export default function DRE() {
                   />
                 </>
               )}
-              <DRELine label="Cancelamentos" value={data.totalCancellations} indent />
               <DRELine label="Taxas de meios de pagamento" value={data.paymentFees || 0} indent />
 
               <DRELine label="= RECEITA LÍQUIDA" value={data.netRevenue} bold bg="bg-muted/50" />
+
+              {/* Fora da conta, e por isso separados: cancelamento nunca foi
+                  cobrado (deduzi-lo seria contar duas vezes) e quitação de
+                  fiado é caixa de uma venda já faturada antes. */}
+              {(data.totalCancellations > 0 || data.quitacoesRecebidas > 0) && (
+                <div className="rounded-md border border-dashed p-3 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Informativo · não entra no resultado
+                  </p>
+                  {data.totalCancellations > 0 && (
+                    <DRELine
+                      label="Cancelamentos"
+                      value={data.totalCancellations}
+                      indent
+                      tooltip="Pedidos cancelados no período. Não são dedução porque nunca chegaram a ser cobrados."
+                    />
+                  )}
+                  {data.quitacoesRecebidas > 0 && (
+                    <DRELine
+                      label="Quitações de fiado recebidas"
+                      value={data.quitacoesRecebidas}
+                      indent
+                      tooltip="Dinheiro que entrou no caixa quitando vendas a prazo. A venda já foi faturada no dia em que saiu a prazo."
+                    />
+                  )}
+                </div>
+              )}
 
               <div className="border-b pb-2 pt-2">
                 <DRELine

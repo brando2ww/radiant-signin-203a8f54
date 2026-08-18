@@ -29,9 +29,15 @@ export function usePDVDre(selectedMonth?: Date) {
       // ---------- RECEITA (fonte única: movimentos de venda) ----------
       const movements = await fetchCashierSalesByPeriod(owner, startISO, endISO);
       const sales = summarizeCashierSales(movements);
-      const pdvSales = sales.bySource.salao + sales.bySource.balcao; // salão/balcão
-      const deliverySales = sales.bySource.delivery;                 // delivery (já dentro do total)
-      const chargedRevenue = sales.total;                            // total efetivamente cobrado (líquido de desconto)
+      const salaoSales = sales.bySource.salao;
+      const balcaoSales = sales.bySource.balcao;
+      const pdvSales = salaoSales + balcaoSales;
+      const deliverySales = sales.bySource.delivery;
+      // Quitação de fiado entra no caixa mas não é venda nova — a venda foi
+      // contada quando saiu a prazo. Fica de fora do faturamento e aparece à
+      // parte, para o gestor saber que o dinheiro entrou.
+      const quitacoesRecebidas = sales.bySource.quitacao;
+      const chargedRevenue = sales.revenue; // cobrado, já líquido de desconto
 
       // ---------- Pedidos do mês (descontos, cancelamentos informativos, taxas, CMV) ----------
       const { data: pdvOrders } = await supabase
@@ -160,7 +166,10 @@ export function usePDVDre(selectedMonth?: Date) {
 
       return {
         pdvSales,
+        salaoSales,
+        balcaoSales,
         deliverySales,
+        quitacoesRecebidas,
         grossRevenue,
         totalDiscounts,
         loyaltyDiscounts,

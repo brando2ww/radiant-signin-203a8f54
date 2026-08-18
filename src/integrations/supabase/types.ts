@@ -4833,6 +4833,7 @@ export type Database = {
           default_receivable_chart_account_id: string | null
           id: string
           overdue_tolerance_days: number
+          purchase_costing_mode: string
           updated_at: string | null
           user_id: string
         }
@@ -4848,6 +4849,7 @@ export type Database = {
           default_receivable_chart_account_id?: string | null
           id?: string
           overdue_tolerance_days?: number
+          purchase_costing_mode?: string
           updated_at?: string | null
           user_id: string
         }
@@ -4863,6 +4865,7 @@ export type Database = {
           default_receivable_chart_account_id?: string | null
           id?: string
           overdue_tolerance_days?: number
+          purchase_costing_mode?: string
           updated_at?: string | null
           user_id?: string
         }
@@ -4902,6 +4905,7 @@ export type Database = {
           amount: number
           bank_account_id: string | null
           chart_account_id: string | null
+          competence_date: string | null
           cost_center_id: string | null
           created_at: string | null
           customer_id: string | null
@@ -4927,6 +4931,7 @@ export type Database = {
           amount: number
           bank_account_id?: string | null
           chart_account_id?: string | null
+          competence_date?: string | null
           cost_center_id?: string | null
           created_at?: string | null
           customer_id?: string | null
@@ -4952,6 +4957,7 @@ export type Database = {
           amount?: number
           bank_account_id?: string | null
           chart_account_id?: string | null
+          competence_date?: string | null
           cost_center_id?: string | null
           created_at?: string | null
           customer_id?: string | null
