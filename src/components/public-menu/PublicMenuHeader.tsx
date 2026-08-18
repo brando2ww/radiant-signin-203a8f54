@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useBusinessSettings, usePublicSettings } from "@/hooks/use-public-menu";
-import { Clock, MapPin, Star, Menu, LogIn, LogOut, User } from "lucide-react";
+import { Clock, MapPin, Star, Menu, LogIn, LogOut, User, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,7 @@ import {
 import { isStoreCurrentlyOpen, formatTodayShifts } from "@/lib/delivery-hours";
 import { formatBRL } from "@/lib/format";
 import { useNavigate } from "react-router-dom";
-import { useLoyaltySettings } from "@/hooks/use-delivery-loyalty";
+import { useLoyaltySettings, useCustomerLoyaltyBalance } from "@/hooks/use-delivery-loyalty";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerLogin } from "@/components/public-menu/checkout/CustomerLogin";
 
@@ -32,6 +32,7 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
   const { data: businessSettings } = useBusinessSettings(userId);
   const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
+  const { data: loyaltyBalance } = useCustomerLoyaltyBalance(userId);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
 
@@ -224,6 +225,53 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
             </div>
           </div>
         </div>
+
+        {/* Fidelidade em destaque. Antes só existia dentro do menu hambúrguer,
+            atrás de "Minha conta" — ninguém que não soubesse que existe iria
+            procurar ali. Aqui ela aparece na primeira dobra, junto do nome da
+            loja, e mostra o saldo para quem já é cliente. */}
+        {loyaltyActive && (
+          <button
+            type="button"
+            onClick={() => navigate(loyaltyPath)}
+            className="mt-4 w-full rounded-xl border-2 p-4 text-left transition-colors hover:bg-muted/40"
+            style={{ borderColor: businessSettings?.primary_color || "#3b82f6" }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white"
+                style={{ backgroundColor: businessSettings?.primary_color || "#3b82f6" }}
+              >
+                <Star className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                {isCustomer ? (
+                  <>
+                    <p className="text-sm font-semibold">
+                      Você tem{" "}
+                      <span style={{ color: businessSettings?.primary_color || "#3b82f6" }}>
+                        {loyaltyBalance?.balance ?? 0} pontos
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Toque para ver seus prêmios e resgatar
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold">Programa de fidelidade</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ganhe pontos a cada pedido e troque por prêmios
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </div>
+          </button>
+        )}
       </div>
 
       <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
