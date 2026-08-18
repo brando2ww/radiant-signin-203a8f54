@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -8,12 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/search-select";
+import { DatePickerDialog } from "@/components/ui/date-picker-dialog";
+import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { pdvFinancialTransactionSchema, type PDVFinancialTransactionFormData } from "@/lib/validations/pdv-financial-transaction";
 import { usePDVCostCenters } from "@/hooks/use-pdv-cost-centers";
@@ -30,6 +28,15 @@ interface PDVTransactionDialogProps {
   transaction?: PDVFinancialTransaction;
   onSubmit: (data: any) => Promise<void>;
 }
+
+/** Grupo de quem não tem conta-pai, para a lista não ficar com contas soltas. */
+const TIPO_CONTA: Record<string, string> = {
+  revenue: "Receitas",
+  expense: "Despesas",
+  cost: "Custos",
+  asset: "Ativo",
+  liability: "Passivo",
+};
 
 export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit }: PDVTransactionDialogProps) {
   const { costCenters } = usePDVCostCenters();
@@ -86,6 +93,42 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
     }
   }, [paymentDate, status, form]);
 
+  // O plano de contas é hierárquico e padronizado. Só as folhas são lançáveis;
+  // as contas-pai viram cabeçalho de grupo, que é como o financeiro procura.
+  const opcoesConta = useMemo<SearchSelectOption[]>(() => {
+    const porId = new Map(accounts.map((a) => [a.id, a]));
+    const temFilho = new Set(accounts.filter((a) => a.parent_id).map((a) => a.parent_id as string));
+    return accounts
+      .filter((a) => !temFilho.has(a.id))
+      .map((a) => ({
+        value: a.id,
+        label: `${a.code} · ${a.name}`,
+        group: a.parent_id
+          ? porId.get(a.parent_id)?.name ?? TIPO_CONTA[a.account_type] ?? "Outras"
+          : TIPO_CONTA[a.account_type] ?? "Outras",
+      }));
+  }, [accounts]);
+
+  const opcoesCentro = useMemo<SearchSelectOption[]>(
+    () => costCenters.map((cc) => ({ value: cc.id, label: cc.name })),
+    [costCenters],
+  );
+
+  const opcoesBanco = useMemo<SearchSelectOption[]>(
+    () => bankAccounts.map((ba) => ({ value: ba.id, label: ba.name, hint: ba.bank_name || undefined })),
+    [bankAccounts],
+  );
+
+  const opcoesFornecedor = useMemo<SearchSelectOption[]>(
+    () => suppliers.map((s) => ({ value: s.id, label: s.company_name || s.name })),
+    [suppliers],
+  );
+
+  const opcoesCliente = useMemo<SearchSelectOption[]>(
+    () => customers.map((c) => ({ value: c.id, label: c.name, hint: c.phone || undefined })),
+    [customers],
+  );
+
   const handleSubmit = async (data: PDVFinancialTransactionFormData) => {
     try {
       await onSubmit(transaction ? { id: transaction.id, ...data } : data);
@@ -96,9 +139,11 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
     }
   };
 
+  const ehPagar = transactionType === 'payable';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>
             {transaction ? 'Editar Lançamento' : 'Novo Lançamento Financeiro'}
@@ -106,44 +151,47 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-3">
+            {/* Pagar ou receber muda o resto do formulário; é a primeira
+                decisão e por isso vem como botão, não como radio miúdo. */}
             <FormField
               control={form.control}
               name="transaction_type"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Lançamento</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="payable" id="payable" />
-                        <label htmlFor="payable" className="text-sm font-medium text-destructive cursor-pointer">
-                          Conta a Pagar
-                        </label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="receivable" id="receivable" />
-                        <label htmlFor="receivable" className="text-sm font-medium text-success cursor-pointer">
-                          Conta a Receber
-                        </label>
-                      </div>
-                    </RadioGroup>
-                  </FormControl>
+                <FormItem className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { v: 'payable', rotulo: 'Conta a Pagar', Icone: ArrowDownCircle, cor: 'text-destructive', borda: 'border-destructive bg-destructive/5' },
+                      { v: 'receivable', rotulo: 'Conta a Receber', Icone: ArrowUpCircle, cor: 'text-success', borda: 'border-success bg-success/10' },
+                    ] as const).map(({ v, rotulo, Icone, cor, borda }) => {
+                      const ativo = field.value === v;
+                      return (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => field.onChange(v)}
+                          className={cn(
+                            "flex items-center justify-center gap-2 rounded-md border py-2 text-sm font-medium transition-colors",
+                            ativo ? borda : "hover:bg-muted/50",
+                          )}
+                        >
+                          <Icone className={cn("h-4 w-4", ativo ? cor : "text-muted-foreground")} />
+                          {rotulo}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <FormField
                 control={form.control}
                 name="description"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="space-y-1.5 sm:col-span-2">
                     <FormLabel>Descrição *</FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: Pagamento de fornecedor" {...field} />
@@ -157,7 +205,7 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
                 control={form.control}
                 name="amount"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="space-y-1.5">
                     <FormLabel>Valor *</FormLabel>
                     <FormControl>
                       <CurrencyInput
@@ -171,35 +219,35 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <FormField
                 control={form.control}
                 name="due_date"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data de Vencimento *</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          >
-                            {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Selecione uma data</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          locale={ptBR}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Vencimento *</FormLabel>
+                    <DatePickerDialog
+                      value={field.value}
+                      onChange={field.onChange}
+                      title="Data de vencimento"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="competence_date"
+                render={({ field }) => (
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Competência</FormLabel>
+                    <DatePickerDialog
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Mesmo que vencimento"
+                      title="Data de competência"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -209,7 +257,7 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
                 control={form.control}
                 name="status"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="space-y-1.5">
                     <FormLabel>Status</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
@@ -230,72 +278,120 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="competence_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm">
-                    Data de Competência{" "}
-                    <span className="text-xs text-muted-foreground font-normal">(opcional — padrão: data de vencimento)</span>
-                  </FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                        >
-                          {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Mesmo que vencimento</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value || undefined}
-                        onSelect={field.onChange}
-                        locale={ptBR}
-                        initialFocus
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="chart_account_id"
+                render={({ field }) => (
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Conta Contábil</FormLabel>
+                    <SearchSelect
+                      options={opcoesConta}
+                      value={field.value}
+                      onChange={field.onChange}
+                      title="Plano de contas"
+                      searchPlaceholder="Buscar por código ou nome..."
+                      emptyText="Nenhuma conta encontrada."
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="cost_center_id"
+                render={({ field }) => (
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Centro de Custo</FormLabel>
+                    <SearchSelect
+                      options={opcoesCentro}
+                      value={field.value}
+                      onChange={field.onChange}
+                      title="Centros de custo"
+                      searchPlaceholder="Buscar centro de custo..."
+                      emptyText="Nenhum centro de custo cadastrado."
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="bank_account_id"
+                render={({ field }) => (
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Conta Bancária</FormLabel>
+                    <SearchSelect
+                      options={opcoesBanco}
+                      value={field.value}
+                      onChange={field.onChange}
+                      title="Contas bancárias"
+                      searchPlaceholder="Buscar conta..."
+                      emptyText="Nenhuma conta bancária cadastrada."
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {ehPagar ? (
+                <FormField
+                  control={form.control}
+                  name="supplier_id"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1.5">
+                      <FormLabel>Fornecedor</FormLabel>
+                      <SearchSelect
+                        options={opcoesFornecedor}
+                        value={field.value}
+                        onChange={field.onChange}
+                        title="Fornecedores"
+                        searchPlaceholder="Buscar fornecedor..."
+                        emptyText="Nenhum fornecedor encontrado."
                       />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="customer_id"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1.5">
+                      <FormLabel>Cliente</FormLabel>
+                      <SearchSelect
+                        options={opcoesCliente}
+                        value={field.value}
+                        onChange={field.onChange}
+                        title="Clientes"
+                        searchPlaceholder="Buscar cliente..."
+                        emptyText="Nenhum cliente encontrado."
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
-            />
+            </div>
 
             {(status === 'paid' || paymentDate) && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <FormField
                   control={form.control}
                   name="payment_date"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="space-y-1.5">
                       <FormLabel>Data de Pagamento</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            >
-                              {field.value ? format(field.value, "PPP", { locale: ptBR }) : <span>Selecione uma data</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value || undefined}
-                            onSelect={field.onChange}
-                            locale={ptBR}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <DatePickerDialog
+                        value={field.value}
+                        onChange={field.onChange}
+                        title="Data de pagamento"
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -305,7 +401,7 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
                   control={form.control}
                   name="payment_method"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="space-y-1.5">
                       <FormLabel>Método de Pagamento</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value || undefined}>
                         <FormControl>
@@ -329,27 +425,16 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="chart_account_id"
+                name="document_number"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Conta Contábil</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {accounts.map((acc) => (
-                          <SelectItem key={acc.id} value={acc.id}>
-                            {acc.code} - {acc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Número do Documento</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: NF 12345" {...field} value={field.value || ''} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -357,143 +442,26 @@ export function PDVTransactionDialog({ open, onOpenChange, transaction, onSubmit
 
               <FormField
                 control={form.control}
-                name="cost_center_id"
+                name="notes"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Centro de Custo</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {costCenters.map((cc) => (
-                          <SelectItem key={cc.id} value={cc.id}>
-                            {cc.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <FormItem className="space-y-1.5">
+                    <FormLabel>Observações</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Informações adicionais..."
+                        {...field}
+                        value={field.value || ''}
+                        rows={2}
+                        className="resize-none"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="bank_account_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Conta Bancária</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || undefined}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {bankAccounts.map((ba) => (
-                          <SelectItem key={ba.id} value={ba.id}>
-                            {ba.name} - {ba.bank_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {transactionType === 'payable' ? (
-                <FormField
-                  control={form.control}
-                  name="supplier_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fornecedor</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || undefined}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {suppliers.map((s) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.company_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="customer_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cliente</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || undefined}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </div>
-
-            <FormField
-              control={form.control}
-              name="document_number"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Número do Documento</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: NF 12345" {...field} value={field.value || ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Observações</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Informações adicionais..."
-                      {...field}
-                      value={field.value || ''}
-                      rows={3}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2 pt-1">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
