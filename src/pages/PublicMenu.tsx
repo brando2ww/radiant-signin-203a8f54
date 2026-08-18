@@ -1,5 +1,6 @@
 import { useParams, useSearchParams } from "react-router-dom";
 import { PublicMenuHeader } from "@/components/public-menu/PublicMenuHeader";
+import { loadCart, saveCart } from "@/lib/public-cart-storage";
 import { CategoryNav } from "@/components/public-menu/CategoryNav";
 import { ProductList } from "@/components/public-menu/ProductList";
 import { ShoppingCart } from "@/components/public-menu/ShoppingCart";
@@ -27,6 +28,9 @@ export interface CartItem {
     quantity?: number;
   }[];
   notes?: string;
+  /** Item vindo de resgate de fidelidade. Vai ao pedido valendo R$ 0,00. */
+  prizeId?: string;
+  prizeName?: string;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,7 +39,11 @@ const PublicMenu = () => {
   const { userId: handle } = useParams<{ userId: string }>();
   const [searchParams] = useSearchParams();
   const initialCoupon = searchParams.get("cupom") || undefined;
+  // Persistido: antes o carrinho vivia só em memória, então abrir "Meus pontos"
+  // e voltar apagava tudo que o cliente já tinha escolhido. É também onde o
+  // item de resgate é depositado pela tela de fidelidade.
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartLoaded, setCartLoaded] = useState(false);
   const { trackPageView } = useMarketingTracking();
 
   // Resolve slug → user_id quando o parâmetro não for UUID
@@ -55,6 +63,21 @@ const PublicMenu = () => {
   });
 
   const userId = resolvedUserId || undefined;
+
+  // Carrega o carrinho guardado assim que o estabelecimento é resolvido, e
+  // devolve ao armazenamento a cada mudança. `cartLoaded` evita o efeito de
+  // salvar o array vazio inicial por cima do que já estava guardado.
+  useEffect(() => {
+    if (!userId || cartLoaded) return;
+    setCart(loadCart(userId));
+    setCartLoaded(true);
+  }, [userId, cartLoaded]);
+
+  useEffect(() => {
+    if (!userId || !cartLoaded) return;
+    saveCart(userId, cart);
+  }, [userId, cartLoaded, cart]);
+
 
   const { data: categories = [] } = usePublicCategories(userId || "");
   const { data: products = [] } = usePublicProducts(userId || "");

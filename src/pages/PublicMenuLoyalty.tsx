@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Star, Gift, History, LogOut, Loader2, LogIn } from "lucide-react";
 import { toast } from "sonner";
+import { appendToStoredCart, hasPrizeInStoredCart } from "@/lib/public-cart-storage";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
@@ -69,12 +70,38 @@ const PublicMenuLoyalty = () => {
       toast.error("Pontos insuficientes");
       return;
     }
+    // Um resgate por pedido: sem isso, quem tem muitos pontos monta um pedido
+    // inteiro de graça e a cozinha não distingue o que é prêmio.
+    if (hasPrizeInStoredCart(userId)) {
+      toast.error("Você já tem um prêmio no carrinho. Finalize o pedido para resgatar outro.");
+      return;
+    }
+
     redeem.mutate(
       { user_id: userId, prize_id: prize.id },
       {
         onSuccess: (res: any) => {
           setRedemptionCode(String(prize.id).slice(0, 8).toUpperCase());
-          toast.success(`Prêmio "${res?.prize_name || prize.name}" resgatado!`);
+
+          // Prêmio com produto vinculado vira item do pedido, a R$ 0,00. Sem
+          // vínculo, continua sendo o código que alguém honra no balcão.
+          if (prize.delivery_product_id) {
+            appendToStoredCart(userId, {
+              productId: prize.delivery_product_id,
+              name: prize.name,
+              quantity: 1,
+              unitPrice: 0,
+              selectedOptions: [],
+              prizeId: prize.id,
+              prizeName: prize.name,
+            });
+            toast.success(`"${prize.name}" adicionado ao seu pedido!`, {
+              description: "Finalize o pedido para receber.",
+              action: { label: "Ir ao cardápio", onClick: () => navigate(`/cardapio/${handle}`) },
+            });
+          } else {
+            toast.success(`Prêmio "${res?.prize_name || prize.name}" resgatado!`);
+          }
         },
         onError: (e: any) => toast.error(e?.message || "Erro ao resgatar"),
       },
