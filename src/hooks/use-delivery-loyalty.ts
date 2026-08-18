@@ -104,6 +104,8 @@ export function useCreateLoyaltyPrize() {
       image_url?: string;
       is_active?: boolean;
       max_quantity?: number | null;
+      /** Produto entregue no resgate. Null = honrado manualmente. */
+      delivery_product_id?: string | null;
     }) => {
       if (!ownerId) throw new Error("Auth required");
       const { error } = await supabase
@@ -130,6 +132,7 @@ export function useUpdateLoyaltyPrize() {
       image_url?: string;
       is_active?: boolean;
       max_quantity?: number | null;
+      delivery_product_id?: string | null;
     }) => {
       const { error } = await supabase
         .from("delivery_loyalty_prizes")
