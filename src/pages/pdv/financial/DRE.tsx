@@ -45,7 +45,10 @@ export default function DRE() {
       `(-) CMV;${fmt(data.cmv)}`,
       `= LUCRO BRUTO;${fmt(data.grossProfit)}`,
       `(-) DESPESAS OPERACIONAIS;${fmt(data.totalExpenses)}`,
-      ...Object.entries(data.expensesByCategory).map(([k, v]) => `  ${k};${fmt(v as number)}`),
+      ...data.expenseGroups.flatMap((g) => [
+        `  ${g.code} ${g.name};${fmt(g.total)}`,
+        ...(g.items.length > 1 ? g.items.map((i) => `    ${i.name};${fmt(i.total)}`) : []),
+      ]),
       `= LUCRO OPERACIONAL;${fmt(data.operatingProfit)}`,
       `= LUCRO LÍQUIDO;${fmt(data.netProfit)}`,
     ];
@@ -189,10 +192,26 @@ export default function DRE() {
                   tooltip="Despesas reconhecidas pela data de competência — inclui lançamentos pendentes e pagos do período, excluindo cancelados."
                 />
               </div>
-              {Object.entries(data.expensesByCategory).map(([cat, val]) => (
-                <DRELine key={cat} label={cat} value={val as number} indent />
+              {/* Grupo do plano de contas com subtotal, e as contas-folha
+                  abaixo. Lista plana com trinta linhas não é DRE, é extrato. */}
+              {data.expenseGroups.map((g) => (
+                <div key={g.code + g.name} className="space-y-0.5">
+                  <div className="flex justify-between items-center pl-4 text-sm font-semibold">
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-muted-foreground">{g.code}</span>
+                      {g.name}
+                    </span>
+                    <span className="tabular-nums">{fmt(g.total)}</span>
+                  </div>
+                  {g.items.length > 1 && g.items.map((i) => (
+                    <div key={i.code + i.name} className="flex justify-between items-center pl-10 text-xs text-muted-foreground">
+                      <span>{i.name}</span>
+                      <span className="tabular-nums">{fmt(i.total)}</span>
+                    </div>
+                  ))}
+                </div>
               ))}
-              {Object.keys(data.expensesByCategory).length === 0 && (
+              {data.expenseGroups.length === 0 && (
                 <p className="text-sm text-muted-foreground pl-4">Nenhuma despesa registrada no período</p>
               )}
 

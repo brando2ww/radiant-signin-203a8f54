@@ -143,22 +143,75 @@ export function usePDVDre(selectedMonth?: Date) {
       const grossProfit = netRevenue - cmv;
 
       // ---------- DESPESAS OPERACIONAIS ----------
-      const { data: expenses } = await supabase
+      // O erro nunca era descartado aqui: quando a consulta falhava (foi o que
+      // aconteceu por meses, com a coluna de competência inexistente), a lista
+      // vinha nula e a linha aparecia zerada como se não houvesse despesa.
+      const { data: expenses, error: expensesError } = await supabase
         .from("pdv_financial_transactions")
-        .select("amount, description, chart_account_id, pdv_chart_of_accounts(name)")
+        .select("amount, description, chart_account_id, pdv_chart_of_accounts(id, code, name, parent_id)")
         .eq("user_id", owner)
         .eq("transaction_type", "payable")
         .neq("status", "cancelled")
         .gte("competence_date", ms)
         .lte("competence_date", me);
+      if (expensesError) throw expensesError;
 
-      const expensesByCategory: Record<string, number> = {};
+      // O plano de contas é hierárquico e a DRE precisa respeitar isso: o
+      // gestor lê por grupo (MÃO-DE-OBRA, TERCEIROS), não por conta-folha
+      // solta. Buscamos o plano inteiro para resolver o pai de cada conta.
+      const { data: planoContas } = await supabase
+        .from("pdv_chart_of_accounts")
+        .select("id, code, name, parent_id, account_type")
+        .eq("user_id", owner);
+
+      const contaPorId = new Map((planoContas || []).map((c: any) => [c.id, c]));
+
+      interface GrupoDespesa {
+        code: string;
+        name: string;
+        total: number;
+        items: Array<{ code: string; name: string; total: number }>;
+      }
+      const grupos = new Map<string, GrupoDespesa>();
       let totalExpenses = 0;
+
       (expenses || []).forEach((e: any) => {
-        const cat = e.pdv_chart_of_accounts?.name || "Outras despesas";
-        expensesByCategory[cat] = (expensesByCategory[cat] || 0) + Number(e.amount || 0);
-        totalExpenses += Number(e.amount || 0);
+        const valor = Number(e.amount || 0);
+        totalExpenses += valor;
+
+        const conta = e.pdv_chart_of_accounts;
+        const pai = conta?.parent_id ? contaPorId.get(conta.parent_id) : null;
+        // Conta sem pai é grupo de si mesma; lançamento sem conta fica visível
+        // como "Sem classificação" em vez de sumir no meio das outras.
+        const chaveGrupo = pai?.id ?? conta?.id ?? "__sem__";
+        const nomeGrupo = pai?.name ?? conta?.name ?? "Sem classificação";
+        const codGrupo = (pai?.code ?? conta?.code ?? "zz") as string;
+
+        if (!grupos.has(chaveGrupo)) {
+          grupos.set(chaveGrupo, { code: codGrupo, name: nomeGrupo, total: 0, items: [] });
+        }
+        const g = grupos.get(chaveGrupo)!;
+        g.total += valor;
+
+        const nomeItem = conta?.name ?? e.description ?? "Sem classificação";
+        const codItem = (conta?.code ?? "") as string;
+        const existente = g.items.find((i) => i.name === nomeItem);
+        if (existente) existente.total += valor;
+        else g.items.push({ code: codItem, name: nomeItem, total: valor });
       });
+
+      // Ordem do plano de contas: 1.000 antes de 10.000, e não alfabética.
+      const numeroDoCodigo = (c: string) => {
+        const n = parseFloat(String(c).replace(/[^\d.]/g, "").split(".")[0]);
+        return Number.isFinite(n) ? n : 9999;
+      };
+      const expenseGroups = Array.from(grupos.values())
+        .map((g) => ({ ...g, items: g.items.sort((a, b) => b.total - a.total) }))
+        .sort((a, b) => numeroDoCodigo(a.code) - numeroDoCodigo(b.code));
+
+      // Mantido para quem já consumia o formato antigo (exportação em CSV).
+      const expensesByCategory: Record<string, number> = {};
+      expenseGroups.forEach((g) => { expensesByCategory[g.name] = g.total; });
 
       const operatingProfit = grossProfit - totalExpenses;
       const netProfit = operatingProfit;
@@ -181,6 +234,7 @@ export function usePDVDre(selectedMonth?: Date) {
         cmv,
         grossProfit,
         expensesByCategory,
+        expenseGroups,
         totalExpenses,
         operatingProfit,
         netProfit,
