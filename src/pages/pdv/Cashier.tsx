@@ -10,6 +10,9 @@ import { CloseCashierDialog, printCashierReport } from "@/components/pdv/CloseCa
 import { CashMovementDialog } from "@/components/pdv/CashMovementDialog";
 import { CashMovementsList } from "@/components/pdv/CashMovementsList";
 import { CashierHeader } from "@/components/pdv/cashier/CashierHeader";
+import { FiscalPauseBanner } from "@/components/pdv/cashier/FiscalPauseBanner";
+import { MaintenanceModeDialog } from "@/components/pdv/cashier/MaintenanceModeDialog";
+import { useFiscalPause } from "@/hooks/use-fiscal-pause";
 import { CashierActionsSidebar } from "@/components/pdv/cashier/CashierActionsSidebar";
 import { CashierSummaryFooter } from "@/components/pdv/cashier/CashierSummaryFooter";
 import { KeyboardShortcutsDialog } from "@/components/pdv/cashier/KeyboardShortcutsDialog";
@@ -75,6 +78,8 @@ export default function PDVCashier() {
   const [movementDialog, setMovementDialog] = useState(false);
   const [movementType, setMovementType] = useState<"sangria" | "reforco">("reforco");
   const [shortcutsDialog, setShortcutsDialog] = useState(false);
+  const [maintenanceDialog, setMaintenanceDialog] = useState(false);
+  const { isPaused: emManutencao, retomar: sairManutencao } = useFiscalPause();
   const [chargeDialog, setChargeDialog] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [paymentSplitByComanda, setPaymentSplitByComanda] = useState(false);
@@ -317,6 +322,17 @@ export default function PDVCashier() {
           e.preventDefault();
           if (activeSession) window.setTimeout(() => setCouponsDialog(true), 0);
           break;
+        case "F11":
+          // Atalho sem botão na tela. O preventDefault é o que impede o
+          // navegador de entrar em tela cheia.
+          e.preventDefault();
+          if (!activeSession) break;
+          if (emManutencao) {
+            sairManutencao.mutate({});
+          } else {
+            setMaintenanceDialog(true);
+          }
+          break;
         case "F12":
           e.preventDefault();
           setShortcutsDialog(prev => !prev);
@@ -326,7 +342,7 @@ export default function PDVCashier() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeSession, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, blockerDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
+  }, [activeSession, emManutencao, sairManutencao, openDialog, closeDialog, movementDialog, chargeDialog, paymentDialog, blockerDialog, shortcutsDialog, isOpeningCashier, isClosingCashier, isAddingMovement, getPendingPaymentComandas, getItemsByComanda, inactiveOrderIds, liveTableOrderIds]);
 
   return (
     <div className="w-full px-4 md:px-6 lg:px-8 py-4 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col gap-4">
@@ -338,6 +354,7 @@ export default function PDVCashier() {
             isOpen={!!activeSession}
             openedAt={activeSession?.opened_at || null}
           />
+          <FiscalPauseBanner />
           <Card className="flex flex-col min-h-0 flex-1">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">Movimentações</CardTitle>
@@ -459,6 +476,12 @@ export default function PDVCashier() {
         isAdding={isAddingMovement}
         defaultType={movementType}
         drawerBalance={drawerBalance}
+      />
+
+      <MaintenanceModeDialog
+        open={maintenanceDialog}
+        onOpenChange={setMaintenanceDialog}
+        cashierSessionId={activeSession?.id ?? null}
       />
 
       <KeyboardShortcutsDialog

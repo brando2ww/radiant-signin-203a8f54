@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { startOfMonth, endOfMonth, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
@@ -34,7 +34,7 @@ export default function DiscountsReport() {
       const [discOrdersRes, pdvOrdersRes, couponsRedeemedRes, couponsGeneratedRes, cashierMovs] = await Promise.all([
         supabase
           .from("delivery_orders")
-          .select("id, order_number, customer_id, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, created_at, status")
+          .select("id, order_number, customer_id, customer_name, customer_phone, subtotal, discount, total, delivery_fee, coupon_code, discount_source, created_at, status")
           .eq("user_id", visibleUserId!)
           .gt("discount", 0)
           .not("status", "in", "(cancelled,cancelado)")
@@ -109,6 +109,9 @@ export default function DiscountsReport() {
         discount: Number(o.discount || 0),
         total: Number(o.total || 0),
         coupon_code: o.coupon_code || null,
+        // Sem isto, um resgate de fidelidade cai no mesmo balde de "(sem cupom)"
+        // que o desconto dado na mão, e ninguém consegue medir o programa.
+        source: (o.discount_source as string | null) || (o.coupon_code ? "coupon" : "manual"),
         origin: "Delivery" as const,
         closed_at: o.created_at,
         created_at: o.created_at,
@@ -128,6 +131,7 @@ export default function DiscountsReport() {
           discount: Number(o.discount || 0),
           total: Number(o.total || 0),
           coupon_code: null as string | null,
+          source: "manual" as string,
           origin,
           closed_at: o.closed_at || o.created_at,
           created_at: o.created_at,
@@ -174,6 +178,22 @@ export default function DiscountsReport() {
         r.revenue += o.total;
       });
 
+      // Aggregation by procedência do desconto
+      const SOURCE_LABELS: Record<string, string> = {
+        coupon: "Cupom",
+        loyalty_prize: "Prêmio de fidelidade",
+        manual: "Desconto manual",
+      };
+      const bySource = new Map<string, { source: string; count: number; discount: number; revenue: number }>();
+      orders.forEach((o) => {
+        const k = SOURCE_LABELS[o.source] || "Desconto manual";
+        if (!bySource.has(k)) bySource.set(k, { source: k, count: 0, discount: 0, revenue: 0 });
+        const r = bySource.get(k)!;
+        r.count += 1;
+        r.discount += o.discount;
+        r.revenue += o.total;
+      });
+
       // Daily evolution
       const days = eachDay(start, end);
       const byDay = new Map(days.map((d) => [d, { day: d, discount: 0, count: 0 }]));
@@ -200,6 +220,7 @@ export default function DiscountsReport() {
         totalRevenue,
         byCoupon: Array.from(byCoupon.values()).sort((a, b) => b.discount - a.discount),
         byOrigin: Array.from(byOrigin.values()),
+        bySource: Array.from(bySource.values()).sort((a, b) => b.discount - a.discount),
         byDay: Array.from(byDay.values()),
         byCampaign: Array.from(byCampaign.values()).sort((a, b) => b.count - a.count),
         couponsGenerated: couponsGenerated.length,
@@ -219,6 +240,7 @@ export default function DiscountsReport() {
   const coupons = data?.coupons || [];
   const byCoupon = data?.byCoupon || [];
   const byOrigin = data?.byOrigin || [];
+  const bySource = data?.bySource || [];
   const byDay = data?.byDay || [];
   const byCampaign = data?.byCampaign || [];
 
@@ -278,6 +300,16 @@ export default function DiscountsReport() {
           { key: "pct", label: "% desc.", width: 10, type: "percent" },
           { key: "total", label: "Total", width: 14, type: "currency" },
           { key: "cupom", label: "Cupom", width: 16 },
+        ],
+      },
+      {
+        name: "Por Procedência",
+        rows: bySource.map((o) => ({ procedencia: o.source, pedidos: o.count, desconto: o.discount, receita: o.revenue })),
+        columns: [
+          { key: "procedencia", label: "Procedência", width: 22 },
+          { key: "pedidos", label: "Pedidos", width: 10, type: "number" },
+          { key: "desconto", label: "Desconto", width: 16, type: "currency" },
+          { key: "receita", label: "Receita", width: 16, type: "currency" },
         ],
       },
       {
@@ -414,6 +446,41 @@ export default function DiscountsReport() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Descontos por procedência</CardTitle>
+          <CardDescription>
+            De onde veio o abatimento: cupom, resgate do programa de pontos ou desconto dado na mão.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? <Skeleton className="h-32 w-full" /> : bySource.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Nenhum desconto no período.</p>
+          ) : (
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Procedência</TableHead>
+                <TableHead className="text-right">Pedidos</TableHead>
+                <TableHead className="text-right">Desconto total</TableHead>
+                <TableHead className="text-right">Receita</TableHead>
+                <TableHead className="text-right">% s/ receita</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {bySource.map((o) => (
+                  <TableRow key={o.source}>
+                    <TableCell className="font-medium">{o.source}</TableCell>
+                    <TableCell className="text-right">{o.count}</TableCell>
+                    <TableCell className="text-right">{formatBRL(o.discount)}</TableCell>
+                    <TableCell className="text-right">{formatBRL(o.revenue)}</TableCell>
+                    <TableCell className="text-right">{o.revenue > 0 ? `${((o.discount / o.revenue) * 100).toFixed(1)}%` : "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Descontos por origem</CardTitle></CardHeader>

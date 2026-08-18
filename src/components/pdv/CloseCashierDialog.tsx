@@ -332,14 +332,14 @@ export async function printCashierReport(params: PrintCashierReportParams) {
 
   // Cancelamentos e Descontos por sessão
   let cancelledOrders: Array<{ num: number | null; amount: number; reason: string | null }> = [];
-  let discountedOrders: Array<{ num: number | null; discount: number }> = [];
+  let discountedOrders: Array<{ num: number | null; discount: number; origem?: string }> = [];
   if (session?.id) {
     try {
       const [{ data: cancelPdv }, { data: cancelDel }, { data: discPdv }, { data: discDel }] = await Promise.all([
         supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
         supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
         supabase.from("pdv_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
-        supabase.from("delivery_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
+        supabase.from("delivery_orders").select("order_number,discount,discount_source").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
       ]);
       cancelledOrders = [
         ...(cancelPdv || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
@@ -347,7 +347,13 @@ export async function printCashierReport(params: PrintCashierReportParams) {
       ];
       discountedOrders = [
         ...(discPdv || []).map((o: any) => ({ num: o.order_number, discount: Number(o.discount || 0) })),
-        ...(discDel || []).map((o: any) => ({ num: o.order_number, discount: Number(o.discount || 0) })),
+        // A origem só existe no delivery: é lá que o resgate de fidelidade
+        // vira desconto. No salão, desconto continua sendo autorizado na mão.
+        ...(discDel || []).map((o: any) => ({
+          num: o.order_number,
+          discount: Number(o.discount || 0),
+          origem: o.discount_source === "loyalty_prize" ? "prêmio" : undefined,
+        })),
       ];
     } catch {
       // segue sem esses dados
@@ -386,7 +392,7 @@ export async function printCashierReport(params: PrintCashierReportParams) {
 <div class="section">
   <div class="section-title">DESCONTOS CONCEDIDOS</div>
   <div class="row total"><span>${discountedOrders.length} pedido${discountedOrders.length !== 1 ? "s" : ""}${totalSales > 0 && discTotal > 0 ? ` <small>(${((discTotal / totalSales) * 100).toFixed(1)}% das vendas)</small>` : ""}</span><span>${discountedOrders.length > 0 ? `- ${formatBRL(discTotal)}` : "R$ 0,00"}</span></div>
-  ${discountedOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}</span><span>- ${formatBRL(o.discount)}</span></div>`).join("")}
+  ${discountedOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}${o.origem ? ` <small>(${o.origem})</small>` : ""}</span><span>- ${formatBRL(o.discount)}</span></div>`).join("")}
 </div>`;
 
   const expensesHtml = expenses.length

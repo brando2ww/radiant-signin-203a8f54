@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
+import type { PrizeKind, PrizeDiscountType } from "@/lib/loyalty-prize";
 
 // ---- Settings ----
 const DEFAULT_LOYALTY_SETTINGS = {
@@ -106,6 +107,12 @@ export function useCreateLoyaltyPrize() {
       max_quantity?: number | null;
       /** Produto entregue no resgate. Null = honrado manualmente. */
       delivery_product_id?: string | null;
+      /** 'product' entrega um item; 'discount' abate valor no carrinho. */
+      kind?: PrizeKind;
+      discount_type?: PrizeDiscountType | null;
+      discount_value?: number | null;
+      discount_max?: number | null;
+      min_order_value?: number;
     }) => {
       if (!ownerId) throw new Error("Auth required");
       const { error } = await supabase
@@ -133,6 +140,11 @@ export function useUpdateLoyaltyPrize() {
       is_active?: boolean;
       max_quantity?: number | null;
       delivery_product_id?: string | null;
+      kind?: PrizeKind;
+      discount_type?: PrizeDiscountType | null;
+      discount_value?: number | null;
+      discount_max?: number | null;
+      min_order_value?: number;
     }) => {
       const { error } = await supabase
         .from("delivery_loyalty_prizes")
@@ -177,7 +189,15 @@ export function useCustomerLoyaltyBalance(userId?: string | null) {
         _user_id: userId,
       });
       if (error) throw error;
-      return data as unknown as { balance: number; expiring_soon: number; authenticated: boolean; linked?: boolean };
+      return data as unknown as {
+        /** Já descontado do que está reservado — é o que o cliente pode gastar. */
+        balance: number;
+        total_points?: number;
+        reserved?: number;
+        expiring_soon: number;
+        authenticated: boolean;
+        linked?: boolean;
+      };
     },
     enabled: !!userId,
   });
@@ -199,21 +219,116 @@ export function useCustomerLoyaltyHistory(userId?: string | null) {
   });
 }
 
-export function useRedeemLoyaltyPrize() {
+/**
+ * Resgate de fidelidade em duas etapas.
+ *
+ * Resgatar RESERVA o prêmio; o ponto só sai quando o pedido é confirmado
+ * (`useApplyRedemption`). Antes disso o resgate debitava na hora, e quem
+ * abandonasse o carrinho perdia os pontos sem levar nada. Com prêmio de
+ * desconto isso ficaria pior ainda: sem pedido, o desconto nem existe.
+ *
+ */
+
+export interface LoyaltyReservation {
+  redemption_id: string;
+  prize_id?: string;
+  kind: "product" | "discount";
+  prize_name: string;
+  points_cost: number;
+  delivery_product_id: string | null;
+  discount_type: "fixed" | "percentage" | null;
+  discount_value: number | null;
+  discount_max: number | null;
+  min_order_value: number;
+  expires_at: string;
+  new_balance?: number;
+}
+
+export function useReserveLoyaltyPrize() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (values: { user_id: string; prize_id: string }) => {
-      const { data, error } = await supabase.rpc("redeem_loyalty_prize", {
+      const { data, error } = await supabase.rpc("loyalty_reserve_prize", {
         _user_id: values.user_id,
         _prize_id: values.prize_id,
       });
       if (error) throw error;
-      return data as unknown as { new_balance: number; prize_name: string };
+      return data as unknown as LoyaltyReservation;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
       qc.invalidateQueries({ queryKey: ["loyalty-history-rpc"] });
       qc.invalidateQueries({ queryKey: ["loyalty-prizes"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-reservation"] });
+    },
+  });
+}
+
+/**
+ * A reserva ativa do cliente, lida do servidor.
+ *
+ * O carrinho vive no localStorage, mas a reserva não pode: quem limpa o
+ * navegador ou pede pelo celular depois de escolher no computador precisa
+ * encontrar o prêmio onde deixou, e não pode conseguir dois.
+ */
+export function useActiveReservation(userId?: string | null) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["loyalty-reservation", userId, user?.id ?? null],
+    queryFn: async () => {
+      if (!userId || !user) return null;
+      const { data, error } = await supabase.rpc("loyalty_active_reservation", { _user_id: userId });
+      if (error) throw error;
+      return (data as unknown as LoyaltyReservation | null) ?? null;
+    },
+    enabled: !!userId && !!user,
+  });
+}
+
+export function useCancelReservation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (values: { user_id: string; redemption_id: string }) => {
+      const { error } = await supabase.rpc("loyalty_cancel_reservation", {
+        _user_id: values.user_id,
+        _redemption_id: values.redemption_id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-reservation"] });
+    },
+  });
+}
+
+/**
+ * Fecha o resgate contra um pedido: recalcula o desconto pelo subtotal real
+ * dos itens gravados, grava em `delivery_orders.discount` e só então debita o
+ * ponto. Tudo numa transação.
+ */
+export function useApplyRedemption() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (values: { user_id: string; order_id: string; redemption_id: string }) => {
+      const { data, error } = await supabase.rpc("delivery_apply_redemption", {
+        _user_id: values.user_id,
+        _order_id: values.order_id,
+        _redemption_id: values.redemption_id,
+      });
+      if (error) throw error;
+      return data as unknown as {
+        already_applied: boolean;
+        discount_amount: number;
+        points_spent: number;
+        new_balance?: number;
+        order_total?: number;
+      };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["loyalty-balance-rpc"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-history-rpc"] });
+      qc.invalidateQueries({ queryKey: ["loyalty-reservation"] });
     },
   });
 }

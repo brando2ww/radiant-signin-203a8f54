@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ShoppingBag, Trash2, Plus, Minus, Tag, X } from "lucide-react";
+import { ShoppingBag, Trash2, Plus, Minus, Tag, X, Gift } from "lucide-react";
 import { CartItem } from "@/pages/PublicMenu";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ import { CheckoutFlow } from "./CheckoutFlow";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
 import { formatBRL } from "@/lib/format";
 import { isStoreCurrentlyOpen } from "@/lib/delivery-hours";
+import { useActiveReservation } from "@/hooks/use-delivery-loyalty";
+import { computePrizeDiscount, describePrizeDiscount } from "@/lib/loyalty-prize";
 import {
   Sheet,
   SheetContent,
@@ -53,9 +55,25 @@ export const ShoppingCart = ({
   }, 0);
 
   const deliveryFee = Number(settings?.default_delivery_fee || 0);
+
+  // Resgate de fidelidade em aberto. Vem do servidor, não do carrinho: é ele
+  // que decide se o prêmio existe, e é ele que vai recalcular o valor na hora
+  // de fechar o pedido.
+  const { data: reserva } = useActiveReservation(userId);
+  const premioEhDesconto = reserva?.kind === "discount";
+  const minimoDoPremio = Number(reserva?.min_order_value ?? 0);
+  const premioAbaixoDoMinimo = !!reserva && subtotal < minimoDoPremio;
+  const premioDesconto =
+    premioEhDesconto && !premioAbaixoDoMinimo ? computePrizeDiscount(reserva, subtotal) : 0;
+
   // Recalcula o desconto em tempo real sobre o subtotal atual.
   // Se o subtotal cair abaixo do mínimo, o cupom é removido automaticamente.
-  const discount = appliedCoupon ? computeCouponDiscount(appliedCoupon, subtotal) : 0;
+  const cupomDesconto = appliedCoupon ? computeCouponDiscount(appliedCoupon, subtotal) : 0;
+
+  // Prêmio e cupom não se somam. Empilhar os dois é o caminho curto para o
+  // pedido de graça, e o servidor recusa a aplicação se o pedido tiver cupom —
+  // então a tela precisa concordar com ele desde já.
+  const discount = reserva ? premioDesconto : cupomDesconto;
   const total = subtotal - discount;
   const storeStatus = isStoreCurrentlyOpen(settings);
 
@@ -225,8 +243,29 @@ export const ShoppingCart = ({
             </ScrollArea>
 
             <div className="border-t p-6 space-y-4">
+              {/* Prêmio de fidelidade em aberto */}
+              {reserva && (
+                <div className="flex items-start gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+                  <Gift className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div className="space-y-0.5 text-sm">
+                    <p className="font-medium">{reserva.prize_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {premioEhDesconto ? describePrizeDiscount(reserva) : "Prêmio incluído no pedido"}
+                    </p>
+                    {premioAbaixoDoMinimo && (
+                      <p className="text-xs font-medium text-destructive">
+                        Faltam {formatBRL(minimoDoPremio - subtotal)} para o prêmio valer.
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Cupom não acumula com prêmio.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Coupon */}
-              <div className="space-y-2">
+              <div className={`space-y-2 ${reserva ? "hidden" : ""}`}>
                 {!appliedCoupon ? (
                   <div className="flex gap-2">
                     <Input
@@ -270,10 +309,16 @@ export const ShoppingCart = ({
                   <span>Subtotal:</span>
                   <span>{formatBRL(subtotal)}</span>
                 </div>
-                {discount > 0 && (
+                {premioDesconto > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Prêmio ({reserva?.prize_name}):</span>
+                    <span>-{formatBRL(premioDesconto)}</span>
+                  </div>
+                )}
+                {!reserva && cupomDesconto > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Desconto:</span>
-                    <span>-{formatBRL(discount)}</span>
+                    <span>-{formatBRL(cupomDesconto)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-lg font-bold pt-2 border-t">
@@ -340,7 +385,8 @@ export const ShoppingCart = ({
       subtotal={subtotal}
       deliveryFee={deliveryFee}
       discount={discount}
-      couponCode={appliedCoupon?.code}
+      couponCode={reserva ? undefined : appliedCoupon?.code}
+      redemptionId={reserva?.redemption_id}
       total={total}
       userId={userId}
       onOrderComplete={handleOrderComplete}

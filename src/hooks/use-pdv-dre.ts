@@ -77,19 +77,27 @@ export function usePDVDre(selectedMonth?: Date) {
       // ---------- DELIVERY (descontos/cancelamentos informativos) ----------
       const { data: deliveryOrders } = await supabase
         .from("delivery_orders")
-        .select("total, discount, status")
+        .select("total, discount, status, discount_source")
         .eq("user_id", owner)
         .gte("created_at", startISO)
         .lte("created_at", endISO);
       let deliveryDiscounts = 0;
       let deliveryCancellations = 0;
+      // Resgate de fidelidade é desconto como qualquer outro no resultado, mas
+      // o gestor precisa ver o quanto o programa custou — separado do cupom.
+      let loyaltyDiscounts = 0;
       (deliveryOrders || []).forEach((o: any) => {
-        if (["entregue", "delivered", "completed"].includes(o.status)) deliveryDiscounts += Number(o.discount || 0);
+        if (["entregue", "delivered", "completed"].includes(o.status)) {
+          const d = Number(o.discount || 0);
+          deliveryDiscounts += d;
+          if (o.discount_source === "loyalty_prize") loyaltyDiscounts += d;
+        }
         if (o.status === "cancelled" || o.status === "cancelada") deliveryCancellations += Number(o.total || 0);
       });
 
       // ---------- TOTAIS ----------
       const totalDiscounts = pdvDiscounts + deliveryDiscounts;
+      const otherDiscounts = totalDiscounts - loyaltyDiscounts;
       const totalCancellations = pdvCancellations + deliveryCancellations; // informativo
       // Bruto (antes de desconto) reconstruído; cobrado já é líquido de desconto.
       const grossRevenue = chargedRevenue + totalDiscounts;
@@ -155,6 +163,8 @@ export function usePDVDre(selectedMonth?: Date) {
         deliverySales,
         grossRevenue,
         totalDiscounts,
+        loyaltyDiscounts,
+        otherDiscounts,
         totalCancellations,
         paymentFees,
         deductions,

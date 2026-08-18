@@ -31,6 +31,8 @@ export interface CartItem {
   /** Item vindo de resgate de fidelidade. Vai ao pedido valendo R$ 0,00. */
   prizeId?: string;
   prizeName?: string;
+  /** Resgate que originou este item. Fecha o ciclo no checkout. */
+  redemptionId?: string;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

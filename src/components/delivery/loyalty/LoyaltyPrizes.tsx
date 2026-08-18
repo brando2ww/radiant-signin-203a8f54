@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Gift, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Gift, Pencil, Trash2, Loader2, Package, Percent } from "lucide-react";
+import { describePrizeDiscount } from "@/lib/loyalty-prize";
+import { formatBRL } from "@/lib/format";
 import { useLoyaltyPrizes, useDeleteLoyaltyPrize } from "@/hooks/use-delivery-loyalty";
 import { LoyaltyPrizeDialog } from "./LoyaltyPrizeDialog";
 import {
@@ -43,7 +45,27 @@ export function LoyaltyPrizes() {
                     <div className="flex items-start justify-between">
                       <div>
                         <h4 className="font-semibold">{prize.name}</h4>
+                        {/* O que o prêmio entrega vale mais que o nome: dois
+                            prêmios podem se chamar igual e pagar diferente. */}
+                        <p className="flex items-center gap-1 text-sm text-primary">
+                          {(prize as any).kind === "discount" ? (
+                            <>
+                              <Percent className="h-3.5 w-3.5" />
+                              {describePrizeDiscount(prize as any)}
+                            </>
+                          ) : (
+                            <>
+                              <Package className="h-3.5 w-3.5" />
+                              {(prize as any).delivery_product_id ? "Produto vinculado" : "Sem produto vinculado"}
+                            </>
+                          )}
+                        </p>
                         {prize.description && <p className="text-sm text-muted-foreground">{prize.description}</p>}
+                        {Number((prize as any).min_order_value) > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Pedido mínimo de {formatBRL(Number((prize as any).min_order_value))}
+                          </p>
+                        )}
                       </div>
                       <Badge variant={prize.is_active ? "default" : "secondary"}>
                         {prize.is_active ? "Ativo" : "Inativo"}

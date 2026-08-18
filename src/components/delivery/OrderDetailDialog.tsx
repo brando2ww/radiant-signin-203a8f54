@@ -211,7 +211,9 @@ export const OrderDetailDialog = ({
                 {order.discount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>
-                      Desconto {order.coupon_code && `(${order.coupon_code})`}:
+                      {order.discount_source === "loyalty_prize"
+                        ? `Prêmio de fidelidade${order.loyalty_points_spent ? ` (${order.loyalty_points_spent} pts)` : ""}`
+                        : `Desconto${order.coupon_code ? ` (${order.coupon_code})` : ""}`}:
                     </span>
                     <span>-{formatBRL(Number(order.discount))}</span>
                   </div>

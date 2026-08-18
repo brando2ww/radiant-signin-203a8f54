@@ -36,6 +36,8 @@ interface CheckoutFlowProps {
   deliveryFee: number;
   discount: number;
   couponCode?: string;
+  /** Resgate de fidelidade reservado, a ser fechado contra este pedido. */
+  redemptionId?: string;
   total: number;
   userId: string;
   onOrderComplete: () => void;
@@ -52,6 +54,7 @@ export const CheckoutFlow = ({
   deliveryFee,
   discount,
   couponCode,
+  redemptionId,
   total,
   userId,
   onOrderComplete,
@@ -260,6 +263,7 @@ export const CheckoutFlow = ({
               deliveryFee={effectiveDeliveryFee}
               discount={discount}
               couponCode={couponCode}
+              redemptionId={redemptionId}
               total={effectiveTotal}
               notes={notes}
               onNotesChange={setNotes}

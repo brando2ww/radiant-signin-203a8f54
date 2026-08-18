@@ -26,6 +26,10 @@ export interface DeliveryOrder {
   delivery_fee: number;
   discount: number;
   coupon_code: string | null;
+  /** 'coupon' | 'loyalty_prize' | 'manual'. Nulo em pedido sem desconto. */
+  discount_source?: string | null;
+  loyalty_redemption_id?: string | null;
+  loyalty_points_spent?: number | null;
   total: number;
   payment_method: string;
   payment_status: string;

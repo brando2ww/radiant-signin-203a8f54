@@ -51,6 +51,7 @@ import {
   Ban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFiscalPause } from "@/hooks/use-fiscal-pause";
 import { Comanda, ComandaItem, usePDVComandas } from "@/hooks/use-pdv-comandas";
 import { PDVTable } from "@/hooks/use-pdv-tables";
 import { usePDVPayments, PaymentMethod } from "@/hooks/use-pdv-payments";
@@ -1202,11 +1203,14 @@ export function PaymentDialog({
   // A emissão depende da integração FocusNFE estar ativa — empresa cadastrada e
   // NFC-e habilitada. `pdv_settings.nfe_enable_nfce` continua valendo como
   // chave de "quero emitir" do estabelecimento.
+  const { isPaused: nfcePausada } = useFiscalPause();
   const nfceEnabled = !!settings?.nfe_enable_nfce;
   const nfceConfigured = nfceEnabled
     && !!fiscalConfig?.focusnfe_empresa_id
     && !!fiscalConfig?.habilita_nfce;
-  const nfceAutoEmit = nfceConfigured && !!settings?.nfe_auto_emit;
+  // Pausa manda em tudo: derruba a auto-emissão junto com o botão, senão a
+  // nota sairia sozinha justamente no período em que ninguém quer nota.
+  const nfceAutoEmit = nfceConfigured && !nfcePausada && !!settings?.nfe_auto_emit;
 
   // Auto-emissão: dispara sozinha assim que o pagamento é confirmado.
   // Uma falha aqui nunca desfaz a venda — o erro aparece na tela e a nota fica
@@ -1293,12 +1297,28 @@ export function PaymentDialog({
             )}
 
             <div className="w-full space-y-2 pt-2">
+              {nfcePausada && (
+                <div className="rounded-md border-2 border-amber-500 bg-amber-500/10 p-3 text-center">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Modo Manutenção ativo
+                  </p>
+                  <p className="text-xs text-amber-800/80 dark:text-amber-200/70">
+                    Nenhuma nota fiscal foi emitida para esta venda.
+                  </p>
+                </div>
+              )}
               <Button
                 className="w-full"
                 size="lg"
                 onClick={handleEmitNFCe}
-                disabled={isEmitting || nfceState.kind === "success" || !nfceConfigured}
-                title={!nfceConfigured ? "Ative a NFC-e em Configurações > Fiscal" : undefined}
+                disabled={isEmitting || nfceState.kind === "success" || !nfceConfigured || nfcePausada}
+                title={
+                  nfcePausada
+                    ? "Modo Manutenção ativo no caixa"
+                    : !nfceConfigured
+                      ? "Ative a NFC-e em Configurações > Fiscal"
+                      : undefined
+                }
               >
                 {isEmitting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -2446,7 +2466,7 @@ export function PaymentDialog({
         </div>
 
         {/* CPF na nota — só faz sentido quando a emissão está ativa */}
-        {nfceConfigured && (
+        {nfceConfigured && !nfcePausada && (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-3">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <Label htmlFor="cpf-nota" className="text-sm font-medium">

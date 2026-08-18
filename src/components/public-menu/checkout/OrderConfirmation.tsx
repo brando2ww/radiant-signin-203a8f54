@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { CartItem } from "@/pages/PublicMenu";
 import { DeliveryCustomer, useCreateOrder } from "@/hooks/use-delivery-customers";
+import { useApplyRedemption } from "@/hooks/use-delivery-loyalty";
 import { ChevronLeft, Loader2, MapPin, CreditCard, Clock, Star, CalendarClock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -27,6 +28,8 @@ interface OrderConfirmationProps {
   deliveryFee: number;
   discount: number;
   couponCode?: string;
+  /** Resgate reservado. Fechado contra o pedido logo após a criação. */
+  redemptionId?: string;
   total: number;
   notes: string;
   onNotesChange: (notes: string) => void;
@@ -34,6 +37,16 @@ interface OrderConfirmationProps {
   onBack: () => void;
   selectedAddressId: string | null;
   scheduledFor?: Date | null;
+}
+
+/** Códigos de delivery_apply_redemption em português de cliente. */
+function traduzErroResgate(msg?: string): string {
+  const m = String(msg ?? "");
+  if (m.includes("below_minimum_order")) return "O pedido ficou abaixo do mínimo do prêmio.";
+  if (m.includes("redemption_expired")) return "A reserva do prêmio expirou.";
+  if (m.includes("coupon_conflict")) return "Prêmio não acumula com cupom.";
+  if (m.includes("redemption_not_reserved")) return "Este prêmio já foi usado em outro pedido.";
+  return "Não foi possível aplicar o prêmio neste pedido.";
 }
 
 const paymentLabels: Record<string, string> = {
@@ -55,6 +68,7 @@ export const OrderConfirmation = ({
   deliveryFee,
   discount,
   couponCode,
+  redemptionId,
   total,
   notes,
   onNotesChange,
@@ -64,6 +78,7 @@ export const OrderConfirmation = ({
   scheduledFor,
 }: OrderConfirmationProps) => {
   const createOrder = useCreateOrder();
+  const applyRedemption = useApplyRedemption();
   const { data: deliverySettings } = usePublicSettings(userId);
   const { data: loyaltySettings } = useLoyaltySettings(userId);
   // Chave de idempotência por tentativa de checkout — preserva entre retries
@@ -130,8 +145,30 @@ export const OrderConfirmation = ({
     };
 
     createOrder.mutate(orderData, {
-      onSuccess: (order) => {
+      onSuccess: async (order) => {
         trackFunnelEvent(userId, "purchase", { orderId: order.id, total: effectiveTotal });
+
+        // Fecha o resgate contra o pedido. É aqui, e só aqui, que o ponto sai:
+        // o servidor recalcula o desconto pelo subtotal real dos itens
+        // gravados e grava em delivery_orders.discount, que é o que o caixa, a
+        // DRE e a NFC-e leem.
+        if (redemptionId) {
+          try {
+            await applyRedemption.mutateAsync({
+              user_id: userId,
+              order_id: order.id,
+              redemption_id: redemptionId,
+            });
+          } catch (e: any) {
+            // O pedido já existe e não dá para desfazer daqui. Melhor dizer que
+            // o prêmio não entrou do que deixar o cliente descobrir na entrega.
+            toast.error(traduzErroResgate(e?.message), {
+              description: "O pedido foi enviado sem o prêmio. Seus pontos não foram debitados.",
+              duration: 8000,
+            });
+          }
+        }
+
         // Pontos de fidelidade são creditados automaticamente pelo trigger
         // do banco quando o pedido for marcado como concluído.
         onConfirm(order.id);
@@ -269,11 +306,12 @@ export const OrderConfirmation = ({
           )}
           {discount > 0 && (
             <div className="flex justify-between text-green-600">
-              <span>Desconto {couponCode && `(${couponCode})`}:</span>
+              <span>
+                {redemptionId ? "Prêmio de fidelidade" : `Desconto${couponCode ? ` (${couponCode})` : ""}`}:
+              </span>
               <span>-{formatBRL(discount)}</span>
             </div>
           )}
-          {/* cashback resgatado em /meus-pontos via código */}
           <Separator />
           <div className="flex justify-between text-lg font-bold">
             <span>Total:</span>

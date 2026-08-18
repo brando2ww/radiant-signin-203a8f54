@@ -1640,11 +1640,17 @@ export type Database = {
       delivery_loyalty_prizes: {
         Row: {
           created_at: string
+          delivery_product_id: string | null
           description: string | null
+          discount_max: number | null
+          discount_type: string | null
+          discount_value: number | null
           id: string
           image_url: string | null
           is_active: boolean
+          kind: string
           max_quantity: number | null
+          min_order_value: number
           name: string
           points_cost: number
           redeemed_count: number
@@ -1652,11 +1658,17 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_product_id?: string | null
           description?: string | null
+          discount_max?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          kind?: string
           max_quantity?: number | null
+          min_order_value?: number
           name: string
           points_cost: number
           redeemed_count?: number
@@ -1664,17 +1676,136 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_product_id?: string | null
           description?: string | null
+          discount_max?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          kind?: string
           max_quantity?: number | null
+          min_order_value?: number
           name?: string
           points_cost?: number
           redeemed_count?: number
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "delivery_loyalty_prizes_delivery_product_id_fkey"
+            columns: ["delivery_product_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_loyalty_redemptions: {
+        Row: {
+          applied_at: string | null
+          cancelled_at: string | null
+          created_at: string
+          customer_id: string
+          delivery_product_id: string | null
+          discount_amount: number | null
+          discount_max: number | null
+          discount_type: string | null
+          discount_value: number | null
+          expires_at: string
+          id: string
+          kind: string
+          min_order_value: number
+          order_id: string | null
+          points_cost: number
+          prize_id: string
+          prize_name: string
+          reserved_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          customer_id: string
+          delivery_product_id?: string | null
+          discount_amount?: number | null
+          discount_max?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
+          expires_at: string
+          id?: string
+          kind: string
+          min_order_value?: number
+          order_id?: string | null
+          points_cost: number
+          prize_id: string
+          prize_name: string
+          reserved_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          customer_id?: string
+          delivery_product_id?: string | null
+          discount_amount?: number | null
+          discount_max?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
+          expires_at?: string
+          id?: string
+          kind?: string
+          min_order_value?: number
+          order_id?: string | null
+          points_cost?: number
+          prize_id?: string
+          prize_name?: string
+          reserved_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_loyalty_redemptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_loyalty_redemptions_delivery_product_id_fkey"
+            columns: ["delivery_product_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_loyalty_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_loyalty_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deliverymuch_pending_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_loyalty_redemptions_prize_id_fkey"
+            columns: ["prize_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_loyalty_prizes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       delivery_loyalty_settings: {
         Row: {
@@ -1902,6 +2033,7 @@ export type Database = {
           delivery_address_text: string | null
           delivery_fee: number | null
           discount: number | null
+          discount_source: string | null
           driver_assigned_at: string | null
           driver_id: string | null
           estimated_time: number | null
@@ -1913,6 +2045,8 @@ export type Database = {
           external_synced_at: string | null
           id: string
           idempotency_key: string | null
+          loyalty_points_spent: number | null
+          loyalty_redemption_id: string | null
           notes: string | null
           order_number: string
           order_type: string
@@ -1949,6 +2083,7 @@ export type Database = {
           delivery_address_text?: string | null
           delivery_fee?: number | null
           discount?: number | null
+          discount_source?: string | null
           driver_assigned_at?: string | null
           driver_id?: string | null
           estimated_time?: number | null
@@ -1960,6 +2095,8 @@ export type Database = {
           external_synced_at?: string | null
           id?: string
           idempotency_key?: string | null
+          loyalty_points_spent?: number | null
+          loyalty_redemption_id?: string | null
           notes?: string | null
           order_number: string
           order_type?: string
@@ -1996,6 +2133,7 @@ export type Database = {
           delivery_address_text?: string | null
           delivery_fee?: number | null
           discount?: number | null
+          discount_source?: string | null
           driver_assigned_at?: string | null
           driver_id?: string | null
           estimated_time?: number | null
@@ -2007,6 +2145,8 @@ export type Database = {
           external_synced_at?: string | null
           id?: string
           idempotency_key?: string | null
+          loyalty_points_spent?: number | null
+          loyalty_redemption_id?: string | null
           notes?: string | null
           order_number?: string
           order_type?: string
@@ -4870,6 +5010,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pdv_fiscal_pauses: {
+        Row: {
+          cashier_session_id: string | null
+          created_at: string
+          ended_at: string | null
+          ended_by: string | null
+          ended_by_name: string | null
+          id: string
+          reason: string | null
+          started_at: string
+          started_by: string | null
+          started_by_name: string | null
+          user_id: string
+        }
+        Insert: {
+          cashier_session_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          ended_by_name?: string | null
+          id?: string
+          reason?: string | null
+          started_at?: string
+          started_by?: string | null
+          started_by_name?: string | null
+          user_id: string
+        }
+        Update: {
+          cashier_session_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          ended_by?: string | null
+          ended_by_name?: string | null
+          id?: string
+          reason?: string | null
+          started_at?: string
+          started_by?: string | null
+          started_by_name?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       pdv_ifood_products: {
         Row: {
@@ -8949,11 +9131,12 @@ export type Database = {
           connection_status: string | null
           created_at: string | null
           id: string
-          instance_name: string
+          instance_name: string | null
           last_seen_at: string | null
           phone_number: string | null
           profile_name: string | null
           profile_picture_url: string | null
+          provider: string
           updated_at: string | null
           user_id: string
         }
@@ -8963,11 +9146,12 @@ export type Database = {
           connection_status?: string | null
           created_at?: string | null
           id?: string
-          instance_name: string
+          instance_name?: string | null
           last_seen_at?: string | null
           phone_number?: string | null
           profile_name?: string | null
           profile_picture_url?: string | null
+          provider?: string
           updated_at?: string | null
           user_id: string
         }
@@ -8977,11 +9161,12 @@ export type Database = {
           connection_status?: string | null
           created_at?: string | null
           id?: string
-          instance_name?: string
+          instance_name?: string | null
           last_seen_at?: string | null
           phone_number?: string | null
           profile_name?: string | null
           profile_picture_url?: string | null
+          provider?: string
           updated_at?: string | null
           user_id?: string
         }
@@ -9470,6 +9655,10 @@ export type Database = {
           out_total_consumed: number
         }[]
       }
+      delivery_apply_redemption: {
+        Args: { _order_id: string; _redemption_id: string; _user_id: string }
+        Returns: Json
+      }
       delivery_assign_order_ticket: {
         Args: { p_order_id: string }
         Returns: number
@@ -9531,10 +9720,27 @@ export type Database = {
         }
         Returns: string
       }
+      loyalty_active_reservation: { Args: { _user_id: string }; Returns: Json }
+      loyalty_cancel_reservation: {
+        Args: { _redemption_id: string; _user_id: string }
+        Returns: Json
+      }
       loyalty_current_customer: { Args: never; Returns: string }
       loyalty_get_balance: { Args: { _user_id: string }; Returns: Json }
       loyalty_get_history: { Args: { _user_id: string }; Returns: Json }
+      loyalty_reserve_prize: {
+        Args: { _prize_id: string; _user_id: string }
+        Returns: Json
+      }
       pdv_assign_order_ticket: { Args: { p_order_id: string }; Returns: number }
+      pdv_build_delivery_print_items: {
+        Args: {
+          p_center_id: string
+          p_filter_by_center: boolean
+          p_order_id: string
+        }
+        Returns: Json
+      }
       pdv_cancel_comanda: {
         Args: {
           p_category: string

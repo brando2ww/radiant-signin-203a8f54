@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Star, Gift, History, LogOut, Loader2, LogIn } from "lucide-react";
+import { ArrowLeft, Star, Gift, History, LogOut, Loader2, LogIn, Percent, X } from "lucide-react";
 import { toast } from "sonner";
-import { appendToStoredCart, hasPrizeInStoredCart } from "@/lib/public-cart-storage";
+import { appendToStoredCart } from "@/lib/public-cart-storage";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
@@ -17,13 +17,27 @@ import {
   useLoyaltyPrizes,
   useCustomerLoyaltyBalance,
   useCustomerLoyaltyHistory,
-  useRedeemLoyaltyPrize,
+  useReserveLoyaltyPrize,
+  useActiveReservation,
+  useCancelReservation,
 } from "@/hooks/use-delivery-loyalty";
+import { describePrizeDiscount } from "@/lib/loyalty-prize";
 import { useBusinessSettings } from "@/hooks/use-public-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerLogin } from "@/components/public-menu/checkout/CustomerLogin";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** As RPCs de fidelidade levantam códigos; o cliente precisa ler português. */
+function traduzErroResgate(msg?: string): string {
+  const m = String(msg ?? "");
+  if (m.includes("insufficient_points")) return "Você não tem pontos suficientes.";
+  if (m.includes("redemption_already_reserved")) return "Você já tem um prêmio reservado.";
+  if (m.includes("prize_out_of_stock")) return "Este prêmio acabou.";
+  if (m.includes("prize_not_available")) return "Este prêmio não está mais disponível.";
+  if (m.includes("customer_not_linked")) return "Entre na sua conta para resgatar.";
+  return "Não foi possível resgatar agora.";
+}
 
 const PublicMenuLoyalty = () => {
   const { userId: handle } = useParams<{ userId: string }>();
@@ -49,7 +63,9 @@ const PublicMenuLoyalty = () => {
   const { data: balanceData } = useCustomerLoyaltyBalance(userId);
   const { data: prizes = [] } = useLoyaltyPrizes(userId);
   const { data: history = [] } = useCustomerLoyaltyHistory(userId);
-  const redeem = useRedeemLoyaltyPrize();
+  const reserve = useReserveLoyaltyPrize();
+  const cancelReserva = useCancelReservation();
+  const { data: reserva } = useActiveReservation(userId);
 
   const [loginOpen, setLoginOpen] = useState(false);
   const [redemptionCode, setRedemptionCode] = useState<string | null>(null);
@@ -70,40 +86,62 @@ const PublicMenuLoyalty = () => {
       toast.error("Pontos insuficientes");
       return;
     }
-    // Um resgate por pedido: sem isso, quem tem muitos pontos monta um pedido
-    // inteiro de graça e a cozinha não distingue o que é prêmio.
-    if (hasPrizeInStoredCart(userId)) {
-      toast.error("Você já tem um prêmio no carrinho. Finalize o pedido para resgatar outro.");
+    // Um resgate por pedido. A trava de verdade é o índice único no banco;
+    // esta aqui existe só para não gastar uma ida ao servidor.
+    if (reserva) {
+      toast.error("Você já tem um prêmio reservado. Finalize o pedido para resgatar outro.");
       return;
     }
 
-    redeem.mutate(
+    reserve.mutate(
       { user_id: userId, prize_id: prize.id },
       {
-        onSuccess: (res: any) => {
-          setRedemptionCode(String(prize.id).slice(0, 8).toUpperCase());
+        onSuccess: (res) => {
+          // Prêmio de desconto não vira item: ele aparece no carrinho como
+          // abatimento, e quem calcula o valor final é o servidor, com o
+          // subtotal real do pedido.
+          if (res.kind === "discount") {
+            toast.success(`Desconto reservado!`, {
+              description: "Ele aparece no seu carrinho ao finalizar o pedido.",
+              action: { label: "Ir ao cardápio", onClick: () => navigate(`/cardapio/${handle}`) },
+            });
+            return;
+          }
 
-          // Prêmio com produto vinculado vira item do pedido, a R$ 0,00. Sem
-          // vínculo, continua sendo o código que alguém honra no balcão.
-          if (prize.delivery_product_id) {
+          if (res.delivery_product_id) {
             appendToStoredCart(userId, {
-              productId: prize.delivery_product_id,
-              name: prize.name,
+              productId: res.delivery_product_id,
+              name: res.prize_name,
               quantity: 1,
               unitPrice: 0,
               selectedOptions: [],
               prizeId: prize.id,
-              prizeName: prize.name,
+              prizeName: res.prize_name,
+              redemptionId: res.redemption_id,
             });
-            toast.success(`"${prize.name}" adicionado ao seu pedido!`, {
+            toast.success(`"${res.prize_name}" adicionado ao seu pedido!`, {
               description: "Finalize o pedido para receber.",
               action: { label: "Ir ao cardápio", onClick: () => navigate(`/cardapio/${handle}`) },
             });
           } else {
-            toast.success(`Prêmio "${res?.prize_name || prize.name}" resgatado!`);
+            // Sem produto vinculado o resgate continua sendo um código que
+            // alguém honra no balcão.
+            setRedemptionCode(String(prize.id).slice(0, 8).toUpperCase());
+            toast.success(`Prêmio "${res.prize_name}" resgatado!`);
           }
         },
-        onError: (e: any) => toast.error(e?.message || "Erro ao resgatar"),
+        onError: (e: any) => toast.error(traduzErroResgate(e?.message)),
+      },
+    );
+  };
+
+  const handleCancelarReserva = () => {
+    if (!userId || !reserva) return;
+    cancelReserva.mutate(
+      { user_id: userId, redemption_id: reserva.redemption_id },
+      {
+        onSuccess: () => toast.success("Reserva cancelada. Seus pontos voltaram."),
+        onError: () => toast.error("Não foi possível cancelar agora."),
       },
     );
   };
@@ -208,6 +246,45 @@ const PublicMenuLoyalty = () => {
               </CardContent>
             </Card>
 
+            {reserva && (
+              <Card className="border-primary bg-primary/5">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="flex items-center gap-2 text-sm font-semibold">
+                        <Gift className="h-4 w-4 text-primary" /> Prêmio reservado
+                      </p>
+                      <p className="text-sm">{reserva.prize_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {reserva.kind === "discount"
+                          ? `${describePrizeDiscount(reserva)} · aplicado no carrinho ao finalizar o pedido`
+                          : "Já está no seu carrinho, a R$ 0,00"}
+                        {Number(reserva.min_order_value) > 0 &&
+                          ` · pedido mínimo de ${formatBRL(Number(reserva.min_order_value))}`}
+                      </p>
+                      {/* Os pontos ainda não saíram: eles só são debitados
+                          quando o pedido é confirmado. */}
+                      <p className="text-xs text-muted-foreground">
+                        {reserva.points_cost} pontos ficam separados até você fechar o pedido.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0"
+                      disabled={cancelReserva.isPending}
+                      onClick={handleCancelarReserva}
+                    >
+                      <X className="h-4 w-4 mr-1" /> Cancelar
+                    </Button>
+                  </div>
+                  <Button className="w-full" size="sm" onClick={() => navigate(`/cardapio/${handle}`)}>
+                    Ir ao cardápio
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             <section className="space-y-3">
               <h2 className="font-semibold flex items-center gap-2">
                 <Gift className="h-5 w-5 text-primary" /> Prêmios disponíveis
@@ -221,7 +298,9 @@ const PublicMenuLoyalty = () => {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {activePrizes.map((prize) => {
-                    const canRedeem = points >= prize.points_cost;
+                    const ehDesconto = prize.kind === "discount";
+                    const temPontos = points >= prize.points_cost;
+                    const canRedeem = temPontos && !reserva;
                     return (
                       <Card key={prize.id} className="overflow-hidden">
                         {prize.image_url && (
@@ -232,8 +311,18 @@ const PublicMenuLoyalty = () => {
                         <CardContent className="p-4 space-y-3">
                           <div>
                             <h3 className="font-semibold">{prize.name}</h3>
+                            {ehDesconto && (
+                              <p className="flex items-center gap-1 text-sm font-medium text-primary">
+                                <Percent className="h-3.5 w-3.5" /> {describePrizeDiscount(prize)}
+                              </p>
+                            )}
                             {prize.description && (
                               <p className="text-sm text-muted-foreground line-clamp-2">{prize.description}</p>
+                            )}
+                            {Number(prize.min_order_value) > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Pedido mínimo de {formatBRL(Number(prize.min_order_value))}
+                              </p>
                             )}
                           </div>
                           <div className="flex items-center justify-between">
@@ -242,10 +331,14 @@ const PublicMenuLoyalty = () => {
                             </Badge>
                             <Button
                               size="sm"
-                              disabled={!canRedeem || redeem.isPending}
+                              disabled={!canRedeem || reserve.isPending}
                               onClick={() => handleRedeem(prize)}
                             >
-                              {canRedeem ? "Resgatar" : `Faltam ${prize.points_cost - points}`}
+                              {!temPontos
+                                ? `Faltam ${prize.points_cost - points}`
+                                : reserva
+                                  ? "Um por vez"
+                                  : "Resgatar"}
                             </Button>
                           </div>
                         </CardContent>

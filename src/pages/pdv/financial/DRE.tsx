@@ -33,6 +33,12 @@ export default function DRE() {
       `  Vendas Delivery;${fmt(data.deliverySales)}`,
       `(-) DEDUÇÕES;${fmt(data.deductions)}`,
       `  Descontos;${fmt(data.totalDiscounts)}`,
+      ...(data.loyaltyDiscounts > 0
+        ? [
+            `    Cupons e descontos manuais;${fmt(data.otherDiscounts)}`,
+            `    Prêmios de fidelidade;${fmt(data.loyaltyDiscounts)}`,
+          ]
+        : []),
       `  Cancelamentos;${fmt(data.totalCancellations)}`,
       `  Taxas de meios de pagamento;${fmt(data.paymentFees || 0)}`,
       `= RECEITA LÍQUIDA;${fmt(data.netRevenue)}`,
@@ -121,6 +127,17 @@ export default function DRE() {
                 <DRELine label="(-) DEDUÇÕES" value={data.deductions} bold={false} color="text-destructive" />
               </div>
               <DRELine label="Descontos concedidos" value={data.totalDiscounts} indent />
+              {data.loyaltyDiscounts > 0 && (
+                <>
+                  <DRELine label="↳ Cupons e descontos manuais" value={data.otherDiscounts} indent />
+                  <DRELine
+                    label="↳ Prêmios de fidelidade"
+                    value={data.loyaltyDiscounts}
+                    indent
+                    tooltip="Resgates do programa de pontos aplicados como desconto no pedido. É o custo do programa dentro do período."
+                  />
+                </>
+              )}
               <DRELine label="Cancelamentos" value={data.totalCancellations} indent />
               <DRELine label="Taxas de meios de pagamento" value={data.paymentFees || 0} indent />
 
