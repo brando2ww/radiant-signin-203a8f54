@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { cn, formatCurrency } from "@/lib/utils";
 import { EditableInvoiceData, EditableFinancialData } from "@/types/invoice";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -180,15 +181,50 @@ export function Step3FinancialData({ data, onUpdate }: Step3FinancialDataProps) 
           />
         </div>
 
-        {data.financial.installments > 1 && (
+        {/* Quando a nota traz o grupo <cobr>, as parcelas não são inventadas:
+            são as duplicatas que o fornecedor declarou. Mostrar isso evita que
+            alguém "corrija" datas que já estão certas. */}
+        {data.financial.duplicatas && data.financial.duplicatas.length > 0 ? (
+          <div className="rounded-lg border p-4">
+            <p className="text-sm font-medium">Cobrança informada na nota</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {data.financial.duplicatas.length === 1
+                ? "A nota traz uma duplicata."
+                : `A nota traz ${data.financial.duplicatas.length} duplicatas.`}{' '}
+              As contas a pagar serão criadas com estes vencimentos.
+            </p>
+            <ul className="divide-y text-sm">
+              {data.financial.duplicatas.map((d, i) => (
+                <li key={`${d.numero}-${i}`} className="flex items-center justify-between py-1.5">
+                  <span className="text-muted-foreground">
+                    Parcela {i + 1}/{data.financial.duplicatas!.length}
+                    <span className="ml-2 font-mono text-xs">nº {d.numero}</span>
+                  </span>
+                  <span className="flex items-center gap-4">
+                    <span>{format(d.vencimento, "dd/MM/yyyy", { locale: ptBR })}</span>
+                    <span className="w-24 text-right font-medium tabular-nums">
+                      {formatCurrency(d.valor)}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 flex items-center justify-between border-t pt-2 text-sm font-semibold">
+              <span>Total das duplicatas</span>
+              <span className="tabular-nums">
+                {formatCurrency(data.financial.duplicatas.reduce((s, d) => s + d.valor, 0))}
+              </span>
+            </div>
+          </div>
+        ) : data.financial.installments > 1 ? (
           <div className="bg-muted/50 p-4 rounded-lg">
             <p className="text-sm font-medium mb-2">Parcelamento</p>
             <p className="text-sm text-muted-foreground">
-              Serão criadas {data.financial.installments} parcelas de{' '}
-              {formatCurrency(data.financial.amount / data.financial.installments)} cada.
+              A nota não informou cobrança. Serão criadas {data.financial.installments} parcelas de{' '}
+              {formatCurrency(data.financial.amount / data.financial.installments)} cada, de mês em mês.
             </p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

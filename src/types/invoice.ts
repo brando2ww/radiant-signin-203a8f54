@@ -25,6 +25,15 @@ export interface EditableFinancialData {
   bank_account_id?: string;
   installments: number;
   notes?: string;
+  /**
+   * Duplicatas como vieram no XML (grupo <cobr>).
+   *
+   * Quando existem, mandam: cada parcela nasce com o vencimento e o valor que o
+   * fornecedor declarou, e não com meses igualmente espaçados. Carnê real
+   * raramente é regular — 21/28/35 dias é comum — e errar isso significa boleto
+   * pago fora da data.
+   */
+  duplicatas?: Array<{ numero: string; vencimento: Date; valor: number }>;
 }
 
 export type LinkActionType = 'link' | 'create' | 'none';
@@ -120,13 +129,19 @@ export function parseInvoiceToEditable(invoice: ParsedInvoice): EditableInvoiceD
         zip_code: invoice.supplier.zipCode,
       },
     },
-    financial: {
-      description: `NF-e ${invoice.invoiceNumber} - ${invoice.supplier.name}`,
-      amount: invoice.totals.invoice,
-      due_date: invoice.emissionDate,
-      status: 'pending',
-      installments: 1,
-    },
+    financial: (() => {
+      const dups = invoice.payment?.duplicatas ?? [];
+      return {
+        description: `NF-e ${invoice.invoiceNumber} - ${invoice.supplier.name}`,
+        amount: invoice.totals.invoice,
+        // Vencimento da primeira duplicata; sem cobrança na nota, cai na emissão.
+        due_date: dups[0]?.vencimento ?? invoice.emissionDate,
+        payment_method: invoice.payment?.formaPagamento,
+        status: 'pending' as const,
+        installments: dups.length > 0 ? dups.length : 1,
+        duplicatas: dups.length > 0 ? dups : undefined,
+      };
+    })(),
     items: invoice.items.map(item => ({
       ...item,
       linkAction: {

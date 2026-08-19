@@ -10,7 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RefreshCw, FileText, AlertCircle, CheckCircle2, Clock, PlusCircle } from "lucide-react";
+import { RefreshCw, FileText, AlertCircle, CheckCircle2, Clock, PlusCircle, PackagePlus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { parseNFeXML, type ParsedInvoice } from "@/lib/invoice/xml-parser";
+import { InvoiceReviewWizard } from "@/components/pdv/invoices/InvoiceReviewWizard";
 import { QuickPurchaseDialog } from "@/components/pdv/purchases/QuickPurchaseDialog";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -52,6 +56,39 @@ function formatCnpj(cnpj: string) {
 export default function NfeImport() {
   const { invoices, isLoading } = useNfeMde();
   const { config } = useMdeLastQuery();
+
+  // Dar entrada a partir da nota do MDe: baixa o XML completo na Focus, parseia
+  // e abre o mesmo assistente do upload manual. É ele que faz a entrada de
+  // estoque, cria as contas a pagar e grava a nota.
+  const [entradaNfe, setEntradaNfe] = useState<ParsedInvoice | null>(null);
+  const [entradaAberta, setEntradaAberta] = useState(false);
+  const [baixandoChave, setBaixandoChave] = useState<string | null>(null);
+
+  const darEntrada = async (chave: string) => {
+    setBaixandoChave(chave);
+    try {
+      const { data, error } = await supabase.functions.invoke("focusnfe-nfe-xml", {
+        body: { chave },
+      });
+      if (error) throw error;
+      if (!data?.complete || !data.xml) {
+        // Antes da manifestação, a SEFAZ devolve só o resumo — sem itens não há
+        // o que dar entrada.
+        toast.info(
+          data?.message ||
+            "O XML completo ainda não está disponível. Emita a ciência da operação e tente de novo.",
+        );
+        return;
+      }
+      setEntradaNfe(await parseNFeXML(data.xml));
+      setEntradaAberta(true);
+    } catch (e) {
+      console.error(e);
+      toast.error("Não foi possível baixar o XML desta nota.");
+    } finally {
+      setBaixandoChave(null);
+    }
+  };
   const consultar = useNfeMdeConsultar();
   const [filterStatus, setFilterStatus] = useState<string>("todos");
   // Compra avulsa (mercado, atacado, feira): assistente próprio de 3 passos, e
@@ -175,18 +212,19 @@ export default function NfeImport() {
                 <TableHead>Emissão</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status MDe</TableHead>
+                <TableHead className="text-right">Entrada</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     Carregando...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     {hasConfig
                       ? "Nenhuma NF-e encontrada. Clique em \"Consultar agora\" para buscar."
                       : "Configure a integração fiscal para começar."}
@@ -207,6 +245,21 @@ export default function NfeImport() {
                     <TableCell>
                       <MdeStatusBadge status={nfe.mde_status} />
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={baixandoChave === nfe.invoice_key}
+                        onClick={() => darEntrada(nfe.invoice_key)}
+                      >
+                        {baixandoChave === nfe.invoice_key ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <PackagePlus className="mr-2 h-4 w-4" />
+                        )}
+                        Dar entrada
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -214,6 +267,15 @@ export default function NfeImport() {
           </Table>
         </CardContent>
       </Card>
+
+      <InvoiceReviewWizard
+        open={entradaAberta}
+        onOpenChange={(o) => {
+          setEntradaAberta(o);
+          if (!o) setEntradaNfe(null);
+        }}
+        invoice={entradaNfe ?? undefined}
+      />
 
       <QuickPurchaseDialog open={manualOpen} onOpenChange={setManualOpen} />
     </div>

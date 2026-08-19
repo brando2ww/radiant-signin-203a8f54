@@ -234,25 +234,58 @@ export function InvoiceReviewWizard({
         centroPadrao = forn?.default_cost_center_id ?? null;
       }
 
-      const primeira = await createTransaction({
-        transaction_type: "payable",
-        description: editableData.financial.description,
-        amount: editableData.financial.amount,
-        due_date: editableData.financial.due_date,
-        payment_date: editableData.financial.payment_date || null,
-        status: editableData.financial.status,
+      const comum = {
+        transaction_type: "payable" as const,
         supplier_id: supplierId,
         chart_account_id: contaPadrao,
         cost_center_id: centroPadrao,
         payment_method: editableData.financial.payment_method || null,
         document_number: editableData.invoiceKey,
         notes: editableData.financial.notes || null,
-        ...(installments > 1
-          ? { repeat_mode: "installments", installment_total: installments, installment_amount_is_total: true }
-          : {}),
-      } as any);
-      const firstTransactionId = (primeira as any)?.id;
-      const grupoParcelas = (primeira as any)?.group_id ?? null;
+      };
+
+      const duplicatas = editableData.financial.duplicatas ?? [];
+      let firstTransactionId: string | undefined;
+      let grupoParcelas: string | null = null;
+
+      if (duplicatas.length > 1) {
+        // A nota trouxe o carnê: cada parcela nasce com o vencimento e o valor
+        // que o fornecedor declarou. Espaçar de mês em mês seria inventar datas
+        // que já existem no documento.
+        grupoParcelas = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+        const criadas = [];
+        for (let i = 0; i < duplicatas.length; i++) {
+          const d = duplicatas[i];
+          criadas.push(
+            await createTransaction({
+              ...comum,
+              description: `${editableData.financial.description} (${i + 1}/${duplicatas.length})`,
+              amount: d.valor,
+              due_date: d.vencimento,
+              competence_date: editableData.emissionDate,
+              status: "pending",
+              group_id: grupoParcelas,
+              installment_number: i + 1,
+              installment_total: duplicatas.length,
+            } as any),
+          );
+        }
+        firstTransactionId = (criadas[0] as any)?.id;
+      } else {
+        const primeira = await createTransaction({
+          ...comum,
+          description: editableData.financial.description,
+          amount: editableData.financial.amount,
+          due_date: editableData.financial.due_date,
+          payment_date: editableData.financial.payment_date || null,
+          status: editableData.financial.status,
+          ...(installments > 1
+            ? { repeat_mode: "installments", installment_total: installments, installment_amount_is_total: true }
+            : {}),
+        } as any);
+        firstTransactionId = (primeira as any)?.id;
+        grupoParcelas = (primeira as any)?.group_id ?? null;
+      }
 
       // 4) Invoice header
       const invoiceRecord = await createInvoice.mutateAsync({
