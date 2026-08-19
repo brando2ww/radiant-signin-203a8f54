@@ -75,7 +75,11 @@ Deno.serve(async (req) => {
         const cnpjEmit = String(note.documento_emitente || note.cnpj_emitente || "").replace(/\D/g, "");
         const valorTotal = Number(note.valor_total ?? note.valor ?? 0);
         const nomeEmit = note.nome_emitente || note.razao_social_emitente || "";
-        const situacaoMde = note.situacao_manifesto || note.situacao || "pendente";
+        // `situacao` é o estado da NOTA (autorizada, cancelada) e não do
+        // manifesto. Usá-lo como fallback gravava "autorizada" em mde_status,
+        // o que quebrava os filtros da tela e escondia quais notas ainda
+        // precisavam de ciência.
+        const situacaoMde = note.situacao_manifesto || "pendente";
 
         // Deduplicar por chave de acesso
         const { error: upsertError, data: existing } = await service

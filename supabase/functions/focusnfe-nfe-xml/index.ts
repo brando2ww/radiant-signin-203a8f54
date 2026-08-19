@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
 
   // 2) resumo → dispara Ciência da Operação (libera o documento completo)
   let cienciaOk = false;
+  let cienciaErro = "";
   try {
     const m = await fetch(`${base}/v2/nfes_recebidas/${chave}/manifesto`, {
       method: "POST",
@@ -42,19 +43,59 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ tipo: "ciencia" }),
     });
     cienciaOk = m.ok;
-  } catch { /* ignora */ }
+    if (!m.ok) cienciaErro = (await m.text()).slice(0, 300);
+  } catch (e) {
+    cienciaErro = String(e);
+  }
+
+  // 3) A ciência sozinha não traz o documento: ele chega numa NOVA distribuição
+  //    do SEFAZ. Sem forçar essa distribuição aqui, o operador ficava preso —
+  //    clicava em "dar entrada", era mandado dar ciência, e voltava ao mesmo
+  //    lugar na tentativa seguinte, indefinidamente.
+  let xmlFinal = "";
+  if (cienciaOk) {
+    const cnpj = String(tk.config?.cnpj || "").replace(/\D/g, "");
+    const versao = tk.config?.last_mde_version ?? 0;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    for (let tentativa = 0; tentativa < 3 && !xmlFinal; tentativa++) {
+      await sleep(1500);
+      if (cnpj) {
+        // Força a distribuição; o documento completo entra num NSU novo.
+        try {
+          await fetch(`${base}/v2/nfes_recebidas?cnpj=${cnpj}&versao=${versao}`, {
+            headers: { Authorization: authz },
+          });
+        } catch { /* a tentativa seguinte cobre */ }
+      }
+      const r2 = await fetch(`${base}/v2/nfes_recebidas/${chave}.xml`, {
+        headers: { Authorization: authz },
+      });
+      const x2 = await r2.text();
+      if (r2.ok && /<nfeProc|<infNFe|<det\b/.test(x2)) xmlFinal = x2;
+    }
+  }
 
   await service
     .from("pdv_invoices")
-    .update({ mde_status: "ciencia", mde_queried_at: new Date().toISOString() })
+    .update({
+      // O status do manifesto é o que estamos mexendo aqui; a situação da nota
+      // (autorizada/cancelada) vive em `status` e não pode ser sobrescrita.
+      mde_status: cienciaOk ? "ciencia" : "pendente",
+      mde_queried_at: new Date().toISOString(),
+    })
     .eq("user_id", auth.ownerId)
     .eq("invoice_key", chave);
+
+  if (xmlFinal) {
+    return json({ complete: true, xml: xmlFinal, ciencia: true });
+  }
 
   return json({
     complete: false,
     ciencia: cienciaOk,
     message: cienciaOk
-      ? "Ciência da Operação enviada ao SEFAZ. Os produtos ficam disponíveis na próxima sincronização (até ~1h). Tente novamente depois."
-      : "Ainda não foi possível liberar o documento completo. Tente novamente mais tarde.",
+      ? "Ciência da Operação enviada ao SEFAZ, mas o documento completo ainda não foi liberado. O SEFAZ costuma levar alguns minutos — clique em \"Consultar agora\" e tente de novo."
+      : `Não foi possível emitir a Ciência da Operação${cienciaErro ? ` (${cienciaErro})` : ""}. Confira a habilitação DF-e da conta na Focus.`,
   });
 });

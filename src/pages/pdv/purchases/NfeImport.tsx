@@ -56,6 +56,7 @@ function formatCnpj(cnpj: string) {
 export default function NfeImport() {
   const { invoices, isLoading } = useNfeMde();
   const { config } = useMdeLastQuery();
+  const consultar = useNfeMdeConsultar();
 
   // Dar entrada a partir da nota do MDe: baixa o XML completo na Focus, parseia
   // e abre o mesmo assistente do upload manual. É ele que faz a entrada de
@@ -72,11 +73,22 @@ export default function NfeImport() {
       });
       if (error) throw error;
       if (!data?.complete || !data.xml) {
-        // Antes da manifestação, a SEFAZ devolve só o resumo — sem itens não há
-        // o que dar entrada.
+        // Antes da manifestação a SEFAZ devolve só o resumo. A função já emite
+        // a ciência e força uma nova distribuição; quando mesmo assim não vem,
+        // o caminho é sincronizar e tentar de novo — e o aviso oferece isso em
+        // vez de mandar o operador adivinhar.
         toast.info(
-          data?.message ||
-            "O XML completo ainda não está disponível. Emita a ciência da operação e tente de novo.",
+          data?.message || "O XML completo ainda não está disponível nesta nota.",
+          {
+            duration: 10000,
+            action: {
+              label: "Sincronizar e tentar",
+              onClick: async () => {
+                await consultar.mutateAsync();
+                darEntrada(chave);
+              },
+            },
+          },
         );
         return;
       }
@@ -89,7 +101,6 @@ export default function NfeImport() {
       setBaixandoChave(null);
     }
   };
-  const consultar = useNfeMdeConsultar();
   const [filterStatus, setFilterStatus] = useState<string>("todos");
   // Compra avulsa (mercado, atacado, feira): assistente próprio de 3 passos, e
   // não o de importação de nota — sem documento fiscal para conferir, o que
