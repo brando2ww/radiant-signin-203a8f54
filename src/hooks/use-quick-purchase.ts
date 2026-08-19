@@ -60,8 +60,24 @@ export function useQuickPurchase() {
     try {
       // 1) Financeiro. Pago ou a pagar, o gasto tem que existir — compra de
       //    mercado paga no cartão some do fluxo de caixa se não for lançada.
+      // A conta contábil vem do padrão do fornecedor. Sem ela o gasto entra na
+      // DRE como "Sem classificação", que é o mesmo que não entrar.
+      let contaPadrao: string | null = null;
+      let centroPadrao: string | null = null;
+      if (input.supplierId) {
+        const { data: forn } = await supabase
+          .from("pdv_suppliers")
+          .select("default_chart_account_id, default_cost_center_id")
+          .eq("id", input.supplierId)
+          .maybeSingle();
+        contaPadrao = forn?.default_chart_account_id ?? null;
+        centroPadrao = forn?.default_cost_center_id ?? null;
+      }
+
       const transaction = await createTransaction({
         transaction_type: "payable",
+        chart_account_id: contaPadrao,
+        cost_center_id: centroPadrao,
         description: `Compra avulsa${input.supplierName ? ` · ${input.supplierName}` : ""}`,
         amount: total,
         due_date: iso(input.paid ? input.purchaseDate : input.dueDate ?? input.purchaseDate),
@@ -98,6 +114,15 @@ export function useQuickPurchase() {
         financial_transaction_id: (transaction as any)?.id ?? null,
         notes: input.notes || null,
       } as any);
+
+      // Mão dupla: o documento já apontava para o lançamento; agora o
+      // lançamento aponta para o documento, como na nota importada.
+      if (invoice?.id && (transaction as any)?.id) {
+        await supabase
+          .from("pdv_financial_transactions")
+          .update({ invoice_id: invoice.id })
+          .eq("id", (transaction as any).id);
+      }
 
       await createInvoiceItems.mutateAsync(
         items.map((item, idx) => ({

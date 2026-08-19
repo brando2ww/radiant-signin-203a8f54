@@ -13,6 +13,9 @@ export interface PDVSupplier {
   state_registration?: string | null;
   municipal_registration?: string | null;
   contact_name?: string | null;
+  /** Conta contábil sugerida ao lançar compras deste fornecedor. */
+  default_chart_account_id?: string | null;
+  default_cost_center_id?: string | null;
   phone?: string | null;
   whatsapp?: string | null;
   email?: string | null;

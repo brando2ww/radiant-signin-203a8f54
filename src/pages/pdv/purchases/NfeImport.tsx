@@ -14,7 +14,7 @@ import { RefreshCw, FileText, AlertCircle, CheckCircle2, Clock, PlusCircle, Pack
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { parseNFeXML, type ParsedInvoice } from "@/lib/invoice/xml-parser";
-import { InvoiceReviewWizard } from "@/components/pdv/invoices/InvoiceReviewWizard";
+import { NfeEntryDialog } from "@/components/pdv/purchases/NfeEntryDialog";
 import { QuickPurchaseDialog } from "@/components/pdv/purchases/QuickPurchaseDialog";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -268,13 +268,13 @@ export default function NfeImport() {
         </CardContent>
       </Card>
 
-      <InvoiceReviewWizard
+      <NfeEntryDialog
         open={entradaAberta}
         onOpenChange={(o) => {
           setEntradaAberta(o);
           if (!o) setEntradaNfe(null);
         }}
-        invoice={entradaNfe ?? undefined}
+        nfe={entradaNfe}
       />
 
       <QuickPurchaseDialog open={manualOpen} onOpenChange={setManualOpen} />
