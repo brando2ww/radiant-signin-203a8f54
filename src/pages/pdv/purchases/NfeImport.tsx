@@ -257,19 +257,41 @@ export default function NfeImport() {
                       <MdeStatusBadge status={nfe.mde_status} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={baixandoChave === nfe.invoice_key}
-                        onClick={() => darEntrada(nfe.invoice_key)}
-                      >
-                        {baixandoChave === nfe.invoice_key ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <PackagePlus className="mr-2 h-4 w-4" />
-                        )}
-                        Dar entrada
-                      </Button>
+                      {/* Três estados, e não um botão que sempre parece
+                          disponível: só dá para dar entrada quando o SEFAZ
+                          liberou o documento completo. Esconder isso é o que
+                          fazia o operador clicar em círculo. */}
+                      {(nfe as any).mde_nfe_completa ? (
+                        <Button
+                          size="sm"
+                          disabled={baixandoChave === nfe.invoice_key}
+                          onClick={() => darEntrada(nfe.invoice_key)}
+                        >
+                          {baixandoChave === nfe.invoice_key ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <PackagePlus className="mr-2 h-4 w-4" />
+                          )}
+                          Dar entrada
+                        </Button>
+                      ) : nfe.mde_status === "ciencia" ? (
+                        <span className="text-xs text-muted-foreground" title="A ciência já foi registrada. O SEFAZ libera o XML completo numa distribuição posterior.">
+                          Ciência emitida · aguardando o SEFAZ
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={baixandoChave === nfe.invoice_key}
+                          onClick={() => darEntrada(nfe.invoice_key)}
+                          title="Emite a Ciência da Operação, que é o que autoriza o SEFAZ a liberar o XML completo."
+                        >
+                          {baixandoChave === nfe.invoice_key ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Emitir ciência
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

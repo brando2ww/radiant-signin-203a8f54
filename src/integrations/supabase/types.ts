@@ -5577,6 +5577,7 @@ export type Database = {
           invoice_key: string
           invoice_number: string
           invoice_type: string
+          mde_nfe_completa: boolean | null
           mde_queried_at: string | null
           mde_raw_payload: Json | null
           mde_status: string | null
@@ -5610,6 +5611,7 @@ export type Database = {
           invoice_key: string
           invoice_number: string
           invoice_type: string
+          mde_nfe_completa?: boolean | null
           mde_queried_at?: string | null
           mde_raw_payload?: Json | null
           mde_status?: string | null
@@ -5643,6 +5645,7 @@ export type Database = {
           invoice_key?: string
           invoice_number?: string
           invoice_type?: string
+          mde_nfe_completa?: boolean | null
           mde_queried_at?: string | null
           mde_raw_payload?: Json | null
           mde_status?: string | null

@@ -34,7 +34,7 @@ export function useNfeMde(filters?: { mde_status?: string }) {
       let query = supabase
         .from("pdv_invoices")
         .select(
-          "id, invoice_key, invoice_number, series, emission_date, supplier_cnpj, supplier_name, total_invoice, status, mde_status, mde_queried_at, created_at"
+          "id, invoice_key, invoice_number, series, emission_date, supplier_cnpj, supplier_name, total_invoice, status, mde_status, mde_nfe_completa, mde_queried_at, created_at"
         )
         .eq("user_id", visibleUserId)
         .eq("source", "mde")

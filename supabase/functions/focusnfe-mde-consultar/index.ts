@@ -79,7 +79,10 @@ Deno.serve(async (req) => {
         // manifesto. Usá-lo como fallback gravava "autorizada" em mde_status,
         // o que quebrava os filtros da tela e escondia quais notas ainda
         // precisavam de ciência.
-        const situacaoMde = note.situacao_manifesto || "pendente";
+        const situacaoMde = note.manifestacao_destinatario || note.situacao_manifesto || "pendente";
+        // A Focus diz se o documento completo já foi distribuído. É o que
+        // separa "dá para dar entrada" de "só existe o resumo".
+        const nfeCompleta = note.nfe_completa === true;
 
         // Deduplicar por chave de acesso
         const { error: upsertError, data: existing } = await service
@@ -107,6 +110,7 @@ Deno.serve(async (req) => {
             status: "pending",
             source: "mde",
             mde_status: situacaoMde,
+            mde_nfe_completa: nfeCompleta,
             mde_raw_payload: note,
             mde_queried_at: new Date().toISOString(),
           });
@@ -123,6 +127,7 @@ Deno.serve(async (req) => {
               total_products: valorTotal,
               total_invoice: valorTotal,
               mde_status: situacaoMde,
+              mde_nfe_completa: nfeCompleta,
               mde_raw_payload: note,
               mde_queried_at: new Date().toISOString(),
             })

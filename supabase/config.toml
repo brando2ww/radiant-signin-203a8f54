@@ -2,3 +2,6 @@ project_id = "frbziqazwhymwsrtneoy"
 
 [functions.focusnfe-webhook-receiver]
 verify_jwt = false
+
+[functions.focusnfe-dfe-diag]
+verify_jwt = false
