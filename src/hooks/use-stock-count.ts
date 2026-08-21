@@ -273,6 +273,84 @@ export function useApplyStockCount() {
   });
 }
 
+/**
+ * Liga e desliga a contagem cega numa contagem já aberta.
+ *
+ * A cega existe porque quem vê o saldo do sistema tende a confirmá-lo em vez
+ * de contar. Mas há casos em que ver ajuda — conferência dirigida, insumo de
+ * unidade confusa — e obrigar a recriar a contagem só para trocar isso custaria
+ * o que já foi contado.
+ *
+ * Quem já está com o link aberto precisa recarregar: a lista foi entregue ao
+ * aparelho no momento da entrada.
+ */
+/**
+ * Exclui uma contagem.
+ *
+ * Contagem já aplicada não é excluída: os saldos foram corrigidos e os
+ * movimentos de ajuste guardam só o NOME da contagem, não uma referência.
+ * Apagá-la deixaria o ajuste no estoque sem nada que o explique. A função do
+ * banco recusa, e a tela oferece cancelar no lugar.
+ */
+export function useDeleteStockCount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (countId: string) => {
+      const { data, error } = await rpc("pdv_stock_count_delete", { _count_id: countId });
+      if (error) throw error;
+      return data as unknown as { deleted: boolean; counted_items: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock-counts"] });
+      qc.invalidateQueries({ queryKey: ["stock-count-history"] });
+      toast.success("Contagem excluída.");
+    },
+    onError: (e: any) => toast.error(traduzErro(e?.message)),
+  });
+}
+
+/** Cancela sem apagar: preserva o rastro de uma contagem já aplicada. */
+export function useCancelStockCount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (countId: string) => {
+      const { error } = await supabase
+        .from("pdv_stock_counts")
+        .update({ status: "cancelada" })
+        .eq("id", countId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock-counts"] });
+      toast.success("Contagem cancelada.");
+    },
+    onError: () => toast.error("Não foi possível cancelar a contagem."),
+  });
+}
+
+export function useToggleBlind() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { countId: string; blind: boolean }) => {
+      const { error } = await supabase
+        .from("pdv_stock_counts")
+        .update({ blind: v.blind })
+        .eq("id", v.countId);
+      if (error) throw error;
+      return v.blind;
+    },
+    onSuccess: (blind) => {
+      qc.invalidateQueries({ queryKey: ["stock-counts"] });
+      toast.success(
+        blind
+          ? "Contagem cega ligada. O operador deixa de ver o estoque."
+          : "Estoque do sistema visível. Quem já está contando precisa recarregar o link.",
+      );
+    },
+    onError: () => toast.error("Não foi possível trocar o modo da contagem."),
+  });
+}
+
 export function useCloseStockCount() {
   const qc = useQueryClient();
   return useMutation({
@@ -385,6 +463,9 @@ export function traduzErro(msg?: string): string {
   if (m.includes("count_closed")) return "Esta contagem já foi encerrada.";
   if (m.includes("invalid_session")) return "Sua sessão expirou. Entre no link de novo.";
   if (m.includes("negative_quantity")) return "A quantidade não pode ser negativa.";
+  if (m.includes("count_already_applied"))
+    return "Esta contagem já ajustou o estoque e não pode ser excluída. Cancele em vez disso.";
+  if (m.includes("count_not_found")) return "Contagem não encontrada.";
   if (m.includes("link_not_found")) return "Este link não existe mais.";
   if (m.includes("no_ingredients_in_scope")) return "Nenhum insumo se encaixa nesse filtro.";
   if (m.includes("password_required")) return "Defina uma senha para cada link.";

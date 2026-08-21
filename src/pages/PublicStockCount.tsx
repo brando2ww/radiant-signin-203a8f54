@@ -299,10 +299,16 @@ export default function PublicStockCount() {
                   <> · embalagem de {item.pack_size.toLocaleString("pt-BR")} {item.unit}</>
                 ) : null}
               </p>
+              {/* Fora da contagem cega, o saldo do sistema aparece com peso —
+                  se é para mostrar, tem que dar para ler de relance, no frio e
+                  com o celular longe do rosto. */}
               {item.expected_qty != null && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Sistema: {item.expected_qty.toLocaleString("pt-BR")} {item.unit}
-                </p>
+                <div className="mt-3 flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">No sistema</span>
+                  <span className="text-lg font-semibold tabular-nums">
+                    {item.expected_qty.toLocaleString("pt-BR")} {item.unit}
+                  </span>
+                </div>
               )}
             </div>
 
@@ -344,6 +350,23 @@ export default function PublicStockCount() {
                 </span>
               </p>
             ) : null}
+
+            {/* Com o esperado à vista, mostrar a diferença enquanto digita evita
+                que a pessoa confirme e só descubra a divergência no relatório. */}
+            {item.expected_qty != null && (caixas !== "" || solto !== "") && (() => {
+              const digitado = item.pack_size ? totalDigitado : (parseQtd(solto) ?? 0);
+              const dif = digitado - item.expected_qty;
+              if (Math.abs(dif) < 0.0001) {
+                return (
+                  <p className="text-center text-sm font-medium text-success">Bate com o sistema</p>
+                );
+              }
+              return (
+                <p className={cn("text-center text-sm font-medium", dif > 0 ? "text-success" : "text-destructive")}>
+                  {dif > 0 ? "Sobra" : "Falta"} {Math.abs(dif).toLocaleString("pt-BR")} {item.unit}
+                </p>
+              );
+            })()}
 
             <NumericKeypad
               value={campoAtivo === "caixas" ? caixas : solto}

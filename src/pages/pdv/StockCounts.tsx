@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ClipboardList, Download, FileSpreadsheet, Link2, Lock, PackageCheck, Plus, Users } from "lucide-react";
+import { ClipboardList, Download, Eye, FileSpreadsheet, Link2, Lock, PackageCheck, Plus, Trash2, Users } from "lucide-react";
 import { exportStockCountPdf, exportStockCountXlsx } from "@/lib/stock-count/export";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { format } from "date-fns";
@@ -22,7 +22,8 @@ import { NewStockCountDialog } from "@/components/pdv/stock-count/NewStockCountD
 import { StockCountLinksDialog } from "@/components/pdv/stock-count/StockCountLinksDialog";
 import {
   useStockCounts, useStockCountItems, useStockCountSessions,
-  useCloseStockCount, useApplyStockCount, useStockCountHistory,
+  useCloseStockCount, useApplyStockCount, useStockCountHistory, useToggleBlind,
+  useDeleteStockCount, useCancelStockCount,
 } from "@/hooks/use-stock-count";
 
 const STATUS: Record<string, { rotulo: string; variante: "default" | "secondary" | "outline" }> = {
@@ -38,12 +39,16 @@ export default function StockCounts() {
   const [selecionada, setSelecionada] = useState<string | undefined>();
   const [confirmarAplicar, setConfirmarAplicar] = useState(false);
   const [linksAbertos, setLinksAbertos] = useState(false);
+  const [confirmarExcluir, setConfirmarExcluir] = useState(false);
 
   const contagem = contagens.find((c) => c.id === selecionada) ?? contagens[0];
   const { data: itens = [] } = useStockCountItems(contagem?.id);
   const { data: sessoes = [] } = useStockCountSessions(contagem?.id);
   const fechar = useCloseStockCount();
   const aplicar = useApplyStockCount();
+  const alternarCego = useToggleBlind();
+  const excluir = useDeleteStockCount();
+  const cancelar = useCancelStockCount();
   const { data: historico = [] } = useStockCountHistory();
   const { settings: negocio } = useBusinessSettings();
   const nomeNegocio = negocio?.business_name ?? "Velara";
@@ -136,11 +141,28 @@ export default function StockCounts() {
                       <Badge variant={STATUS[contagem.status]?.variante ?? "secondary"}>
                         {STATUS[contagem.status]?.rotulo ?? contagem.status}
                       </Badge>
-                      {contagem.blind && (
+                      {/* O selo vira botão: é onde a pessoa já olha para
+                          saber o modo, então é onde ela tenta trocá-lo. */}
+                      {contagem.status === "aberta" ? (
+                        <button
+                          type="button"
+                          onClick={() => alternarCego.mutate({ countId: contagem.id, blind: !contagem.blind })}
+                          title={
+                            contagem.blind
+                              ? "O operador não vê o estoque do sistema. Clique para mostrar."
+                              : "O operador vê o estoque do sistema. Clique para esconder."
+                          }
+                        >
+                          <Badge variant={contagem.blind ? "outline" : "secondary"} className="gap-1 cursor-pointer">
+                            {contagem.blind ? <Lock className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                            {contagem.blind ? "cega" : "mostra estoque"}
+                          </Badge>
+                        </button>
+                      ) : contagem.blind ? (
                         <Badge variant="outline" className="gap-1">
                           <Lock className="h-3 w-3" /> cega
                         </Badge>
-                      )}
+                      ) : null}
                     </CardTitle>
                     <CardDescription>
                       Aberta em {format(new Date(contagem.opened_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
@@ -177,6 +199,23 @@ export default function StockCounts() {
                     {contagem.status === "aberta" && (
                       <Button variant="outline" onClick={() => fechar.mutate(contagem.id)}>
                         Fechar contagem
+                      </Button>
+                    )}
+                    {/* Arquivar guarda o registro; excluir apaga. Com trabalho
+                        feito, arquivar quase sempre é o que a pessoa queria. */}
+                    {contagem.status !== "aplicada" && contagem.status !== "cancelada" && resumo.contados > 0 && (
+                      <Button variant="ghost" size="sm" onClick={() => cancelar.mutate(contagem.id)}>
+                        Arquivar
+                      </Button>
+                    )}
+                    {contagem.status !== "aplicada" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setConfirmarExcluir(true)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Excluir
                       </Button>
                     )}
                     {contagem.status === "fechada" && (
@@ -359,6 +398,50 @@ export default function StockCounts() {
         onOpenChange={setLinksAbertos}
         countId={contagem?.id}
       />
+
+      <AlertDialog open={confirmarExcluir} onOpenChange={setConfirmarExcluir}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tem certeza que deseja excluir?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  A contagem <strong>{contagem?.name}</strong> será apagada, junto com os
+                  links e tudo que já foi contado. Não dá para desfazer.
+                </p>
+                {/* O aviso muda de tom quando há trabalho a perder — apagar uma
+                    contagem vazia é banal, apagar 80 itens contados não é. */}
+                {resumo.contados > 0 && (
+                  <p className="font-medium text-destructive">
+                    {resumo.contados} {resumo.contados === 1 ? "item já contado será perdido" : "itens já contados serão perdidos"}.
+                  </p>
+                )}
+                <p className="text-muted-foreground">
+                  O estoque não é alterado: nada foi ajustado por esta contagem.
+                </p>
+                {resumo.contados > 0 && (
+                  <p className="text-muted-foreground">
+                    Se a ideia é só tirar da frente, use <strong>Arquivar</strong>: guarda o
+                    registro sem apagar o que foi contado.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!contagem) return;
+                excluir.mutate(contagem.id, { onSuccess: () => setSelecionada(undefined) });
+              }}
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmarAplicar} onOpenChange={setConfirmarAplicar}>
         <AlertDialogContent>
