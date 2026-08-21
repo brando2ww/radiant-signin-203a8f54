@@ -219,6 +219,7 @@ export function IngredientDialog({
       min_stock: ingredient?.min_stock || 0,
       max_stock: ingredient?.max_stock || 0,
       purchase_lot: ingredient?.purchase_lot || 0,
+      count_order: (ingredient as any)?.count_order ?? null,
       expiration_date: ingredient?.expiration_date || null,
       unit_cost: ingredient?.unit_cost || 0,
       real_cost: ingredient?.real_cost || 0,
@@ -250,6 +251,7 @@ export function IngredientDialog({
           min_stock: ingredient.min_stock || 0,
           max_stock: ingredient.max_stock || 0,
           purchase_lot: ingredient.purchase_lot || 0,
+          count_order: (ingredient as any).count_order ?? null,
           expiration_date: ingredient.expiration_date || null,
           unit_cost: ingredient.unit_cost || 0,
           real_cost: ingredient.real_cost || 0,
@@ -280,6 +282,7 @@ export function IngredientDialog({
           min_stock: 0,
           max_stock: 0,
           purchase_lot: 0,
+          count_order: null,
           expiration_date: null,
           unit_cost: 0,
           real_cost: 0,
@@ -629,6 +632,34 @@ export function IngredientDialog({
                               onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                             />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="count_order"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ordem na contagem</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="1"
+                              placeholder="Sem ordem"
+                              value={field.value ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? null : parseInt(e.target.value, 10))
+                              }
+                            />
+                          </FormControl>
+                          {/* A contagem segue o caminho físico do depósito.
+                              Alfabético faz a pessoa atravessar a sala a cada
+                              item. Sem ordem, o insumo vai para o fim do setor. */}
+                          <p className="text-[11px] text-muted-foreground">
+                            Posição na prateleira, dentro do setor
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

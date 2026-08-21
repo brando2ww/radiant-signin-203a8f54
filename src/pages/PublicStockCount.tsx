@@ -10,8 +10,9 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 import {
-  ArrowLeft, ArrowRight, Check, CloudOff, Loader2, List, PackageCheck, RefreshCw,
+  ArrowLeft, ArrowRight, Check, CloudOff, Loader2, List, PackageCheck, RefreshCw, ScanLine,
 } from "lucide-react";
+import { BarcodeScanner } from "@/components/stock-count/BarcodeScanner";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { NumericKeypad, parseQtd } from "@/components/stock-count/NumericKeypad";
@@ -40,6 +41,7 @@ export default function PublicStockCount() {
   const [solto, setSolto] = useState("");
   const [campoAtivo, setCampoAtivo] = useState<"caixas" | "solto">("solto");
   const [listaAberta, setListaAberta] = useState(false);
+  const [leitorAberto, setLeitorAberto] = useState(false);
   const [pendentes, setPendentes] = useState(0);
   const [online, setOnline] = useState(() => navigator.onLine);
 
@@ -175,6 +177,21 @@ export default function PublicStockCount() {
     proximo();
   };
 
+  // O leitor pula direto para o item, que é o ganho real: some a busca por
+  // nome no meio do corredor.
+  const irParaCodigo = (codigo: string) => {
+    const limpo = codigo.replace(/\D/g, "");
+    const idx = itens.findIndex((i) => {
+      const e = (i.ean ?? "").replace(/\D/g, "");
+      return e !== "" && (e === limpo || e.endsWith(limpo) || limpo.endsWith(e));
+    });
+    if (idx < 0) {
+      toast.error("Nenhum insumo desta contagem tem esse código.");
+      return;
+    }
+    setIndice(idx);
+  };
+
   const proximo = () => {
     const restante = itens.findIndex((i, idx) => idx > indice && i.counted_qty == null);
     setIndice(restante >= 0 ? restante : Math.min(indice + 1, itens.length - 1));
@@ -257,6 +274,9 @@ export default function PublicStockCount() {
                 <RefreshCw className="h-3 w-3" /> {pendentes}
               </Badge>
             )}
+            <Button size="icon" variant="ghost" onClick={() => setLeitorAberto(true)} aria-label="Ler código de barras">
+              <ScanLine className="h-5 w-5" />
+            </Button>
             <Button size="icon" variant="ghost" onClick={() => setListaAberta(true)} aria-label="Ver lista">
               <List className="h-5 w-5" />
             </Button>
@@ -398,6 +418,8 @@ export default function PublicStockCount() {
           </div>
         )}
       </main>
+
+      <BarcodeScanner open={leitorAberto} onOpenChange={setLeitorAberto} onDetect={irParaCodigo} />
 
       {/* Lista para pular direto a um item */}
       <Dialog open={listaAberta} onOpenChange={setListaAberta}>

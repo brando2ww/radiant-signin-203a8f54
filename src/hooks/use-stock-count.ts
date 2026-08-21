@@ -63,6 +63,8 @@ export interface CounterItem {
   counted_loose: number | null;
   counted_by: string | null;
   expected_qty: number | null;
+  /** Código de barras congelado na abertura, para o leitor casar sem consultar insumos. */
+  ean: string | null;
 }
 
 export interface CounterSession {
@@ -231,6 +233,38 @@ export function useCloseStockCount() {
       toast.success("Contagem fechada. Revise as divergências antes de aplicar.");
     },
     onError: () => toast.error("Não foi possível fechar a contagem."),
+  });
+}
+
+export interface StockCountHistoryRow {
+  id: string;
+  name: string;
+  status: string;
+  opened_at: string;
+  total: number;
+  contados: number;
+  exatos: number;
+  impacto: number;
+  divergencia_absoluta: number;
+}
+
+/**
+ * Acuracidade entre contagens.
+ *
+ * A taxa é sobre os itens CONTADOS, não sobre o total: medir sobre o total
+ * puniria a contagem parcial duas vezes — uma por não ter contado, outra por
+ * "errar" o que nem tentou. A cobertura aparece à parte.
+ */
+export function useStockCountHistory(limit = 12) {
+  const { visibleUserId: ownerId } = useEstablishmentId();
+  return useQuery({
+    queryKey: ["stock-count-history", ownerId, limit],
+    enabled: !!ownerId,
+    queryFn: async () => {
+      const { data, error } = await rpc("pdv_stock_count_history", { _limit: limit });
+      if (error) throw error;
+      return (data as unknown as StockCountHistoryRow[]) ?? [];
+    },
   });
 }
 

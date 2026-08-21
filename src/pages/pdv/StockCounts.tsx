@@ -11,7 +11,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ClipboardList, Lock, PackageCheck, Plus, Users } from "lucide-react";
+import { ClipboardList, Download, FileSpreadsheet, Lock, PackageCheck, Plus, Users } from "lucide-react";
+import { exportStockCountPdf, exportStockCountXlsx } from "@/lib/stock-count/export";
+import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
@@ -19,7 +21,7 @@ import { cn } from "@/lib/utils";
 import { NewStockCountDialog } from "@/components/pdv/stock-count/NewStockCountDialog";
 import {
   useStockCounts, useStockCountItems, useStockCountSessions,
-  useCloseStockCount, useApplyStockCount,
+  useCloseStockCount, useApplyStockCount, useStockCountHistory,
 } from "@/hooks/use-stock-count";
 
 const STATUS: Record<string, { rotulo: string; variante: "default" | "secondary" | "outline" }> = {
@@ -40,6 +42,9 @@ export default function StockCounts() {
   const { data: sessoes = [] } = useStockCountSessions(contagem?.id);
   const fechar = useCloseStockCount();
   const aplicar = useApplyStockCount();
+  const { data: historico = [] } = useStockCountHistory();
+  const { settings: negocio } = useBusinessSettings();
+  const nomeNegocio = negocio?.business_name ?? "Velara";
 
   const resumo = useMemo(() => {
     const contados = itens.filter((i) => i.counted_qty != null);
@@ -144,7 +149,23 @@ export default function StockCounts() {
                       )}
                     </CardDescription>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={resumo.contados === 0}
+                      onClick={() => exportStockCountXlsx({ businessName: nomeNegocio, count: contagem, items: itens })}
+                    >
+                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={resumo.contados === 0}
+                      onClick={() => void exportStockCountPdf({ businessName: nomeNegocio, count: contagem, items: itens })}
+                    >
+                      <Download className="mr-2 h-4 w-4" /> PDF
+                    </Button>
                     {contagem.status === "aberta" && (
                       <Button variant="outline" onClick={() => fechar.mutate(contagem.id)}>
                         Fechar contagem
@@ -256,6 +277,71 @@ export default function StockCounts() {
             </>
           )}
         </>
+      )}
+
+      {historico.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Acuracidade ao longo do tempo</CardTitle>
+            <CardDescription>
+              Taxa de acerto entre os itens contados · a cobertura aparece à parte, para
+              contagem parcial não ser punida duas vezes
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Contagem</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead className="text-right">Cobertura</TableHead>
+                  <TableHead className="text-right">Acuracidade</TableHead>
+                  <TableHead className="text-right">Divergência</TableHead>
+                  <TableHead className="text-right">Impacto</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {historico.map((h) => {
+                  const cobertura = h.total > 0 ? h.contados / h.total : 0;
+                  const acuracidade = h.contados > 0 ? h.exatos / h.contados : 0;
+                  return (
+                    <TableRow key={h.id}>
+                      <TableCell className="font-medium">{h.name}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {format(new Date(h.opened_at), "dd/MM/yyyy", { locale: ptBR })}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {(cobertura * 100).toFixed(0)}%
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ({h.contados}/{h.total})
+                        </span>
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-semibold tabular-nums",
+                          acuracidade >= 0.95 ? "text-success" : acuracidade >= 0.85 ? "" : "text-destructive",
+                        )}
+                      >
+                        {h.contados > 0 ? `${(acuracidade * 100).toFixed(0)}%` : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatBRL(Number(h.divergencia_absoluta))}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right tabular-nums",
+                          Number(h.impacto) >= 0 ? "text-success" : "text-destructive",
+                        )}
+                      >
+                        {formatBRL(Number(h.impacto))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       <NewStockCountDialog open={novaAberta} onOpenChange={setNovaAberta} />
