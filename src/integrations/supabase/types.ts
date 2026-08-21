@@ -7829,6 +7829,236 @@ export type Database = {
           },
         ]
       }
+      pdv_stock_count_items: {
+        Row: {
+          category: string | null
+          count_id: string
+          counted_at: string | null
+          counted_by: string | null
+          counted_loose: number | null
+          counted_packs: number | null
+          counted_qty: number | null
+          created_at: string
+          expected_qty: number
+          id: string
+          ingredient_id: string
+          ingredient_name: string
+          notes: string | null
+          pack_label: string | null
+          pack_size: number | null
+          sector: string | null
+          unit: string
+          unit_cost: number
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          count_id: string
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_loose?: number | null
+          counted_packs?: number | null
+          counted_qty?: number | null
+          created_at?: string
+          expected_qty?: number
+          id?: string
+          ingredient_id: string
+          ingredient_name: string
+          notes?: string | null
+          pack_label?: string | null
+          pack_size?: number | null
+          sector?: string | null
+          unit: string
+          unit_cost?: number
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          count_id?: string
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_loose?: number | null
+          counted_packs?: number | null
+          counted_qty?: number | null
+          created_at?: string
+          expected_qty?: number
+          id?: string
+          ingredient_id?: string
+          ingredient_name?: string
+          notes?: string | null
+          pack_label?: string | null
+          pack_size?: number | null
+          sector?: string | null
+          unit?: string
+          unit_cost?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_stock_count_items_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_stock_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_stock_count_items_ingredient_id_fkey"
+            columns: ["ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_ingredients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_stock_count_links: {
+        Row: {
+          count_id: string
+          created_at: string
+          expires_at: string
+          failed_attempts: number
+          id: string
+          label: string
+          locked_until: string | null
+          password_hash: string
+          sectors: string[] | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          count_id: string
+          created_at?: string
+          expires_at: string
+          failed_attempts?: number
+          id?: string
+          label: string
+          locked_until?: string | null
+          password_hash: string
+          sectors?: string[] | null
+          token?: string
+          user_id: string
+        }
+        Update: {
+          count_id?: string
+          created_at?: string
+          expires_at?: string
+          failed_attempts?: number
+          id?: string
+          label?: string
+          locked_until?: string | null
+          password_hash?: string
+          sectors?: string[] | null
+          token?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_stock_count_links_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_stock_counts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_stock_count_sessions: {
+        Row: {
+          count_id: string
+          counter_name: string | null
+          id: string
+          last_seen_at: string
+          link_id: string
+          session_token: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          count_id: string
+          counter_name?: string | null
+          id?: string
+          last_seen_at?: string
+          link_id: string
+          session_token?: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          count_id?: string
+          counter_name?: string | null
+          id?: string
+          last_seen_at?: string
+          link_id?: string
+          session_token?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pdv_stock_count_sessions_count_id_fkey"
+            columns: ["count_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_stock_counts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pdv_stock_count_sessions_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "pdv_stock_count_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pdv_stock_counts: {
+        Row: {
+          applied_at: string | null
+          applied_by: string | null
+          blind: boolean
+          categories: string[] | null
+          closed_at: string | null
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          sectors: string[] | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_by?: string | null
+          blind?: boolean
+          categories?: string[] | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          sectors?: string[] | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_by?: string | null
+          blind?: boolean
+          categories?: string[] | null
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          sectors?: string[] | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pdv_stock_movements: {
         Row: {
           comanda_item_id: string | null
@@ -9913,6 +10143,37 @@ export type Database = {
       pdv_split_comanda_item: {
         Args: { p_item_id: string; p_qty: number }
         Returns: string
+      }
+      pdv_stock_count_apply: { Args: { _count_id: string }; Returns: Json }
+      pdv_stock_count_create: {
+        Args: {
+          _blind?: boolean
+          _categories?: string[]
+          _expires_hours?: number
+          _links: Json
+          _name: string
+          _sectors?: string[]
+        }
+        Returns: Json
+      }
+      pdv_stock_count_open: {
+        Args: { _counter_name?: string; _password: string; _token: string }
+        Returns: Json
+      }
+      pdv_stock_count_ping: {
+        Args: { _session_token: string }
+        Returns: undefined
+      }
+      pdv_stock_count_save: {
+        Args: {
+          _item_id: string
+          _loose?: number
+          _notes?: string
+          _packs?: number
+          _qty?: number
+          _session_token: string
+        }
+        Returns: Json
       }
       pdv_transfer_items:
         | {

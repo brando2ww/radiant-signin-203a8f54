@@ -26,27 +26,60 @@
 
 **Corpo:**
 ```
-Olá, {{1}}! Aqui é do {{2}}. Enviamos uma solicitação de cotação com {{3}} item(ns), prazo de resposta até {{4}}. Toque no botão abaixo para informar seus preços.
+Olá, {{1}}! Você acabou de receber um pedido de cotação de orçamento.
+
+Aqui é o {{2}}, portador do CNPJ {{3}}, da cidade de {{4}}.
+
+Solicitamos, por gentileza, o retorno da cotação até {{5}}.
+
+Número de itens a ser cotado: {{6}}
+
+Ficamos no aguardo.
+Cordialmente, {{7}}.
+
+Toque no botão abaixo para informar seus preços.
 ```
 
 **Botão:** URL dinâmica
 - Texto: `Preencher orçamento`
-- URL: `https://pdv.velaraia.app/cotacao/{{1}}`
+- URL fixa no formulário da Meta: `https://pdv.velaraia.app/cotacao/`
+- A Meta acrescenta o `{{1}}` no fim, resultando em `https://pdv.velaraia.app/cotacao/{{1}}`
 
 **Variáveis:**
 
-| # | Conteúdo | Exemplo |
+| # | Conteúdo | Amostra para a Meta |
 |---|---|---|
 | 1 | Nome do fornecedor | Fachini Bebidas |
 | 2 | Nome do estabelecimento | La Vecchia Trattoria |
-| 3 | Quantidade de itens | 12 |
-| 4 | Prazo de resposta | 14/08/2026 |
+| 3 | CNPJ do estabelecimento | 65.822.837/0001-61 |
+| 4 | Cidade do estabelecimento | Garibaldi |
+| 5 | Prazo de retorno | 20/08/2026 às 18h |
+| 6 | Quantidade de itens | 12 |
+| 7 | Assinatura de quem envia | Ederson, Compras |
 | botão | Token do link do fornecedor | 0bba9db6-616e-459e-ae03-3ed0cbd75adc |
 
-**Exemplo para o formulário da Meta:**
+**Prévia montada** (é assim que a Meta avalia):
 ```
-Olá, Fachini Bebidas! Aqui é do La Vecchia Trattoria. Enviamos uma solicitação de cotação com 12 item(ns), prazo de resposta até 14/08/2026. Toque no botão abaixo para informar seus preços.
+Olá, Fachini Bebidas! Você acabou de receber um pedido de cotação de orçamento.
+
+Aqui é o La Vecchia Trattoria, portador do CNPJ 65.822.837/0001-61, da cidade de Garibaldi.
+
+Solicitamos, por gentileza, o retorno da cotação até 20/08/2026 às 18h.
+
+Número de itens a ser cotado: 12
+
+Ficamos no aguardo.
+Cordialmente, Ederson, Compras.
+
+Toque no botão abaixo para informar seus preços.
 ```
+
+**Por que este texto passa nas regras que reprovam:**
+- Não abre nem fecha o corpo com variável (`Olá, ` antes, e a frase do botão depois de `{{7}}.`).
+- Nenhuma variável encostada em outra · sempre há texto entre elas.
+- As quebras de linha estão no CORPO, o que é permitido. O que não pode é quebra
+  de linha dentro do VALOR de uma variável — por isso a lista de itens vira o
+  número em `{{6}}` e o detalhe vai todo para o link.
 
 > A lista de itens sai do texto e vai toda para o link · o formulário público
 > `/cotacao/:token` já existe e já é o caminho oficial de resposta.

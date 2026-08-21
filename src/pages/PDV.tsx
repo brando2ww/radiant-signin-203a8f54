@@ -18,6 +18,7 @@ import PDVCashier from "./pdv/Cashier";
 
 import PDVProducts from "./pdv/Products";
 import PDVStock from "./pdv/Stock";
+import StockCounts from "./pdv/StockCounts";
 import PDVSuppliers from "./pdv/Suppliers";
 import PDVReports from "./pdv/Reports";
 import PDVSettings from "./pdv/Settings";
@@ -157,6 +158,7 @@ export default function PDV() {
               <Route path="produtos" element={<RoleRoute path="/pdv/produtos" canAccess={canAccess} defaultRoute={defaultRoute}><PDVProducts /></RoleRoute>} />
               <Route path="centros-producao" element={<RoleRoute path="/pdv/centros-producao" canAccess={canAccess} defaultRoute={defaultRoute}><ProductionCenters /></RoleRoute>} />
               <Route path="estoque" element={<RoleRoute path="/pdv/estoque" canAccess={canAccess} defaultRoute={defaultRoute}><PDVStock /></RoleRoute>} />
+              <Route path="contagem-estoque" element={<RoleRoute path="/pdv/contagem-estoque" canAccess={canAccess} defaultRoute={defaultRoute}><StockCounts /></RoleRoute>} />
               <Route path="fornecedores" element={<RoleRoute path="/pdv/fornecedores" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSuppliers /></RoleRoute>} />
               <Route path="notas-fiscais" element={<RoleRoute path="/pdv/notas-fiscais" canAccess={canAccess} defaultRoute={defaultRoute}><Invoices /></RoleRoute>} />
               <Route path="cupons-fiscais" element={<RoleRoute path="/pdv/cupons-fiscais" canAccess={canAccess} defaultRoute={defaultRoute}><FiscalCoupons /></RoleRoute>} />

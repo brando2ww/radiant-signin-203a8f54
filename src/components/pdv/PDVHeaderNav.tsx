@@ -16,6 +16,7 @@ import {
 
   Package,
   Warehouse,
+  ClipboardList,
   Truck,
   BarChart3,
   Settings2,
@@ -108,6 +109,7 @@ const sectionItems: Section[] = [
       { title: "Produtos", url: "/pdv/produtos", icon: Package },
       { title: "Centros de Produção", url: "/pdv/centros-producao", icon: Factory },
       { title: "Estoque", url: "/pdv/estoque", icon: Warehouse },
+      { title: "Contagem de Estoque", url: "/pdv/contagem-estoque", icon: ClipboardList },
       { title: "Notas Fiscais", url: "/pdv/notas-fiscais", icon: Receipt },
       { title: "Cupons Fiscais", url: "/pdv/cupons-fiscais", icon: Receipt },
       { title: "Relatórios", url: "/pdv/relatorios", icon: BarChart3 },

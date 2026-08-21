@@ -20,6 +20,7 @@ import PublicTasks from "./pages/PublicTasks";
 import PublicChecklistAccess from "./pages/PublicChecklistAccess";
 import PublicSupplierQuotation from "./pages/PublicSupplierQuotation";
 import PublicPurchaseReceipt from "./pages/PublicPurchaseReceipt";
+import PublicStockCount from "./pages/PublicStockCount";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
 import NotFound from "./pages/NotFound";
 import { RadixBodyUnlock } from "@/components/RadixBodyUnlock";
@@ -89,6 +90,7 @@ const App = () => (
                   <Route path="/c/:checklistId" element={<PublicChecklistAccess />} />
                   <Route path="/cotacao/:token" element={<PublicSupplierQuotation />} />
                   <Route path="/recebimento/:token" element={<PublicPurchaseReceipt />} />
+                  <Route path="/contagem/:token" element={<PublicStockCount />} />
                   {/* Onboarding (auth-only, sem ProtectedRoute para evitar loop) */}
                   <Route path="/onboarding" element={<AuthOnlyRoute><Onboarding /></AuthOnlyRoute>} />
                   <Route path="/onboarding/sucesso" element={<AuthOnlyRoute><OnboardingSuccess /></AuthOnlyRoute>} />
