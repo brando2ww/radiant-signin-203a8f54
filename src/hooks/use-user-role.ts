@@ -48,6 +48,7 @@ const ROLE_SCOPE: Record<AppRole, RoleScope> = {
     modules: ["pdv"],
     subRoutes: [
       "/pdv/estoque",
+      "/pdv/contagem-estoque",
       "/pdv/fornecedores",
       "/pdv/notas-fiscais",
       "/pdv/cupons-fiscais",
