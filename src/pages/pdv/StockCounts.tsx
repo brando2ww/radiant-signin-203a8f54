@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ClipboardList, Download, FileSpreadsheet, Lock, PackageCheck, Plus, Users } from "lucide-react";
+import { ClipboardList, Download, FileSpreadsheet, Link2, Lock, PackageCheck, Plus, Users } from "lucide-react";
 import { exportStockCountPdf, exportStockCountXlsx } from "@/lib/stock-count/export";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { format } from "date-fns";
@@ -19,6 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { NewStockCountDialog } from "@/components/pdv/stock-count/NewStockCountDialog";
+import { StockCountLinksDialog } from "@/components/pdv/stock-count/StockCountLinksDialog";
 import {
   useStockCounts, useStockCountItems, useStockCountSessions,
   useCloseStockCount, useApplyStockCount, useStockCountHistory,
@@ -36,6 +37,7 @@ export default function StockCounts() {
   const [novaAberta, setNovaAberta] = useState(false);
   const [selecionada, setSelecionada] = useState<string | undefined>();
   const [confirmarAplicar, setConfirmarAplicar] = useState(false);
+  const [linksAbertos, setLinksAbertos] = useState(false);
 
   const contagem = contagens.find((c) => c.id === selecionada) ?? contagens[0];
   const { data: itens = [] } = useStockCountItems(contagem?.id);
@@ -150,6 +152,12 @@ export default function StockCounts() {
                     </CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {/* Pegar o link depois de aberta: a senha não volta, mas o
+                        link sim — e sem isso o gestor teria que abrir outra
+                        contagem só para reenviar. */}
+                    <Button variant="outline" size="sm" onClick={() => setLinksAbertos(true)}>
+                      <Link2 className="mr-2 h-4 w-4" /> Links
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -345,6 +353,12 @@ export default function StockCounts() {
       )}
 
       <NewStockCountDialog open={novaAberta} onOpenChange={setNovaAberta} />
+
+      <StockCountLinksDialog
+        open={linksAbertos}
+        onOpenChange={setLinksAbertos}
+        countId={contagem?.id}
+      />
 
       <AlertDialog open={confirmarAplicar} onOpenChange={setConfirmarAplicar}>
         <AlertDialogContent>

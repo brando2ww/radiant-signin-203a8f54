@@ -166,6 +166,61 @@ export function useStockCountSessions(countId?: string) {
   });
 }
 
+export interface StockCountLink {
+  id: string;
+  label: string;
+  token: string;
+  sectors: string[] | null;
+  expires_at: string;
+  locked_until: string | null;
+}
+
+/** Links de uma contagem, para reenviar sem ter que abrir outra. */
+export function useStockCountLinks(countId?: string) {
+  return useQuery({
+    queryKey: ["stock-count-links", countId],
+    enabled: !!countId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pdv_stock_count_links")
+        // password_hash de fora, sempre: a coluna existe mas não tem por que
+        // trafegar até o navegador.
+        .select("id, label, token, sectors, expires_at, locked_until")
+        .eq("count_id", countId!)
+        .order("created_at");
+      if (error) throw error;
+      return (data ?? []) as unknown as StockCountLink[];
+    },
+  });
+}
+
+/**
+ * Nova senha para um link existente.
+ *
+ * O hash não é reversível — de propósito. Sem isto, perder a senha custava a
+ * contagem inteira: o gestor teria que abrir outra e descartar o que já tinha
+ * sido contado.
+ */
+export function useResetStockCountLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { linkId: string; password: string; expiresHours?: number }) => {
+      const { data, error } = await rpc("pdv_stock_count_reset_link", {
+        _link_id: v.linkId,
+        _password: v.password,
+        _expires_hours: v.expiresHours ?? 24,
+      });
+      if (error) throw error;
+      return data as unknown as { token: string };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock-count-links"] });
+      toast.success("Senha trocada. O link continua o mesmo.");
+    },
+    onError: (e: any) => toast.error(traduzErro(e?.message)),
+  });
+}
+
 export function useCreateStockCount() {
   const qc = useQueryClient();
   return useMutation({
@@ -283,7 +338,12 @@ export async function abrirContagem(
     _counter_name: counterName ?? null,
   });
   if (error) throw new Error(traduzErro(error.message));
-  return data as unknown as CounterSession;
+
+  // Falha de credencial volta como dado, não como exceção: levantar abortaria a
+  // transação e desfaria o incremento do contador de tentativas.
+  const r = data as any;
+  if (r?.error) throw new Error(traduzErro(r.error));
+  return r as CounterSession;
 }
 
 export async function salvarItem(args: {
@@ -310,7 +370,13 @@ export async function pingContagem(sessionToken: string): Promise<void> {
   await rpc("pdv_stock_count_ping", { _session_token: sessionToken });
 }
 
-/** Códigos das funções em português de quem está com a prancheta na mão. */
+/**
+ * Códigos das funções em português de quem está com a prancheta na mão.
+ *
+ * O caso genérico registra o erro cru no console. Sem isso, uma falha
+ * inesperada — foi o que aconteceu com o pgcrypto fora do search_path — vira
+ * "Não foi possível concluir" e não sobra rastro nenhum para diagnosticar.
+ */
 export function traduzErro(msg?: string): string {
   const m = String(msg ?? "");
   if (m.includes("invalid_credentials")) return "Link ou senha incorretos.";
@@ -319,8 +385,10 @@ export function traduzErro(msg?: string): string {
   if (m.includes("count_closed")) return "Esta contagem já foi encerrada.";
   if (m.includes("invalid_session")) return "Sua sessão expirou. Entre no link de novo.";
   if (m.includes("negative_quantity")) return "A quantidade não pode ser negativa.";
+  if (m.includes("link_not_found")) return "Este link não existe mais.";
   if (m.includes("no_ingredients_in_scope")) return "Nenhum insumo se encaixa nesse filtro.";
   if (m.includes("password_required")) return "Defina uma senha para cada link.";
   if (m.includes("already_applied")) return "Os ajustes desta contagem já foram aplicados.";
+  if (m) console.error("[contagem] erro não traduzido:", m);
   return "Não foi possível concluir. Tente de novo.";
 }
