@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,12 +62,12 @@ export function CategoryPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Escolher categorias</DialogTitle>
         </DialogHeader>
 
-        <div className="relative shrink-0">
+        <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             autoFocus
@@ -79,7 +78,7 @@ export function CategoryPickerDialog({
           />
         </div>
 
-        <div className="flex shrink-0 items-center justify-between px-1 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
           <span>{filtradas.length} categoria(s)</span>
           <button
             type="button"
@@ -93,8 +92,7 @@ export function CategoryPickerDialog({
           </button>
         </div>
 
-        <ScrollArea className="-mx-1 min-h-0 flex-1 px-1">
-          <div className="space-y-1 py-1">
+        <div className="max-h-[45vh] space-y-1 overflow-y-auto overscroll-contain py-1 pr-1">
             {filtradas.map((c) => {
               const usada = jaEscolhidas.includes(c.nome);
               const marcada = marcadas.includes(c.nome);
@@ -123,10 +121,9 @@ export function CategoryPickerDialog({
                 Nenhuma categoria com esse nome.
               </p>
             )}
-          </div>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="shrink-0 flex-col gap-2 sm:flex-col">
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
           {marcadas.length > 0 && (
             <p className="text-center text-xs text-muted-foreground">
               {marcadas.length} marcada(s) · {totalItens} insumos no total
