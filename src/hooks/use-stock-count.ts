@@ -79,7 +79,10 @@ export interface CounterSession {
 export interface NewCountLink {
   label: string;
   password: string;
+  /** Recorte por onde a coisa fica guardada. */
   sectors?: string[] | null;
+  /** Recorte pelo que a coisa é. Combinado com setor, os dois se cruzam. */
+  categories?: string[] | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +174,7 @@ export interface StockCountLink {
   label: string;
   token: string;
   sectors: string[] | null;
+  categories: string[] | null;
   expires_at: string;
   locked_until: string | null;
 }
@@ -185,7 +189,7 @@ export function useStockCountLinks(countId?: string) {
         .from("pdv_stock_count_links")
         // password_hash de fora, sempre: a coluna existe mas não tem por que
         // trafegar até o navegador.
-        .select("id, label, token, sectors, expires_at, locked_until")
+        .select("id, label, token, sectors, categories, expires_at, locked_until")
         .eq("count_id", countId!)
         .order("created_at");
       if (error) throw error;

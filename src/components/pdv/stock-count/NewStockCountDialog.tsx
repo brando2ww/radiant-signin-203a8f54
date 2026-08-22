@@ -5,10 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { Copy, Loader2, MessageSquare, Plus, Tags, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { usePDVIngredients } from "@/hooks/use-pdv-ingredients";
+import { useIngredientCategories } from "@/hooks/use-ingredient-categories";
 import { useCreateStockCount, type NewCountLink } from "@/hooks/use-stock-count";
+import { CategoryPickerDialog } from "./CategoryPickerDialog";
 
 interface Props {
   open: boolean;
@@ -28,6 +30,7 @@ const senhaSugerida = () => String(Math.floor(1000 + Math.random() * 9000));
  */
 export function NewStockCountDialog({ open, onOpenChange }: Props) {
   const { ingredients } = usePDVIngredients();
+  const { categories } = useIngredientCategories();
   const criar = useCreateStockCount();
 
   const [nome, setNome] = useState(() => `Contagem de ${new Date().toLocaleDateString("pt-BR")}`);
@@ -35,23 +38,62 @@ export function NewStockCountDialog({ open, onOpenChange }: Props) {
   const [horas, setHoras] = useState("24");
   const [links, setLinks] = useState<NewCountLink[]>([]);
   const [gerados, setGerados] = useState<Array<{ label: string; token: string }> | null>(null);
+  const [seletorCategorias, setSeletorCategorias] = useState(false);
 
-  // Setores existentes no cadastro de insumos, com quantos itens cada um tem —
-  // o gestor precisa saber o tamanho da lista antes de entregar a alguém.
+  // Setor é onde a coisa fica guardada; categoria é o que a coisa é. O gestor
+  // divide o depósito pelos dois, e precisa ver o tamanho de cada lista antes
+  // de entregar a alguém.
   const setores = useMemo(() => {
     const m = new Map<string, number>();
     for (const i of ingredients ?? []) {
       const s = (i as any).sector || "Sem setor";
       m.set(s, (m.get(s) ?? 0) + 1);
     }
-    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
   }, [ingredients]);
+
+  // A coluna `category` do insumo guarda o NOME quando veio do cadastro manual
+  // e o ID quando veio de uma NF-e importada. As duas convenções convivem, e
+  // assumir só uma fazia a lista aparecer vazia com 139 insumos categorizados.
+  // Resolver para o nome é o denominador comum.
+  const categoriasComItens = useMemo(() => {
+    const porId = new Map((categories ?? []).map((c) => [c.id, c.name]));
+    const contagem = new Map<string, number>();
+    let semCategoria = 0;
+    for (const i of ingredients ?? []) {
+      const bruto = (i as any).category;
+      if (!bruto) { semCategoria++; continue; }
+      const nome = porId.get(bruto) ?? bruto;
+      contagem.set(nome, (contagem.get(nome) ?? 0) + 1);
+    }
+    const lista = Array.from(contagem.entries())
+      .map(([nome, qtd]) => ({ nome, qtd }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return { lista, semCategoria };
+  }, [ingredients, categories]);
 
   const adicionarSetor = (setor: string) => {
     if (links.some((l) => l.label === setor)) return;
     setLinks((v) => [
       ...v,
       { label: setor, password: senhaSugerida(), sectors: setor === "Sem setor" ? null : [setor] },
+    ]);
+  };
+
+  // Recorte por nome: é o que o item da contagem guarda depois de resolvido.
+  const adicionarCategorias = (nomes: string[], modo: "separados" | "juntos") => {
+    if (nomes.length === 0) return;
+    if (modo === "juntos") {
+      // Um link para várias categorias: "essa pessoa conta essas três".
+      const rotulo = nomes.length <= 2 ? nomes.join(" e ") : `${nomes.length} categorias`;
+      setLinks((v) => [...v, { label: rotulo, password: senhaSugerida(), categories: nomes }]);
+      return;
+    }
+    setLinks((v) => [
+      ...v,
+      ...nomes
+        .filter((n) => !v.some((l) => l.label === n))
+        .map((n) => ({ label: n, password: senhaSugerida(), categories: [n] })),
     ]);
   };
 
@@ -167,31 +209,74 @@ export function NewStockCountDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Quem vai contar o quê</Label>
-              <div className="flex flex-wrap gap-2">
-                {setores.map(([s, qtd]) => (
-                  <Button key={s} type="button" size="sm" variant="outline" onClick={() => adicionarSetor(s)}>
-                    <Plus className="mr-1 h-3 w-3" /> {s}
-                    <span className="ml-1 text-xs text-muted-foreground">({qtd})</span>
-                  </Button>
-                ))}
-                <Button type="button" size="sm" variant="secondary" onClick={adicionarGeral}>
-                  <Plus className="mr-1 h-3 w-3" /> Um link para tudo
-                </Button>
-              </div>
-              {setores.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Nenhum insumo com setor cadastrado. Use "Um link para tudo".
+
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Por setor <span className="font-normal">· onde fica guardado</span>
                 </p>
-              )}
+                <div className="flex flex-wrap gap-2">
+                  {setores.map(([s, qtd]) => (
+                    <Button key={s} type="button" size="sm" variant="outline" onClick={() => adicionarSetor(s)}>
+                      <Plus className="mr-1 h-3 w-3" /> {s}
+                      <span className="ml-1 text-xs text-muted-foreground">({qtd})</span>
+                    </Button>
+                  ))}
+                  {setores.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhum insumo com setor cadastrado.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Por categoria <span className="font-normal">· o que a coisa é</span>
+                </p>
+                {/* Vinte chips na tela não é escolha, é caça. O seletor traz
+                    busca, marcação múltipla e a decisão de virar um link ou
+                    vários. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between font-normal"
+                  disabled={categoriasComItens.lista.length === 0}
+                  onClick={() => setSeletorCategorias(true)}
+                >
+                  <span className="flex items-center gap-2">
+                    <Tags className="h-4 w-4 text-muted-foreground" />
+                    {categoriasComItens.lista.length === 0
+                      ? "Nenhuma categoria com insumo"
+                      : "Escolher categorias"}
+                  </span>
+                  {categoriasComItens.lista.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {categoriasComItens.lista.length} disponíveis
+                    </span>
+                  )}
+                </Button>
+                {categoriasComItens.semCategoria > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {categoriasComItens.semCategoria} insumo(s) sem categoria · só entram no link geral.
+                  </p>
+                )}
+              </div>
+
+              <Button type="button" size="sm" variant="secondary" onClick={adicionarGeral}>
+                <Plus className="mr-1 h-3 w-3" /> Um link para tudo
+              </Button>
             </div>
 
             {links.length > 0 && (
               <div className="space-y-2 rounded-md border p-3">
                 {links.map((l, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.label}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {l.label}
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        {l.categories?.length ? "categoria" : l.sectors?.length ? "setor" : "tudo"}
+                      </span>
+                    </span>
                     <div className="w-28">
                       <Input
                         value={l.password}
@@ -224,6 +309,14 @@ export function NewStockCountDialog({ open, onOpenChange }: Props) {
           </div>
         )}
       </DialogContent>
+
+      <CategoryPickerDialog
+        open={seletorCategorias}
+        onOpenChange={setSeletorCategorias}
+        categorias={categoriasComItens.lista}
+        jaEscolhidas={links.flatMap((l) => l.categories ?? [])}
+        onConfirm={adicionarCategorias}
+      />
     </Dialog>
   );
 }
