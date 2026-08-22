@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, Loader2, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { usePDVIngredients } from "@/hooks/use-pdv-ingredients";
 import { useCreateStockCount, type NewCountLink } from "@/hooks/use-stock-count";
@@ -97,6 +97,7 @@ export function NewStockCountDialog({ open, onOpenChange }: Props) {
             <p className="text-sm text-muted-foreground">
               Envie cada link para quem vai contar aquele setor, junto com a senha.
               A senha não pode ser recuperada depois · anote agora.
+              O botão de baixo monta a mensagem inteira, com o link numa linha só.
             </p>
             {gerados.map((g) => {
               const senha = links.find((l) => l.label === g.label)?.password ?? "";
@@ -108,19 +109,36 @@ export function NewStockCountDialog({ open, onOpenChange }: Props) {
                   </div>
                   <div className="flex gap-2">
                     <Input readOnly value={urlDoLink(g.token)} className="font-mono text-xs" />
+                    {/* Só o endereço. Copiar link e senha juntos fazia o texto
+                        virar parte da URL quando colado, e o token deixava de
+                        ser um uuid válido. */}
                     <Button
                       size="icon"
                       variant="outline"
+                      title="Copiar só o link"
                       onClick={() => {
-                        navigator.clipboard.writeText(
-                          `${urlDoLink(g.token)}\nSenha: ${senha}`,
-                        );
-                        toast.success("Link e senha copiados");
+                        navigator.clipboard.writeText(urlDoLink(g.token));
+                        toast.success("Link copiado");
                       }}
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 w-full"
+                    onClick={() => {
+                      // Mensagem pronta para mandar: o link fica isolado numa
+                      // linha, longe da senha.
+                      navigator.clipboard.writeText(
+                        `Contagem de estoque · ${g.label}\n\n${urlDoLink(g.token)}\n\nSenha: ${senha}`,
+                      );
+                      toast.success("Mensagem copiada, pronta para enviar");
+                    }}
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" /> Copiar mensagem com a senha
+                  </Button>
                 </div>
               );
             })}

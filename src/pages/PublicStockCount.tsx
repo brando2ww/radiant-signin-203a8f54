@@ -27,8 +27,16 @@ import {
 /** Quantidade grande demais para ser real é confirmada antes de entrar. */
 const ABSURDO = 100_000;
 
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
 export default function PublicStockCount() {
-  const { token = "" } = useParams<{ token: string }>();
+  const { token: tokenBruto = "" } = useParams<{ token: string }>();
+
+  // O link é colado em WhatsApp, bloco de notas, barra de endereço — e chega
+  // com sujeira grudada: a senha na linha de baixo, um ponto final, um espaço.
+  // Extrair o uuid do que veio é mais barato que explicar ao operador que o
+  // link "está errado".
+  const token = UUID_RE.exec(decodeURIComponent(tokenBruto))?.[0] ?? tokenBruto;
 
   const [sessao, setSessao] = useState<CounterSession | null>(null);
   const [senha, setSenha] = useState("");

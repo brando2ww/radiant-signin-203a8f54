@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Copy, KeyRound, Loader2 } from "lucide-react";
+import { Copy, KeyRound, Loader2, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -85,12 +85,12 @@ export function StockCountLinksDialog({ open, onOpenChange, countId }: Props) {
                     <Button
                       size="icon"
                       variant="outline"
+                      title="Copiar só o link"
                       onClick={() => {
-                        const senha = novas[l.id];
-                        navigator.clipboard.writeText(
-                          senha ? `${url(l.token)}\nSenha: ${senha}` : url(l.token),
-                        );
-                        toast.success(senha ? "Link e senha copiados" : "Link copiado");
+                        // Só o endereço: link e senha grudados viravam uma URL
+                        // inválida quando colados na barra do navegador.
+                        navigator.clipboard.writeText(url(l.token));
+                        toast.success("Link copiado");
                       }}
                     >
                       <Copy className="h-4 w-4" />
@@ -114,9 +114,23 @@ export function StockCountLinksDialog({ open, onOpenChange, countId }: Props) {
                       {expirado ? "Reativar com nova senha" : "Trocar senha"}
                     </Button>
                     {novas[l.id] && (
-                      <span className="text-sm">
-                        Senha: <strong className="font-mono">{novas[l.id]}</strong>
-                      </span>
+                      <>
+                        <span className="text-sm">
+                          Senha: <strong className="font-mono">{novas[l.id]}</strong>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              `Contagem de estoque · ${l.label}\n\n${url(l.token)}\n\nSenha: ${novas[l.id]}`,
+                            );
+                            toast.success("Mensagem copiada, pronta para enviar");
+                          }}
+                        >
+                          <MessageSquare className="mr-2 h-4 w-4" /> Copiar mensagem
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

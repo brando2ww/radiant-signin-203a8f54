@@ -466,6 +466,10 @@ export function traduzErro(msg?: string): string {
   if (m.includes("count_already_applied"))
     return "Esta contagem já ajustou o estoque e não pode ser excluída. Cancele em vez disso.";
   if (m.includes("count_not_found")) return "Contagem não encontrada.";
+  // Token que não é uuid: o link foi colado com sujeira junto (a senha, um
+  // ponto final). Dizer isso é mais útil que "tente de novo".
+  if (m.includes("invalid input syntax") || m.includes("uuid"))
+    return "O link parece incompleto ou colado junto com outro texto. Abra usando só o endereço.";
   if (m.includes("link_not_found")) return "Este link não existe mais.";
   if (m.includes("no_ingredients_in_scope")) return "Nenhum insumo se encaixa nesse filtro.";
   if (m.includes("password_required")) return "Defina uma senha para cada link.";
