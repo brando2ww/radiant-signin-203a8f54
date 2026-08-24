@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { parseISO } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { MessageCircle, Check, Loader2, Copy, Link2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -18,6 +18,10 @@ import { generateQuotationMessage } from "@/lib/whatsapp-message";
 import { usePurchaseSettings } from "@/hooks/use-purchase-settings";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
+import { usePDVSettings } from "@/hooks/use-pdv-settings";
+import { useWhatsAppConnection } from "@/hooks/use-whatsapp-connection";
+import { TemplatePreview } from "@/components/pdv/whatsapp/TemplatePreview";
+import { TEMPLATE_COTACAO, achatarParametro } from "@/lib/whatsapp-templates";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -55,6 +59,12 @@ export function WhatsAppSendDialog({
   // é o que substitui o texto fixo que ia para o fornecedor.
   const { settings: purchaseSettings } = usePurchaseSettings();
   const { settings: businessSettings } = useBusinessSettings();
+  // CNPJ e cidade vivem em pdv_settings (dados fiscais), não em business_settings.
+  const { settings: pdvSettings } = usePDVSettings();
+  const { connection } = useWhatsAppConnection();
+  // No número oficial da Velara a Meta só aceita modelo aprovado: o texto
+  // montado abaixo não é o que chega ao fornecedor.
+  const canalOficial = connection?.provider === "sellgrid" || connection?.provider === "cloud";
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -177,6 +187,39 @@ export function WhatsAppSendDialog({
   useEffect(() => {
     if (open) { setLinks([]); setQrFor(null); }
   }, [open]);
+
+  /**
+   * Valores do modelo `cotacao_fornecedor`, montados para o primeiro fornecedor
+   * selecionado. Todos recebem a mesma estrutura — muda só o nome e a contagem
+   * de itens, porque cada um cota o que foi convidado a cotar.
+   */
+  const previewCotacao = useMemo(() => {
+    const alvo =
+      suppliersWithItems.find((s) => selectedSuppliers.has(s.id)) ?? suppliersWithItems[0];
+    if (!alvo) return null;
+
+    const endereco = pdvSettings?.nfe_endereco_fiscal;
+    const cidade = [endereco?.cidade, endereco?.uf].filter(Boolean).join(" - ");
+    const nomeCasa = pdvSettings?.business_name || businessSettings?.business_name || "";
+    const prazo = quotation.deadline ? parseISO(quotation.deadline) : null;
+    const qtd = alvo.items.length;
+
+    return {
+      fornecedor: alvo,
+      valores: [
+        achatarParametro(alvo.name),
+        achatarParametro(nomeCasa),
+        achatarParametro(pdvSettings?.business_cnpj),
+        achatarParametro(cidade),
+        prazo ? format(prazo, "dd/MM/yyyy") : "",
+        `${qtd} ${qtd === 1 ? "item" : "itens"}`,
+        achatarParametro(nomeCasa ? `Setor de Compras do ${nomeCasa}` : ""),
+      ],
+      // O token só existe depois de gerar o link; antes disso o botão fica sem
+      // destino visível, e é honesto mostrar assim.
+      token: links.find((l) => l.supplierId === alvo.id)?.url.split("/").pop(),
+    };
+  }, [suppliersWithItems, selectedSuppliers, pdvSettings, businessSettings, quotation.deadline, links]);
 
   const handleToggleSupplier = (supplierId: string) => {
     const newSelected = new Set(selectedSuppliers);
@@ -392,6 +435,21 @@ export function WhatsAppSendDialog({
                     );
                   })}
               </div>
+
+              {canalOficial && previewCotacao && (
+                <div className="rounded-lg border p-3">
+                  <TemplatePreview
+                    template={TEMPLATE_COTACAO}
+                    valores={previewCotacao.valores}
+                    variavelDoBotao={previewCotacao.token}
+                  />
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Exemplo com <strong>{previewCotacao.fornecedor.name}</strong>. Cada
+                    fornecedor recebe a mesma mensagem, com o próprio nome, a própria
+                    contagem de itens e o próprio link.
+                  </p>
+                </div>
+              )}
 
               {links.length > 0 && (
                 <div className="rounded-lg border p-3 space-y-2">

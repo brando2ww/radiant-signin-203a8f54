@@ -20,6 +20,10 @@ import { QuotationRequest } from "@/hooks/use-pdv-quotations";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { conservationLabel, generateWinnerOrderMessage, WinnerOrderItem } from "@/lib/whatsapp-message";
 import { formatBRL } from "@/lib/format";
+import { usePDVSettings } from "@/hooks/use-pdv-settings";
+import { useWhatsAppConnection } from "@/hooks/use-whatsapp-connection";
+import { TemplatePreview } from "@/components/pdv/whatsapp/TemplatePreview";
+import { TEMPLATE_PEDIDO, achatarParametro } from "@/lib/whatsapp-templates";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,6 +60,10 @@ const contactOf = (s?: { phone?: string | null; whatsapp?: string | null } | nul
 
 export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDialogProps) {
   const { settings } = useBusinessSettings();
+  const { settings: pdvSettings } = usePDVSettings();
+  const { connection } = useWhatsAppConnection();
+  // Número oficial: o que sai é o modelo aprovado, não o texto editável.
+  const canalOficial = connection?.provider === "sellgrid" || connection?.provider === "cloud";
   const queryClient = useQueryClient();
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<Record<string, string>>({});
@@ -126,6 +134,28 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
         })),
     [quotation.items]
   );
+
+  /**
+   * Valores do modelo `pedido_fornecedor` para um fornecedor.
+   *
+   * Prazo e pagamento são opcionais no cadastro, e parâmetro vazio faz a Meta
+   * recusar o envio inteiro — daí o "A combinar" em vez de string vazia.
+   */
+  const valoresPedido = (o: SupplierOrder): string[] => {
+    const nomeCasa = pdvSettings?.business_name || settings?.business_name || "";
+    const qtd = o.items.length;
+    return [
+      achatarParametro(o.name),
+      achatarParametro(nomeCasa),
+      achatarParametro(quotation.request_number) || "sem referência",
+      `${qtd} ${qtd === 1 ? "item" : "itens"}`,
+      formatBRL(o.total),
+      o.maxDeliveryDays != null
+        ? `${o.maxDeliveryDays} ${o.maxDeliveryDays === 1 ? "dia" : "dias"}`
+        : "A combinar",
+      achatarParametro(o.paymentTerms) || "A combinar",
+    ];
+  };
 
   const grandTotal = useMemo(
     () => orders.reduce((sum, o) => sum + o.total, 0),
@@ -489,12 +519,26 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                       Sem WhatsApp cadastrado · não será enviado automaticamente.
                     </div>
                   )}
-                  <Textarea
-                    rows={7}
-                    value={messages[o.supplierId] ?? ""}
-                    onChange={(e) => setMessages((m) => ({ ...m, [o.supplierId]: e.target.value }))}
-                    className="text-xs font-mono"
-                  />
+                  {canalOficial && (
+                    <TemplatePreview template={TEMPLATE_PEDIDO} valores={valoresPedido(o)} />
+                  )}
+
+                  <div className="space-y-1">
+                    {canalOficial && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Texto abaixo: usado só no envio pelo número do próprio
+                        estabelecimento (QR Code). Pelo número oficial, vale o modelo
+                        acima — e a lista completa dos produtos vai logo depois, quando o
+                        fornecedor tocar em confirmar.
+                      </p>
+                    )}
+                    <Textarea
+                      rows={7}
+                      value={messages[o.supplierId] ?? ""}
+                      onChange={(e) => setMessages((m) => ({ ...m, [o.supplierId]: e.target.value }))}
+                      className="text-xs font-mono"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
