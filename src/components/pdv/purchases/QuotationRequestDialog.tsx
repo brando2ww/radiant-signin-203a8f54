@@ -234,6 +234,16 @@ export function QuotationRequestDialog({
     setItems(newItems);
   };
 
+  /**
+   * Item com quantidade zero não é cotação: o fornecedor recebe "Produto X: 0
+   * un" e não tem o que orçar. Vinha passando porque o `min` do input é só
+   * dica do navegador, e o `|| 0` do onChange transforma campo vazio em zero.
+   */
+  const itensSemQuantidade = useMemo(
+    () => items.filter((item) => item.ingredient_id && !(item.quantity_needed > 0)),
+    [items],
+  );
+
   const handleSubmit = () => {
     if (items.length === 0 || items.some((item) => !item.ingredient_id)) {
       return;
@@ -245,6 +255,19 @@ export function QuotationRequestDialog({
     const ids = items.map((i) => i.ingredient_id);
     if (new Set(ids).size !== ids.length) {
       toast.error("Há insumos repetidos na lista. Remova as linhas duplicadas.");
+      return;
+    }
+
+    if (itensSemQuantidade.length > 0) {
+      const nomes = itensSemQuantidade
+        .map((i) => i.ingredient_name)
+        .filter(Boolean)
+        .join(", ");
+      toast.error(
+        nomes
+          ? `Informe a quantidade de: ${nomes}.`
+          : "Há itens com quantidade zerada. Informe quanto precisa de cada um.",
+      );
       return;
     }
 
@@ -408,6 +431,12 @@ export function QuotationRequestDialog({
                                 parseFloat(e.target.value) || 0
                               )
                             }
+                            onFocus={(e) => e.target.select()}
+                            className={
+                              item.ingredient_id && !(item.quantity_needed > 0)
+                                ? "border-destructive focus-visible:ring-destructive"
+                                : undefined
+                            }
                           />
                         </div>
                         <div className="col-span-3">
@@ -467,7 +496,15 @@ export function QuotationRequestDialog({
           </div>
         </div>
 
-        <DialogFooter className="mt-4 shrink-0">
+        <DialogFooter className="mt-4 shrink-0 sm:items-center">
+          {itensSemQuantidade.length > 0 && (
+            <p className="mr-auto text-xs font-medium text-destructive">
+              {itensSemQuantidade.length === 1
+                ? "1 item está sem quantidade."
+                : `${itensSemQuantidade.length} itens estão sem quantidade.`}{" "}
+              O fornecedor não tem o que orçar com zero.
+            </p>
+          )}
           <Button variant="outline" onClick={handleClose}>
             Cancelar
           </Button>
@@ -476,6 +513,7 @@ export function QuotationRequestDialog({
             disabled={
               items.length === 0 ||
               items.some((item) => !item.ingredient_id) ||
+              itensSemQuantidade.length > 0 ||
               isSaving ||
               // Salvar antes de saber quais fornecedores já estavam vinculados
               // apagaria todos eles.

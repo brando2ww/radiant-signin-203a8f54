@@ -5,6 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 import {
@@ -41,11 +42,16 @@ interface PoItem {
   unit_price: number;
   quotation_response_id: string | null;
 }
+/** Linha do pedido, com a origem na cotação — é a chave da edição de quantidade. */
+interface OrderLine extends WinnerOrderItem {
+  itemId: string;
+}
+
 interface SupplierOrder {
   supplierId: string;
   name: string;
   phone: string; // whatsapp || phone
-  items: WinnerOrderItem[];
+  items: OrderLine[];
   poItems: PoItem[];
   paymentTerms: string | null;
   maxDeliveryDays: number | null;
@@ -57,6 +63,22 @@ interface SupplierOrder {
 
 const contactOf = (s?: { phone?: string | null; whatsapp?: string | null } | null) =>
   (s?.whatsapp && s.whatsapp.trim()) || (s?.phone && s.phone.trim()) || "";
+
+/**
+ * Campo preenchido com algo que se possa ler.
+ *
+ * Fornecedor que responde "." em forma de pagamento não está informando nada,
+ * e "Pagamento: ." na conferência é pior do que "não informado": parece defeito
+ * da tela.
+ */
+const temTexto = (v: unknown): boolean =>
+  typeof v === "string" ? /[\p{L}\p{N}]/u.test(v) : Boolean(v);
+
+/** Aceita vírgula decimal, que é como se digita quantidade por aqui. */
+const parseQtd = (v: string): number => {
+  const n = parseFloat(v.replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
 
 export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDialogProps) {
   const { settings } = useBusinessSettings();
@@ -71,6 +93,15 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   const [step, setStep] = useState<"review" | "send">("review");
   // Já assumiu o risco de fechar abaixo do pedido mínimo de algum fornecedor?
   const [minimumAck, setMinimumAck] = useState(false);
+  /**
+   * Quantidade ajustada na hora de fechar, por item da cotação.
+   *
+   * O que se cota nem sempre é o que se compra: o preço chegou, o comprador
+   * viu o total e resolveu levar menos. Sem isto ele cancelava o pedido e
+   * refazia a cotação inteira, ou pedia a mais e acertava no recebimento.
+   * A cotação não é tocada — o ajuste vale para ESTE pedido.
+   */
+  const [qtdEditada, setQtdEditada] = useState<Record<string, string>>({});
 
   // Agrupa os itens VENCEDORES por fornecedor.
   const orders = useMemo<SupplierOrder[]>(() => {
@@ -79,9 +110,14 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
       const win = item.responses?.find((r) => r.is_winner);
       if (!win || !win.supplier) return;
       const sid = win.supplier.id;
-      const orderItem: WinnerOrderItem = {
+      // Zero significa "decidi não levar este". A linha continua na tela,
+      // apagada, mas sai do total, do pedido de compra e da mensagem.
+      const bruto = qtdEditada[item.id];
+      const quantidade = bruto === undefined ? item.quantity_needed : parseQtd(bruto);
+      const orderItem: OrderLine = {
+        itemId: item.id,
         ingredientName: item.ingredient?.name ?? "Item",
-        quantity: item.quantity_needed,
+        quantity: quantidade,
         unit: item.unit,
         unitPrice: Number(win.unit_price) || 0,
         brand: win.brand,
@@ -91,7 +127,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
       };
       const poItem: PoItem = {
         ingredient_id: item.ingredient_id,
-        quantity: item.quantity_needed,
+        quantity: quantidade,
         unit: item.unit,
         unit_price: Number(win.unit_price) || 0,
         quotation_response_id: (win as any).id ?? null,
@@ -99,8 +135,10 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
       const existing = bySupplier.get(sid);
       if (existing) {
         existing.items.push(orderItem);
-        existing.poItems.push(poItem);
-        existing.total += orderItem.quantity * orderItem.unitPrice;
+        if (quantidade > 0) {
+          existing.poItems.push(poItem);
+          existing.total += orderItem.quantity * orderItem.unitPrice;
+        }
         if (win.delivery_days != null) existing.maxDeliveryDays = Math.max(existing.maxDeliveryDays ?? 0, win.delivery_days);
         if (!existing.paymentTerms && win.payment_terms) existing.paymentTerms = win.payment_terms;
       } else {
@@ -109,17 +147,17 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
           name: win.supplier.name,
           phone: contactOf(win.supplier),
           items: [orderItem],
-          poItems: [poItem],
+          poItems: quantidade > 0 ? [poItem] : [],
           paymentTerms: win.payment_terms ?? null,
           maxDeliveryDays: win.delivery_days ?? null,
-          total: orderItem.quantity * orderItem.unitPrice,
+          total: quantidade > 0 ? orderItem.quantity * orderItem.unitPrice : 0,
           minimumOrder: win.supplier.minimum_order ?? null,
           message: "",
         });
       }
     });
     return Array.from(bySupplier.values());
-  }, [quotation.items]);
+  }, [quotation.items, qtdEditada]);
 
   // Itens da cotação que ficaram sem vencedor: precisam aparecer na conferência,
   // senão o pedido sai incompleto sem ninguém perceber.
@@ -141,9 +179,12 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
    * Prazo e pagamento são opcionais no cadastro, e parâmetro vazio faz a Meta
    * recusar o envio inteiro — daí o "A combinar" em vez de string vazia.
    */
+  /** Linhas que de fato entram no pedido: as zeradas ficam só na conferência. */
+  const linhasAtivas = (o: SupplierOrder) => o.items.filter((i) => i.quantity > 0);
+
   const valoresPedido = (o: SupplierOrder): string[] => {
     const nomeCasa = pdvSettings?.business_name || settings?.business_name || "";
-    const qtd = o.items.length;
+    const qtd = linhasAtivas(o).length;
     return [
       achatarParametro(o.name),
       achatarParametro(nomeCasa),
@@ -175,6 +216,10 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   // Não bloqueia — negociar o mínimo por fora é comum e travar levaria o
   // comprador a fechar o pedido fora do sistema.
   const handleConfirm = () => {
+    if (orders.every((o) => o.poItems.length === 0)) {
+      toast.error("Todos os itens estão zerados. Ajuste ao menos uma quantidade.");
+      return;
+    }
     if (belowMinimum.length > 0 && !minimumAck) {
       setMinimumAck(true);
       toast.warning(
@@ -204,7 +249,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
           <h2>${esc(o.name)}</h2>
           <p class="meta">
             Prazo de entrega: ${o.maxDeliveryDays != null ? `${o.maxDeliveryDays} dia(s)` : "não informado"}
-            &nbsp;·&nbsp; Pagamento: ${o.paymentTerms ? esc(o.paymentTerms) : "não informado"}
+            &nbsp;·&nbsp; Pagamento: ${temTexto(o.paymentTerms) ? esc(o.paymentTerms!) : "não informado"}
           </p>
           <table>
             <thead>
@@ -214,11 +259,11 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
               </tr>
             </thead>
             <tbody>
-              ${o.items
+              ${linhasAtivas(o)
                 .map(
                   (i) => `<tr>
                     <td>${esc(i.ingredientName)}${[i.brand, conservationLabel(i.conservation)]
-                      .filter(Boolean)
+                      .filter(temTexto)
                       .map((s) => ` <small>(${esc(String(s))})</small>`)
                       .join("")}</td>
                     <td class="num">${i.quantity} ${esc(i.unit)}</td>
@@ -296,9 +341,16 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
     if (!open) return;
     setStep("review");
     setMinimumAck(false);
+    setQtdEditada({});
+  }, [open]);
+
+  // Separado do reset acima: mexer numa quantidade refaz a mensagem, mas não
+  // pode jogar o comprador de volta para a etapa de conferência.
+  useEffect(() => {
+    if (!open) return;
     const next: Record<string, string> = {};
     orders.forEach((o) => {
-      next[o.supplierId] = generateWinnerOrderMessage(o.name, o.items, {
+      next[o.supplierId] = generateWinnerOrderMessage(o.name, linhasAtivas(o), {
         businessName: settings?.business_name || undefined,
         requestNumber: quotation.request_number || undefined,
       });
@@ -314,7 +366,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
       return d.toISOString().split("T")[0];
     };
     const payload = orders
-      .filter((o) => o.phone)
+      .filter((o) => o.phone && o.poItems.length > 0)
       .map((o) => ({
         supplierId: o.supplierId,
         phone: o.phone,
@@ -374,7 +426,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
             {step === "review"
-              ? "Confira os vencedores escolhidos antes de fechar o pedido. Imprima esta lista para quem for receber a mercadoria conferir."
+              ? "Confira os vencedores antes de fechar. Dá para ajustar a quantidade de cada item aqui mesmo — zero tira o item do pedido. Imprima a lista para quem for receber a mercadoria conferir."
               : "Revise a mensagem que cada fornecedor vai receber e envie."}
           </p>
         </DialogHeader>
@@ -439,7 +491,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                         {o.maxDeliveryDays != null
                           ? `${o.maxDeliveryDays} dia(s)`
                           : "não informada"}{" "}
-                        · Pagamento: {o.paymentTerms || "não informado"}
+                        · Pagamento: {temTexto(o.paymentTerms) ? o.paymentTerms : "não informado"}
                       </p>
                       {isBelow(o) && (
                         <p className="text-xs font-medium text-destructive">
@@ -465,30 +517,52 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {o.items.map((i, idx) => (
-                        <tr key={`${o.supplierId}-${idx}`}>
-                          <td className="px-3 py-2">
-                            {i.ingredientName}
-                            {[i.brand, conservationLabel(i.conservation)]
-                              .filter(Boolean)
-                              .map((s) => (
-                                <span key={String(s)} className="text-muted-foreground">
-                                  {" "}
-                                  · {s}
+                      {o.items.map((i) => {
+                        const foraDoPedido = i.quantity <= 0;
+                        return (
+                          <tr key={i.itemId} className={foraDoPedido ? "opacity-50" : undefined}>
+                            <td className="px-3 py-2">
+                              {i.ingredientName}
+                              {[i.brand, conservationLabel(i.conservation)]
+                                .filter(temTexto)
+                                .map((s) => (
+                                  <span key={String(s)} className="text-muted-foreground">
+                                    {" "}
+                                    · {s}
+                                  </span>
+                                ))}
+                              {foraDoPedido && (
+                                <span className="ml-1 text-xs font-medium text-muted-foreground">
+                                  · fora do pedido
                                 </span>
-                              ))}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right">
-                            {i.quantity} {i.unit}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right">
-                            {formatBRL(i.unitPrice)}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
-                            {formatBRL(i.quantity * i.unitPrice)}
-                          </td>
-                        </tr>
-                      ))}
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Input
+                                  inputMode="decimal"
+                                  value={qtdEditada[i.itemId] ?? String(i.quantity)}
+                                  onChange={(e) =>
+                                    setQtdEditada((v) => ({ ...v, [i.itemId]: e.target.value }))
+                                  }
+                                  onFocus={(e) => e.target.select()}
+                                  className="h-8 w-[72px] text-right"
+                                  aria-label={`Quantidade de ${i.ingredientName}`}
+                                />
+                                <span className="w-8 text-left text-xs text-muted-foreground">
+                                  {i.unit}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right">
+                              {formatBRL(i.unitPrice)}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
+                              {formatBRL(i.quantity * i.unitPrice)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
 
