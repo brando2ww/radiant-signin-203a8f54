@@ -1,0 +1,77 @@
+/**
+ * Modelo aprovado na Meta, pronto para envio.
+ *
+ * O Z-PRO expõe `POST /v2/api/external/{apiId}/template` e repassa o campo
+ * `templateData` cru para a Meta. Ou seja: o que se monta aqui é o payload
+ * oficial da Cloud API, e o mesmo objeto serve quando o provedor for `cloud`
+ * direto, sem intermediário.
+ *
+ * Os textos dos modelos vivem no frontend (src/lib/whatsapp-templates.ts), que
+ * é onde o lojista os vê antes de enviar. Aqui só entram nome, idioma e os
+ * valores já achatados — para que a tela e o envio nunca contem histórias
+ * diferentes.
+ */
+
+export interface TemplateSpec {
+  name: string;
+  language: string;
+  /** Parâmetros do corpo, na ordem de {{1}}..{{n}}. */
+  bodyParams: string[];
+  /** Só para modelo com botão de URL dinâmica: o pedaço final do endereço. */
+  urlButtonParam?: string;
+}
+
+/** A Meta recusa o ENVIO quando um parâmetro traz quebra de linha, tabulação ou
+ *  quatro espaços seguidos. Achatar aqui é a última barreira antes da API. */
+export function achatarParametro(v: unknown): string {
+  return String(v ?? "").replace(/\s+/g, " ").trim();
+}
+
+export interface TemplateProblema {
+  posicao: number;
+  motivo: "vazio" | "quebra_de_linha";
+}
+
+/** Confere antes de gastar chamada: parâmetro vazio derruba a mensagem inteira. */
+export function conferirTemplate(spec: TemplateSpec): TemplateProblema[] {
+  const out: TemplateProblema[] = [];
+  spec.bodyParams.forEach((v, i) => {
+    if (!v || !v.trim()) out.push({ posicao: i + 1, motivo: "vazio" });
+    else if (/[\n\r\t]|\s{4,}/.test(v)) out.push({ posicao: i + 1, motivo: "quebra_de_linha" });
+  });
+  return out;
+}
+
+/** Payload nativo da Cloud API. */
+export function montarTemplateData(spec: TemplateSpec, to: string): Record<string, unknown> {
+  const components: Record<string, unknown>[] = [];
+
+  if (spec.bodyParams.length > 0) {
+    components.push({
+      type: "body",
+      parameters: spec.bodyParams.map((text) => ({ type: "text", text })),
+    });
+  }
+
+  // index "0" é a POSIÇÃO do botão, não a da variável. Como só existe um botão
+  // nos nossos modelos, é sempre zero.
+  if (spec.urlButtonParam) {
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: spec.urlButtonParam }],
+    });
+  }
+
+  return {
+    messaging_product: "whatsapp",
+    to,
+    type: "template",
+    template: {
+      name: spec.name,
+      language: { code: spec.language },
+      ...(components.length > 0 ? { components } : {}),
+    },
+  };
+}

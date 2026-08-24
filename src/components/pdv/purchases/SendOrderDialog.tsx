@@ -319,6 +319,9 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
         supplierId: o.supplierId,
         phone: o.phone,
         message: messages[o.supplierId] ?? "",
+        // Só usados no número oficial, onde vale o modelo aprovado. São os
+        // mesmos valores do preview mostrado na etapa anterior.
+        templateParams: valoresPedido(o),
         items: o.poItems,
         paymentTerms: o.paymentTerms,
         expectedDelivery: toDate(o.maxDeliveryDays),

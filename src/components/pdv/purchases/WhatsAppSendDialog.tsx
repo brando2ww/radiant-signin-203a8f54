@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, parseISO } from "date-fns";
 import { MessageCircle, Check, Loader2, Copy, Link2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -189,24 +189,21 @@ export function WhatsAppSendDialog({
   }, [open]);
 
   /**
-   * Valores do modelo `cotacao_fornecedor`, montados para o primeiro fornecedor
-   * selecionado. Todos recebem a mesma estrutura — muda só o nome e a contagem
-   * de itens, porque cada um cota o que foi convidado a cotar.
+   * Valores do modelo `cotacao_fornecedor` para um fornecedor.
+   *
+   * A MESMA função alimenta o preview na tela e o payload do envio. Se fossem
+   * duas, uma acabaria desatualizada e o lojista veria uma mensagem diferente
+   * da que o fornecedor recebe — que é o defeito que este preview existe para
+   * não ter.
    */
-  const previewCotacao = useMemo(() => {
-    const alvo =
-      suppliersWithItems.find((s) => selectedSuppliers.has(s.id)) ?? suppliersWithItems[0];
-    if (!alvo) return null;
-
-    const endereco = pdvSettings?.nfe_endereco_fiscal;
-    const cidade = [endereco?.cidade, endereco?.uf].filter(Boolean).join(" - ");
-    const nomeCasa = pdvSettings?.business_name || businessSettings?.business_name || "";
-    const prazo = quotation.deadline ? parseISO(quotation.deadline) : null;
-    const qtd = alvo.items.length;
-
-    return {
-      fornecedor: alvo,
-      valores: [
+  const valoresCotacao = useCallback(
+    (alvo: SupplierWithItems): string[] => {
+      const endereco = pdvSettings?.nfe_endereco_fiscal;
+      const cidade = [endereco?.cidade, endereco?.uf].filter(Boolean).join(" - ");
+      const nomeCasa = pdvSettings?.business_name || businessSettings?.business_name || "";
+      const prazo = quotation.deadline ? parseISO(quotation.deadline) : null;
+      const qtd = alvo.items.length;
+      return [
         achatarParametro(alvo.name),
         achatarParametro(nomeCasa),
         achatarParametro(pdvSettings?.business_cnpj),
@@ -214,12 +211,23 @@ export function WhatsAppSendDialog({
         prazo ? format(prazo, "dd/MM/yyyy") : "",
         `${qtd} ${qtd === 1 ? "item" : "itens"}`,
         achatarParametro(nomeCasa ? `Setor de Compras do ${nomeCasa}` : ""),
-      ],
+      ];
+    },
+    [pdvSettings, businessSettings, quotation.deadline],
+  );
+
+  const previewCotacao = useMemo(() => {
+    const alvo =
+      suppliersWithItems.find((s) => selectedSuppliers.has(s.id)) ?? suppliersWithItems[0];
+    if (!alvo) return null;
+    return {
+      fornecedor: alvo,
+      valores: valoresCotacao(alvo),
       // O token só existe depois de gerar o link; antes disso o botão fica sem
       // destino visível, e é honesto mostrar assim.
       token: links.find((l) => l.supplierId === alvo.id)?.url.split("/").pop(),
     };
-  }, [suppliersWithItems, selectedSuppliers, pdvSettings, businessSettings, quotation.deadline, links]);
+  }, [suppliersWithItems, selectedSuppliers, valoresCotacao, links]);
 
   const handleToggleSupplier = (supplierId: string) => {
     const newSelected = new Set(selectedSuppliers);
@@ -269,6 +277,9 @@ export function WhatsAppSendDialog({
         name: supplier.name,
         phone: supplier.phone || "",
         message,
+        // Usados só quando o envio sai pelo número oficial: ali a Meta exige
+        // modelo aprovado e ignora o texto acima.
+        templateParams: valoresCotacao(supplier),
       };
     });
   };

@@ -5,9 +5,13 @@
  * QR por estabelecimento. O contrato abaixo é o mesmo que a própria SellGrid usa
  * em produção (ver src/lib/whatsapp.ts naquele projeto):
  *
- *   POST {base}/v2/api/external/{apiId}       { number, body, externalKey, isClosed }
- *   POST {base}/v2/api/external/{apiId}/url   { mediaUrl, ... }   (não usado aqui)
+ *   POST {base}/v2/api/external/{apiId}            { number, body, externalKey, isClosed }
+ *   POST {base}/v2/api/external/{apiId}/url        { mediaUrl, ... }   (não usado aqui)
+ *   POST {base}/v2/api/external/{apiId}/template   { number, isClosed, templateData }
  *   Authorization: Bearer {token}
+ *
+ * O /template repassa `templateData` cru para a Cloud API da Meta. É por ele que
+ * se alcança quem não escreveu nas últimas 24h — texto livre, ali, é recusado.
  *
  * `externalKey` é obrigatório (a API responde 400 sem ele) e serve para casar a
  * mensagem com o registro em whatsapp_messages.
@@ -19,6 +23,7 @@
  */
 import type { Channel, SendOutcome } from "./types.ts";
 import { toWhatsAppNumber } from "./phone.ts";
+import { montarTemplateData, conferirTemplate, type TemplateSpec } from "./template-spec.ts";
 
 export interface SellGridEnv {
   base: string;
@@ -143,6 +148,118 @@ export async function sellGridSendText(
     // Meta recusa a mensagem — o erro real vem embutido em data.message como
     // "Message sent error: ...". Confiar no status HTTP faria o log marcar como
     // enviada uma cotação que nunca chegou ao fornecedor.
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch { /* sem corpo JSON: trata como enviado */ }
+
+    const inner = String(parsed?.data?.message ?? "");
+    if (parsed?.success === false || inner.includes("Message sent error")) {
+      return {
+        ok: false,
+        status: "failed",
+        errorCode: metaErrorCode(inner),
+        errorMessage: metaErrorMessage(inner),
+      };
+    }
+
+    return { ok: true, status: "sent", providerMessageId: externalKey };
+  } catch (e) {
+    return { ok: false, status: "failed", errorCode: "network", errorMessage: String(e) };
+  }
+}
+
+/**
+ * Envia MODELO APROVADO pela Meta, via `POST {base}/v2/api/external/{apiId}/template`.
+ *
+ * O Z-PRO repassa `templateData` cru para a Cloud API, então o payload aqui é o
+ * oficial da Meta. É o único caminho que alcança quem não escreveu nas últimas
+ * 24h — ou seja, o fornecedor de uma cotação nova.
+ *
+ * Sem o prefixo "[TESTE]" do envio de texto: não existe onde enfiá-lo num
+ * modelo aprovado. Com SELLGRID_TEST_NUMBER definido, só o destino muda.
+ */
+export async function sellGridSendTemplate(
+  _ch: Channel,
+  to: string,
+  spec: TemplateSpec,
+  externalKey: string,
+): Promise<SendOutcome> {
+  const env = sellGridEnv();
+  if (!env) {
+    return {
+      ok: false,
+      status: "failed",
+      errorCode: "sellgrid_not_configured",
+      errorMessage: "Envio pelo número da Velara não está configurado no servidor.",
+    };
+  }
+
+  const real = toWhatsAppNumber(to);
+  if (!real || real.length < 12 || real.length > 13) {
+    return { ok: false, status: "failed", errorCode: "invalid_number", errorMessage: `Número inválido: ${to}` };
+  }
+
+  // Barreira antes da API: parâmetro vazio faz a Meta recusar a mensagem
+  // inteira, e o erro que volta não diz qual campo faltou.
+  const problemas = conferirTemplate(spec);
+  if (problemas.length > 0) {
+    const vazios = problemas.filter((p) => p.motivo === "vazio").map((p) => p.posicao);
+    return {
+      ok: false,
+      status: "failed",
+      errorCode: "template_param_invalid",
+      errorMessage: vazios.length
+        ? `O modelo tem variável sem valor (posição ${vazios.join(", ")}). Complete o cadastro do estabelecimento e tente de novo.`
+        : "Uma variável do modelo tem quebra de linha, que a Meta não aceita.",
+    };
+  }
+
+  let number = real;
+  if (env.testNumber) {
+    const test = toWhatsAppNumber(env.testNumber);
+    if (!test) {
+      return {
+        ok: false,
+        status: "failed",
+        errorCode: "invalid_test_number",
+        errorMessage: "SELLGRID_TEST_NUMBER está definido mas é inválido.",
+      };
+    }
+    number = test;
+  }
+
+  try {
+    const res = await fetch(`${env.base}/v2/api/external/${env.apiId}/template`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.token}`,
+      },
+      body: JSON.stringify({
+        number,
+        isClosed: true,
+        externalKey,
+        templateData: montarTemplateData(spec, number),
+      }),
+    });
+
+    const raw = await res.text().catch(() => "");
+    if (!res.ok) {
+      // O erro da Meta chega aqui com o código dela dentro do texto: 133010
+      // (número não registrado na Cloud API), 132xxx (problema no modelo).
+      let msg = raw.slice(0, 200);
+      try {
+        msg = JSON.parse(raw)?.error ?? msg;
+      } catch { /* resposta não-JSON */ }
+      return {
+        ok: false,
+        status: "failed",
+        errorCode: metaErrorCode(msg),
+        errorMessage: metaErrorMessage(msg),
+      };
+    }
+
     let parsed: any = null;
     try {
       parsed = JSON.parse(raw);

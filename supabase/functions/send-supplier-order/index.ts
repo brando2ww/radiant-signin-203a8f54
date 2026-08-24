@@ -3,7 +3,7 @@
 // dispara pela mesma instância Evolution usada nas cotações. Marca a cotação como
 // 'completed' ao final.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { resolveTenantChannel, sendText, isChannelError } from '../_shared/whatsapp/index.ts'
+import { resolveTenantChannel, sendText, sendTemplate, isChannelError, achatarParametro } from '../_shared/whatsapp/index.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,6 +51,10 @@ Deno.serve(async (req) => {
     }
     const channel = resolved
 
+    // Canal oficial: o vencedor da cotação respondeu pelo FORMULÁRIO, não pelo
+    // WhatsApp — então a janela de 24h não abriu e só modelo aprovado chega.
+    const usaModelo = channel.provider === 'sellgrid' || channel.provider === 'cloud'
+
     const sent: string[] = []
     const errors: { supplierId: string; error: string }[] = []
     const createdOrders: string[] = []
@@ -66,14 +70,28 @@ Deno.serve(async (req) => {
 
     for (const order of orders) {
       const { supplierId, phone, message } = order
-      if (!phone || !message) {
-        errors.push({ supplierId, error: 'Telefone ou mensagem ausente' })
+      if (!phone) {
+        errors.push({ supplierId, error: 'Telefone ausente' })
         continue
       }
-      const outcome = await sendText(supabase, channel, String(phone), message, {
-        purpose: 'supplier_order',
-        supplierId,
-      })
+      // No canal oficial o texto livre não é usado: quem manda é o modelo.
+      if (!message && !(Array.isArray(order.templateParams) && order.templateParams.length === 7)) {
+        errors.push({ supplierId, error: 'Mensagem ausente' })
+        continue
+      }
+      const ctx = { purpose: 'supplier_order' as const, supplierId }
+
+      const params: string[] = Array.isArray(order.templateParams)
+        ? order.templateParams.map((v: unknown) => achatarParametro(v))
+        : []
+
+      const outcome = usaModelo && params.length === 7
+        ? await sendTemplate(supabase, channel, String(phone), {
+            name: 'pedido_fornecedor',
+            language: 'pt_BR',
+            bodyParams: params,
+          }, ctx)
+        : await sendText(supabase, channel, String(phone), message, ctx)
       const delivered = outcome.ok
       if (delivered) sent.push(supplierId)
       else errors.push({ supplierId, error: outcome.errorMessage ?? outcome.errorCode ?? 'Falha no envio' })

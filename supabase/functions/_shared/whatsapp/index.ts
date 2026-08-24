@@ -11,7 +11,8 @@
  */
 import type { Channel, MessageContext, SendOutcome } from "./types.ts";
 import { evolutionSendText } from "./evolution.ts";
-import { sellGridSendText } from "./sellgrid.ts";
+import { sellGridSendText, sellGridSendTemplate } from "./sellgrid.ts";
+import type { TemplateSpec } from "./template-spec.ts";
 import { toWhatsAppNumber } from "./phone.ts";
 
 export * from "./types.ts";
@@ -19,6 +20,8 @@ export { resolveTenantChannel, resolveGlobalChannel } from "./resolve.ts";
 export { toWhatsAppNumber, phoneSuffix } from "./phone.ts";
 export { evolutionEnv } from "./evolution.ts";
 export { sellGridEnv } from "./sellgrid.ts";
+export { achatarParametro, montarTemplateData, conferirTemplate } from "./template-spec.ts";
+export type { TemplateSpec } from "./template-spec.ts";
 
 export async function sendText(
   service: any,
@@ -48,6 +51,38 @@ export async function sendText(
 }
 
 /**
+ * Envia um MODELO aprovado na Meta.
+ *
+ * Só faz sentido em canal oficial: no Evolution (QR) não existe modelo, tudo é
+ * texto livre. Por isso o provedor errado aqui é erro explícito, e não um
+ * silencioso "mandei como texto" — que passaria pela janela de 24h sem avisar
+ * ninguém e chegaria diferente do que o lojista viu na tela.
+ */
+export async function sendTemplate(
+  service: any,
+  ch: Channel,
+  to: string,
+  spec: TemplateSpec,
+  ctx: MessageContext,
+): Promise<SendOutcome> {
+  const externalKey = crypto.randomUUID();
+
+  const outcome =
+    ch.provider === "sellgrid"
+      ? await sellGridSendTemplate(ch, to, spec, externalKey)
+      : {
+          ok: false,
+          status: "failed" as const,
+          errorCode: "provider_no_template",
+          errorMessage:
+            "Modelo aprovado só sai pelo número oficial. Esta conexão é por QR Code.",
+        };
+
+  await logMessage(service, ch, to, null, ctx, outcome, spec);
+  return outcome;
+}
+
+/**
  * O log nunca derruba o envio: falha ao registrar vira aviso, não erro para o
  * usuário — a mensagem já saiu.
  */
@@ -55,9 +90,10 @@ async function logMessage(
   service: any,
   ch: Channel,
   to: string,
-  text: string,
+  text: string | null,
   ctx: MessageContext,
   outcome: SendOutcome,
+  spec?: TemplateSpec,
 ): Promise<void> {
   try {
     await service.from("whatsapp_messages").insert({
@@ -67,7 +103,14 @@ async function logMessage(
       direction: "outbound",
       purpose: ctx.purpose,
       to_phone: toWhatsAppNumber(to),
-      kind: "text",
+      kind: spec ? "template" : "text",
+      template_name: spec?.name ?? null,
+      template_language: spec?.language ?? null,
+      // Guarda os valores enviados: é o que permite reconstruir depois a
+      // mensagem exata que o fornecedor viu.
+      template_variables: spec
+        ? { body: spec.bodyParams, url_button: spec.urlButtonParam ?? null }
+        : null,
       body: ctx.redactBody ? null : text,
       provider_message_id: outcome.providerMessageId ?? null,
       status: outcome.status,

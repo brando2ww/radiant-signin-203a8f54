@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
-  resolveTenantChannel, sendText, toWhatsAppNumber, isChannelError,
+  resolveTenantChannel, sendText, sendTemplate, toWhatsAppNumber, isChannelError,
+  achatarParametro,
 } from '../_shared/whatsapp/index.ts'
 
 const corsHeaders = {
@@ -108,6 +109,11 @@ Deno.serve(async (req) => {
     }
     const channel = resolved
 
+    // Canal oficial (número da Velara na Meta): fora da janela de 24h a Meta só
+    // aceita modelo aprovado. Fornecedor de cotação nova está SEMPRE fora dela,
+    // então texto livre ali não chega — vai por `cotacao_fornecedor`.
+    const usaModelo = channel.provider === 'sellgrid' || channel.provider === 'cloud'
+
     const sent: string[] = []
     const errors: { supplierId: string; phone: string; error: string }[] = []
 
@@ -136,12 +142,36 @@ Deno.serve(async (req) => {
 
       const formattedPhone = toWhatsAppNumber(phone)
 
-      const outcome = await sendText(supabase, channel, phone, fullMessage, {
-        purpose: 'quotation',
+      const ctx = {
+        purpose: 'quotation' as const,
         entityType: 'quotation_request',
         entityId: quotationId,
         supplierId,
-      })
+      }
+
+      // Os valores das variáveis vêm da tela, os MESMOS que o lojista viu no
+      // preview antes de clicar em enviar. Montá-los de novo aqui abriria a
+      // porta para a tela mostrar uma coisa e o fornecedor receber outra.
+      const params: string[] = Array.isArray(supplier.templateParams)
+        ? supplier.templateParams.map((v: unknown) => achatarParametro(v))
+        : []
+
+      let outcome
+      if (usaModelo && params.length === 7) {
+        outcome = await sendTemplate(supabase, channel, phone, {
+          name: 'cotacao_fornecedor',
+          language: 'pt_BR',
+          bodyParams: params,
+          // O token só existe depois de criado o link, logo acima. É ele que
+          // entra colado no fim da URL do botão.
+          urlButtonParam: url.split('/').pop(),
+        }, ctx)
+      } else {
+        if (usaModelo) {
+          console.warn('[cotacao] canal oficial sem variáveis do modelo; caindo para texto livre')
+        }
+        outcome = await sendText(supabase, channel, phone, fullMessage, ctx)
+      }
 
       if (outcome.ok) {
         sent.push(supplierId)
