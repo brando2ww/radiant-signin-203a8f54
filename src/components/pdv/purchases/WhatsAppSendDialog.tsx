@@ -452,6 +452,7 @@ export function WhatsAppSendDialog({
                   <TemplatePreview
                     template={TEMPLATE_COTACAO}
                     valores={previewCotacao.valores}
+                    contato={previewCotacao.fornecedor.name}
                     variavelDoBotao={previewCotacao.token}
                   />
                   <p className="mt-2 text-[11px] text-muted-foreground">

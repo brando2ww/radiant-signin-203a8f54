@@ -1,16 +1,22 @@
+import { Fragment } from "react";
 import { AlertTriangle, Clock, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   WhatsAppTemplate, conferirParametros, renderizarTemplate, rotuloStatus,
 } from "@/lib/whatsapp-templates";
+import { WhatsAppChatPreview } from "./WhatsAppChatPreview";
+import { formatarWhatsApp } from "./whatsapp-format";
 import { cn } from "@/lib/utils";
 
 interface Props {
   template: WhatsAppTemplate;
   /** Valores na ordem das variáveis do modelo. */
   valores: string[];
+  /** Nome do fornecedor, para o topo da conversa. */
+  contato?: string;
   /** Só para modelo com botão de link: o que vai colado no fim da URL. */
   variavelDoBotao?: string;
+  rodape?: string;
   className?: string;
 }
 
@@ -30,13 +36,27 @@ const ICONE_STATUS = {
  * As lacunas em vermelho não são enfeite: parâmetro vazio faz a Meta recusar o
  * envio inteiro, e é melhor descobrir aqui do que no relatório de falhas.
  */
-export function TemplatePreview({ template, valores, variavelDoBotao, className }: Props) {
+export function TemplatePreview({
+  template, valores, contato, variavelDoBotao, rodape, className,
+}: Props) {
   const problemas = conferirParametros(template, valores);
   const texto = renderizarTemplate(template, valores);
   const StatusIcon = ICONE_STATUS[template.status];
 
-  // Quebra em pedaços para pintar de vermelho o que ficou por preencher.
-  const pedacos = texto.split(/(\{\{\d+\}\})/g);
+  // O que sobrou como {{n}} é variável sem valor: pinta de vermelho em vez de
+  // exibir a chave crua, que não diz nada a quem não escreveu o modelo.
+  const conteudo = texto.split(/(\{\{\d+\}\})/g).map((p, i) =>
+    /^\{\{\d+\}\}$/.test(p) ? (
+      <span
+        key={i}
+        className="rounded bg-red-500/25 px-1 font-medium text-red-700 dark:text-red-200"
+      >
+        {template.vars[Number(p.replace(/\D/g, "")) - 1] ?? p} em branco
+      </span>
+    ) : (
+      <Fragment key={i}>{formatarWhatsApp(p, `p${i}`)}</Fragment>
+    ),
+  );
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -52,32 +72,19 @@ export function TemplatePreview({ template, valores, variavelDoBotao, className 
         <code className="text-[11px] text-muted-foreground">{template.name}</code>
       </div>
 
-      {/* Balão no estilo do WhatsApp: o lojista reconhece o formato antes de ler. */}
-      <div className="rounded-lg rounded-tl-none border bg-[#e7ffdb] p-3 text-sm leading-relaxed text-[#111b21] shadow-sm dark:bg-emerald-950/40 dark:text-emerald-50">
-        <p className="whitespace-pre-wrap break-words">
-          {pedacos.map((p, i) =>
-            /^\{\{\d+\}\}$/.test(p) ? (
-              <span key={i} className="rounded bg-red-500/20 px-1 font-medium text-red-700 dark:text-red-300">
-                {template.vars[Number(p.replace(/\D/g, "")) - 1] ?? p} em branco
-              </span>
-            ) : (
-              <span key={i}>{p}</span>
-            ),
-          )}
-        </p>
-
-        {template.button && (
-          <div className="mt-3 border-t border-black/10 pt-2 text-center text-sm font-medium text-[#027eb5] dark:border-white/10 dark:text-sky-300">
-            {template.button.text}
-          </div>
-        )}
-      </div>
-
-      {template.button?.kind === "url" && variavelDoBotao && (
-        <p className="break-all text-[11px] text-muted-foreground">
-          Botão abre: {template.button.urlBase}{variavelDoBotao}
-        </p>
-      )}
+      <WhatsAppChatPreview
+        contato={contato || valores[0] || "Fornecedor"}
+        conteudo={conteudo}
+        botao={template.button ? { kind: template.button.kind, text: template.button.text } : undefined}
+        rodape={
+          rodape ??
+          (template.button?.kind === "url" && variavelDoBotao
+            ? `O botão abre ${template.button.urlBase}${variavelDoBotao}`
+            : template.button?.kind === "url"
+              ? "O link exclusivo de cada fornecedor entra no botão na hora do envio."
+              : undefined)
+        }
+      />
 
       {problemas.length > 0 && (
         <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">

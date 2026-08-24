@@ -523,7 +523,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                     </div>
                   )}
                   {canalOficial && (
-                    <TemplatePreview template={TEMPLATE_PEDIDO} valores={valoresPedido(o)} />
+                    <TemplatePreview template={TEMPLATE_PEDIDO} valores={valoresPedido(o)} contato={o.name} />
                   )}
 
                   <div className="space-y-1">

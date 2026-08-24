@@ -26,6 +26,7 @@ import { usePDVIngredients } from "@/hooks/use-pdv-ingredients";
 import { usePDVIngredientSuppliers } from "@/hooks/use-pdv-ingredient-suppliers";
 import { usePurchaseSettings } from "@/hooks/use-purchase-settings";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
+import { WhatsAppChatPreview } from "@/components/pdv/whatsapp/WhatsAppChatPreview";
 import { generateQuotationMessage } from "@/lib/whatsapp-message";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
@@ -168,7 +169,10 @@ export function QuotationRequestDialog({
           template: purchaseSettings?.defaultMessageTemplate,
           supplierName,
         }
-      ),
+      ) +
+        // A edge anexa o link no envio. Sem ele na prévia, some justamente a
+        // parte que o fornecedor precisa tocar.
+        "\n\n👉 *Preencha seu orçamento aqui:*\nhttps://pdv.velaraia.app/l/cotacao/…",
     };
   }, [
     items,
@@ -442,13 +446,11 @@ export function QuotationRequestDialog({
             {messagePreview && (
               <div className="space-y-2">
                 <Label>Mensagem para Fornecedores</Label>
-                <pre className="rounded-md border bg-muted/50 p-3 font-mono text-sm whitespace-pre-wrap max-h-[220px] overflow-y-auto">
-                  {messagePreview.text}
-                </pre>
-                <p className="text-xs text-muted-foreground">
-                  Prévia do que <strong>{messagePreview.supplierName}</strong> vai receber.
-                  Cada fornecedor recebe apenas os itens dele, mais o link do formulário.
-                </p>
+                <WhatsAppChatPreview
+                  contato={messagePreview.supplierName}
+                  texto={messagePreview.text}
+                  rodape="Cada fornecedor recebe apenas os itens dele, com um link exclusivo."
+                />
               </div>
             )}
 
