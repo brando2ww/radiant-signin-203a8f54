@@ -112,7 +112,7 @@ const sectionItems: Section[] = [
       { title: "Contagem de Estoque", url: "/pdv/contagem-estoque", icon: ClipboardList },
       { title: "Notas Fiscais", url: "/pdv/notas-fiscais", icon: Receipt },
       { title: "Cupons Fiscais", url: "/pdv/cupons-fiscais", icon: Receipt },
-      { title: "Relatórios", url: "/pdv/relatorios", icon: BarChart3 },
+      { title: "Relatórios de Vendas", url: "/pdv/relatorios", icon: BarChart3 },
       { title: "Clientes", url: "/pdv/clientes", icon: UserCheck },
       { title: "Usuários", url: "/pdv/usuarios", icon: Users },
       { title: "Venda a Prazo", url: "/pdv/venda-a-prazo", icon: UserCheck },
@@ -158,6 +158,13 @@ const sectionItems: Section[] = [
       { title: "Análise de Produtos", url: "/pdv/relatorios?tab=sales-by-product", icon: BarChart3 },
       { title: "CMV Geral", url: "/pdv/financeiro/cmv-geral", icon: PieChart },
       { title: "Demo. Caixa",    url: "/pdv/financeiro/demonstrativo-caixa",  icon: Receipt },
+    ],
+  },
+  {
+    title: "Relatórios",
+    icon: FileBarChart,
+    items: [
+      { title: "Central de Relatórios", url: "/pdv/relatorios-central", icon: FileBarChart },
     ],
   },
   {

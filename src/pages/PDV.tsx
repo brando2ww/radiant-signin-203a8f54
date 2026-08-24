@@ -21,6 +21,7 @@ import PDVStock from "./pdv/Stock";
 import StockCounts from "./pdv/StockCounts";
 import PDVSuppliers from "./pdv/Suppliers";
 import PDVReports from "./pdv/Reports";
+import ReportsHub from "./pdv/reports/ReportsHub";
 import PDVSettings from "./pdv/Settings";
 import Invoices from "./pdv/Invoices";
 import FiscalCoupons from "./pdv/FiscalCoupons";
@@ -164,6 +165,10 @@ export default function PDV() {
               <Route path="cupons-fiscais" element={<RoleRoute path="/pdv/cupons-fiscais" canAccess={canAccess} defaultRoute={defaultRoute}><FiscalCoupons /></RoleRoute>} />
               <Route path="fiscal" element={<RoleRoute path="/pdv/fiscal" canAccess={canAccess} defaultRoute={defaultRoute}><Fiscal /></RoleRoute>} />
               <Route path="relatorios" element={<RoleRoute path="/pdv/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><PDVReports /></RoleRoute>} />
+              {/* Central de Relatórios: catálogo de tudo, em endereço PRÓPRIO. A
+                  rota acima continua sendo a tela de vendas que as pessoas já
+                  conhecem — mover teria virado chamado de suporte. */}
+              <Route path="relatorios-central" element={<RoleRoute path="/pdv/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><ReportsHub /></RoleRoute>} />
               <Route path="configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/geral" replace />} />
               <Route path="configuracoes-gerais/*" element={<RoleRoute path="/pdv/configuracoes-gerais" canAccess={canAccess} defaultRoute={defaultRoute}><ConfiguracoesGerais /></RoleRoute>} />
               <Route path="usuarios" element={<RoleRoute path="/pdv/usuarios" canAccess={canAccess} defaultRoute={defaultRoute}><Users /></RoleRoute>} />

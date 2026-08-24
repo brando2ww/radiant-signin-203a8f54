@@ -28,6 +28,7 @@ export const MODULE_ROUTES: Record<UserModule, string[]> = {
     "/pdv/notas-fiscais",
     "/pdv/cupons-fiscais",
     "/pdv/relatorios",
+    "/pdv/relatorios-central",
     "/pdv/franquia",
     "/pdv/venda-a-prazo",
     "/pdv/funcionarios-consumo",

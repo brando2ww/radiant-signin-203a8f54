@@ -14,7 +14,10 @@ import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { Ban } from "lucide-react";
 import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { eachDay } from "@/lib/report-period";
 import { fetchPaymentsByOrderIds, fetchItemsByOrderIds, aggregateItemsByOrder } from "@/lib/reports-data-source";
 
@@ -196,8 +199,18 @@ export default function CancellationsReport() {
     };
   }, [orders, byReason, byUser, data]);
 
-  const onExport = () => {
-    exportToXlsx(`cancelamentos-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(startDate, endDate);
+
+  const onExport = async (kind: ExportKind) => {
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Cancelamentos",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `cancelamentos-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`,
+      },
+      [
       {
         name: "Resumo",
         rows: [
@@ -246,7 +259,8 @@ export default function CancellationsReport() {
         rows: byItem.map((i) => ({ produto: i.name, qtd: i.qty, valor: i.value })),
         columns: [{ key: "produto", label: "Produto", width: 30 }, { key: "qtd", label: "Qtd", width: 10, type: "number" }, { key: "valor", label: "Valor", width: 14, type: "currency" }],
       },
-    ]);
+    ],
+    ));
   };
 
   const reasons = useMemo(() => ["all", ...Array.from(new Set(orders.map((o) => o.reason)))], [orders]);

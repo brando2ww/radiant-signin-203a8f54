@@ -13,7 +13,10 @@ import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { Users } from "lucide-react";
 import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { fetchPaymentsByOrderIds, fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted-foreground))", "hsl(var(--destructive))"];
@@ -163,8 +166,18 @@ export default function ByUserReport() {
 
   const pieData = useMemo(() => rows.slice(0, 6).map((r) => ({ name: r.name, value: r.revenue })), [rows]);
 
-  const onExport = () => {
-    exportToXlsx(`vendas-por-usuario-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(startDate, endDate);
+
+  const onExport = async (kind: ExportKind) => {
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Vendas por Usuário",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `vendas-por-usuario-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`,
+      },
+      [
       {
         name: "Por Usuário",
         rows: rows.map((r) => ({
@@ -202,7 +215,8 @@ export default function ByUserReport() {
           { key: "ultima_venda", label: "Última venda", width: 18, type: "datetime" },
         ],
       },
-    ]);
+    ],
+    ));
   };
 
   return (

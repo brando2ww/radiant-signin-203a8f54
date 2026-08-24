@@ -12,7 +12,9 @@ import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { EmptyState } from "@/components/pdv/shared/EmptyState";
 import { BarChart3 } from "lucide-react";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
@@ -163,8 +165,18 @@ export default function MonthlyReport() {
 
   const ytdChart = rows.map((r) => ({ name: r.label, [`${year}`]: r.ytdCurrent, [`${year - 1}`]: r.ytdPrev, ma3: r.ma3 }));
 
-  const onExport = () => {
-    exportToXlsx(`relatorio-mensal-${year}`, [
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = `Ano ${year}`;
+
+  const onExport = async (kind: ExportKind) => {
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Mensal e comparativo anual",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `relatorio-mensal-${year}`,
+      },
+      [
       {
         name: `Mensal ${year}`,
         rows: rows.map((r) => ({
@@ -207,7 +219,8 @@ export default function MonthlyReport() {
           { key: "variacao_pedidos", label: "Δ Pedidos", width: 10, type: "percent" },
         ],
       },
-    ]);
+    ],
+    ));
   };
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);

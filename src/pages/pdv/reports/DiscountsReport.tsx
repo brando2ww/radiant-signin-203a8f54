@@ -12,7 +12,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { eachDay } from "@/lib/report-period";
 import { fetchCashierSalesByPeriod } from "@/lib/reports-data-source";
 
@@ -262,8 +265,18 @@ export default function DiscountsReport() {
     };
   }, [orders, coupons, data]);
 
-  const onExport = () => {
-    exportToXlsx(`descontos-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(startDate, endDate);
+
+  const onExport = async (kind: ExportKind) => {
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Descontos e Cupons",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `descontos-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`,
+      },
+      [
       {
         name: "Resumo",
         rows: [
@@ -372,7 +385,8 @@ export default function DiscountsReport() {
           { key: "resgatados", label: "Resgatados", width: 12, type: "number" },
         ],
       },
-    ]);
+    ],
+    ));
   };
 
   return (

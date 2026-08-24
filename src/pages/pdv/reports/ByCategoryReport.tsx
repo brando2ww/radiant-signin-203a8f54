@@ -13,7 +13,10 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { previousPeriod, pctDelta, eachDay } from "@/lib/report-period";
 import { fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
@@ -144,8 +147,18 @@ export default function ByCategoryReport() {
   const total = useMemo(() => rows.reduce((s, r) => s + r.revenue, 0), [rows]);
   const growing = useMemo(() => [...rows].filter((r) => r.prevRevenue > 0).sort((a, b) => b.delta - a.delta)[0], [rows]);
 
-  const onExport = () => {
-    exportToXlsx(`vendas-por-categoria-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(startDate, endDate);
+
+  const onExport = async (kind: ExportKind) => {
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Vendas por Categoria",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `vendas-por-categoria-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`,
+      },
+      [
       {
         name: "Categorias",
         rows: rows.map((r) => ({
@@ -175,7 +188,8 @@ export default function ByCategoryReport() {
           { key: "receita", label: "Receita", width: 14, type: "currency" },
         ],
       },
-    ]);
+    ],
+    ));
   };
 
   return (

@@ -18,7 +18,10 @@ import {
 } from "recharts";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { useProductAnalytics, ChannelKey, ProductRow } from "@/hooks/reports/use-product-analytics";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { cn } from "@/lib/utils";
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { ErrorState } from "@/components/pdv/shared/ErrorState";
@@ -47,10 +50,20 @@ export default function ProductsAnalyticsReport() {
     );
   }, [data?.rows, category, search]);
 
-  const onExport = () => {
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(start, end);
+
+  const onExport = async (kind: ExportKind) => {
     if (!data) return;
     const period = `${format(start, "yyyy-MM-dd")}_${format(end, "yyyy-MM-dd")}`;
-    exportToXlsx(`analise-de-produtos-${period}`, [
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Análise de Produtos",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `analise-de-produtos-${period}`,
+      },
+      [
       {
         name: "Ranking",
         rows: filtered.map((r) => ({
@@ -166,7 +179,8 @@ export default function ProductsAnalyticsReport() {
           { key: "status", label: "Status", width: 10 },
         ],
       },
-    ]);
+    ],
+    ));
   };
 
   return (

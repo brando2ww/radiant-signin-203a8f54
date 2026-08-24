@@ -17,7 +17,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import { formatBRL, formatBRLCompact } from "@/lib/format";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { toast } from "sonner";
 import { previousPeriod, pctDelta, fmtDelta } from "@/lib/report-period";
 import { fetchPaymentsByOrderIds, fetchItemsByOrderIds } from "@/lib/reports-data-source";
@@ -132,9 +135,19 @@ export default function OverviewReport() {
     },
   });
 
-  const onExport = async () => {
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(startDate, endDate);
+
+  const onExport = async (kind: ExportKind) => {
     try {
-      await exportToXlsx(`visao-geral-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+      await exportReport(kind, brandedFromSheets(
+      {
+        title: "Visão Geral",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `visao-geral-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`,
+      },
+      [
         {
           name: "Resumo",
           rows: [
@@ -189,7 +202,8 @@ export default function OverviewReport() {
           rows: (extra?.topCustomers || []).map((c) => ({ cliente: c.name, pedidos: c.orders, receita: c.revenue })),
           columns: [{ key: "cliente", label: "Cliente", width: 30 }, { key: "pedidos", label: "Pedidos", width: 10, type: "number" }, { key: "receita", label: "Receita", width: 14, type: "currency" }],
         },
-      ]);
+      ],
+    ));
       toast.success("Relatório exportado");
     } catch (e) {
       console.error("[OverviewReport] export failed", e);

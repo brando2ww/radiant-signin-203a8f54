@@ -11,7 +11,10 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContaine
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { ReportDateFilter } from "@/components/pdv/reports/ReportDateFilter";
 import { ReportPageHeader } from "@/components/pdv/reports/ReportPageHeader";
-import { exportToXlsx } from "@/lib/xlsx-export";
+import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
+import { useReportBrand } from "@/hooks/use-report-brand";
+import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
+import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { previousPeriod, pctDelta } from "@/lib/report-period";
 
 export default function PurchasesReport() {
@@ -162,8 +165,18 @@ export default function PurchasesReport() {
     return { count: orders.length, total, freight, avgOrder, freightPct, onTimePct, suppliers: bySupplier.length, top3Pct };
   }, [orders, bySupplier, data]);
 
-  const onExport = () => {
-    exportToXlsx(`compras-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`, [
+  const { businessName } = useReportBrand();
+  const rotuloPeriodo = periodLabel(startDate, endDate);
+
+  const onExport = async (kind: ExportKind) => {
+    await exportReport(kind, brandedFromSheets(
+      {
+        title: "Compras no Período",
+        businessName,
+        periodLabel: rotuloPeriodo,
+        filename: `compras-${format(startDate, "yyyy-MM-dd")}_${format(endDate, "yyyy-MM-dd")}`,
+      },
+      [
       {
         name: "Resumo",
         rows: [
@@ -227,7 +240,8 @@ export default function PurchasesReport() {
           { key: "entrega_realizada", label: "Realizada", width: 14, type: "date" },
         ],
       },
-    ]);
+    ],
+    ));
   };
 
   return (
