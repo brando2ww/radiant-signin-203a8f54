@@ -18,7 +18,8 @@ import { useReportBrand } from "@/hooks/use-report-brand";
 import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { previousPeriod, pctDelta, eachDay } from "@/lib/report-period";
-import { fetchItemsByOrderIds } from "@/lib/reports-data-source";
+import { fetchItemsByOrderIds, fetchDeliveryItemsByPeriod } from "@/lib/reports-data-source";
+import { buildDeliveryProductBridge } from "@/lib/reports/delivery-product-bridge";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted-foreground))", "hsl(var(--destructive))"];
 
@@ -49,13 +50,27 @@ export default function ByCategoryReport() {
       const end = new Date(endDate); end.setHours(23, 59, 59, 999);
       const { prevStart, prevEnd } = previousPeriod(start, end);
 
-      // Fetch closed orders in the period, then aggregate items from pdv_comanda_items
+      // Catálogo do PDV: serve à categoria e à ponte com o delivery.
+      const { data: catalogo } = await supabase
+        .from("pdv_products")
+        .select("id, name, category")
+        .eq("user_id", visibleUserId!);
+      const ponte = await buildDeliveryProductBridge(visibleUserId!, (catalogo || []) as any);
+
+      /**
+       * Itens do período: salão/balcão pelas comandas e delivery pelos pedidos
+       * entregues.
+       *
+       * Duas correções aqui. O status era só 'fechada' e deixava de fora os
+       * pedidos gravados como 'fechado' (41 em produção). E o delivery não
+       * entrava — a categoria mostrava a metade da casa.
+       */
       const fetchItems = async (s: Date, e: Date) => {
         const { data: orders } = await supabase
           .from("pdv_orders")
           .select("id, closed_at, opened_at")
           .eq("user_id", visibleUserId!)
-          .eq("status", "fechada")
+          .in("status", ["fechada", "fechado"])
           .gte("opened_at", s.toISOString())
           .lte("opened_at", e.toISOString());
         const orderIds = (orders || []).map((o: any) => o.id);
@@ -63,16 +78,25 @@ export default function ByCategoryReport() {
           (orders || []).map((o: any) => [o.id, o.closed_at || o.opened_at])
         );
         const items = await fetchItemsByOrderIds(orderIds);
-        return items.map((it) => ({ ...it, _time: orderTime.get(it.order_id) || null }));
+        const pdvItems = items.map((it) => ({ ...it, _time: orderTime.get(it.order_id) || null }));
+
+        const del = await fetchDeliveryItemsByPeriod(visibleUserId!, s.toISOString(), e.toISOString());
+        const delItems = del.map((it, i) => ({
+          // Resolvido para o produto do PDV, senão cairia tudo em "Sem categoria".
+          product_id: ponte.resolve(it.product_id, it.product_name) ?? it.product_id,
+          product_name: it.product_name,
+          quantity: it.quantity,
+          subtotal: it.subtotal,
+          order_id: `delivery-${i}`,
+          _time: null as string | null,
+        }));
+
+        return [...pdvItems, ...delItems];
       };
 
       const [curItems, prevItems] = await Promise.all([fetchItems(start, end), fetchItems(prevStart, prevEnd)]);
 
-      const allPids = Array.from(new Set([...curItems, ...prevItems].map((d: any) => d.product_id).filter(Boolean))) as string[];
-      const { data: products } = allPids.length
-        ? await supabase.from("pdv_products").select("id, category").in("id", allPids)
-        : { data: [] as any[] };
-      const catMap = new Map((products || []).map((p: any) => [p.id, p.category || "Sem categoria"]));
+      const catMap = new Map((catalogo || []).map((p: any) => [p.id, p.category || "Sem categoria"]));
 
       const build = (items: any[]) => {
         const grouped = new Map<string, CatRow>();
@@ -194,7 +218,7 @@ export default function ByCategoryReport() {
 
   return (
     <div className="space-y-4">
-      <ReportPageHeader title="Vendas por Categoria" description={`Período: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}`} onExport={onExport} exportDisabled={isLoading || rows.length === 0} />
+      <ReportPageHeader title="Vendas por Categoria" description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por abertura do pedido · inclui salão, balcão e delivery`} onExport={onExport} exportDisabled={isLoading || rows.length === 0} />
       <ReportDateFilter startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
 
       <div className="grid gap-3 md:grid-cols-4">

@@ -215,7 +215,7 @@ export default function OverviewReport() {
     <div className="space-y-4">
       <ReportPageHeader
         title="Visão Geral"
-        description={`Período: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}`}
+        description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por data de pagamento · fonte: movimentos de caixa`}
         onExport={onExport}
         exportDisabled={isLoading}
       />

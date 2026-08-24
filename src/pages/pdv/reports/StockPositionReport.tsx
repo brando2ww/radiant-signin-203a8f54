@@ -130,7 +130,7 @@ export default function StockPositionReport() {
   return (
     <ReportShell
       title="Posição de Estoque"
-      description="O que tem na prateleira, quanto vale e o que está prestes a faltar"
+      description="O que tem na prateleira e quanto vale, a custo médio · o CMV usa o último custo, então os dois números diferem de propósito"
       onExport={onExport}
       exportDisabled={isLoading || !data}
       period={{ startDate, endDate, onChange: (s, e) => { setStartDate(s); setEndDate(e); } }}

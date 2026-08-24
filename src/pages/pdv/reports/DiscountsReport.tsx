@@ -391,7 +391,7 @@ export default function DiscountsReport() {
 
   return (
     <div className="space-y-4">
-      <ReportPageHeader title="Descontos e Cupons" description={`Período: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}`} onExport={onExport} exportDisabled={isLoading} />
+      <ReportPageHeader title="Descontos e Cupons" description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por data do pedido`} onExport={onExport} exportDisabled={isLoading} />
       <ReportDateFilter startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
 
       <div className="grid gap-3 md:grid-cols-4">

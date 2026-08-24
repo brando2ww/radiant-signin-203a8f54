@@ -221,7 +221,7 @@ export default function ByUserReport() {
 
   return (
     <div className="space-y-4">
-      <ReportPageHeader title="Vendas por Usuário" description={`Período: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}`} onExport={onExport} exportDisabled={isLoading || rows.length === 0} />
+      <ReportPageHeader title="Vendas por Usuário" description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por abertura do pedido · não inclui delivery (pedido online não tem operador)`} onExport={onExport} exportDisabled={isLoading || rows.length === 0} />
       <ReportDateFilter startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
 
       <div className="grid gap-3 md:grid-cols-4">

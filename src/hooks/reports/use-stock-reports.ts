@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
+import { fetchConsumoPorFichaTecnica } from "@/hooks/reports/use-stock-consumption";
 
 /**
  * Relatórios de estoque: posição atual, giro e curva ABC.
@@ -9,6 +10,11 @@ import { useEstablishmentId } from "@/hooks/use-establishment-id";
  * tudo aqui parte da lista de insumos do estabelecimento e filtra os
  * movimentos por esses ids; consultar a tabela direto devolveria movimento de
  * outro cliente ou nada, dependendo da RLS.
+ *
+ * CONSUMO NÃO SAI DO MOVIMENTO. Em produção há 277 entradas e 3 saídas por
+ * venda em todo o histórico: a baixa automática praticamente não roda. O que
+ * saiu é deduzido de venda × ficha técnica, igual ao CMV. As ENTRADAS seguem
+ * vindo do movimento, porque essas a operação registra de fato.
  */
 
 export interface StockPositionRow {
@@ -33,7 +39,7 @@ export interface StockTurnoverRow {
   category: string | null;
   /** Quanto entrou no período. */
   entradas: number;
-  /** Quanto saiu por venda, perda ou ajuste negativo. */
+  /** Quanto saiu, deduzido da ficha técnica dos produtos vendidos. */
   saidas: number;
   /** Custo do que saiu — é por aqui que a curva ABC ordena. */
   consumoValor: number;
@@ -52,6 +58,9 @@ export interface StockReportData {
   zerados: number;
   semMovimento: StockPositionRow[];
   consumoTotal: number;
+  /** Produtos vendidos sem ficha técnica: consumo que não dá para enxergar. */
+  produtosSemFicha: number;
+  receitaSemFicha: number;
 }
 
 const MOVIMENTO_SAIDA = ["saida_venda", "saida_perda"];
@@ -97,29 +106,49 @@ export function useStockReports(startDate: Date, endDate: Date) {
       const porId = new Map(posicao.map((p) => [p.id, p]));
       const ids = posicao.map((p) => p.id);
 
-      const movimentos = await buscarMovimentos(ids, startDate, endDate);
+      const [movimentos, consumo] = await Promise.all([
+        buscarMovimentos(ids, startDate, endDate),
+        fetchConsumoPorFichaTecnica(
+          visibleUserId!,
+          startDate.toISOString(),
+          endDate.toISOString(),
+        ),
+      ]);
 
       const agregado = new Map<string, { entradas: number; saidas: number; valor: number }>();
+      const garantir = (id: string) => {
+        const a = agregado.get(id) ?? { entradas: 0, saidas: 0, valor: 0 };
+        agregado.set(id, a);
+        return a;
+      };
+
+      // ENTRADAS vêm do movimento: compra e nota a operação registra de fato.
       movimentos.forEach((m) => {
         const p = porId.get(m.ingredient_id);
         if (!p) return;
-        const atual = agregado.get(m.ingredient_id) ?? { entradas: 0, saidas: 0, valor: 0 };
+        const atual = garantir(m.ingredient_id);
         const qtd = Math.abs(Number(m.quantity) || 0);
         if (m.type === "entrada") {
           atual.entradas += qtd;
-        } else if (MOVIMENTO_SAIDA.includes(m.type)) {
-          atual.saidas += qtd;
+        } else if (m.type === "ajuste" && Number(m.quantity) > 0) {
+          atual.entradas += qtd;
+        } else if (MOVIMENTO_SAIDA.includes(m.type) || m.type === "ajuste") {
+          // Perda e ajuste negativo NÃO são consumo de venda: entram no valor
+          // porque saíram do estoque, mas a quantidade de saída por venda vem
+          // da ficha técnica, logo abaixo. Somar as duas contaria duas vezes o
+          // que a baixa automática porventura tenha registrado.
           atual.valor += qtd * (Number(m.unit_cost) || p.unitCost);
-        } else if (m.type === "ajuste") {
-          // Ajuste negativo é perda de inventário; positivo é acerto para mais.
-          if (Number(m.quantity) < 0) {
-            atual.saidas += qtd;
-            atual.valor += qtd * (Number(m.unit_cost) || p.unitCost);
-          } else {
-            atual.entradas += qtd;
-          }
         }
-        agregado.set(m.ingredient_id, atual);
+      });
+
+      // SAÍDAS vêm da ficha técnica dos produtos vendidos.
+      consumo.quantidade.forEach((qtd, ingredienteId) => {
+        if (!porId.has(ingredienteId)) return;
+        garantir(ingredienteId).saidas += qtd;
+      });
+      consumo.valor.forEach((valor, ingredienteId) => {
+        if (!porId.has(ingredienteId)) return;
+        garantir(ingredienteId).valor += valor;
       });
 
       const consumoTotal = [...agregado.values()].reduce((s, a) => s + a.valor, 0);
@@ -162,6 +191,8 @@ export function useStockReports(startDate: Date, endDate: Date) {
         zerados: posicao.filter((p) => p.status === "zerado").length,
         semMovimento,
         consumoTotal,
+        produtosSemFicha: consumo.produtosSemFicha,
+        receitaSemFicha: consumo.receitaSemFicha,
       };
     },
   });

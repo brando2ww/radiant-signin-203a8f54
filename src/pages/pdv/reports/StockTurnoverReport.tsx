@@ -97,11 +97,19 @@ export default function StockTurnoverReport() {
   return (
     <ReportShell
       title="Giro e Curva ABC"
-      description="Quais insumos consomem o seu dinheiro e quais estão parados"
+      description="Consumo deduzido da ficha técnica dos produtos vendidos · entradas pelo movimento de estoque"
       onExport={onExport}
       exportDisabled={isLoading || !data}
       period={{ startDate, endDate, onChange: (s, e) => { setStartDate(s); setEndDate(e); } }}
     >
+      {data && data.produtosSemFicha > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed">
+          <strong>{data.produtosSemFicha} produto(s) vendidos sem ficha técnica</strong>, somando{" "}
+          {formatBRL(data.receitaSemFicha)} de receita. O consumo de insumo deles não aparece aqui
+          · cadastre a ficha para eles entrarem na curva.
+        </div>
+      )}
+
       <div className="grid gap-3 md:grid-cols-4">
         {(["A", "B", "C"] as const).map((c) => {
           const itens = porClasse(c);
@@ -155,8 +163,8 @@ export default function StockTurnoverReport() {
             </div>
           ) : linhas.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Nenhum movimento de estoque no período. Entradas por nota e saídas por venda
-              alimentam este relatório.
+              Nenhum consumo no período. O cálculo parte da ficha técnica dos produtos
+              vendidos · sem ficha cadastrada, não há como saber o que saiu.
             </p>
           ) : (
             <div className="overflow-x-auto">

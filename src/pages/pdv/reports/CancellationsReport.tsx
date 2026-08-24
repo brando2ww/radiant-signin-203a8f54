@@ -267,7 +267,7 @@ export default function CancellationsReport() {
 
   return (
     <div className="space-y-4">
-      <ReportPageHeader title="Cancelamentos" description={`Período: ${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}`} onExport={onExport} exportDisabled={isLoading || orders.length === 0} />
+      <ReportPageHeader title="Cancelamentos" description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por data do cancelamento`} onExport={onExport} exportDisabled={isLoading || orders.length === 0} />
       <ReportDateFilter startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
 
       <div className="grid gap-3 md:grid-cols-4">

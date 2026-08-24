@@ -3,6 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useMemo } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
+import { buildDeliveryProductBridge } from "@/lib/reports/delivery-product-bridge";
+
+/** Status de pedido entregue. Produção usa 'completed'; os outros dois existem
+ *  por compatibilidade com bases antigas. */
+const DELIVERED = ["entregue", "delivered", "completed"];
 
 export type ChannelKey = "salao" | "balcao" | "delivery";
 
@@ -24,6 +29,12 @@ export interface ProductRow {
   abc: "A" | "B" | "C";
   delta_pct: number | null; // vs previous period revenue
   channels: Record<ChannelKey, { qty: number; revenue: number }>;
+  /**
+   * Sem ficha técnica: o custo não foi encontrado, então CMV e margem não
+   * significam nada. Margem falsa de 100% é pior que margem ausente — a tela
+   * mostra "sem ficha" em vez do número.
+   */
+  sem_ficha: boolean;
 }
 
 export interface CancelledItemRow {
@@ -65,6 +76,11 @@ export interface ProductAnalytics {
     margin: number;
     orders: number;
     avg_ticket_item: number;
+    /** Receita cujo custo é desconhecido — a margem geral não vale para ela. */
+    receita_sem_ficha: number;
+    /** Receita com custo conhecido: a base real de CMV, lucro e margem. */
+    receita_com_ficha: number;
+    produtos_sem_ficha: number;
   };
   abc: {
     A: { count: number; revenue: number; share: number };
@@ -148,6 +164,13 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const productIds = (products || []).map((p) => p.id);
       const productMap = new Map((products || []).map((p) => [p.id, p]));
 
+      // Delivery e PDV têm catálogos separados: sem esta ponte, cada produto
+      // vendido no delivery vira linha órfã, sem ficha técnica e com margem de
+      // 100%. Esconder o delivery era ruim; mentir sobre ele seria pior.
+      const ponte = channels.includes("delivery")
+        ? await buildDeliveryProductBridge(visibleUserId!, (products || []) as any)
+        : null;
+
       // 2. PDV items in period — items live in pdv_comanda_items, linked via pdv_comandas.order_id
       const wantPdv = channels.includes("salao") || channels.includes("balcao");
       const { data: pdvItems } = wantPdv
@@ -166,7 +189,10 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
           .from("delivery_order_items")
           .select("product_id, product_name, quantity, subtotal, order:delivery_orders!inner(id, user_id, status, delivered_at)")
           .eq("order.user_id", visibleUserId!)
-          .eq("order.status", "entregue")
+          // Produção grava 'completed'; 'entregue' sozinho descartava o
+          // delivery inteiro (R$ 110 mil em 90 dias). Mesmo trio usado em
+          // reports-data-source, use-pdv-reports e use-pdv-dre.
+          .in("order.status", DELIVERED)
           .gte("order.delivered_at", startISO)
           .lte("order.delivered_at", endISO)
         : { data: [] as any[] };
@@ -184,15 +210,17 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const { data: prevDel } = channels.includes("delivery")
         ? await supabase
           .from("delivery_order_items")
-          .select("product_id, subtotal, order:delivery_orders!inner(user_id, status, delivered_at)")
+          .select("product_id, product_name, subtotal, order:delivery_orders!inner(user_id, status, delivered_at)")
           .eq("order.user_id", visibleUserId!)
-          .eq("order.status", "entregue")
+          .in("order.status", DELIVERED)
           .gte("order.delivered_at", prevStartISO)
           .lte("order.delivered_at", prevEndISO)
         : { data: [] as any[] };
       const prevRevByProduct = new Map<string, number>();
       [...(prevPdv || []), ...(prevDel || [])].forEach((it: any) => {
-        const k = it.product_id;
+        // Sem resolver aqui também, a variação vs período anterior compararia
+        // o produto do PDV com nada e mostraria +100% em tudo.
+        const k = ponte?.resolve(it.product_id, it.product_name) ?? it.product_id;
         if (!k) return;
         prevRevByProduct.set(k, (prevRevByProduct.get(k) || 0) + Number(it.subtotal || 0));
       });
@@ -241,6 +269,7 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         revenue: number;
         orderIds: Set<string>;
         channels: Record<ChannelKey, { qty: number; revenue: number }>;
+        semFicha?: boolean;
       };
       const byProduct = new Map<string, Acc>();
       const hourHeat: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
@@ -305,9 +334,13 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       });
 
       (delItems || []).forEach((it: any) => {
-        const pid = it.product_id || it.product_name;
+        // Resolve para o produto do PDV; assim o mesmo prato vendido no salão e
+        // no delivery vira UMA linha, com os dois canais preenchidos.
+        const resolvido = ponte?.resolve(it.product_id, it.product_name) ?? null;
+        const pid = resolvido || it.product_id || it.product_name;
         if (!pid) return;
         const acc = ensure(pid, it.product_name);
+        if (!resolvido) acc.semFicha = true;
         const qty = Number(it.quantity || 0);
         const rev = Number(it.subtotal || 0);
         acc.quantity += qty;
@@ -332,6 +365,8 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         const cmv = unit_cost * a.quantity;
         const profit = a.revenue - cmv;
         const margin = a.revenue > 0 ? (profit / a.revenue) * 100 : 0;
+        // Custo zero não é margem cheia: é receita cadastrada e custo não.
+        const sem_ficha = unit_cost <= 0;
         const prevRev = prevRevByProduct.get(a.product_id) ?? null;
         const delta_pct = prevRev !== null && prevRev > 0 ? ((a.revenue - prevRev) / prevRev) * 100 : (prevRev === 0 && a.revenue > 0 ? 100 : null);
         return {
@@ -351,6 +386,7 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
           share: totalRevenue > 0 ? a.revenue / totalRevenue : 0,
           delta_pct,
           channels: a.channels,
+          sem_ficha,
         };
       });
       rowsRaw.sort((x, y) => y.revenue - x.revenue);
@@ -370,19 +406,34 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       // Totals
       const totalQty = rows.reduce((s, r) => s + r.quantity, 0);
       const totalCmv = rows.reduce((s, r) => s + r.cmv, 0);
-      const totalProfit = totalRevenue - totalCmv;
+      const receitaSemFicha = rows.filter((r) => r.sem_ficha).reduce((s, r) => s + r.revenue, 0);
+
+      /**
+       * Margem e lucro são calculados SÓ sobre a receita que tem custo
+       * conhecido.
+       *
+       * Em produção, 21 de 1059 produtos têm ficha técnica: dividir o CMV pela
+       * receita inteira devolvia "margem média de 99,8%", que não é margem
+       * alta, é custo não cadastrado. Um número desses numa tela de gestão é
+       * pior que nenhum número.
+       */
+      const receitaComFicha = totalRevenue - receitaSemFicha;
+      const totalProfit = receitaComFicha - totalCmv;
       const totals = {
         products: rows.length,
         qty: totalQty,
         revenue: totalRevenue,
         cmv: totalCmv,
         profit: totalProfit,
-        margin: totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0,
+        margin: receitaComFicha > 0 ? (totalProfit / receitaComFicha) * 100 : 0,
         orders: new Set([
           ...(pdvItems || []).map((i: any) => i.comanda?.order?.id),
           ...(delItems || []).map((i: any) => i.order?.id),
         ].filter(Boolean)).size,
         avg_ticket_item: totalQty > 0 ? totalRevenue / totalQty : 0,
+        receita_sem_ficha: receitaSemFicha,
+        receita_com_ficha: receitaComFicha,
+        produtos_sem_ficha: rows.filter((r) => r.sem_ficha).length,
       };
 
       // Daily series

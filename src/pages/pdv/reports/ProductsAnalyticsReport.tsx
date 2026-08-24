@@ -187,7 +187,7 @@ export default function ProductsAnalyticsReport() {
     <div className="space-y-4">
       <ReportPageHeader
         title="Análise de Produtos"
-        description={`Período: ${format(start, "dd/MM/yyyy", { locale: ptBR })} a ${format(end, "dd/MM/yyyy", { locale: ptBR })}`}
+        description={`${format(start, "dd/MM/yyyy", { locale: ptBR })} a ${format(end, "dd/MM/yyyy", { locale: ptBR })} · itens vendidos, por abertura da comanda · inclui salão, balcão e delivery`}
         onExport={onExport}
         exportDisabled={isLoading || !data}
       />
@@ -309,11 +309,32 @@ function OverviewSection({ rows, totals }: { rows: ProductRow[]; totals: any }) 
         <Kpi label="Qtd total" value={totals.qty.toLocaleString("pt-BR")} />
         <Kpi label="Receita" value={formatBRL(totals.revenue)} />
         <Kpi label="Pedidos distintos" value={String(totals.orders)} />
-        <Kpi label="CMV" value={formatBRL(totals.cmv)} hint="apenas produtos com receita cadastrada" />
-        <Kpi label="Lucro bruto" value={formatBRL(totals.profit)} />
-        <Kpi label="Margem média" value={`${totals.margin.toFixed(1)}%`} />
+        <Kpi label="CMV" value={formatBRL(totals.cmv)} hint="só produtos com ficha técnica" />
+        <Kpi
+          label="Lucro bruto"
+          value={totals.receita_com_ficha > 0 ? formatBRL(totals.profit) : "—"}
+          hint={totals.receita_com_ficha > 0 ? `sobre ${formatBRL(totals.receita_com_ficha)} de receita` : "sem ficha técnica cadastrada"}
+        />
+        <Kpi
+          label="Margem média"
+          value={totals.receita_com_ficha > 0 ? `${totals.margin.toFixed(1)}%` : "—"}
+          hint="só sobre a receita com custo conhecido"
+        />
         <Kpi label="Ticket / item" value={formatBRL(totals.avg_ticket_item)} />
       </div>
+
+      {totals.produtos_sem_ficha > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed">
+          <strong>{totals.produtos_sem_ficha} produto(s) sem ficha técnica</strong>, somando{" "}
+          {formatBRL(totals.receita_sem_ficha)} de receita —{" "}
+          {totals.revenue > 0
+            ? `${((totals.receita_sem_ficha / totals.revenue) * 100).toFixed(0)}% do total`
+            : "todo o período"}
+          . Para eles o custo é desconhecido, então ficam de fora do CMV, do lucro e da margem.
+          Enquanto a ficha técnica não for cadastrada, esses três indicadores falam de uma
+          fatia pequena da operação.
+        </div>
+      )}
       <div className="grid gap-3 md:grid-cols-2">
         <Card>
           <CardHeader><CardTitle className="text-base">Campeão de receita</CardTitle></CardHeader>
