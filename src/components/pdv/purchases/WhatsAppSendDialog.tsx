@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, parseISO } from "date-fns";
-import { MessageCircle, Check, Loader2, Copy, Link2 } from "lucide-react";
+import { MessageCircle, Check, Loader2, Copy, Link2, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
@@ -70,6 +71,12 @@ export function WhatsAppSendDialog({
   const [isGenerating, setIsGenerating] = useState(false);
   const [links, setLinks] = useState<{ supplierId: string; name?: string; url: string }[]>([]);
   const [qrFor, setQrFor] = useState<string | null>(null);
+  /** Lista de itens aberta por fornecedor. Fechada por padrão: seis chips por
+   *  linha viravam uma parede que escondia o resto do diálogo. */
+  const [expandido, setExpandido] = useState<Set<string>>(new Set());
+  /** Resultado do último envio, por fornecedor — o que substitui o "deu certo?" */
+  const [enviados, setEnviados] = useState<Set<string>>(new Set());
+  const [erros, setErros] = useState<Record<string, string>>({});
 
   // Fetch saved suppliers for this quotation's items
   const { data: savedItemSuppliers = [] } = useQuery({
@@ -185,7 +192,10 @@ export function WhatsAppSendDialog({
 
   // Limpa os links/QR ao reabrir o diálogo
   useEffect(() => {
-    if (open) { setLinks([]); setQrFor(null); }
+    if (open) {
+      setLinks([]); setQrFor(null); setExpandido(new Set());
+      setEnviados(new Set()); setErros({});
+    }
   }, [open]);
 
   /**
@@ -286,6 +296,14 @@ export function WhatsAppSendDialog({
 
   const handleSend = async () => {
     const suppliersPayload = buildSuppliersPayload(true);
+    // Selecionar só fornecedor sem WhatsApp mandava uma lista vazia para a edge
+    // e voltava um 400 sem explicação. Aqui a saída é dizer o que fazer.
+    if (suppliersPayload.length === 0) {
+      toast.error(
+        "Nenhum dos selecionados tem WhatsApp cadastrado. Use \"Só gerar os links\" para enviar por outro caminho.",
+      );
+      return;
+    }
     const itemIds = quotation.items?.map((i) => i.id) || [];
 
     setIsSending(true);
@@ -310,8 +328,23 @@ export function WhatsAppSendDialog({
           `${data.sent} link${data.sent > 1 ? "s" : ""} enviado${data.sent > 1 ? "s" : ""} por WhatsApp!`
         );
       }
+      // A edge devolve `errors` com um item para cada fornecedor que NÃO saiu
+      // (sem telefone, sem link, falha no envio). Enviado é o complemento —
+      // não precisa de campo novo no contrato.
+      const falhou = new Set(
+        ((data?.errors ?? []) as { supplierId: string }[]).map((e) => e.supplierId),
+      );
+      setEnviados(new Set(suppliersPayload.map((s) => s.supplierId).filter((id) => !falhou.has(id))));
+
       if (data?.errors?.length > 0) {
-        toast.warning(`${data.errors.length} envio(s) falharam. Use o link/QR abaixo para enviar manualmente.`);
+        toast.warning(`${data.errors.length} envio(s) falharam. Use o link para enviar por outro caminho.`);
+        setErros(
+          Object.fromEntries(
+            (data.errors as { supplierId: string; error: string }[]).map((e) => [e.supplierId, e.error]),
+          ),
+        );
+      } else {
+        setErros({});
       }
       // Mantém o diálogo aberto exibindo os links (copiar/QR).
       if (Array.isArray(data?.links)) setLinks(data.links);
@@ -354,181 +387,244 @@ export function WhatsAppSendDialog({
     toast.success("Link copiado!");
   };
 
+  const totalItens = quotation.items?.length ?? 0;
+  /** Dos selecionados, quantos de fato recebem por WhatsApp. É esse o número
+   *  que o botão promete — prometer 3 e enviar 2 é o que gera desconfiança. */
+  const selecionadosComWhats = suppliersWithItems.filter(
+    (s) => selectedSuppliers.has(s.id) && s.phone,
+  ).length;
+  const jaEnviou = enviados.size > 0 || Object.keys(erros).length > 0;
+
+  const alternarExpandido = (id: string) =>
+    setExpandido((v) => {
+      const n = new Set(v);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+
+  const linkDe = (id: string) => links.find((l) => l.supplierId === id)?.url;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+      <DialogContent className="flex max-h-[88vh] flex-col sm:max-w-3xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <WhatsAppIcon className="h-5 w-5 text-green-600" />
-            Enviar Cotação via WhatsApp
+            Enviar cotação
           </DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            Cada fornecedor recebe um <strong>link</strong> para preencher os preços num
-            formulário. Nada de responder por mensagem.
+          <p className="text-sm text-muted-foreground">
+            Cada fornecedor recebe um link para preencher os preços num formulário · ninguém
+            precisa responder por mensagem.
           </p>
         </DialogHeader>
 
-        {/* Área rolável única: cabeçalho e rodapé ficam fixos, o miolo desce. */}
-        <div className="space-y-4 flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
-          {suppliersWithItems.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhum fornecedor vinculado aos ingredientes desta cotação.</p>
-              <p className="text-sm mt-2">
-                Vincule fornecedores aos ingredientes no cadastro de estoque.
-              </p>
-            </div>
-          ) : (
-            <>
-              {hasSavedSuppliers && (
-                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  Mostrando apenas os fornecedores selecionados durante a criação da cotação.
+        {suppliersWithItems.length === 0 ? (
+          <div className="py-10 text-center text-muted-foreground">
+            <MessageCircle className="mx-auto mb-4 h-12 w-12 opacity-50" />
+            <p className="font-medium">Nenhum fornecedor vinculado aos itens desta cotação.</p>
+            <p className="mt-2 text-sm">
+              Vincule fornecedores aos insumos no cadastro de estoque e volte aqui.
+            </p>
+          </div>
+        ) : (
+          /* Duas colunas no desktop: a prévia da mensagem fica à vista enquanto
+             se escolhe quem recebe. Antes ela vivia no fim de uma rolagem longa,
+             e ninguém a via antes de clicar em enviar. */
+          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="flex min-h-0 flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm">
+                  <strong>{selectedSuppliers.size}</strong> de {suppliersWithItems.length}{" "}
+                  fornecedor(es)
+                  <span className="text-muted-foreground"> · {totalItens} itens na cotação</span>
                 </div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {selectedSuppliers.size} de {suppliersWithItems.length} selecionado(s)
-                </span>
                 <Button variant="ghost" size="sm" onClick={handleSelectAll}>
                   {selectedSuppliers.size === suppliersWithItems.length
-                    ? "Desmarcar Todos"
-                    : "Selecionar Todos"}
+                    ? "Desmarcar todos"
+                    : "Selecionar todos"}
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                  {suppliersWithItems.map((supplier) => {
-                    const isSelected = selectedSuppliers.has(supplier.id);
-                    const hasPhone = !!supplier.phone;
+              {hasSavedSuppliers && (
+                <p className="text-xs text-muted-foreground">
+                  Só os fornecedores escolhidos na criação da cotação.
+                </p>
+              )}
 
-                    return (
-                      <div
-                        key={supplier.id}
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          isSelected ? "border-primary bg-primary/5" : ""
-                        } ${!hasPhone ? "opacity-50" : ""}`}
-                        onClick={() => hasPhone && handleToggleSupplier(supplier.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Checkbox
-                            checked={isSelected}
-                            disabled={!hasPhone}
-                            onCheckedChange={() =>
-                              hasPhone && handleToggleSupplier(supplier.id)
-                            }
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{supplier.name}</span>
-                              {!hasPhone && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Sem WhatsApp
-                                </Badge>
-                              )}
-                            </div>
-                            {hasPhone && (
-                              <span className="text-sm text-muted-foreground">
-                                {supplier.phone}
-                              </span>
+              <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+                {suppliersWithItems.map((supplier) => {
+                  const marcado = selectedSuppliers.has(supplier.id);
+                  const temWhats = !!supplier.phone;
+                  const aberto = expandido.has(supplier.id);
+                  const url = linkDe(supplier.id);
+                  const erro = erros[supplier.id];
+                  const enviado = enviados.has(supplier.id);
+
+                  return (
+                    <div
+                      key={supplier.id}
+                      className={cn(
+                        "rounded-lg border transition-colors",
+                        marcado ? "border-primary/50 bg-primary/5" : "hover:bg-muted/40",
+                      )}
+                    >
+                      <div className="flex items-center gap-3 p-3">
+                        <Checkbox
+                          checked={marcado}
+                          onCheckedChange={() => handleToggleSupplier(supplier.id)}
+                          aria-label={`Selecionar ${supplier.name}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSupplier(supplier.id)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{supplier.name}</span>
+                            {enviado && (
+                              <Badge className="gap-1 border-0 bg-emerald-100 text-[10px] text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                <Check className="h-3 w-3" /> enviado
+                              </Badge>
+                            )}
+                            {erro && (
+                              <Badge variant="destructive" className="text-[10px]">falhou</Badge>
                             )}
                           </div>
-                          {isSelected && <Check className="h-4 w-4 text-primary" />}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-1">
+                          <span className="text-xs text-muted-foreground">
+                            {temWhats ? supplier.phone : "sem WhatsApp · só por link"}
+                          </span>
+                          {erro && <p className="mt-0.5 text-xs text-destructive">{erro}</p>}
+                        </button>
+
+                        {/* Contagem no lugar da parede de chips. Quem quiser ver
+                            os produtos abre; a maioria só quer saber quantos. */}
+                        <button
+                          type="button"
+                          onClick={() => alternarExpandido(supplier.id)}
+                          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+                        >
+                          {supplier.items.length} {supplier.items.length === 1 ? "item" : "itens"}
+                          <ChevronDown
+                            className={cn("h-3.5 w-3.5 transition-transform", aberto && "rotate-180")}
+                          />
+                        </button>
+                      </div>
+
+                      {aberto && (
+                        <div className="flex flex-wrap gap-1 border-t px-3 py-2">
                           {supplier.items.map((item, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
+                            <Badge key={idx} variant="outline" className="text-xs font-normal">
                               {item.ingredientName}
                             </Badge>
                           ))}
                         </div>
-                      </div>
-                    );
-                  })}
-              </div>
+                      )}
 
-              {canalOficial && previewCotacao && (
-                <div className="rounded-lg border p-3">
+                      {url && (
+                        <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+                          <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+                            {url}
+                          </span>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyLink(url)}>
+                            <Copy className="mr-1 h-3.5 w-3.5" /> Copiar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={() => setQrFor(qrFor === supplier.id ? null : supplier.id)}
+                          >
+                            QR
+                          </Button>
+                          {qrFor === supplier.id && (
+                            <div className="flex w-full justify-center rounded bg-white py-2">
+                              <QRCodeSVG value={url} size={150} level="H" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Prévia: no desktop fica ao lado; no celular, depois da lista. */}
+            <div className="min-h-0 overflow-y-auto lg:pl-1">
+              {canalOficial && previewCotacao ? (
+                <>
                   <TemplatePreview
                     template={TEMPLATE_COTACAO}
                     valores={previewCotacao.valores}
                     contato={previewCotacao.fornecedor.name}
                     variavelDoBotao={previewCotacao.token}
                   />
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    Exemplo com <strong>{previewCotacao.fornecedor.name}</strong>. Cada
-                    fornecedor recebe a mesma mensagem, com o próprio nome, a própria
-                    contagem de itens e o próprio link.
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    Exemplo com <strong>{previewCotacao.fornecedor.name}</strong>. Cada um recebe a
+                    mesma mensagem, com o próprio nome, a própria contagem de itens e o próprio link.
                   </p>
+                </>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                  A prévia da mensagem aparece aqui quando o envio é feito pelo número oficial.
                 </div>
               )}
+            </div>
+          </div>
+        )}
 
-              {links.length > 0 && (
-                <div className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Link2 className="h-4 w-4 text-primary" />
-                    Links dos fornecedores
-                  </div>
-                  {links.map((l) => (
-                    <div key={l.supplierId} className="rounded-md bg-muted/50 p-2 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium flex-1 truncate">{l.name || "Fornecedor"}</span>
-                        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyLink(l.url)}>
-                          <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2"
-                          onClick={() => setQrFor(qrFor === l.supplierId ? null : l.supplierId)}
-                        >
-                          QR
-                        </Button>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground break-all">{l.url}</p>
-                      {qrFor === l.supplierId && (
-                        <div className="flex justify-center py-2 bg-white rounded">
-                          <QRCodeSVG value={l.url} size={160} level="H" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+        {suppliersWithItems.length > 0 && (
+          <DialogFooter className="shrink-0 flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* A ação secundária ganhou explicação: antes eram dois botões sem
+                diferença aparente, e a pessoa escolhia no chute. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleGenerateLinks}
+              disabled={selectedSuppliers.size === 0 || isGenerating || isSending}
+              className="text-muted-foreground"
+            >
+              {isGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Link2 className="mr-2 h-4 w-4" />
               )}
-            </>
-          )}
-        </div>
+              Só gerar os links
+              <span className="ml-1.5 hidden text-xs opacity-70 sm:inline">
+                para mandar por outro caminho
+              </span>
+            </Button>
 
-        <DialogFooter className="gap-2 sm:gap-2 shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isGenerating}>
-            Fechar
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleGenerateLinks}
-            disabled={selectedSuppliers.size === 0 || isGenerating || isSending}
-          >
-            {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Link2 className="h-4 w-4 mr-2" />}
-            Gerar links
-          </Button>
-          <Button
-            onClick={handleSend}
-            disabled={selectedSuppliers.size === 0 || isSending}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            {isSending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              <>
-                <WhatsAppIcon className="h-4 w-4 mr-2" />
-                Enviar link ({selectedSuppliers.size})
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+            <div className="flex items-center gap-2">
+              {selecionadosComWhats < selectedSuppliers.size && (
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  {selectedSuppliers.size - selecionadosComWhats} sem WhatsApp
+                </span>
+              )}
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending || isGenerating}>
+                {jaEnviou ? "Concluir" : "Cancelar"}
+              </Button>
+              <Button
+                onClick={handleSend}
+                disabled={selecionadosComWhats === 0 || isSending}
+                className="bg-green-600 text-white hover:bg-green-700"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <WhatsAppIcon className="mr-2 h-4 w-4" />
+                    {jaEnviou ? "Enviar de novo" : `Enviar para ${selecionadosComWhats}`}
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
