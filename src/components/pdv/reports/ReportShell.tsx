@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { ReportDateFilter } from "./ReportDateFilter";
 import { ReportPageHeader, type ExportKind } from "./ReportPageHeader";
+import { REPORTS_BASE } from "@/lib/reports/registry";
 
 interface Props {
   title: string;
@@ -37,7 +38,7 @@ export function ReportShell({
         description={description}
         onExport={onExport}
         exportDisabled={exportDisabled}
-        backTo="/pdv/relatorios"
+        backTo={REPORTS_BASE}
       />
       {filters}
       {period && (

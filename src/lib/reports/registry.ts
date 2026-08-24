@@ -1,5 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
+import StockPositionReport from "@/pages/pdv/reports/StockPositionReport";
+import StockTurnoverReport from "@/pages/pdv/reports/StockTurnoverReport";
+import CustomersReport from "@/pages/pdv/reports/CustomersReport";
+import LoyaltyReport from "@/pages/pdv/reports/LoyaltyReport";
+import FiscalInvoicesReport from "@/pages/pdv/reports/FiscalInvoicesReport";
 import {
   BarChart3, CalendarRange, Package, Layers, Users, Ban, BadgePercent,
   ShoppingCart, FileBarChart, ArrowLeftRight, PieChart, PackageSearch, Receipt,
@@ -211,12 +216,56 @@ export const REPORTS: ReportDef[] = [
 
   // ----------------------------------------------------------------- Estoque
   {
+    slug: "estoque-posicao",
+    title: "Posição de Estoque",
+    description: "Quanto dinheiro está parado na prateleira e o que está prestes a faltar.",
+    icon: Warehouse, group: "Estoque",
+    gatePath: ESTOQUE, element: StockPositionReport, badge: "novo",
+    keywords: ["saldo", "valor em estoque", "mínimo", "ruptura", "parado"],
+  },
+  {
+    slug: "estoque-giro",
+    title: "Giro e Curva ABC",
+    description: "Quais insumos consomem o seu dinheiro, quais giram e quais estão dormindo.",
+    icon: TrendingUp, group: "Estoque",
+    gatePath: ESTOQUE, element: StockTurnoverReport, badge: "novo",
+    keywords: ["abc", "consumo", "cobertura", "giro", "curva"],
+  },
+  {
     slug: "estoque-contagens",
     title: "Contagens de Estoque",
     description: "O resultado de cada inventário: o que bateu, o que faltou e quanto isso vale.",
     icon: ClipboardList, group: "Estoque",
     gatePath: "/pdv/contagem-estoque", href: "/pdv/contagem-estoque",
     keywords: ["inventário", "conferência", "divergência", "quebra"],
+  },
+
+  // ---------------------------------------------------------------- Clientes
+  {
+    slug: "clientes-recorrencia",
+    title: "Clientes e Recorrência",
+    description: "Quem volta, quanto gasta e quem parou de aparecer — com o valor que já deixou na casa.",
+    icon: UserCheck, group: "Clientes",
+    gatePath: CLIENTES, element: CustomersReport, badge: "novo",
+    keywords: ["recorrência", "inativo", "sumiu", "ticket", "base"],
+  },
+  {
+    slug: "clientes-fidelidade",
+    title: "Fidelidade",
+    description: "Quanto o programa de pontos moveu e quanto ele custou de desconto de verdade.",
+    icon: Gift, group: "Clientes",
+    gatePath: `${DELIVERY}/fidelidade`, element: LoyaltyReport, badge: "novo",
+    keywords: ["pontos", "resgate", "prêmio", "cashback"],
+  },
+
+  // ------------------------------------------------------------------ Fiscal
+  {
+    slug: "fiscal-notas-recebidas",
+    title: "Notas Fiscais Recebidas",
+    description: "O que os fornecedores emitiram contra o seu CNPJ e o que ainda não virou entrada.",
+    icon: FileText, group: "Fiscal",
+    gatePath: FISCAL, element: FiscalInvoicesReport, badge: "novo",
+    keywords: ["nf-e", "xml", "manifestação", "imposto", "entrada", "sefaz"],
   },
 
   // ------------------------------------------------------------- Avaliações

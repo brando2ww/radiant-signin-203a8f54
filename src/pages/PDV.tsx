@@ -22,6 +22,7 @@ import StockCounts from "./pdv/StockCounts";
 import PDVSuppliers from "./pdv/Suppliers";
 import PDVReports from "./pdv/Reports";
 import ReportsHub from "./pdv/reports/ReportsHub";
+import { REPORTS } from "@/lib/reports/registry";
 import PDVSettings from "./pdv/Settings";
 import Invoices from "./pdv/Invoices";
 import FiscalCoupons from "./pdv/FiscalCoupons";
@@ -169,6 +170,24 @@ export default function PDV() {
                   rota acima continua sendo a tela de vendas que as pessoas já
                   conhecem — mover teria virado chamado de suporte. */}
               <Route path="relatorios-central" element={<RoleRoute path="/pdv/relatorios" canAccess={canAccess} defaultRoute={defaultRoute}><ReportsHub /></RoleRoute>} />
+              {/* Relatórios NOVOS, que nascem dentro do hub. O guard recebe o
+                  gatePath do módulo dono, não a URL: um relatório de estoque
+                  montado aqui continua sendo julgado como estoque, senão
+                  vazaria para quem não contratou o módulo. */}
+              {REPORTS.filter((r) => r.element).map((r) => {
+                const Element = r.element!;
+                return (
+                  <Route
+                    key={r.slug}
+                    path={`relatorios-central/${r.slug}`}
+                    element={
+                      <RoleRoute path={r.gatePath} canAccess={canAccess} defaultRoute={defaultRoute}>
+                        <Element />
+                      </RoleRoute>
+                    }
+                  />
+                );
+              })}
               <Route path="configuracoes" element={<Navigate to="/pdv/configuracoes-gerais/geral" replace />} />
               <Route path="configuracoes-gerais/*" element={<RoleRoute path="/pdv/configuracoes-gerais" canAccess={canAccess} defaultRoute={defaultRoute}><ConfiguracoesGerais /></RoleRoute>} />
               <Route path="usuarios" element={<RoleRoute path="/pdv/usuarios" canAccess={canAccess} defaultRoute={defaultRoute}><Users /></RoleRoute>} />
