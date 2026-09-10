@@ -19,6 +19,7 @@ import PublicEvaluation from "./pages/PublicEvaluation";
 import PublicTasks from "./pages/PublicTasks";
 import PublicChecklistAccess from "./pages/PublicChecklistAccess";
 import PublicSupplierQuotation from "./pages/PublicSupplierQuotation";
+import PublicSupplierOrder from "./pages/PublicSupplierOrder";
 import PublicPurchaseReceipt from "./pages/PublicPurchaseReceipt";
 import PublicStockCount from "./pages/PublicStockCount";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
@@ -89,6 +90,7 @@ const App = () => (
                   <Route path="/tarefas/:userId" element={<PublicTasks />} />
                   <Route path="/c/:checklistId" element={<PublicChecklistAccess />} />
                   <Route path="/cotacao/:token" element={<PublicSupplierQuotation />} />
+                  <Route path="/pedido/:token" element={<PublicSupplierOrder />} />
                   <Route path="/recebimento/:token" element={<PublicPurchaseReceipt />} />
                   <Route path="/contagem/:token" element={<PublicStockCount />} />
                   {/* Onboarding (auth-only, sem ProtectedRoute para evitar loop) */}

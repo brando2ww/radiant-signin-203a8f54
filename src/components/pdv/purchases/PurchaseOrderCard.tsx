@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 import {
   Calendar,
   MessageCircle,
@@ -13,6 +14,7 @@ import {
   PackageCheck,
   Trash2,
   Truck,
+  Link as LinkIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +160,20 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                   </>
                 )}
               </div>
+              {/* Rastro do link enviado: sem isto o comprador liga cobrando uma
+                  resposta que já estava dada — ou espera uma que nunca foi vista. */}
+              {order.supplier_confirmed_at ? (
+                <p className="mt-1 text-xs text-emerald-700">
+                  Confirmado pelo fornecedor em{" "}
+                  {format(new Date(order.supplier_confirmed_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  {order.supplier_note ? ` · "${order.supplier_note}"` : ""}
+                </p>
+              ) : order.supplier_viewed_at ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Fornecedor abriu o pedido em{" "}
+                  {format(new Date(order.supplier_viewed_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                </p>
+              ) : null}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -172,6 +188,18 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                   >
                     <PackageCheck className="h-4 w-4 mr-2" />
                     Receber pedido
+                  </DropdownMenuItem>
+                )}
+                {order.public_token && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const url = `${window.location.origin}/pedido/${order.public_token}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success("Link do pedido copiado.");
+                    }}
+                  >
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    Copiar link do fornecedor
                   </DropdownMenuItem>
                 )}
                 {order.status === "sent" && (

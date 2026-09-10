@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import StockPositionReport from "@/pages/pdv/reports/StockPositionReport";
 import StockTurnoverReport from "@/pages/pdv/reports/StockTurnoverReport";
+import RecipeCoverageReport from "@/pages/pdv/reports/RecipeCoverageReport";
 import CustomersReport from "@/pages/pdv/reports/CustomersReport";
 import LoyaltyReport from "@/pages/pdv/reports/LoyaltyReport";
 import FiscalInvoicesReport from "@/pages/pdv/reports/FiscalInvoicesReport";
@@ -9,7 +10,7 @@ import {
   BarChart3, CalendarRange, Package, Layers, Users, Ban, BadgePercent,
   ShoppingCart, FileBarChart, ArrowLeftRight, PieChart, PackageSearch, Receipt,
   Truck, MapPin, Clock, Filter, Star, ClipboardCheck, ClipboardList, Bike,
-  Warehouse, TrendingUp, Target, FileText, UserCheck, UserMinus, Gift, Boxes,
+  Warehouse, TrendingUp, Target, FileText, UserCheck, UserMinus, Gift, Boxes, ChefHat,
 } from "lucide-react";
 
 /**
@@ -230,6 +231,14 @@ export const REPORTS: ReportDef[] = [
     icon: TrendingUp, group: "Estoque",
     gatePath: ESTOQUE, element: StockTurnoverReport, badge: "novo",
     keywords: ["abc", "consumo", "cobertura", "giro", "curva"],
+  },
+  {
+    slug: "estoque-fichas-pendentes",
+    title: "Fichas Técnicas Pendentes",
+    description: "O que vendeu sem ficha: não baixou estoque, não tem custo e mostra margem de 100%.",
+    icon: ChefHat, group: "Estoque",
+    gatePath: ESTOQUE, element: RecipeCoverageReport, badge: "novo",
+    keywords: ["ficha", "receita", "composição", "cmv", "custo", "margem", "insumo"],
   },
   {
     slug: "estoque-contagens",

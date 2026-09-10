@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, parseISO } from "date-fns";
-import { MessageCircle, Check, Loader2, Copy, Link2, ChevronDown } from "lucide-react";
+import { MessageCircle, Check, Loader2, Copy, Link2, ChevronDown, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -22,7 +22,7 @@ import { WhatsAppIcon } from "@/components/icons/WhatsAppIcon";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { useWhatsAppConnection } from "@/hooks/use-whatsapp-connection";
 import { TemplatePreview } from "@/components/pdv/whatsapp/TemplatePreview";
-import { TEMPLATE_COTACAO, achatarParametro } from "@/lib/whatsapp-templates";
+import { TEMPLATE_COTACAO, achatarParametro, conferirParametros } from "@/lib/whatsapp-templates";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -92,7 +92,7 @@ export function WhatsAppSendDialog({
           quotation_item_id,
           supplier_id,
           sent_at,
-          supplier:pdv_suppliers(id, name, phone, whatsapp)
+          supplier:pdv_suppliers(id, name, phone, whatsapp, is_active)
         `)
         .in("quotation_item_id", itemIds);
 
@@ -115,7 +115,14 @@ export function WhatsAppSendDialog({
         const item = quotation.items?.find((i) => i.id === itemSupplier.quotation_item_id);
         if (!item || !itemSupplier.supplier) return;
 
-        const supplier = itemSupplier.supplier as { id: string; name: string; phone: string | null; whatsapp: string | null };
+        const supplier = itemSupplier.supplier as {
+          id: string; name: string; phone: string | null; whatsapp: string | null; is_active?: boolean | null;
+        };
+        // Fornecedor desativado não entra na lista. O vínculo em
+        // pdv_quotation_item_suppliers é histórico e continua existindo depois
+        // da desativação — sem este filtro, quem foi desligado segue recebendo
+        // cotação, que foi o que aconteceu com um fornecedor em 08/09/2026.
+        if (supplier.is_active === false) return;
         const contact = supplierContactNumber(supplier);
         if (!contact) return;
 
@@ -199,7 +206,7 @@ export function WhatsAppSendDialog({
   }, [open]);
 
   /**
-   * Valores do modelo `cotacao_fornecedor` para um fornecedor.
+   * Valores do modelo `solicitar_cotacao` para um fornecedor.
    *
    * A MESMA função alimenta o preview na tela e o payload do envio. Se fossem
    * duas, uma acabaria desatualizada e o lojista veria uma mensagem diferente
@@ -208,8 +215,16 @@ export function WhatsAppSendDialog({
    */
   const valoresCotacao = useCallback(
     (alvo: SupplierWithItems): string[] => {
-      const endereco = pdvSettings?.nfe_endereco_fiscal;
-      const cidade = [endereco?.cidade, endereco?.uf].filter(Boolean).join(" - ");
+      // Cidade vem do cadastro GERAL primeiro; o endereço fiscal é só reserva.
+      // Quem ainda não emite nota não tem endereço fiscal (ele exige
+      // certificado digital), e isso bloqueava a cotação por WhatsApp inteira.
+      const fiscal = pdvSettings?.nfe_endereco_fiscal as { cidade?: string; uf?: string } | null;
+      const cidade = [
+        (pdvSettings as any)?.business_city || fiscal?.cidade,
+        (pdvSettings as any)?.business_state || fiscal?.uf,
+      ]
+        .filter(Boolean)
+        .join(" - ");
       const nomeCasa = pdvSettings?.business_name || businessSettings?.business_name || "";
       const prazo = quotation.deadline ? parseISO(quotation.deadline) : null;
       const qtd = alvo.items.length;
@@ -225,6 +240,24 @@ export function WhatsAppSendDialog({
     },
     [pdvSettings, businessSettings, quotation.deadline],
   );
+
+  /**
+   * Variáveis faltando nos fornecedores selecionados.
+   *
+   * A Meta recusa a mensagem INTEIRA quando um parâmetro chega vazio — não é um
+   * campo em branco no texto, é o envio não sair. E o erro que volta é genérico,
+   * então o lojista descobre pelo fornecedor que nunca respondeu.
+   *
+   * Como os valores vêm do cadastro do estabelecimento (cidade fiscal, CNPJ),
+   * o problema é o MESMO para todos os fornecedores: basta conferir um.
+   */
+  const problemasModelo = useMemo(() => {
+    if (!canalOficial) return [];
+    const alvo =
+      suppliersWithItems.find((s) => selectedSuppliers.has(s.id)) ?? suppliersWithItems[0];
+    if (!alvo) return [];
+    return conferirParametros(TEMPLATE_COTACAO, valoresCotacao(alvo));
+  }, [canalOficial, suppliersWithItems, selectedSuppliers, valoresCotacao]);
 
   const previewCotacao = useMemo(() => {
     const alvo =
@@ -597,6 +630,21 @@ export function WhatsAppSendDialog({
             </Button>
 
             <div className="flex items-center gap-2">
+              {problemasModelo.length > 0 && (
+                <div className="mr-auto flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-amber-900 dark:text-amber-200">
+                      Falta preencher {problemasModelo.map((p) => p.rotulo).join(", ")}
+                    </p>
+                    <p className="text-amber-800/80 dark:text-amber-200/70">
+                      O WhatsApp oficial recusa a mensagem inteira quando um campo do modelo vem
+                      vazio. Cidade e CNPJ ficam em Configurações · Fiscal · Endereço fiscal.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {selecionadosComWhats < selectedSuppliers.size && (
                 <span className="hidden text-xs text-muted-foreground sm:inline">
                   {selectedSuppliers.size - selecionadosComWhats} sem WhatsApp
@@ -607,7 +655,7 @@ export function WhatsAppSendDialog({
               </Button>
               <Button
                 onClick={handleSend}
-                disabled={selecionadosComWhats === 0 || isSending}
+                disabled={selecionadosComWhats === 0 || isSending || problemasModelo.length > 0}
                 className="bg-green-600 text-white hover:bg-green-700"
               >
                 {isSending ? (

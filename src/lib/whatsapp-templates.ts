@@ -9,6 +9,12 @@
  * Manter em sincronia com o Gerenciador da Meta. Se alguém editar o modelo lá e
  * não editar aqui, a tela passa a mentir para o lojista — que é exatamente o
  * problema que este arquivo existe para evitar.
+ *
+ * O `status` daqui é MANUAL: nem o Z-PRO nem a nossa integração expõem o status
+ * real do modelo na Meta (a coleção do Z-PRO tem 38 rotas e nenhuma consulta
+ * modelo). Aprovação confirmada pelo usuário no Gerenciador da Meta em
+ * 26/08/2026. Enquanto a leitura não vier da Graph API, este campo é uma
+ * declaração humana, não um fato verificado pelo sistema.
  */
 
 export type TemplateStatus = "aprovado" | "em_aprovacao" | "rejeitado";
@@ -33,15 +39,21 @@ export interface WhatsAppTemplate {
 }
 
 export const TEMPLATE_COTACAO: WhatsAppTemplate = {
-  name: "cotacao_fornecedor",
+  // Renomeado em 01/09/2026: ao trocar o número de disparo, os modelos foram
+  // recadastrados na Meta com nomes novos. O nome é o que viaja no payload —
+  // usar o antigo devolve "(#132001) Template name does not exist".
+  // ATENÇÃO: cadastrado na Meta COM cabeçalho de imagem. O envio precisa mandar
+  // o componente de header, senão a Meta recusa com 132012. Ver
+  // supabase/functions/_shared/whatsapp/template-spec.ts (headerImageUrl).
+  name: "solicitar_cotacao",
   language: "pt_BR",
   category: "UTILITY",
-  status: "em_aprovacao",
+  status: "aprovado",
   body:
-    "Olá, {{1}}! Você acabou de receber um pedido de cotação de orçamento.\n\n" +
-    "Aqui é o {{2}}, portador do CNPJ {{3}}, da cidade de {{4}}.\n\n" +
+    "Olá, *{{1}}*! Você acabou de receber um pedido de cotação de orçamento.\n\n" +
+    "Aqui é o *{{2}}*, portador do CNPJ *{{3}}*, da cidade de {{4}}.\n\n" +
     "Solicitamos, por gentileza, o retorno da cotação até {{5}}.\n\n" +
-    "Número de itens a ser cotado: {{6}}\n\n" +
+    "*Número de itens a ser cotado: {{6}}*\n\n" +
     "Ficamos no aguardo. Cordialmente, {{7}}.\n\n" +
     "Toque no botão abaixo para informar seus preços.",
   vars: [
@@ -61,29 +73,85 @@ export const TEMPLATE_COTACAO: WhatsAppTemplate = {
 };
 
 export const TEMPLATE_PEDIDO: WhatsAppTemplate = {
-  name: "pedido_fornecedor",
+  // Substitui `cotacao_fornecedor_escolhido` (08/09/2026). O nome NÃO segue o
+  // padrão dos outros porque quem cadastra na Meta é o usuário, e o que vale é
+  // o nome que está lá: submetido como `confirmacao_cotacao_2`. Nome divergente
+  // devolve "(#132001) Template name does not exist in the translation".
+  // A lista de itens saiu
+  // do corpo: parâmetro da Meta não aceita quebra de linha, então o pedido
+  // chegava como uma linha corrida de vírgulas, e pedido grande ainda corria o
+  // risco de estourar o limite de ~1024 caracteres e derrubar a mensagem.
+  // Agora a relação inteira vive na página /pedido/:token, aberta pelo botão —
+  // que também é onde o fornecedor confirma o aceite. O botão de resposta rápida
+  // do modelo antigo não fazia nada: nenhum webhook lia a resposta.
+  name: "confirmacao_cotacao_2",
   language: "pt_BR",
   category: "UTILITY",
-  status: "em_aprovacao",
+  // Aprovado na Meta, verificado em 10/09/2026 pela própria API: enviar o
+  // modelo com 1 variável devolveu 132000 ("number of parameters"), e não
+  // 132001 ("name does not exist"). Com as 8 variáveis e o botão, o erro passou
+  // a ser 131008, referente à variável que foi deixada vazia de propósito — ou
+  // seja, nome, idioma, contagem e botão validaram.
+  status: "aprovado",
   body:
-    "Olá, {{1}}! Sua proposta foi a escolhida.\n\n" +
-    "Aqui é o {{2}}. Fechamos o pedido {{3}} com você.\n\n" +
-    "Itens: {{4}}\n" +
-    "Valor total: {{5}}\n" +
-    "Prazo de entrega: {{6}}\n" +
-    "Pagamento: {{7}}\n\n" +
-    "Toque no botão abaixo para confirmar o pedido e receber a lista completa dos produtos.",
+    "*Olá, {{1}}! Fechamos este pedido com você.* 🎉\n\n" +
+    "Aqui é o *{{2}}*, CNPJ {{3}}. Sua proposta na cotação {{4}} foi a escolhida.\n\n" +
+    "📦 Itens: {{5}}\n" +
+    "💰 Valor total: {{6}}\n" +
+    "🚚 Entrega até: {{7}}\n" +
+    "💳 Pagamento: {{8}}\n\n" +
+    "No botão abaixo está a lista completa, item por item, com quantidade e preço " +
+    "unitário. Confira e confirme: é a confirmação que nos avisa que a entrega " +
+    "está programada.",
   vars: [
     "Fornecedor",
     "Estabelecimento",
-    "Nº/referência do pedido",
+    "CNPJ",
+    "Nº/referência da cotação",
     "Quantidade de itens",
     "Valor total",
-    "Prazo de entrega",
+    "Data de entrega",
     "Pagamento",
   ],
-  button: { kind: "quick_reply", text: "Confirmar pedido" },
+  button: {
+    kind: "url",
+    text: "Ver pedido e confirmar",
+    urlBase: "https://pdv.velaraia.app/l/pedido/",
+  },
 };
+
+/**
+ * Lista de itens para caber num parâmetro de modelo.
+ *
+ * A Meta recusa quebra de linha dentro de parâmetro, então a lista sai em UMA
+ * linha, separada por vírgula — não dá para imitar o pedido impresso.
+ *
+ * O corte existe porque o limite é ~1024 caracteres por parâmetro e estourar
+ * derruba a mensagem inteira. Nos 303 pedidos já enviados o maior deu 956, mas
+ * um pedido atípico não pode quebrar o envio: melhor avisar que há mais itens e
+ * deixar o resto para a lista completa que vai depois da confirmação.
+ */
+export function listaDeItensParaParametro(
+  itens: { quantity: number; unit?: string | null; ingredientName: string }[],
+  limite = 900,
+): string {
+  const partes = itens.map(
+    (i) => `${i.quantity}${i.unit ? ` ${i.unit}` : ""} ${i.ingredientName}`.trim(),
+  );
+
+  let texto = partes.join(", ");
+  if (texto.length <= limite) return texto;
+
+  const cabem: string[] = [];
+  let tamanho = 0;
+  for (const p of partes) {
+    if (tamanho + p.length + 2 > limite - 30) break;
+    cabem.push(p);
+    tamanho += p.length + 2;
+  }
+  const restantes = partes.length - cabem.length;
+  return `${cabem.join(", ")} e mais ${restantes} ${restantes === 1 ? "item" : "itens"}`;
+}
 
 /** Valor que a Meta recusa dentro de um parâmetro. */
 const PARAM_PROIBIDO = /[\n\r\t]|\s{4,}/;

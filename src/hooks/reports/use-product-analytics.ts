@@ -187,7 +187,10 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       const { data: delItems } = channels.includes("delivery")
         ? await supabase
           .from("delivery_order_items")
-          .select("product_id, product_name, quantity, subtotal, order:delivery_orders!inner(id, user_id, status, delivered_at)")
+          // Os adicionais vêm juntos: sem eles o relatório de adicionais só
+          // enxergava o salão, e todo cream cheese extra vendido no delivery
+          // (iFood incluso) ficava invisível.
+          .select("product_id, product_name, quantity, subtotal, delivery_order_item_options(item_name, quantity, price_adjustment), order:delivery_orders!inner(id, user_id, status, delivered_at)")
           .eq("order.user_id", visibleUserId!)
           // Produção grava 'completed'; 'entregue' sozinho descartava o
           // delivery inteiro (R$ 110 mil em 90 dias). Mesmo trio usado em
@@ -356,6 +359,22 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
           const inner = dailyMap.get(dkey)!;
           inner.set(pid, (inner.get(pid) || 0) + rev);
         }
+
+        // Adicionais do delivery. Contam pela quantidade do adicional VEZES a
+        // do item: 2 combos com 2 molhos cada são 4 molhos, não 2.
+        const opcoes = Array.isArray(it.delivery_order_item_options)
+          ? it.delivery_order_item_options
+          : [];
+        opcoes.forEach((o: any) => {
+          const nome = o?.item_name;
+          if (!nome) return;
+          const qtdOpcao = (Number(o.quantity) || 1) * qty;
+          const preco = Number(o.price_adjustment || 0);
+          const cur = modifierAgg.get(nome) || { count: 0, extra_revenue: 0 };
+          cur.count += qtdOpcao;
+          cur.extra_revenue += preco * qtdOpcao;
+          modifierAgg.set(nome, cur);
+        });
       });
 
       // Build rows

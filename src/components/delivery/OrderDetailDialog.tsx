@@ -11,6 +11,7 @@ import {
   DeliveryOrder,
   useUpdateOrderStatus,
   useCancelOrder,
+  useMarketplaceCancellationReasons,
   useReprintOrder,
 } from "@/hooks/use-delivery-orders";
 import {
@@ -32,32 +33,18 @@ import { useOrderNfce } from "@/hooks/use-order-nfce";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { OrderStatusBadge } from "./OrderStatusBadge";
+import { OrderSourceBadge } from "./OrderSourceBadge";
 import { useState } from "react";
 import { formatBRL } from "@/lib/format";
 import { CancelOrderDialog } from "@/components/pdv/cashier/CancelOrderDialog";
 import { getCancelCategoryLabel } from "@/lib/cancel-reasons";
+import { isMarketplace, SOURCE_LABEL, nextOrderStep, type OrderSource } from "@/lib/marketplace-orders";
 
 interface OrderDetailDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order: DeliveryOrder;
 }
-
-const statusFlow = {
-  pending: "preparing",
-  confirmed: "preparing",
-  preparing: "ready",
-  ready: "delivering",
-  delivering: "completed",
-};
-
-const statusLabels = {
-  pending: "Confirmar e Iniciar Preparo",
-  confirmed: "Iniciar Preparo",
-  preparing: "Marcar como Pronto",
-  ready: "Saiu para Entrega",
-  delivering: "Concluir Entrega",
-};
 
 export const OrderDetailDialog = ({
   open,
@@ -67,15 +54,26 @@ export const OrderDetailDialog = ({
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const updateStatus = useUpdateOrderStatus();
   const cancelOrder = useCancelOrder();
+  // Só busca quando o diálogo abre: a lista do iFood varia com o estágio do
+  // pedido, então uma lista cacheada de minutos atrás pode ser recusada.
+  const { data: platformReasons, isLoading: loadingPlatformReasons } =
+    useMarketplaceCancellationReasons(
+      isCancelDialogOpen ? order?.id ?? null : null,
+      (order as any)?.source,
+    );
   const reprintOrder = useReprintOrder();
   const { data: nfce } = useOrderNfce(order.status === "completed" ? order.id : null);
 
   const canReprint = !["pending", "cancelled"].includes(order.status);
 
+  // O próximo passo respeita o vocabulário da origem: no iFood, pedido de
+  // entrega pula "pronto" e vai direto ao despacho, e quem conclui é a
+  // plataforma.
+  const nextStep = nextOrderStep((order as any).source, order.status, order.order_type);
+
   const handleNextStatus = () => {
-    const nextStatus = statusFlow[order.status as keyof typeof statusFlow];
-    if (nextStatus) {
-      updateStatus.mutate({ id: order.id, status: nextStatus as any });
+    if (nextStep) {
+      updateStatus.mutate({ id: order.id, status: nextStep.status as any });
     }
   };
 
@@ -89,7 +87,7 @@ export const OrderDetailDialog = ({
   };
 
   const canAdvanceStatus =
-    order.status !== "completed" && order.status !== "cancelled";
+    !!nextStep && order.status !== "completed" && order.status !== "cancelled";
   const canCancel =
     order.status !== "completed" && order.status !== "cancelled";
 
@@ -99,7 +97,10 @@ export const OrderDetailDialog = ({
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Pedido {order.order_number}</span>
+              <span className="flex items-center gap-2">
+                Pedido {order.order_number}
+                <OrderSourceBadge source={(order as any).source} size="md" />
+              </span>
               <OrderStatusBadge status={order.status} />
             </DialogTitle>
           </DialogHeader>
@@ -191,6 +192,84 @@ export const OrderDetailDialog = ({
 
             <Separator />
 
+            {/* Dados exigidos pela plataforma de origem.
+                A homologação do iFood cobra na tela: data E hora do
+                agendamento, código de coleta na retirada, documento do
+                cliente e a observação de ENTREGA (que é diferente da
+                observação do item). Estavam todos sendo gravados no banco e
+                nenhum aparecia aqui. */}
+            {isMarketplace((order as any).source) && (
+              <div className="space-y-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <OrderSourceBadge source={(order as any).source} size="md" />
+                  Dados do pedido na plataforma
+                </h3>
+                <div className="space-y-1 text-sm">
+                  {(order as any).external_code && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Nº na plataforma:</span>
+                      <span className="font-medium text-foreground">
+                        #{(order as any).external_code}
+                      </span>
+                    </div>
+                  )}
+                  {(order as any).order_timing && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Tipo:</span>
+                      <span>
+                        {(order as any).order_timing === "SCHEDULED"
+                          ? "Agendado"
+                          : "Imediato"}
+                      </span>
+                    </div>
+                  )}
+                  {(order as any).scheduled_for && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Agendado para:</span>
+                      <span className="font-medium text-foreground">
+                        {format(new Date((order as any).scheduled_for), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        {(order as any).scheduled_until && (
+                          <> até {format(new Date((order as any).scheduled_until), "HH:mm", { locale: ptBR })}</>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {(order as any).external_collection_code && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Código de coleta:</span>
+                      <span className="font-mono font-bold text-foreground tracking-wider">
+                        {(order as any).external_collection_code}
+                      </span>
+                    </div>
+                  )}
+                  {(order as any).external_delivered_by && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Entrega por:</span>
+                      <span>
+                        {(order as any).external_delivered_by === "IFOOD"
+                          ? "Entregador do iFood"
+                          : "Entrega própria da loja"}
+                      </span>
+                    </div>
+                  )}
+                  {(order as any).customer_document && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>CPF/CNPJ do cliente:</span>
+                      <span className="font-medium text-foreground">
+                        {(order as any).customer_document}
+                      </span>
+                    </div>
+                  )}
+                  {(order as any).delivery_notes && (
+                    <div className="pt-1">
+                      <span className="text-muted-foreground">Observação da entrega:</span>
+                      <p className="text-foreground">{(order as any).delivery_notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Payment & Total */}
             <div className="space-y-2">
               <h3 className="font-semibold flex items-center gap-2">
@@ -223,9 +302,41 @@ export const OrderDetailDialog = ({
                   <span>Total:</span>
                   <span>{formatBRL(Number(order.total))}</span>
                 </div>
+                {/* Critério de homologação do iFood: o rateio do desconto tem
+                    que aparecer, não só o valor — o lojista precisa saber
+                    quanto do cupom ele está bancando. */}
+                {(Number((order as any).discount_sponsor_ifood) > 0 ||
+                  Number((order as any).discount_sponsor_merchant) > 0) && (
+                  <div className="pl-3 space-y-0.5 text-xs text-muted-foreground">
+                    {Number((order as any).discount_sponsor_ifood) > 0 && (
+                      <div className="flex justify-between">
+                        <span>Subsídio iFood:</span>
+                        <span>{formatBRL(Number((order as any).discount_sponsor_ifood))}</span>
+                      </div>
+                    )}
+                    {Number((order as any).discount_sponsor_merchant) > 0 && (
+                      <div className="flex justify-between">
+                        <span>Subsídio da loja:</span>
+                        <span>{formatBRL(Number((order as any).discount_sponsor_merchant))}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="flex justify-between text-muted-foreground">
                   <span>Forma de pagamento:</span>
-                  <span className="capitalize">{order.payment_method}</span>
+                  <span className="capitalize">
+                    {order.payment_method}
+                    {(order as any).external_payment_brand && (
+                      <> · {(order as any).external_payment_brand}</>
+                    )}
+                    {(order as any).external_payment_type && (
+                      <span className="ml-1 text-xs">
+                        ({String((order as any).external_payment_type).toLowerCase() === "online"
+                          ? "pago pelo app"
+                          : "pagar na entrega"})
+                      </span>
+                    )}
+                  </span>
                 </div>
                 {order.change_for && (
                   <div className="flex justify-between text-muted-foreground">
@@ -362,7 +473,7 @@ export const OrderDetailDialog = ({
                     disabled={updateStatus.isPending}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
-                    {statusLabels[order.status as keyof typeof statusLabels]}
+                    {nextStep?.label}
                     <ChevronRight className="h-4 w-4 ml-2" />
                   </Button>
                 )}
@@ -396,6 +507,13 @@ export const OrderDetailDialog = ({
         onOpenChange={setIsCancelDialogOpen}
         resourceLabel="Pedido"
         isLoading={cancelOrder.isPending}
+        platformLabel={
+          isMarketplace((order as any)?.source)
+            ? SOURCE_LABEL[((order as any)?.source ?? "own") as OrderSource]
+            : undefined
+        }
+        platformReasons={platformReasons}
+        loadingPlatformReasons={loadingPlatformReasons}
         summary={{
           reference: `Pedido #${order.order_number}`,
           title: order.customer_name,
@@ -405,12 +523,13 @@ export const OrderDetailDialog = ({
           ),
           total: Number(order.total),
         }}
-        onConfirm={async ({ reason, category, customerNotified }) => {
+        onConfirm={async ({ reason, category, customerNotified, cancellationCode }) => {
           await cancelOrder.mutateAsync({
             id: order.id,
             reason,
             category,
             customerNotified,
+            cancellationCode,
           });
           setIsCancelDialogOpen(false);
           setTimeout(() => onOpenChange(false), 0);

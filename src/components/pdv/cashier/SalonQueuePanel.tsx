@@ -39,6 +39,7 @@ import { useProductionCenters } from "@/hooks/use-production-centers";
 import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
 import { useDeliverySettings } from "@/hooks/use-delivery-settings";
 import { AlertTriangle } from "lucide-react";
+import { nextOrderStep } from "@/lib/marketplace-orders";
 
 interface SalonQueuePanelProps {
   isOpen: boolean;
@@ -122,9 +123,12 @@ export function SalonQueuePanel({
   };
 
   const handleAdvanceStatus = (order: DeliveryOrder) => {
-    const next = NEXT[order.status];
+    // Marketplace tem vocabulário próprio (o iFood não usa "pronto" em
+    // entrega), então o próximo passo sai do mapeamento da plataforma.
+    const step = nextOrderStep((order as any).source, order.status, order.order_type);
+    const next = step?.status ?? NEXT[order.status];
     if (!next) return;
-    updateOrderStatus.mutate({ id: order.id, status: next });
+    updateOrderStatus.mutate({ id: order.id, status: next as any });
   };
 
   // O botão "Caixa"/"Retirada" do card mandava a comanda pelo `window.print()`

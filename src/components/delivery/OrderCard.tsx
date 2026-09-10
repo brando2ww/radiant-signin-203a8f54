@@ -24,26 +24,12 @@ import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
 import { AssignDriverPopover } from "./AssignDriverPopover";
 import { cn } from "@/lib/utils";
+import { OrderSourceBadge } from "./OrderSourceBadge";
+import { nextOrderStep } from "@/lib/marketplace-orders";
 
 interface OrderCardProps {
   order: DeliveryOrder;
 }
-
-const statusFlow: Record<string, DeliveryOrder["status"]> = {
-  pending: "preparing",
-  confirmed: "preparing",
-  preparing: "ready",
-  ready: "delivering",
-  delivering: "completed",
-};
-
-const nextStatusLabel: Record<string, string> = {
-  pending: "Confirmar",
-  confirmed: "Iniciar Preparo",
-  preparing: "Marcar como Pronto",
-  ready: "Saiu para Entrega",
-  delivering: "Concluir Entrega",
-};
 
 const paymentInfo = (method: string): { label: string; icon: typeof CreditCard } => {
   const m = (method || "").toLowerCase();
@@ -85,14 +71,16 @@ export const OrderCard = ({ order }: OrderCardProps) => {
 
   const isPickup = order.order_type === "pickup";
   const driver = order.driver_id ? drivers.find((d) => d.id === order.driver_id) : null;
-  const nextStatus = statusFlow[order.status];
+  // O próximo passo depende da origem: no iFood, pedido de entrega pula
+  // "pronto" e vai direto para o despacho.
+  const nextStep = nextOrderStep((order as any).source, order.status, order.order_type);
   const pay = paymentInfo(order.payment_method);
   const PayIcon = pay.icon;
   const items = order.delivery_order_items || [];
 
   const handleAdvance = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (nextStatus) updateStatus.mutate({ id: order.id, status: nextStatus });
+    if (nextStep) updateStatus.mutate({ id: order.id, status: nextStep.status as any });
   };
 
   const handlePhone = (e: React.MouseEvent) => {
@@ -109,7 +97,10 @@ export const OrderCard = ({ order }: OrderCardProps) => {
         <CardContent className="p-4 space-y-3">
           {/* Header */}
           <div className="flex items-start justify-between gap-2">
-            <p className="font-bold text-lg leading-none">#{order.order_number}</p>
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="font-bold text-lg leading-none">#{order.order_number}</p>
+              <OrderSourceBadge source={(order as any).source} />
+            </div>
             <div className="flex gap-1 flex-wrap justify-end">
               {order.scheduled_for && (
                 <Badge variant="secondary" className="text-xs gap-1 shrink-0">
@@ -199,14 +190,14 @@ export const OrderCard = ({ order }: OrderCardProps) => {
 
           {/* Ações */}
           <div className="space-y-1.5">
-            {nextStatus && (
+            {nextStep && (
               <Button
                 size="sm"
                 className="w-full"
                 onClick={handleAdvance}
                 disabled={updateStatus.isPending}
               >
-                {nextStatusLabel[order.status]}
+                {nextStep.label}
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             )}

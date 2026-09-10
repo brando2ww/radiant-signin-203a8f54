@@ -68,41 +68,39 @@ Deno.serve(async (req) => {
       .gte('created_at', `${year}-01-01`)
     let nextPoNumber = (poCount || 0) + 1
 
+    const APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') ?? 'https://pdv.velaraia.app'
+
     for (const order of orders) {
       const { supplierId, phone, message } = order
       if (!phone) {
         errors.push({ supplierId, error: 'Telefone ausente' })
         continue
       }
-      // No canal oficial o texto livre não é usado: quem manda é o modelo.
-      if (!message && !(Array.isArray(order.templateParams) && order.templateParams.length === 7)) {
-        errors.push({ supplierId, error: 'Mensagem ausente' })
-        continue
-      }
-      const ctx = { purpose: 'supplier_order' as const, supplierId }
 
       const params: string[] = Array.isArray(order.templateParams)
         ? order.templateParams.map((v: unknown) => achatarParametro(v))
         : []
+      // No canal oficial o texto livre não é usado: quem manda é o modelo.
+      // 8 variáveis desde 08/09/2026, quando o CNPJ do comprador entrou no corpo.
+      const usaModeloAqui = usaModelo && params.length === 8
 
-      const outcome = usaModelo && params.length === 7
-        ? await sendTemplate(supabase, channel, String(phone), {
-            name: 'pedido_fornecedor',
-            language: 'pt_BR',
-            bodyParams: params,
-          }, ctx)
-        : await sendText(supabase, channel, String(phone), message, ctx)
-      const delivered = outcome.ok
-      if (delivered) sent.push(supplierId)
-      else errors.push({ supplierId, error: outcome.errorMessage ?? outcome.errorCode ?? 'Falha no envio' })
+      if (!message && !usaModeloAqui) {
+        errors.push({ supplierId, error: 'Mensagem ausente' })
+        continue
+      }
 
-      // Registra o PEDIDO DE COMPRA (mesmo se o WhatsApp falhar: fica como 'draft').
       const items: any[] = Array.isArray(order.items) ? order.items : []
+
+      // O PEDIDO NASCE ANTES DO ENVIO. O botão do WhatsApp aponta para o
+      // `public_token` dele, e é lá que o fornecedor vê a relação de itens —
+      // que nunca coube no modelo aprovado (parâmetro da Meta não aceita quebra
+      // de linha e estoura perto de 1024 caracteres). Sem pedido, não há link.
+      let po: { id: string; order_number: string; public_token: string } | null = null
       if (items.length > 0) {
         const subtotal = items.reduce((s, it) => s + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0)
         const orderNumber = `PC-${year}-${String(nextPoNumber).padStart(4, '0')}`
         nextPoNumber++
-        const { data: po, error: poErr } = await supabase
+        const { data: created, error: poErr } = await supabase
           .from('pdv_purchase_orders')
           .insert({
             user_id: user.id,
@@ -113,18 +111,19 @@ Deno.serve(async (req) => {
             payment_terms: order.paymentTerms ?? null,
             subtotal,
             total: subtotal,
-            status: delivered ? 'sent' : 'draft',
-            whatsapp_sent_at: delivered ? new Date().toISOString() : null,
+            // Vira 'sent' só depois que a mensagem sai de fato.
+            status: 'draft',
             notes: `Gerado a partir da cotação${order.requestNumber ? ` ${order.requestNumber}` : ''}.`,
           })
-          .select('id, order_number')
+          .select('id, order_number, public_token')
           .single()
         if (poErr) {
           console.error('purchase order insert error:', poErr.message)
-        } else if (po) {
-          createdOrders.push(po.order_number)
+        } else if (created) {
+          po = created as any
+          createdOrders.push(created.order_number)
           const poItems = items.map((it: any) => ({
-            purchase_order_id: po.id,
+            purchase_order_id: created.id,
             ingredient_id: it.ingredient_id,
             quotation_response_id: it.quotation_response_id ?? null,
             quantity: Number(it.quantity) || 0,
@@ -135,6 +134,51 @@ Deno.serve(async (req) => {
           const { error: itErr } = await supabase.from('pdv_purchase_order_items').insert(poItems)
           if (itErr) console.error('purchase order items insert error:', itErr.message)
         }
+      }
+
+      // Sem pedido gravado o modelo não tem link para o botão, e a Meta recusa
+      // o envio com parâmetro de URL vazio. Melhor falhar aqui, com motivo.
+      if (usaModeloAqui && !po) {
+        errors.push({ supplierId, error: 'Pedido sem itens: nada a enviar.' })
+        continue
+      }
+
+      const ctx = {
+        purpose: 'supplier_order' as const,
+        supplierId,
+        entityType: po ? 'purchase_order' : undefined,
+        entityId: po?.id,
+      }
+
+      // No canal por QR não há botão: o link entra no fim do texto.
+      const link = po ? `${APP_ORIGIN}/l/pedido/${po.public_token}` : ''
+      const texto = link && message
+        ? `${message}\n\nRelação completa e confirmação: ${link}`
+        : message
+
+      const outcome = usaModeloAqui
+        ? await sendTemplate(supabase, channel, String(phone), {
+            name: 'confirmacao_cotacao_2',
+            language: 'pt_BR',
+            bodyParams: params,
+            urlButtonParam: po!.public_token,
+          }, ctx)
+        : await sendText(supabase, channel, String(phone), texto, ctx)
+
+      const delivered = outcome.ok
+      if (delivered) sent.push(supplierId)
+      else errors.push({ supplierId, error: outcome.errorMessage ?? outcome.errorCode ?? 'Falha no envio' })
+
+      // O pedido fica gravado mesmo se o WhatsApp falhar: vira 'draft' e o
+      // comprador reenvia sem perder o que já foi fechado.
+      if (po) {
+        await supabase
+          .from('pdv_purchase_orders')
+          .update({
+            status: delivered ? 'sent' : 'draft',
+            whatsapp_sent_at: delivered ? new Date().toISOString() : null,
+          })
+          .eq('id', po.id)
       }
     }
 

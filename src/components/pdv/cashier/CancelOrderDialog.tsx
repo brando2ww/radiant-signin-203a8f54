@@ -46,10 +46,19 @@ interface CancelOrderDialogProps {
   resourceLabel?: string;
   summary: CancelOrderSummary | null;
   isLoading?: boolean;
+  /**
+   * Motivos exigidos pela plataforma de origem (iFood, DeliveryMuch). Quando
+   * vem preenchido, escolher um é OBRIGATÓRIO: o iFood recusa cancelamento
+   * sem `cancellationCode`, e a lista muda conforme o estágio do pedido.
+   */
+  platformReasons?: { code: string; description: string }[];
+  platformLabel?: string;
+  loadingPlatformReasons?: boolean;
   onConfirm: (payload: {
     reason: string;
     category: CancelCategory;
     customerNotified: boolean;
+    cancellationCode?: string;
   }) => Promise<void> | void;
 }
 
@@ -59,24 +68,32 @@ export function CancelOrderDialog({
   resourceLabel = "pedido",
   summary,
   isLoading = false,
+  platformReasons,
+  platformLabel,
+  loadingPlatformReasons = false,
   onConfirm,
 }: CancelOrderDialogProps) {
   const [reason, setReason] = useState("");
   const [category, setCategory] = useState<CancelCategory | "">("");
   const [customerNotified, setCustomerNotified] = useState(false);
+  const [platformCode, setPlatformCode] = useState("");
+
+  const requiresPlatformReason = !!platformLabel;
 
   useEffect(() => {
     if (open) {
       setReason("");
       setCategory("");
       setCustomerNotified(false);
+      setPlatformCode("");
     }
   }, [open, summary?.reference]);
 
   const reasonTrimmedLength = reason.trim().length;
   const reasonValid = reasonTrimmedLength >= MIN_CANCEL_REASON_LENGTH;
   const canConfirm =
-    !!summary && reasonValid && !!category && customerNotified && !isLoading;
+    !!summary && reasonValid && !!category && customerNotified && !isLoading &&
+    (!requiresPlatformReason || !!platformCode);
 
   const handleConfirm = async () => {
     if (!canConfirm || !category) return;
@@ -84,6 +101,7 @@ export function CancelOrderDialog({
       reason: reason.trim(),
       category: category as CancelCategory,
       customerNotified,
+      cancellationCode: platformCode || undefined,
     });
   };
 
@@ -139,6 +157,42 @@ export function CancelOrderDialog({
                 {formatBRL(summary.total)}
               </span>
             </div>
+          </div>
+        )}
+
+        {requiresPlatformReason && (
+          <div className="space-y-2">
+            <Label htmlFor="cancel-platform-reason">
+              Motivo aceito pelo {platformLabel}
+            </Label>
+            <Select
+              value={platformCode || undefined}
+              onValueChange={setPlatformCode}
+              disabled={isLoading || loadingPlatformReasons || !platformReasons?.length}
+            >
+              <SelectTrigger id="cancel-platform-reason">
+                <SelectValue
+                  placeholder={
+                    loadingPlatformReasons
+                      ? "Buscando motivos na plataforma..."
+                      : platformReasons?.length
+                        ? "Selecione o motivo..."
+                        : "A plataforma não ofereceu motivos para este pedido"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {(platformReasons ?? []).map((r) => (
+                  <SelectItem key={r.code} value={r.code}>
+                    {r.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O {platformLabel} só aceita cancelamento com um motivo da lista dele.
+              A lista muda conforme o estágio do pedido.
+            </p>
           </div>
         )}
 

@@ -15,6 +15,8 @@ const generalSchema = z.object({
   business_name: z.string().optional(),
   business_phone: z.string().optional(),
   business_address: z.string().optional(),
+  business_city: z.string().optional(),
+  business_state: z.string().optional(),
   business_cnpj: z.string().optional(),
   state_registration: z.string().optional(),
   tax_regime: z.string().optional(),
@@ -110,6 +112,42 @@ export function GeneralTab({ defaultValues, onSave, isSubmitting }: GeneralTabPr
                 </FormItem>
               )}
             />
+
+            {/* Cidade e UF separados do endereço livre: são variáveis do modelo
+                de cotação do WhatsApp, e a Meta recusa a mensagem inteira se
+                vierem vazias. Ficam aqui, e não no módulo fiscal, para não
+                depender de certificado digital. */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FormField
+                control={form.control}
+                name="business_city"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Cidade</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Garibaldi" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Aparece na solicitação de cotação enviada ao fornecedor.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="business_state"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>UF</FormLabel>
+                    <FormControl>
+                      <Input placeholder="RS" maxLength={2} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField

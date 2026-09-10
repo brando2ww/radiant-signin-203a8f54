@@ -110,7 +110,9 @@ export default function NfeImport() {
   const filtered =
     filterStatus === "todos"
       ? invoices
-      : invoices.filter((n) => n.mde_status === filterStatus);
+      : filterStatus === "manual"
+        ? invoices.filter((n) => (n as any).source === "manual")
+        : invoices.filter((n) => (n as any).source !== "manual" && n.mde_status === filterStatus);
 
   const hasConfig = !!config?.cnpj;
 
@@ -199,14 +201,18 @@ export default function NfeImport() {
 
       {/* Filtros rápidos */}
       <div className="flex gap-2 flex-wrap">
-        {["todos", "pendente", "ciencia", "confirmado", "desconhecido"].map((s) => (
+        {["todos", "pendente", "ciencia", "confirmado", "desconhecido", "manual"].map((s) => (
           <Button
             key={s}
             variant={filterStatus === s ? "default" : "outline"}
             size="sm"
             onClick={() => setFilterStatus(s)}
           >
-            {s === "todos" ? "Todos" : (MDE_STATUS_LABELS[s]?.label ?? s)}
+            {s === "todos"
+              ? "Todos"
+              : s === "manual"
+                ? "Compras avulsas"
+                : (MDE_STATUS_LABELS[s]?.label ?? s)}
           </Button>
         ))}
       </div>
@@ -245,7 +251,14 @@ export default function NfeImport() {
                 filtered.map((nfe) => (
                   <TableRow key={nfe.id}>
                     <TableCell className="max-w-[200px] truncate font-medium" title={nfe.supplier_name}>
-                      {nfe.supplier_name || "–"}
+                      <span className="flex items-center gap-2">
+                        <span className="truncate">{nfe.supplier_name || "–"}</span>
+                        {(nfe as any).source === "manual" && (
+                          <Badge variant="secondary" className="shrink-0 text-[10px]">
+                            Avulsa
+                          </Badge>
+                        )}
+                      </span>
                     </TableCell>
                     <TableCell className="font-mono text-xs">
                       {formatCnpj(nfe.supplier_cnpj)}
@@ -261,7 +274,14 @@ export default function NfeImport() {
                           disponível: só dá para dar entrada quando o SEFAZ
                           liberou o documento completo. Esconder isso é o que
                           fazia o operador clicar em círculo. */}
-                      {(nfe as any).mde_nfe_completa ? (
+                      {/* Compra avulsa não tem documento fiscal para conferir:
+                          já nasceu com estoque e financeiro lançados. O que ela
+                          precisa é de conferência, não de entrada. */}
+                      {(nfe as any).source === "manual" ? (
+                        <span className="text-xs text-muted-foreground">
+                          Lançada manualmente
+                        </span>
+                      ) : (nfe as any).mde_nfe_completa ? (
                         <Button
                           size="sm"
                           disabled={baixandoChave === nfe.invoice_key}

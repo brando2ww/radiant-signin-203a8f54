@@ -1,7 +1,7 @@
-// og-cotacao — preview rico (Open Graph/WhatsApp) do link de orçamento do fornecedor.
-// Mesmo padrão do og-cardapio: se for robô (WhatsApp, Facebook, etc.) devolve HTML
-// com as meta tags + logo do CLIENTE; se for pessoa, redireciona (302) para o app.
-// Chamado via rewrite do Vercel: pdv.velaraia.app/l/cotacao/:token → esta função.
+// og-pedido — preview rico (Open Graph/WhatsApp) do link do PEDIDO ao fornecedor.
+// Gêmeo do og-cotacao: robô recebe as meta tags com a marca do cliente, pessoa é
+// redirecionada (302) para /pedido/:token no app.
+// Chamado via rewrite do Vercel: pdv.velaraia.app/l/pedido/:token → esta função.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -32,49 +32,42 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    // token pode vir por ?token= ou no fim do path (/og-cotacao/:token)
     const bruto =
       url.searchParams.get("token")?.trim() ||
       url.pathname.split("/").filter(Boolean).pop() ||
       "";
 
-    // O botão do modelo aprovado na Meta tem a variável URL-encoded dentro da
-    // própria base ("/l/cotacao/%7B%7B1%7D%7D"), então a plataforma cola o
-    // nosso token DEPOIS desse lixo e o endereço chega assim:
-    //   /l/cotacao/%7B%7B1%7D%7D<uuid>
-    // Editar o modelo devolveria ele para análise e derrubaria o disparo por
-    // horas, então quem se adapta é a rota: extrai o UUID de onde ele estiver.
-    // Também protege contra o caso inverso — alguém colar o link com espaço,
-    // barra sobrando ou texto antes.
+    // Mesma defesa do og-cotacao: a Meta pode colar o token depois de lixo
+    // URL-encoded ("%7B%7B1%7D%7D<uuid>"). Quem se adapta é a rota.
     const token =
       (decodeURIComponent(bruto).match(
         /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
       )?.[0] ?? bruto);
     const botRequest = isBot(req.headers.get("user-agent"));
-    const target = `${APP_ORIGIN}/cotacao/${token}`;
+    const target = `${APP_ORIGIN}/pedido/${token}`;
 
-    let businessName = "Solicitação de Orçamento";
-    let requestNumber = "";
+    let businessName = "Pedido de compra";
+    let orderNumber = "";
     let logoUrl = VELARA_LOGO;
 
     if (token) {
-      const { data: link } = await supabase
-        .from("pdv_quotation_supplier_links")
-        .select("user_id, quotation_request_id")
-        .eq("token", token)
+      const { data: order } = await supabase
+        .from("pdv_purchase_orders")
+        .select("user_id, order_number")
+        .eq("public_token", token)
         .maybeSingle();
-      if (link) {
-        const [{ data: settings }, { data: quotation }] = await Promise.all([
-          supabase.from("business_settings").select("business_name, logo_url, cover_url").eq("user_id", link.user_id).maybeSingle(),
-          supabase.from("pdv_quotation_requests").select("request_number").eq("id", link.quotation_request_id).maybeSingle(),
-        ]);
+      if (order) {
+        const { data: settings } = await supabase
+          .from("business_settings")
+          .select("business_name, logo_url, cover_url")
+          .eq("user_id", order.user_id)
+          .maybeSingle();
         if (settings?.business_name) businessName = settings.business_name;
         logoUrl = settings?.logo_url || settings?.cover_url || VELARA_LOGO;
-        requestNumber = quotation?.request_number || "";
+        orderNumber = order.order_number || "";
       }
     }
 
-    // Pessoas: redireciona direto para o formulário no app.
     if (!botRequest) {
       return new Response(null, {
         status: 302,
@@ -82,10 +75,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const title = `Orçamento · ${businessName}`;
-    const description = requestNumber
-      ? `${businessName} solicitou seu orçamento (${requestNumber}). Toque para informar preços, prazo e pagamento.`
-      : `${businessName} solicitou seu orçamento. Toque para informar preços, prazo e pagamento.`;
+    const title = `Pedido de compra · ${businessName}`;
+    const description = orderNumber
+      ? `${businessName} fechou o pedido ${orderNumber} com você. Toque para ver a relação de itens e confirmar.`
+      : `${businessName} fechou um pedido com você. Toque para ver a relação de itens e confirmar.`;
 
     const html = `<!doctype html>
 <html lang="pt-BR">
@@ -112,7 +105,7 @@ Deno.serve(async (req) => {
 <body>
 <h1>${escapeHtml(title)}</h1>
 <p>${escapeHtml(description)}</p>
-<p><a href="${escapeHtml(target)}">Preencher orçamento</a></p>
+<p><a href="${escapeHtml(target)}">Ver pedido</a></p>
 </body>
 </html>`;
 
@@ -121,7 +114,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300" },
     });
   } catch (err) {
-    console.error("og-cotacao error", err);
+    console.error("og-pedido error", err);
     return new Response("error", { status: 500, headers: { ...corsHeaders, "Content-Type": "text/plain" } });
   }
 });

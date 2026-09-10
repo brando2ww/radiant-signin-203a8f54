@@ -21,10 +21,15 @@ import { QuotationRequest } from "@/hooks/use-pdv-quotations";
 import { useBusinessSettings } from "@/hooks/use-business-settings";
 import { conservationLabel, generateWinnerOrderMessage, WinnerOrderItem } from "@/lib/whatsapp-message";
 import { formatBRL } from "@/lib/format";
+import { formatarPagamento, dataEntrega } from "@/lib/purchase-terms";
+import { formatCNPJ } from "@/lib/invoice/validators";
+import { format } from "date-fns";
 import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { useWhatsAppConnection } from "@/hooks/use-whatsapp-connection";
 import { TemplatePreview } from "@/components/pdv/whatsapp/TemplatePreview";
-import { TEMPLATE_PEDIDO, achatarParametro } from "@/lib/whatsapp-templates";
+import {
+  TEMPLATE_PEDIDO, achatarParametro, conferirParametros,
+} from "@/lib/whatsapp-templates";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -174,7 +179,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   );
 
   /**
-   * Valores do modelo `pedido_fornecedor` para um fornecedor.
+   * Valores do modelo `cotacao_fornecedor_escolhido` para um fornecedor.
    *
    * Prazo e pagamento são opcionais no cadastro, e parâmetro vazio faz a Meta
    * recusar o envio inteiro — daí o "A combinar" em vez de string vazia.
@@ -182,21 +187,55 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   /** Linhas que de fato entram no pedido: as zeradas ficam só na conferência. */
   const linhasAtivas = (o: SupplierOrder) => o.items.filter((i) => i.quantity > 0);
 
-  const valoresPedido = (o: SupplierOrder): string[] => {
-    const nomeCasa = pdvSettings?.business_name || settings?.business_name || "";
-    const qtd = linhasAtivas(o).length;
-    return [
-      achatarParametro(o.name),
-      achatarParametro(nomeCasa),
-      achatarParametro(quotation.request_number) || "sem referência",
-      `${qtd} ${qtd === 1 ? "item" : "itens"}`,
-      formatBRL(o.total),
-      o.maxDeliveryDays != null
-        ? `${o.maxDeliveryDays} ${o.maxDeliveryDays === 1 ? "dia" : "dias"}`
-        : "A combinar",
-      achatarParametro(o.paymentTerms) || "A combinar",
-    ];
+  /**
+   * Data de entrega prometida. É a MESMA que vai para `expected_delivery` do
+   * pedido: calcular nos dois lugares separadamente daria mensagem e pedido
+   * discordando quando o envio virasse a meia-noite.
+   */
+  const entregaEm = (o: SupplierOrder) => dataEntrega(o.maxDeliveryDays);
+
+  const nomeDaCasa = () =>
+    pdvSettings?.business_name || settings?.business_name || "";
+
+  /** Data prometida, já escrita: "11/09/2026 (3 dias)". */
+  const entregaEscrita = (o: SupplierOrder) => {
+    const d = entregaEm(o);
+    return d
+      ? `${format(d, "dd/MM/yyyy")} (${o.maxDeliveryDays} ${o.maxDeliveryDays === 1 ? "dia" : "dias"})`
+      : "A combinar";
   };
+
+  /**
+   * Modelo novo (8 variáveis). A variável 5 é só a CONTAGEM de itens: a relação
+   * inteira vai no botão, que abre a página do pedido. Parâmetro da Meta não
+   * aceita quebra de linha, então a lista dentro da mensagem sempre saiu como
+   * uma linha corrida de vírgulas.
+   */
+  const valoresPedido = (o: SupplierOrder): string[] => [
+    achatarParametro(o.name),
+    achatarParametro(nomeDaCasa()),
+    // Formatado: o fornecedor precisa conferir o CNPJ para faturar, e
+    // "65822837000161" cru dá trabalho de ler.
+    achatarParametro(formatCNPJ(pdvSettings?.business_cnpj)),
+    achatarParametro(quotation.request_number) || "sem referência",
+    String(linhasAtivas(o).length),
+    formatBRL(o.total),
+    entregaEscrita(o),
+    achatarParametro(formatarPagamento(o.paymentTerms)),
+  ];
+
+  /**
+   * Parâmetro vazio faz a Meta recusar a mensagem INTEIRA, e o erro que volta é
+   * genérico. Melhor travar aqui, dizendo o nome do campo — foi o CNPJ em branco
+   * que derrubou o disparo do La Vecchia em 02/09.
+   */
+  const problemasModelo = useMemo(() => {
+    if (!canalOficial) return [];
+    const alvo = orders.find((o) => o.phone) ?? orders[0];
+    if (!alvo) return [];
+    return conferirParametros(TEMPLATE_PEDIDO, valoresPedido(alvo));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canalOficial, orders, pdvSettings?.business_cnpj, settings?.business_name]);
 
   const grandTotal = useMemo(
     () => orders.reduce((sum, o) => sum + o.total, 0),
@@ -359,12 +398,6 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
   }, [open, orders, settings?.business_name, quotation.request_number]);
 
   const handleSend = async () => {
-    const toDate = (days: number | null) => {
-      if (days == null) return null;
-      const d = new Date();
-      d.setDate(d.getDate() + days);
-      return d.toISOString().split("T")[0];
-    };
     const payload = orders
       .filter((o) => o.phone && o.poItems.length > 0)
       .map((o) => ({
@@ -376,7 +409,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
         templateParams: valoresPedido(o),
         items: o.poItems,
         paymentTerms: o.paymentTerms,
-        expectedDelivery: toDate(o.maxDeliveryDays),
+        expectedDelivery: entregaEm(o)?.toISOString().split("T")[0] ?? null,
         requestNumber: quotation.request_number,
       }));
 
@@ -658,9 +691,24 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 Voltar à conferência
               </Button>
+              {problemasModelo.length > 0 && (
+                <div className="mr-auto flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-amber-900 dark:text-amber-200">
+                      Falta preencher {problemasModelo.map((p) => p.rotulo).join(", ")}
+                    </p>
+                    <p className="text-amber-800/80 dark:text-amber-200/70">
+                      O WhatsApp oficial recusa a mensagem inteira quando um campo do
+                      modelo vem vazio. O CNPJ fica em Configurações · Fiscal · Endereço
+                      fiscal.
+                    </p>
+                  </div>
+                </div>
+              )}
               <Button
                 onClick={handleSend}
-                disabled={sending || orders.every((o) => !o.phone)}
+                disabled={sending || orders.every((o) => !o.phone) || problemasModelo.length > 0}
                 className="bg-green-600 hover:bg-green-700 text-white"
               >
                 {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}

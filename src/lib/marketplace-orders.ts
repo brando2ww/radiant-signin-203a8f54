@@ -88,3 +88,63 @@ export function unsupportedTransitionMessage(source: string, status: string): st
   }
   return `Esta mudança de status não se aplica a pedido do ${label}.`;
 }
+
+/**
+ * Próximo passo que a TELA deve oferecer, já respeitando o vocabulário da
+ * plataforma de origem.
+ *
+ * Existe porque o fluxo do PDV (preparo → pronto → saiu para entrega) não é o
+ * do iFood: lá, pedido de ENTREGA vai de preparo direto para o despacho, e
+ * "pronto" só existe para retirada. Oferecer o botão errado e explicar o erro
+ * depois é o pior dos dois mundos — o operador clica, toma um aviso vermelho e
+ * fica sem saber o que fazer.
+ *
+ * Também não se oferece "concluir" em pedido de marketplace: quem conclui é a
+ * plataforma, e o estado chega pelo evento.
+ */
+export function nextOrderStep(
+  source: string | null | undefined,
+  status: string,
+  orderType: string | null | undefined,
+): { status: string; label: string } | null {
+  const src = source ?? "own";
+
+  if (src === "ifood") {
+    const isPickup = orderType === "pickup";
+    switch (status) {
+      case "pending":
+        return { status: "preparing", label: "Confirmar pedido" };
+      case "confirmed":
+        return { status: "preparing", label: "Iniciar preparo" };
+      case "preparing":
+        return isPickup
+          ? { status: "ready", label: "Pronto para retirada" }
+          : { status: "delivering", label: "Despachar" };
+      default:
+        // ready (retirada), delivering e completed são concluídos pelo iFood
+        return null;
+    }
+  }
+
+  if (src === "deliverymuch") {
+    switch (status) {
+      case "pending":
+        return { status: "preparing", label: "Aceitar pedido" };
+      case "confirmed":
+        return { status: "preparing", label: "Iniciar preparo" };
+      case "preparing":
+        return { status: "ready", label: "Marcar como pronto" };
+      default:
+        return null;
+    }
+  }
+
+  const own: Record<string, { status: string; label: string }> = {
+    pending: { status: "preparing", label: "Confirmar" },
+    confirmed: { status: "preparing", label: "Iniciar Preparo" },
+    preparing: { status: "ready", label: "Marcar como Pronto" },
+    ready: { status: "delivering", label: "Saiu para Entrega" },
+    delivering: { status: "completed", label: "Concluir Entrega" },
+  };
+  return own[status] ?? null;
+}

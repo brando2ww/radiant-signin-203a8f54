@@ -23,7 +23,7 @@
  */
 import type { Channel, SendOutcome } from "./types.ts";
 import { toWhatsAppNumber } from "./phone.ts";
-import { montarTemplateData, conferirTemplate, type TemplateSpec } from "./template-spec.ts";
+import { montarTemplateData, conferirTemplate, rotuloDaVariavel, type TemplateSpec } from "./template-spec.ts";
 
 export interface SellGridEnv {
   base: string;
@@ -204,13 +204,15 @@ export async function sellGridSendTemplate(
   // inteira, e o erro que volta não diz qual campo faltou.
   const problemas = conferirTemplate(spec);
   if (problemas.length > 0) {
-    const vazios = problemas.filter((p) => p.motivo === "vazio").map((p) => p.posicao);
+    const vazios = problemas
+      .filter((p) => p.motivo === "vazio")
+      .map((p) => rotuloDaVariavel(spec.name, p.posicao));
     return {
       ok: false,
       status: "failed",
       errorCode: "template_param_invalid",
       errorMessage: vazios.length
-        ? `O modelo tem variável sem valor (posição ${vazios.join(", ")}). Complete o cadastro do estabelecimento e tente de novo.`
+        ? `Falta preencher ${vazios.join(", ")} no cadastro do estabelecimento. O WhatsApp oficial recusa a mensagem inteira quando um campo do modelo vem vazio.`
         : "Uma variável do modelo tem quebra de linha, que a Meta não aceita.",
     };
   }

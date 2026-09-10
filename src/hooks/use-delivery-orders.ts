@@ -266,6 +266,37 @@ export const useUpdateOrderStatus = () => {
   });
 };
 
+/**
+ * Motivos de cancelamento aceitos pela plataforma.
+ *
+ * O iFood não aceita texto livre: exige um `cancellationCode` da lista dele,
+ * e a lista varia conforme o estágio do pedido. Buscar na hora é o único jeito
+ * de oferecer um motivo que vai ser aceito.
+ */
+export const useMarketplaceCancellationReasons = (
+  orderId: string | null,
+  source: string | null | undefined,
+) => {
+  return useQuery({
+    queryKey: ["marketplace-cancellation-reasons", orderId],
+    enabled: !!orderId && isMarketplace(source),
+    staleTime: 0,
+    queryFn: async () => {
+      const fn = SOURCE_FUNCTION[(source as string) as keyof typeof SOURCE_FUNCTION];
+      if (!fn) return [];
+      const { data, error } = await supabase.functions.invoke(fn, {
+        body: { action: "cancellation_reasons", orderId },
+      });
+      if (error) throw error;
+      const list = ((data as any)?.reasons ?? []) as any[];
+      return list.map((r) => ({
+        code: String(r.cancelCodeId ?? r.code ?? ""),
+        description: String(r.description ?? r.reason ?? ""),
+      })).filter((r) => r.code && r.description);
+    },
+  });
+};
+
 export const useCancelOrder = () => {
   const queryClient = useQueryClient();
 
@@ -275,13 +306,52 @@ export const useCancelOrder = () => {
       reason,
       category,
       customerNotified,
+      cancellationCode,
     }: {
       id: string;
       reason: string;
       category?: string | null;
       customerNotified?: boolean;
+      cancellationCode?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: current } = await supabase
+        .from("delivery_orders")
+        .select("source")
+        .eq("id", id)
+        .single();
+
+      const source = ((current as any)?.source ?? "own") as string;
+
+      // Pedido de marketplace não pode ser cancelado só no banco: a plataforma
+      // segue esperando, o cliente não é avisado e a loja é penalizada. No
+      // iFood o cancelamento é um PEDIDO — ele vale quando o evento de
+      // cancelamento volta pelo polling, então aqui não se marca "cancelled".
+      if (isMarketplace(source)) {
+        const fn = SOURCE_FUNCTION[source as keyof typeof SOURCE_FUNCTION];
+        if (!fn) throw new Error(`Integração desconhecida para a origem "${source}".`);
+
+        const { data: result, error: fnError } = await supabase.functions.invoke(fn, {
+          body: { action: "cancel", orderId: id, reason, cancellationCode },
+        });
+        if (fnError) throw fnError;
+        if ((result as any)?.error) throw new Error((result as any).error);
+
+        // guarda o que o operador informou, sem mentir sobre o estado do pedido
+        await supabase
+          .from("delivery_orders")
+          .update({
+            cancellation_reason: reason,
+            cancellation_category: category ?? null,
+            customer_notified: !!customerNotified,
+            cancelled_by_user_id: user?.id ?? null,
+          } as any)
+          .eq("id", id);
+
+        return result;
+      }
+
       const { data, error } = await supabase
         .from("delivery_orders")
         .update({

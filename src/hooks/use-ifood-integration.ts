@@ -72,13 +72,50 @@ export function isPollingHealthy(platform: IFoodPlatformHealth | null): boolean 
   return Date.now() - Date.parse(platform.last_poll_at) < POLL_STALE_MS;
 }
 
+/**
+ * Motivo real da recusa.
+ *
+ * Em resposta não-2xx o supabase-js devolve só "Edge Function returned a
+ * non-2xx status code" e joga o corpo fora — que é justamente onde está a
+ * explicação. Resultado: toda recusa com texto pronto ("a vinculação é feita
+ * pela equipe Velara", "vincule uma loja antes de testar") chegava na tela como
+ * "erro de edge function", e quem clicou não tinha como saber o que fazer.
+ */
+async function motivoDaRecusa(error: unknown): Promise<string | null> {
+  const ctx = (error as { context?: Response })?.context;
+  if (!ctx || typeof ctx.clone !== "function") return null;
+  try {
+    const corpo = await ctx.clone().json();
+    const msg = (corpo as { error?: unknown })?.error;
+    return typeof msg === "string" && msg.trim() ? msg : null;
+  } catch {
+    return null;
+  }
+}
+
 async function callAuth<T = any>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke("ifood-auth", {
     body: { action, ...payload },
   });
-  if (error) throw error;
+  if (error) throw new Error((await motivoDaRecusa(error)) ?? error.message);
   if ((data as any)?.error) throw new Error((data as any).error);
   return data as T;
+}
+
+export interface IFoodTenant {
+  userId: string;
+  name: string;
+  document: string | null;
+}
+
+/** Tenants para escolher o dono da loja. Só o super admin recebe a lista. */
+export function useIFoodTenants(enabled: boolean) {
+  return useQuery({
+    queryKey: ["ifood-tenants"],
+    queryFn: () => callAuth<{ tenants: IFoodTenant[] }>("tenants"),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
 }
 
 export function useIFoodIntegration() {
@@ -100,7 +137,12 @@ export function useIFoodIntegration() {
   });
 
   const linkMerchant = useMutation({
-    mutationFn: (merchantId: string) => callAuth("link_merchant", { merchantId }),
+    // targetUserId é obrigatório na edge desde sempre; a tela é que não mandava,
+    // então TODA vinculação falhava com "Informe o tenant que vai receber os
+    // pedidos desta loja" — mensagem que o hook engolia.
+    mutationFn: ({ merchantId, targetUserId, name }: {
+      merchantId: string; targetUserId: string; name?: string;
+    }) => callAuth("link_merchant", { merchantId, targetUserId, name }),
     onSuccess: () => {
       toast.success("Loja vinculada ao iFood");
       invalidate();
@@ -124,9 +166,16 @@ export function useIFoodIntegration() {
   });
 
   const testConnection = useMutation({
-    mutationFn: () => callAuth<{ success: boolean; httpStatus: number; storeStatus?: any }>("test_connection"),
+    mutationFn: () =>
+      callAuth<{
+        success: boolean; httpStatus: number; storeStatus?: any;
+        limitado?: boolean;
+      }>("test_connection"),
     onSuccess: (data) => {
-      if (data.success) toast.success("Conexão com o iFood respondeu normalmente");
+      // Loja que autorizou só os módulos de pedido responde 403 no módulo
+      // 'Loja'. Dizer "erro" aí seria mentira: o pedido entra igual. E a
+      // ressalva não cabe no toast: ela vira uma linha fixa no card.
+      if (data.success) toast.success("Conexão OK. A loja está recebendo pedidos.");
       else toast.error(`O iFood respondeu ${data.httpStatus}`);
       invalidate();
     },

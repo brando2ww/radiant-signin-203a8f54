@@ -39,6 +39,12 @@ export interface PurchaseOrder {
   payment_terms: string | null;
   notes: string | null;
   whatsapp_sent_at: string | null;
+  /** Token do link público /pedido/:token que vai no WhatsApp do fornecedor. */
+  public_token?: string;
+  /** Quando o fornecedor abriu o link — mostra se a mensagem chegou de fato. */
+  supplier_viewed_at?: string | null;
+  supplier_confirmed_at?: string | null;
+  supplier_note?: string | null;
   /** Encerrado com itens faltando, por decisão do gestor. */
   closed_incomplete?: boolean;
   /** Justificativa obrigatória quando closed_incomplete. */

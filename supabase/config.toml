@@ -5,3 +5,12 @@ verify_jwt = false
 
 [functions.focusnfe-dfe-diag]
 verify_jwt = false
+
+# Rotas abertas: são chamadas direto pelo navegador/WhatsApp, sem chave. Ficar
+# aqui evita a regressão de 02/09/2026, quando um deploy sem --no-verify-jwt
+# devolveu 401 para todo fornecedor que tocou no botão.
+[functions.og-cotacao]
+verify_jwt = false
+
+[functions.og-pedido]
+verify_jwt = false

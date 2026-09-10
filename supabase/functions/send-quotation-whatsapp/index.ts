@@ -117,9 +117,26 @@ Deno.serve(async (req) => {
     const sent: string[] = []
     const errors: { supplierId: string; phone: string; error: string }[] = []
 
+    // Fornecedor desativado não recebe cotação, ainda que a tela mande.
+    // A checagem é aqui e não só no front porque a desativação pode acontecer
+    // DEPOIS de o operador abrir o diálogo, e porque o vínculo em
+    // pdv_quotation_item_suppliers sobrevive à desativação.
+    const idsSolicitados = suppliers.map((s: { supplierId: string }) => s.supplierId)
+    const { data: ativos } = await supabase
+      .from('pdv_suppliers')
+      .select('id')
+      .in('id', idsSolicitados)
+      .eq('is_active', true)
+    const idsAtivos = new Set((ativos ?? []).map((s: { id: string }) => s.id))
+
     // Send message to each supplier
     for (const supplier of suppliers) {
       const { supplierId, phone, message } = supplier
+
+      if (!idsAtivos.has(supplierId)) {
+        errors.push({ supplierId, phone: phone || '', error: 'Fornecedor desativado' })
+        continue
+      }
 
       if (!phone) {
         errors.push({ supplierId, phone: phone || '', error: 'Telefone ausente' })
@@ -159,12 +176,23 @@ Deno.serve(async (req) => {
       let outcome
       if (usaModelo && params.length === 7) {
         outcome = await sendTemplate(supabase, channel, phone, {
-          name: 'cotacao_fornecedor',
+          // Nome recadastrado na Meta em 01/09/2026 junto com a troca do
+          // número de disparo. Ver src/lib/whatsapp-templates.ts.
+          name: 'solicitar_cotacao',
           language: 'pt_BR',
           bodyParams: params,
           // O token só existe depois de criado o link, logo acima. É ele que
           // entra colado no fim da URL do botão.
           urlButtonParam: url.split('/').pop(),
+          // Este modelo foi cadastrado na Meta COM cabeçalho de imagem. Sem
+          // mandar o componente, o envio morre em "(#132012) Parameter format
+          // does not match" — erro que não menciona cabeçalho e manda quem
+          // depura procurar nos parâmetros do corpo.
+          // Imagem fixa da Velara, e não a logo do lojista: logo inválida ou
+          // grande demais faz a Meta recusar a mensagem inteira, e aí o
+          // fornecedor não recebe nada.
+          headerImageUrl: Deno.env.get('WHATSAPP_TEMPLATE_HEADER_IMAGE')
+            || 'https://pdv.velaraia.app/whatsapp-cotacao-header.jpg',
         }, ctx)
       } else {
         if (usaModelo) {

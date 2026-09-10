@@ -12,6 +12,7 @@ export interface NfeMde {
   supplier_name: string;
   total_invoice: number;
   status: string;
+  source?: string | null;
   mde_status?: string | null;
   mde_queried_at?: string | null;
   created_at: string;
@@ -34,10 +35,13 @@ export function useNfeMde(filters?: { mde_status?: string }) {
       let query = supabase
         .from("pdv_invoices")
         .select(
-          "id, invoice_key, invoice_number, series, emission_date, supplier_cnpj, supplier_name, total_invoice, status, mde_status, mde_nfe_completa, mde_queried_at, created_at"
+          "id, invoice_key, invoice_number, series, emission_date, supplier_cnpj, supplier_name, total_invoice, status, source, mde_status, mde_nfe_completa, mde_queried_at, created_at"
         )
         .eq("user_id", visibleUserId)
-        .eq("source", "mde")
+        // Compra avulsa (source 'manual') grava na MESMA tabela da nota, mas
+        // ficava fora desta lista — some da tela e reaparece só na DRE, então
+        // não havia por onde conferir nem corrigir um lançamento errado.
+        .in("source", ["mde", "manual"])
         .order("emission_date", { ascending: false });
 
       if (filters?.mde_status) {

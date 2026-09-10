@@ -41,6 +41,21 @@ export function IngredientCombobox({
   const [open, setOpen] = useState(false);
   const selected = ingredients.find((i) => i.id === value);
 
+  // Rede de segurança contra a tela travar depois de selecionar um ingrediente.
+  // Este combobox vive DENTRO de um Dialog, e Dialog e Popover disputam o
+  // `pointer-events: none` do body. Quando a ordem de limpeza se inverte, o
+  // body fica travado e NADA na tela aceita mais clique — o usuário lê isso
+  // como "o sistema deu erro ao clicar".
+  useEffect(() => {
+    if (open) return;
+    const t = setTimeout(() => {
+      if (document.body.style.pointerEvents === "none") {
+        document.body.style.pointerEvents = "";
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [open]);
+
   // Nomes longos ("Bandeja Termica Aluminio 8 Marmitex C/ Tampa") não cabem na
   // largura do campo e viram "...". O botão do olho só aparece quando o texto
   // REALMENTE foi cortado — medido no DOM, não por contagem de caracteres, que
@@ -67,7 +82,10 @@ export function IngredientCombobox({
 
   return (
     <div className="flex items-center gap-1">
-      <Popover open={open} onOpenChange={setOpen} modal>
+      {/* Sem `modal`: aninhado num Dialog, o modo modal do Popover briga
+          pelo pointer-events do body e trava a tela ao fechar. O Dialog já
+          faz o trabalho de foco e de clique fora. */}
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"

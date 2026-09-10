@@ -31,6 +31,35 @@ import {
   serviceClient,
 } from "../_shared/ifood.ts";
 
+/**
+ * Vincular loja é operação de IMPLANTAÇÃO, não de autoatendimento.
+ *
+ * O polling é global: a lista de lojas do app mostra as lojas de TODOS os
+ * clientes. Se qualquer lojista pudesse escolher da lista, o dono de um
+ * restaurante veria — e poderia reivindicar — a loja do concorrente, e os
+ * pedidos passariam a cair na conta errada. A trava de chave primária em
+ * merchant_id protege quem chega primeiro, não impede o errado de chegar
+ * primeiro.
+ *
+ * Por isso a vinculação é feita pela equipe Velara, que é quem conduz a
+ * autorização no Portal do Parceiro e sabe de quem é cada loja.
+ */
+async function exigirSuperAdmin(supabase: SupabaseClient, userId: string) {
+  const { data } = await supabase
+    .from("super_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!data) {
+    throw new IfoodError(
+      "A vinculação da loja do iFood é feita pela equipe Velara. Fale com o suporte para conectar seu restaurante.",
+      "not_super_admin",
+      403,
+    );
+  }
+}
+
 interface IfoodMerchant {
   id: string;
   name?: string;
@@ -80,6 +109,7 @@ Deno.serve(async (req) => {
       // mais as que já são desta conta. Loja de outro cliente não aparece:
       // seria vazamento de dado entre tenants.
       case "available_merchants": {
+        await exigirSuperAdmin(supabase, user.id);
         const accessToken = await ifAppToken(supabase);
         const all = await fetchAppMerchants(accessToken);
 
@@ -106,28 +136,58 @@ Deno.serve(async (req) => {
 
       // ── link_merchant ─────────────────────────────────────────────────────
       case "link_merchant": {
+        await exigirSuperAdmin(supabase, user.id);
+
         const merchantId = String(body.merchantId ?? "").trim();
         if (!merchantId) throw new IfoodError("Escolha uma loja.", "missing_merchant", 400);
 
-        const accessToken = await ifAppToken(supabase);
-        const all = await fetchAppMerchants(accessToken);
-        const found = all.find((m) => m.id === merchantId);
-        if (!found) {
+        // Quem vincula é a equipe; o dono da loja tem que vir explícito. Sem
+        // isto a loja cairia na conta do super admin, que não é restaurante.
+        const targetUserId = String(body.targetUserId ?? "").trim();
+        if (!targetUserId) {
           throw new IfoodError(
-            "Essa loja não está vinculada ao aplicativo no iFood. Autorize a Velara no Portal do Parceiro primeiro.",
-            "merchant_not_authorized",
+            "Informe o tenant que vai receber os pedidos desta loja.",
+            "missing_target_tenant",
+            400,
+          );
+        }
+
+        // A loja escolhe QUAIS módulos autoriza. Quem libera só `order` e
+        // `events` — que é o suficiente para receber pedido — não aparece em
+        // GET /merchants e devolve 403 no detalhe, porque listar loja é o
+        // módulo `merchant`. Verificado no Kōten Garibaldi em 09/09/2026.
+        // Exigir a listagem impediria justamente o caso mais comum.
+        const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID.test(merchantId)) {
+          throw new IfoodError(
+            "O ID da loja no iFood é um UUID. Copie do Portal do Desenvolvedor, em Permissões.",
+            "invalid_merchant_id",
+            400,
+          );
+        }
+
+        const accessToken = await ifAppToken(supabase);
+        const all = await fetchAppMerchants(accessToken).catch(() => [] as IfoodMerchant[]);
+        const found = all.find((m) => m.id === merchantId);
+
+        // Sem o módulo `merchant` o nome não vem da API: quem vincula informa.
+        const informado = String(body.name ?? "").trim();
+        if (!found && !informado) {
+          throw new IfoodError(
+            "Essa loja não aparece na listagem do aplicativo (comum quando ela autorizou só os módulos de pedido). Informe o nome da loja para vincular pelo ID.",
+            "merchant_name_required",
             400,
           );
         }
 
         // A PK em merchant_id é o que impede duas contas reivindicarem a mesma
         // loja. Se já é de outro tenant, o insert falha e é isso mesmo.
-        const name = found.name ?? found.corporateName ?? found.id;
+        const name = found?.name ?? found?.corporateName ?? informado;
         const { error: linkErr } = await supabase.from("ifood_merchants").insert({
           merchant_id: merchantId,
-          user_id: user.id,
+          user_id: targetUserId,
           name,
-          corporate_name: found.corporateName ?? null,
+          corporate_name: found?.corporateName ?? null,
         });
 
         if (linkErr) {
@@ -137,7 +197,7 @@ Deno.serve(async (req) => {
               .select("user_id")
               .eq("merchant_id", merchantId)
               .maybeSingle();
-            if (current?.user_id !== user.id) {
+            if (current?.user_id !== targetUserId) {
               throw new IfoodError(
                 "Essa loja já está vinculada a outra conta do Velara.",
                 "merchant_taken",
@@ -149,14 +209,16 @@ Deno.serve(async (req) => {
           }
         }
 
-        await saveSettings(supabase, user.id, {
+        await saveSettings(supabase, targetUserId, {
           ifood_enabled: true,
           ifood_merchant_id: merchantId,
           ifood_merchant_name: name,
           ifood_connected_at: new Date().toISOString(),
         });
-        await ifClearError(supabase, user.id);
-        await ifLog(supabase, user.id, "link_merchant", "ok", { details: { merchantId } });
+        await ifClearError(supabase, targetUserId);
+        await ifLog(supabase, targetUserId, "link_merchant", "ok", {
+          details: { merchantId, vinculadoPor: user.id, listadoNoApp: Boolean(found) },
+        });
 
         return ifJson({ success: true, merchant: { id: merchantId, name } });
       }
@@ -210,6 +272,27 @@ Deno.serve(async (req) => {
           ifood_merchant_name: mine.name,
         });
         return ifJson({ success: true, merchant: mine });
+      }
+
+      // ── tenants ───────────────────────────────────────────────────────────
+      // Lista para quem vincula escolher o dono da loja. O nome que vem do
+      // iFood é a razão social e raramente bate com o cadastro daqui, então
+      // adivinhar pelo nome erraria — e errar aqui joga o pedido de um
+      // restaurante na conta de outro.
+      case "tenants": {
+        await exigirSuperAdmin(supabase, user.id);
+
+        const { data } = await supabase
+          .from("tenants")
+          .select("owner_user_id, name, document")
+          .eq("is_active", true)
+          .order("name");
+
+        return ifJson({
+          tenants: (data ?? [])
+            .filter((t) => t.owner_user_id)
+            .map((t) => ({ userId: t.owner_user_id, name: t.name, document: t.document })),
+        });
       }
 
       // ── status ────────────────────────────────────────────────────────────
@@ -278,6 +361,32 @@ Deno.serve(async (req) => {
           accessToken,
           `/merchant/v1.0/merchants/${merchantId}/status`,
         );
+
+        // 403 aqui NÃO é integração quebrada: é loja que autorizou só os
+        // módulos de pedido (`order` e `events`) e não o módulo `merchant`.
+        // Nesse caso não dá para ler aberto/fechado, mas pedido entra normal —
+        // então o teste passa a ser o próprio canal de eventos.
+        if (status === 403) {
+          const { status: pollStatus } = await ifApi(accessToken, "/events/v1.0/events:polling", {
+            headers: { "x-polling-merchants": merchantId },
+          });
+          const canalOk = pollStatus === 204 || ifOk(pollStatus);
+
+          await ifLog(supabase, user.id, "test_connection", canalOk ? "ok" : "error", {
+            httpStatus: pollStatus,
+            details: { merchantModule: "forbidden", polling: pollStatus },
+          });
+
+          if (canalOk) {
+            await ifClearError(supabase, user.id);
+            // Só o fato: `limitado` conta o resto. Explicação comprida em toast
+            // de sucesso é lida como erro, que foi o que aconteceu em 09/09.
+            return ifJson({ success: true, httpStatus: pollStatus, limitado: true });
+          }
+
+          await ifSetError(supabase, user.id, `Teste de conexão: o canal de eventos respondeu ${pollStatus}.`);
+          return ifJson({ success: false, httpStatus: pollStatus });
+        }
 
         await ifLog(supabase, user.id, "test_connection", ifOk(status) ? "ok" : "error", {
           httpStatus: status,

@@ -19,6 +19,8 @@ import {
   useAssignDriver,
   useDeliveryDrivers,
 } from "@/hooks/use-delivery-drivers";
+import { OrderSourceBadge } from "@/components/delivery/OrderSourceBadge";
+import { isMarketplace, nextOrderStep } from "@/lib/marketplace-orders";
 
 interface Props {
   order: DeliveryOrder;
@@ -99,7 +101,17 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
   const Icon = methodIcon(order.payment_method);
   // Em "delivering" sem pagamento, esconde "Marcar entregue" — o pagamento abre o fluxo de conclusão
   const statusLabelMap = isPickup ? NEXT_STATUS_LABEL_PICKUP : NEXT_STATUS_LABEL;
-  const nextLabel = awaitingOfflinePayment ? undefined : statusLabelMap[order.status];
+  // Pedido de marketplace segue o vocabulário da plataforma: no iFood, entrega
+  // pula "pronto" e vai direto ao despacho, e a conclusão é dela, não nossa.
+  // Sem isto a tela oferece um botão que a plataforma recusa.
+  const marketplaceStep = isMarketplace((order as any).source)
+    ? nextOrderStep((order as any).source, order.status, order.order_type)
+    : null;
+  const nextLabel = awaitingOfflinePayment
+    ? undefined
+    : isMarketplace((order as any).source)
+      ? marketplaceStep?.label
+      : statusLabelMap[order.status];
   const HeaderIcon = isPickup ? Store : Bike;
 
   // Aviso para auto-confirmação manual + pagar na entrega
@@ -115,6 +127,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
             <span className="font-semibold text-sm truncate">
               #{order.order_number}
             </span>
+            <OrderSourceBadge source={(order as any).source} />
             <span className="text-xs text-muted-foreground truncate">
               · {order.customer_name}
             </span>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,7 +17,15 @@ import {
   Unlink,
   WifiOff,
 } from "lucide-react";
-import { useIFoodIntegration, type IFoodAvailableMerchant } from "@/hooks/use-ifood-integration";
+import {
+  useIFoodIntegration, useIFoodTenants, type IFoodAvailableMerchant,
+} from "@/hooks/use-ifood-integration";
+import { useSuperAdmin } from "@/hooks/use-super-admin";
+import { useProductionCenters } from "@/hooks/use-production-centers";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { IFoodCatalogCodes } from "@/components/pdv/integrations/IFoodCatalogCodes";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -42,7 +51,15 @@ export function IFoodIntegrationCard() {
     updateSettings,
   } = useIFoodIntegration();
 
+  const { isSuperAdmin } = useSuperAdmin();
+  const { centers } = useProductionCenters();
+  const tenantsQuery = useIFoodTenants(isSuperAdmin);
+
   const [candidatas, setCandidatas] = useState<IFoodAvailableMerchant[] | null>(null);
+  /** Dono escolhido para cada loja candidata, antes de vincular. */
+  const [donoPorLoja, setDonoPorLoja] = useState<Record<string, string>>({});
+  /** Vinculação manual: loja que não aparece na busca (autorizou só pedidos). */
+  const [manual, setManual] = useState({ id: "", nome: "", dono: "" });
 
   if (isLoading) {
     return (
@@ -109,6 +126,18 @@ export function IFoodIntegrationCard() {
                 continuar no ar. Última consulta: {quando(platform?.last_poll_at)}.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* A ressalva do módulo 'Loja' fica aqui, discreta e permanente. Em
+              toast ela era lida como erro: mensagem comprida logo depois de um
+              clique em "Testar conexão" parece defeito, mesmo em verde. */}
+          {testConnection.data?.limitado && (
+            <p className="text-xs text-muted-foreground">
+              Esta loja liberou no iFood só os módulos de pedido. O Velara recebe e
+              responde pedidos normalmente, mas não consegue ler daqui se a loja está
+              aberta ou fechada. Para ter essa leitura, o dono da loja autoriza o
+              módulo <strong>Loja</strong> no portal do iFood.
+            </p>
           )}
 
           {settings?.ifood_last_error && (
@@ -180,36 +209,132 @@ export function IFoodIntegrationCard() {
               );
             })}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={buscar}
-              disabled={availableMerchants.isPending}
-            >
-              {availableMerchants.isPending
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Link2 className="h-4 w-4" />}
-              <span className="ml-2">Buscar lojas disponíveis</span>
-            </Button>
-
-            {candidatas && candidatas.filter((c) => !c.linked).length === 0 && (
+            {/* Vincular loja é operação de implantação: o polling é global e a
+                lista traz lojas de TODOS os clientes. Quem não é da equipe nem
+                vê o botão — antes via, clicava e recebia um 403 seco. */}
+            {!isSuperAdmin ? (
               <p className="text-sm text-muted-foreground">
-                Nenhuma loja nova disponível. Se a sua loja não aparece, ela ainda não
-                autorizou a Velara no Portal do Parceiro do iFood.
+                A vinculação da loja é feita pela equipe Velara. Autorize a Velara no
+                Portal do Parceiro do iFood e avise o suporte: a loja aparece aqui
+                assim que for vinculada.
               </p>
-            )}
-
-            {candidatas?.filter((c) => !c.linked).map((c) => (
-              <div key={c.id} className="flex items-center justify-between gap-3 rounded-md border border-dashed p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">{c.name}</p>
-                  <p className="truncate font-mono text-xs text-muted-foreground">{c.id}</p>
-                </div>
-                <Button size="sm" onClick={() => linkMerchant.mutate(c.id)} disabled={linkMerchant.isPending}>
-                  Vincular
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={buscar}
+                  disabled={availableMerchants.isPending}
+                >
+                  {availableMerchants.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Link2 className="h-4 w-4" />}
+                  <span className="ml-2">Buscar lojas disponíveis</span>
                 </Button>
-              </div>
-            ))}
+
+                {candidatas && candidatas.filter((c) => !c.linked).length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma loja nova disponível. Se a loja não aparece, ela ainda não
+                    autorizou a Velara no Portal do Parceiro — ou o aplicativo em uso
+                    não é o de produção.
+                  </p>
+                )}
+
+                {/* Vinculação por ID. A loja escolhe quais módulos autoriza;
+                    quem libera só 'order' e 'events' — o bastante para receber
+                    pedido — não aparece em GET /merchants, porque listar loja é
+                    o módulo 'merchant'. Sem este caminho, essas lojas ficariam
+                    impossíveis de conectar. */}
+                <details className="rounded-md border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">
+                    A loja não apareceu na busca? Vincular pelo ID
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Copie o ID no Portal do Desenvolvedor do iFood, em Permissões. É
+                      normal a loja não aparecer na busca quando ela autorizou apenas os
+                      módulos de pedido · isso não impede receber pedidos.
+                    </p>
+                    <Input
+                      placeholder="ID da loja no iFood (UUID)"
+                      value={manual.id}
+                      onChange={(e) => setManual((m) => ({ ...m, id: e.target.value.trim() }))}
+                      className="font-mono text-xs"
+                    />
+                    <Input
+                      placeholder="Nome da loja (como aparece no iFood)"
+                      value={manual.nome}
+                      onChange={(e) => setManual((m) => ({ ...m, nome: e.target.value }))}
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select
+                        value={manual.dono}
+                        onValueChange={(v) => setManual((m) => ({ ...m, dono: v }))}
+                      >
+                        <SelectTrigger className="h-9 w-full sm:w-72">
+                          <SelectValue placeholder="Escolha o restaurante que recebe os pedidos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(tenantsQuery.data?.tenants ?? []).map((t) => (
+                            <SelectItem key={t.userId} value={t.userId}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        disabled={
+                          linkMerchant.isPending || !manual.id || !manual.nome || !manual.dono
+                        }
+                        onClick={() =>
+                          linkMerchant.mutate(
+                            { merchantId: manual.id, targetUserId: manual.dono, name: manual.nome },
+                            { onSuccess: () => setManual({ id: "", nome: "", dono: "" }) },
+                          )
+                        }
+                      >
+                        Vincular pelo ID
+                      </Button>
+                    </div>
+                  </div>
+                </details>
+
+                {candidatas?.filter((c) => !c.linked).map((c) => (
+                  <div key={c.id} className="space-y-2 rounded-md border border-dashed p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm">{c.name}</p>
+                      <p className="truncate font-mono text-xs text-muted-foreground">{c.id}</p>
+                    </div>
+                    {/* O nome que vem do iFood é a razão social; adivinhar o dono
+                        pelo nome erraria, e errar aqui entrega o pedido de um
+                        restaurante na conta de outro. */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select
+                        value={donoPorLoja[c.id] ?? ""}
+                        onValueChange={(v) => setDonoPorLoja((m) => ({ ...m, [c.id]: v }))}
+                      >
+                        <SelectTrigger className="h-9 w-full sm:w-72">
+                          <SelectValue placeholder="Escolha o restaurante que recebe os pedidos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(tenantsQuery.data?.tenants ?? []).map((t) => (
+                            <SelectItem key={t.userId} value={t.userId}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          linkMerchant.mutate({ merchantId: c.id, targetUserId: donoPorLoja[c.id] })
+                        }
+                        disabled={linkMerchant.isPending || !donoPorLoja[c.id]}
+                      >
+                        Vincular
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -263,6 +388,42 @@ export function IFoodIntegrationCard() {
               />
             </div>
 
+            {/* Onde imprime o que não tem praça definida.
+                O item só encontra sua praça sozinho quando o produto do iFood
+                está ligado ao produto daqui. Enquanto os códigos do cardápio não
+                estiverem colados no iFood, a maioria chega sem vínculo — e sem
+                este padrão o pedido não imprime em lugar nenhum, que foi o que
+                aconteceu com os 5 primeiros pedidos do Kōten Garibaldi. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="ifood-centro" className="text-sm">Impressora padrão dos pedidos</Label>
+              <p className="text-xs text-muted-foreground">
+                Usada quando o item não tem praça própria. Item com produto vinculado
+                continua indo para a praça dele.
+              </p>
+              <Select
+                value={settings?.ifood_default_production_center_id ?? "nenhum"}
+                onValueChange={(v) =>
+                  updateSettings.mutate({
+                    ifood_default_production_center_id: v === "nenhum" ? null : v,
+                  } as any)
+                }
+              >
+                <SelectTrigger id="ifood-centro" className="h-9">
+                  <SelectValue placeholder="Escolha o centro de produção" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhum">Nenhuma (não imprime sem praça)</SelectItem>
+                  {(centers ?? [])
+                    .filter((c: any) => c.is_active && c.printer_ip)
+                    .map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} · {c.printer_ip}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex items-center justify-between gap-4">
               <div>
                 <Label htmlFor="ifood-cashier" className="text-sm">Exigir caixa aberto</Label>
@@ -279,6 +440,10 @@ export function IFoodIntegrationCard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Códigos do cardápio: o que o lojista precisa digitar no iFood para o
+          pedido casar com o produto certo aqui dentro. */}
+      <IFoodCatalogCodes />
 
       {/* Últimos eventos: é o que explica uma falha sem precisar abrir o banco */}
       {(status?.logs?.length ?? 0) > 0 && (
