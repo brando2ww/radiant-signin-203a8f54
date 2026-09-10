@@ -335,15 +335,34 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   let discountedOrders: Array<{ num: number | null; discount: number; origem?: string }> = [];
   if (session?.id) {
     try {
-      const [{ data: cancelPdv }, { data: cancelDel }, { data: discPdv }, { data: discDel }] = await Promise.all([
+      // Cancelado sem caixa aberto não tem sessão, e sair só por
+      // `cashier_session_id` deixava esses de fora da comanda impressa. No
+      // Kōten Garibaldi eram 15 de 48. Aqui eles entram pela HORA do
+      // cancelamento, dentro da janela desta sessão.
+      const inicioSessao = session.opened_at;
+      const fimSessao = session.closed_at || new Date().toISOString();
+
+      const [
+        { data: cancelPdv }, { data: cancelDel },
+        { data: cancelPdvSemSessao }, { data: cancelDelSemSessao },
+        { data: discPdv }, { data: discDel },
+      ] = await Promise.all([
         supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
         supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
+        supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason")
+          .eq("user_id", session.user_id).is("cashier_session_id", null).eq("status", "cancelled")
+          .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao),
+        supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason")
+          .eq("user_id", session.user_id).is("cashier_session_id", null).eq("status", "cancelled")
+          .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao),
         supabase.from("pdv_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
         supabase.from("delivery_orders").select("order_number,discount,discount_source").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
       ]);
       cancelledOrders = [
         ...(cancelPdv || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
         ...(cancelDel || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason })),
+        ...(cancelPdvSemSessao || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
+        ...(cancelDelSemSessao || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason })),
       ];
       discountedOrders = [
         ...(discPdv || []).map((o: any) => ({ num: o.order_number, discount: Number(o.discount || 0) })),

@@ -15,6 +15,7 @@ import { usePDVCashierStatement } from "@/hooks/use-pdv-cashier-statement";
 import { SessionsTable, riskBadge } from "@/components/pdv/financial/SessionsTable";
 import { formatBRL } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv-export";
+import { brtRange } from "@/lib/reports-data-source";
 
 const movementLabel: Record<string, string> = {
   venda: "Venda",
@@ -52,7 +53,46 @@ export default function DayStatement() {
     enabled: sessionIds.length > 0,
   });
 
-  const cancelledOrders = useMemo(() => (orders || []).filter((o: any) => o.status === "cancelled"), [orders]);
+  /**
+   * Cancelado sem caixa aberto.
+   *
+   * Todo o resto desta tela sai por `cashier_session_id`, e pedido cancelado
+   * fora do expediente — ou antes de alguém abrir o caixa — não tem sessão
+   * nenhuma. No Kōten Garibaldi eram 15 de 48 cancelamentos invisíveis, e o
+   * lojista notou justamente porque a conta não batia com o que ele via na
+   * operação. Aqui eles entram pela DATA do cancelamento.
+   */
+  const { data: canceladosSemSessao } = useQuery({
+    queryKey: ["day-orphan-cancelled", date],
+    queryFn: async () => {
+      const { startISO, endISO } = brtRange(d, d);
+      const [{ data: pdv }, { data: del }] = await Promise.all([
+        supabase
+          .from("pdv_orders")
+          .select("id,order_number,subtotal,total,discount,status,cancellation_reason,cancelled_at,closed_at,created_at,opened_at,source,pdv_payments(payment_method,amount)")
+          .is("cashier_session_id", null)
+          .eq("status", "cancelled")
+          .gte("cancelled_at", startISO)
+          .lte("cancelled_at", endISO),
+        supabase
+          .from("delivery_orders")
+          .select("id,order_number,total,subtotal,discount,payment_method,status,cancellation_reason,cancelled_at,customer_name,created_at,delivery_fee")
+          .is("cashier_session_id", null)
+          .eq("status", "cancelled")
+          .gte("cancelled_at", startISO)
+          .lte("cancelled_at", endISO),
+      ]);
+      return { pdv: pdv ?? [], del: del ?? [] };
+    },
+  });
+
+  const cancelledOrders = useMemo(
+    () => [
+      ...(orders || []).filter((o: any) => o.status === "cancelled"),
+      ...(canceladosSemSessao?.pdv ?? []),
+    ],
+    [orders, canceladosSemSessao]
+  );
   const discountedOrders = useMemo(() => (orders || []).filter((o: any) => Number(o.discount) > 0 && o.status !== "cancelled"), [orders]);
   const activeOrders = useMemo(() => (orders || []).filter((o: any) => o.status !== "cancelled"), [orders]);
 
@@ -71,7 +111,13 @@ export default function DayStatement() {
   });
 
   const deliveryActive     = useMemo(() => (deliveryOrders || []).filter((o: any) => o.status !== "cancelled"), [deliveryOrders]);
-  const deliveryCancelled  = useMemo(() => (deliveryOrders || []).filter((o: any) => o.status === "cancelled"), [deliveryOrders]);
+  const deliveryCancelled  = useMemo(
+    () => [
+      ...(deliveryOrders || []).filter((o: any) => o.status === "cancelled"),
+      ...(canceladosSemSessao?.del ?? []),
+    ],
+    [deliveryOrders, canceladosSemSessao]
+  );
   const deliveryDiscounted = useMemo(() => (deliveryOrders || []).filter((o: any) => Number(o.discount) > 0 && o.status !== "cancelled"), [deliveryOrders]);
 
   const pmMap: Record<string, string> = {
