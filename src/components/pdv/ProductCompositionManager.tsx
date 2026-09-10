@@ -499,11 +499,6 @@ function GroupCard({
                         onAddItem(p.id);
                         onSearchOpenChange(false);
                       }}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onAddItem(p.id);
-                        onSearchOpenChange(false);
-                      }}
                       className="flex items-center justify-between cursor-pointer"
                     >
                       <div className="flex items-center gap-2">
