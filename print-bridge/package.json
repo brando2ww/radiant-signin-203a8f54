@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "selftest": "node server.js --selftest",
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.js\"",
     "fake-printer": "node tools/fake-printer.js",
     "test-print": "node test-print.js",
     "setup": "node setup.js",
