@@ -47,17 +47,38 @@ function respostaStatus(n) {
   return null;
 }
 
-/** ESC/POS → texto, o suficiente para conferir o cupom a olho. */
-function decodificar(buf) {
+/**
+ * ESC/POS → texto, o suficiente para conferir o cupom a olho.
+ *
+ * Simula largura dupla (cada caractere ocupa duas colunas) e alinhamento,
+ * senão o preview mente justo onde erra mais: título centralizado, valor
+ * dentro de moldura e qualquer coisa em corpo grande.
+ */
+function decodificar(buf, colunas = 32) {
   const linhas = [];
   let atual = "";
+  let larguraDupla = false;
+  let alinhamento = 0; // 0 esquerda, 1 centro, 2 direita
+
+  const fechar = () => {
+    let l = atual;
+    if (alinhamento === 1 && l.trim()) {
+      const sobra = colunas - l.length;
+      if (sobra > 0) l = " ".repeat(Math.floor(sobra / 2)) + l;
+    } else if (alinhamento === 2 && l.trim()) {
+      l = l.padStart(colunas);
+    }
+    linhas.push(l);
+    atual = "";
+  };
+
   for (let i = 0; i < buf.length; i++) {
     const b = buf[i];
-    if (b === 0x1b && buf[i + 1] === 0x40) { i += 1; continue; }            // reset
-    if (b === 0x1b && buf[i + 1] === 0x61) { i += 2; continue; }            // alinhamento
+    if (b === 0x1b && buf[i + 1] === 0x40) { i += 1; larguraDupla = false; alinhamento = 0; continue; }
+    if (b === 0x1b && buf[i + 1] === 0x61) { alinhamento = buf[i + 2]; i += 2; continue; }
     if (b === 0x1b && buf[i + 1] === 0x45) { i += 2; continue; }            // negrito (ESC E)
     if (b === 0x1b && buf[i + 1] === 0x4d) { i += 2; continue; }            // fonte A/B (ESC M)
-    if (b === 0x1d && buf[i + 1] === 0x21) { i += 2; continue; }            // tamanho
+    if (b === 0x1d && buf[i + 1] === 0x21) { larguraDupla = (buf[i + 2] & 0x10) !== 0; i += 2; continue; }
     if (b === 0x1d && buf[i + 1] === 0x42) { i += 2; continue; }            // vídeo invertido (GS B)
     if (b === 0x1d && buf[i + 1] === 0x56) { i += 3; linhas.push("──── corte ────"); continue; }
     if (b === 0x10 && buf[i + 1] === 0x04) { i += 2; continue; }            // DLE EOT
@@ -67,10 +88,13 @@ function decodificar(buf) {
       atual += "[QR]";
       continue;
     }
-    if (b === 0x0a) { linhas.push(atual); atual = ""; continue; }
-    if (b >= 0x20) atual += String.fromCharCode(b);
+    if (b === 0x0a) { fechar(); continue; }
+    if (b >= 0x20) {
+      const c = String.fromCharCode(b);
+      atual += larguraDupla ? c + " " : c;
+    }
   }
-  if (atual) linhas.push(atual);
+  if (atual) fechar();
   return linhas;
 }
 

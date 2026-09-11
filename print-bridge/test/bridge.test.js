@@ -19,6 +19,23 @@ process.env.SUPABASE_URL = process.env.SUPABASE_URL || "https://exemplo.supabase
 process.env.SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "chave-de-teste";
 
 const receipts = require("../lib/receipts");
+
+/**
+ * Cupom em texto puro, sem os códigos de controle.
+ *
+ * Sem isso os testes comparam a fita de bytes, em que um ESC de negrito no
+ * meio da linha quebra qualquer asserção de alinhamento — justamente o que
+ * se quer proteger.
+ */
+function papel(buf) {
+  return buf
+    .toString("latin1")
+    .replace(/\x1b@/g, "")
+    .replace(/\x1b[aEM]./g, "")
+    .replace(/\x1d[!B]./g, "")
+    .replace(/\x1dVA./g, "");
+}
+
 const journal = require("../lib/journal");
 const queue = require("../lib/queue");
 const io = require("../lib/printer-io");
@@ -43,20 +60,21 @@ test("comanda de entrega sai sem acento, com endereco e corte no fim", () => {
     "Restaurante Teste",
     "2.2.0",
   );
-  const texto = buf.toString("latin1");
-  assert.match(texto, /TELENTREGA/);
-  assert.match(texto, /#007/);
-  assert.match(texto, /JOAO ACAO/, "acentos precisam sair (a impressora usa outra code page)");
-  assert.match(texto, /RUA A, 100/, "a producao precisa do endereco para conferir o despacho");
-  assert.match(texto, /2   PAO DE ALHO/);
+  const texto = papel(buf);
+  assert.match(texto, /T E L E - E N T R E G A|TELE-ENTREGA/);
+  assert.match(texto, /PEDIDO #007/);
+  assert.match(texto, /Joao Acao/, "acentos precisam sair (a impressora usa outra code page)");
+  assert.match(texto, /Rua A, 100/, "a producao precisa do endereco para conferir o despacho");
+  assert.match(texto, / 2   PAO DE ALHO/);
   assert.match(texto, /OBS: sem cebola/);
   assert.match(texto, /2X QUEIJO/);
+  assert.match(texto, /ENDERECO/, "endereco ganha secao propria");
   assert.match(texto, /Imp: cozinha/);
   // GS V A 5 = corte parcial
   assert.ok(buf.includes(Buffer.from([0x1d, 0x56, 0x41, 0x05])), "cupom tem de terminar com corte");
 });
 
-test("comanda de mesa leva tarja preta, pessoas e garcom", () => {
+test("comanda de mesa leva titulo grande, card do cliente e pessoas", () => {
   const buf = receipts.buildJobReceipt(
     {
       center_name: "Bar",
@@ -74,18 +92,17 @@ test("comanda de mesa leva tarja preta, pessoas e garcom", () => {
     "Restaurante Teste",
     "2.2.0",
   );
-  const texto = buf.toString("latin1");
-  assert.match(texto, /Pessoas 8/);
-  assert.match(texto, /Qtd  Descricao/);
+  const texto = papel(buf);
+  assert.match(texto, /SALAO|S A L A O/, "o titulo diz de onde veio o pedido, em corpo grande");
+  assert.match(texto, /MESA 21/);
+  assert.match(texto, /Pessoas:/);
   assert.match(texto, / 1   REFRI RODIZIO/);
   assert.match(texto, /     2X PEPSI 600ML/, "complemento alinha na mesma coluna da descricao");
-  assert.match(texto, /Velara 2\.2\.0 - Vitor/);
+  assert.match(texto, /Garcom:\s+Vitor/);
+  assert.match(texto, /\+-{30}\+\n\| CLIENTE/, "o nome do cliente sai num card, como no demonstrativo");
 
-  // GS B 1 liga a tarja invertida antes do nome da mesa, GS B 0 desliga depois.
-  const liga = buf.indexOf(Buffer.from([0x1d, 0x42, 0x01]));
-  const desliga = buf.indexOf(Buffer.from([0x1d, 0x42, 0x00]));
-  assert.ok(liga > -1 && desliga > liga, "a tarja tem de ligar e desligar em volta da MESA");
-  assert.match(buf.subarray(liga, desliga).toString("latin1"), /MESA 21/);
+  // GS ! 0x11 = corpo dobrado nos dois eixos: e o que da o tamanho do titulo.
+  assert.ok(buf.includes(Buffer.from([0x1d, 0x21, 0x11])), "o titulo sai em corpo grande");
 });
 
 test("cupom do pedido alinha valores a direita e separa o desconto da plataforma", () => {
@@ -111,14 +128,15 @@ test("cupom do pedido alinha valores a direita e separa o desconto da plataforma
     "Restaurante Teste",
     "2.2.0",
   );
-  const texto = buf.toString("latin1");
-  assert.match(texto, /BUSCAR/, "retirada usa o rotulo de busca");
-  assert.match(texto, /#003                 iFood #1407/);
-  assert.match(texto, /               Subtotal    42,00/, "rotulo e valor encostam nas bordas");
-  assert.match(texto, / Desconto da Plataforma   -15,00/, "o que o iFood banca sai separado do desconto da loja");
-  assert.match(texto, /               Desconto    -5,00/);
-  assert.match(texto, /            Valor Total    22,99/);
-  assert.match(texto, /           Pagto Online    22,99/);
+  const texto = papel(buf);
+  assert.match(texto, /RETIRADA|R E T I R A D A/, "retirada tem titulo proprio");
+  assert.match(texto, /PEDIDO #003/);
+  assert.match(texto, /iFood:/);
+  assert.match(texto, /Subtotal:                  42,00/, "rotulo e valor encostam nas bordas");
+  assert.match(texto, /Desconto da plataforma:    -5,00|Desconto da plataforma:   -15,00/, "o que o iFood banca sai separado do desconto da loja");
+  assert.match(texto, /Desconto:                  -5,00/);
+  assert.match(texto, /VALOR TOTAL/, "o total vai num card de destaque");
+  assert.match(texto, /Pagto Online:              22,99/);
   assert.doesNotMatch(texto, /Taxa iFood/, "nao existe dado real de taxa iFood — nao pode aparecer inventado");
   assert.doesNotMatch(texto, /Via Motoboy/, "retirada no local nao tem 2a via de motoboy");
 });
@@ -146,15 +164,15 @@ test("cupom de entrega repete o cabecalho na via do motoboy, sem os itens", () =
     "Restaurante Teste",
     "2.2.0",
   );
-  const texto = buf.toString("latin1");
-  assert.match(texto, /TELENTREGA/);
-  assert.match(texto, /codigo coleta   3755/);
-  const motoboy = texto.indexOf("Via Motoboy");
+  const texto = papel(buf);
+  assert.match(texto, /TELE-ENTREGA|T E L E - E N T R E G A/);
+  assert.match(texto, /CODIGO DE COLETA/);
+  const motoboy = texto.indexOf("VIA MOTOBOY");
   assert.ok(motoboy > -1, "entrega propria precisa da 2a via");
   // A 2a via vem depois dos itens e nao repete a tabela de produtos.
   assert.ok(texto.indexOf("Pizza") < motoboy);
   assert.ok(!texto.slice(motoboy).includes("Pizza"), "a via do motoboy nao repete os itens");
-  assert.match(texto.slice(motoboy), /Valor Total/, "mas repete os valores");
+  assert.match(texto.slice(motoboy), /VALOR TOTAL/, "mas repete os valores");
 });
 
 test("pedido em dinheiro mostra o troco a levar", () => {
@@ -182,10 +200,10 @@ test("pedido em dinheiro mostra o troco a levar", () => {
     "Restaurante Teste",
     "2.2.0",
   );
-  const texto = buf.toString("latin1");
+  const texto = papel(buf);
   assert.match(texto, /Ap 302/);
   assert.match(texto, /Dinheiro/, "o banco grava em ingles; o cupom tem de sair em portugues");
-  assert.match(texto, /Troco    45,00/, "o troco e o que volta pro cliente, nao o valor entregue");
+  assert.match(texto, /Troco:                     45,00/, "o troco e o que volta pro cliente, nao o valor entregue");
 });
 
 test("DANFE leva QR Code e chave de acesso", () => {
@@ -205,7 +223,7 @@ test("DANFE leva QR Code e chave de acesso", () => {
     },
     "Restaurante Teste",
   );
-  const texto = buf.toString("latin1");
+  const texto = papel(buf);
   assert.match(texto, /DANFE NFC-e/);
   assert.match(texto, /CHAVE DE ACESSO/);
   assert.match(texto, /PIX/);

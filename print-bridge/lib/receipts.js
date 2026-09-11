@@ -4,10 +4,11 @@
 // nenhum estado, nenhum I/O — é o que permite testar por snapshot no macOS,
 // sem impressora e sem Windows (ver tools/ e test/bridge.test.js).
 //
-// Os layouts seguem o cupom que as lojas já usavam antes do Velara: cabeçalho
-// da mesa em tarja preta, comanda de entrega com o endereço no topo e cupom
-// de pedido com o bloco de valores alinhado à direita. Mexer no espaçamento
-// aqui muda papel impresso em produção — confira com tools/fake-printer.js.
+// Os layouts seguem a mesma linguagem visual do demonstrativo de fechamento
+// (src/components/pdv/CloseCashierDialog.tsx): título em corpo grande entre
+// duas réguas, seção em caixa alta sublinhada, valor sempre em negrito à
+// direita e o número que importa dentro de um card. Mexer no espaçamento aqui
+// muda papel impresso em produção — confira com tools/fake-printer.js.
 
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -77,10 +78,112 @@ function makeWriter() {
   const align = (n) => push(ESC, 0x61, n); // 0 esquerda, 1 centro, 2 direita
   const size = (n) => push(GS, 0x21, n); // 0x00 normal, 0x01 altura 2x, 0x11 2x2
   const bold = (on) => push(ESC, 0x45, on ? 1 : 0);
-  const reverse = (on) => push(GS, 0x42, on ? 1 : 0);
   const fontB = (on) => push(ESC, 0x4d, on ? 1 : 0);
 
   const rule = (w = W, c = "-") => write(c.repeat(w));
+
+  // ─── Tokens de estilo ──────────────────────────────────────────────────
+  // Espelham o CSS do demonstrativo de fechamento (CloseCashierDialog), que
+  // é a referência de legibilidade do PDV: título entre duas réguas grossas,
+  // seção em caixa alta sublinhada, valor sempre em negrito à direita e
+  // número que importa dentro de uma moldura, em corpo grande.
+
+  /** h1: 2x2 em negrito, centralizado, entre réguas grossas. */
+  const titulo = (s, w = W) => {
+    rule(w, "=");
+    align(1);
+    size(0x11);
+    bold(true);
+    write(s);
+    bold(false);
+    size(0x00);
+    align(0);
+    rule(w, "=");
+  };
+
+  /** .subtitle: centralizado, negrito, corpo dobrado só na altura. */
+  const subtitulo = (s) => {
+    align(1);
+    size(0x01);
+    bold(true);
+    write(s);
+    bold(false);
+    size(0x00);
+    align(0);
+  };
+
+  /** .divider + .section-title: régua grossa, título em caixa alta e sublinha. */
+  const secao = (s, w = W) => {
+    rule(w, "=");
+    bold(true);
+    write(String(s).toUpperCase());
+    bold(false);
+    rule(w, "-");
+  };
+
+  /** .row: rótulo à esquerda, valor em negrito encostado à direita. */
+  const linha = (label, valor, w = W) => {
+    const l = stripAccents(String(label ?? ""));
+    const v = stripAccents(String(valor ?? ""));
+    if (!v) return write(l);
+    const espaco = w - l.length - v.length;
+    if (espaco < 1) {
+      write(l);
+      align(2);
+      bold(true);
+      write(v);
+      bold(false);
+      align(0);
+      return;
+    }
+    text(l + " ".repeat(espaco));
+    bold(true);
+    text(v);
+    bold(false);
+    line();
+  };
+
+  /**
+   * .highlight: moldura com rótulo pequeno e o valor em corpo grande.
+   * O corpo grande ocupa duas colunas por caractere, então o miolo útil da
+   * linha do valor é metade da largura — daí o cálculo separado.
+   */
+  const card = (label, valor, w = W) => {
+    const miolo = w - 2;
+    const v = stripAccents(String(valor ?? ""));
+    const metade = Math.floor(miolo / 2);
+
+    write("+" + "-".repeat(miolo) + "+");
+    write("|" + (" " + stripAccents(String(label)).toUpperCase()).padEnd(miolo) + "|");
+
+    text("|");
+    if (v.length <= metade) {
+      size(0x11);
+      bold(true);
+      text(v.padStart(metade));
+      bold(false);
+      size(0x00);
+      write(" ".repeat(miolo - metade * 2) + "|");
+    } else {
+      // Nome comprido não cabe em corpo grande. Cortar o cliente no meio é
+      // pior que reduzir o corpo, então cai para o tamanho normal em negrito.
+      bold(true);
+      text(v.slice(0, miolo - 1).padStart(miolo - 1));
+      bold(false);
+      write(" |");
+    }
+    write("+" + "-".repeat(miolo) + "+");
+  };
+
+  /** .footer: régua grossa e o rodapé centralizado, em fonte condensada. */
+  const rodape = (s) => {
+    rule(W, "=");
+    align(1);
+    fontB(true);
+    write(s);
+    fontB(false);
+    align(0);
+  };
 
   /** Texto à esquerda e à direita na mesma linha, encostados nas bordas. */
   const row = (left, right, w = W) => {
@@ -95,53 +198,15 @@ function makeWriter() {
     write(l.padEnd(w - r.length) + r);
   };
 
-  /** Só à direita — usado no "Pessoas 8" e no "Pedidos: 6". */
-  const right = (s, w = W) => write(stripAccents(String(s ?? "")).padStart(w));
-
-  /**
-   * Linha do bloco de valores: rótulo encostado à direita da coluna de
-   * rótulos e o valor encostado na borda. É o que dá a "escada" do cupom de
-   * referência, em que Subtotal/Desconto/Valor Total terminam alinhados.
-   */
-  const money = (label, value, w = W, valueWidth = 9) => {
-    const v = stripAccents(String(value ?? "")).padStart(valueWidth);
-    const l = stripAccents(String(label ?? "")).padStart(w - valueWidth);
-    write(l.slice(-(w - valueWidth)) + v);
-  };
-
-  /** Caixa de destaque (codigo coleta, horario previsto). */
-  const box = (label, w = W) => {
-    const inner = w - 2;
-    const miolo = stripAccents(String(label ?? "")).slice(0, inner);
-    const pad = inner - miolo.length;
-    const esq = Math.floor(pad / 2);
-    write("-".repeat(w));
-    bold(true);
-    write("|" + " ".repeat(esq) + miolo + " ".repeat(pad - esq) + "|");
-    bold(false);
-    write("-".repeat(w));
-  };
-
-  /** Tarja preta de ponta a ponta, com o texto centralizado dentro. */
-  const bar = (label, w = W) => {
-    const miolo = stripAccents(String(label ?? "")).toUpperCase().slice(0, w);
-    const pad = w - miolo.length;
-    const esq = Math.floor(pad / 2);
-    reverse(true);
-    bold(true);
-    write(" ".repeat(esq) + miolo + " ".repeat(pad - esq));
-    bold(false);
-    reverse(false);
-  };
-
   const cut = () => {
     push(LF, LF, LF, LF);
     push(GS, 0x56, 0x41, 0x05);
   };
 
   return {
-    push, raw, text, line, write, reset, align, size, bold, reverse, fontB,
-    rule, row, right, money, box, bar, cut,
+    push, raw, text, line, write, reset, align, size, bold, fontB,
+    rule, row, cut,
+    titulo, subtitulo, secao, linha, card, rodape,
     done: () => Buffer.concat(chunks),
   };
 }
@@ -218,23 +283,21 @@ function buildComandaMesa(p, ctx) {
   const w = makeWriter();
   w.reset();
 
-  w.align(1);
-  w.size(0x01);
-  w.bar(p.mesaLabel, W);
-  w.size(0x00);
-  w.align(0);
+  w.titulo("SALAO");
+  w.subtitulo(p.mesaLabel);
+  w.line();
 
-  w.row(p.nome || "", p.pessoas != null ? `Pessoas ${p.pessoas}` : "");
-  w.rule(W, "-");
-  w.row("Qtd  Descricao", p.hora);
-  w.rule(W, "-");
+  if (p.nome) w.card("Cliente", p.nome);
 
+  if (p.pessoas != null) w.linha("Pessoas:", String(p.pessoas));
+  if (p.garcom) w.linha("Garcom:", p.garcom);
+  w.linha("Hora:", p.hora);
+  w.line();
+
+  w.secao(`Itens (${p.items.length})`);
   escreverItensCozinha(w, p.items, W, false);
 
-  w.rule(W, "-");
-  w.fontB(true);
-  w.row(`${ctx.version ? `Velara ${ctx.version}` : "Velara"}${p.garcom ? ` - ${p.garcom}` : ""}`, p.diaHora, WB);
-  w.fontB(false);
+  w.rodape(`${ctx.version ? `Velara ${ctx.version}` : "Velara"} - ${p.diaHora}`);
   w.cut();
   return w.done();
 }
@@ -252,36 +315,30 @@ function buildComandaEntrega(p, ctx) {
   const w = makeWriter();
   w.reset();
 
-  w.fontB(true);
-  w.bold(true);
-  w.row(p.titulo, p.numero ? `#${p.numero}` : "", WB);
-  w.bold(false);
+  w.titulo(p.titulo);
+  if (p.numero) w.subtitulo(`PEDIDO #${p.numero}`);
+  w.line();
 
-  // Bloco de origem/destino: é o que o balcão confere antes de despachar.
-  const origem = [];
-  if (p.externalCode) origem.push(`**IFOOD** - #${p.externalCode}`);
-  if (p.nome) origem.push(p.nome.toUpperCase());
-  if (origem.length) wrap(origem.join("  "), WB).forEach((l) => w.write(l));
+  if (p.nome) w.card("Cliente", p.nome);
 
-  const destino = [];
-  if (p.endereco) destino.push(p.endereco.toUpperCase());
-  if (p.complemento) destino.push(p.complemento.toUpperCase());
-  if (p.telefone) destino.push(p.telefone);
-  if (p.externalId) destino.push(`ID: ${p.externalId}`);
-  if (destino.length) wrap(destino.join(" - "), WB).forEach((l) => w.write(l));
-  w.fontB(false);
+  if (p.externalCode) w.linha("iFood:", `#${p.externalCode}`);
+  if (p.telefone) w.linha("Fone:", p.telefone);
+  w.linha("Hora:", p.hora);
+  w.line();
 
-  w.rule(W, "-");
-  w.row("QTD DESCRICAO", p.hora);
-  w.rule(W, "-");
+  // Endereço fica em seção própria: é o que o balcão confere na hora de
+  // despachar, e vinha espremido junto do resto do cabeçalho.
+  if (p.endereco) {
+    w.secao("Endereco");
+    wrap(p.endereco, W).forEach((l) => w.write(l));
+    if (p.complemento) wrap(p.complemento, W).forEach((l) => w.write(l));
+    w.line();
+  }
 
+  w.secao(`Itens (${p.items.length})`);
   escreverItensCozinha(w, p.items, W, true);
 
-  w.rule(W, "-");
-  w.fontB(true);
-  w.write(`Comanda #${p.numero ?? "-"}${p.centro ? ` - Imp: ${p.centro}` : ""}`);
-  w.row(ctx.version ? `Velara ${ctx.version}` : "Velara", p.diaHora, WB);
-  w.fontB(false);
+  w.rodape(`${p.centro ? `Imp: ${p.centro} - ` : ""}${ctx.version ? `Velara ${ctx.version}` : "Velara"} - ${p.diaHora}`);
   w.cut();
   return w.done();
 }
@@ -305,45 +362,32 @@ function buildCupomPedido(p, ctx) {
   const w = makeWriter();
   w.reset();
 
-  const cabecalho = (titulo, comItens) => {
-    w.align(1);
-    w.size(0x11);
-    w.bold(true);
-    w.write(titulo);
-    w.bold(false);
-    w.size(0x00);
-    w.align(0);
-    w.rule(W, "-");
+  const via = (titulo, comItens) => {
+    w.titulo(titulo);
+    if (p.numero) w.subtitulo(`PEDIDO #${p.numero}`);
+    w.line();
 
-    w.bold(true);
-    w.row(p.numero ? `#${p.numero}` : "Pedido", p.externalCode ? `iFood #${p.externalCode}` : "");
-    if (p.nome) w.write(p.nome);
-    w.bold(false);
-    if (p.pedidosCliente != null) w.right(`Pedidos: ${p.pedidosCliente}`);
+    if (p.nome) w.card("Cliente", p.nome);
+
+    if (p.externalCode) w.linha("iFood:", `#${p.externalCode}`);
+    if (p.telefone) w.linha("Fone:", p.telefone);
+    w.linha("Hora:", p.hora);
+    w.line();
 
     if (p.endereco) {
-      w.bold(true);
+      w.secao("Endereco");
       wrap(p.endereco, W).forEach((l) => w.write(l));
-      w.bold(false);
       if (p.complemento) wrap(p.complemento, W).forEach((l) => w.write(l));
       if (p.referencia) wrap(p.referencia, W).forEach((l) => w.write(l));
       if (p.regiao) wrap(p.regiao, W).forEach((l) => w.write(l));
+      w.line();
     }
 
-    if (p.codigoColeta) w.box(`codigo coleta   ${p.codigoColeta}`, W);
-    if (p.previsto) w.box(p.previsto, W);
-
-    const contato = [p.telefone, p.externalId ? `ID_ ${p.externalId}_` : null].filter(Boolean).join("  ");
-    if (contato) {
-      w.fontB(true);
-      w.write(contato);
-      w.fontB(false);
-    }
+    if (p.codigoColeta) w.card("Codigo de coleta", p.codigoColeta);
 
     if (comItens) {
-      w.fontB(true);
-      w.row("Otd  Produto", "Total", WB);
-      w.fontB(false);
+      w.secao(`Itens (${p.items.length})`);
+      w.row("Qtd  Produto", "Total", W);
       p.items.forEach((it) => {
         const nome = String(it.product_name || "").trim();
         const preco = Number(it.subtotal) > 0 ? fmtNum(it.subtotal) : "";
@@ -353,44 +397,42 @@ function buildCupomPedido(p, ctx) {
         // recuado abaixo, sem empurrar o valor da coluna da direita.
         wrap(nome, W - QTD_COL - (preco ? preco.length + 1 : 0)).forEach((l, i) => {
           if (i > 0) return w.write(recuo + l);
-          const linha = prefixo + l;
-          w.write(preco ? linha.padEnd(W - preco.length) + preco : linha);
+          const inicio = prefixo + l;
+          if (!preco) return w.write(inicio);
+          w.text(inicio.padEnd(W - preco.length));
+          w.bold(true);
+          w.text(preco);
+          w.bold(false);
+          w.line();
         });
         normalizarModificadores(it.modifiers).forEach((m) => {
           wrap(m, W, recuo).forEach((l) => w.write(l));
         });
       });
-      w.rule(W, "-");
-    } else {
-      w.rule(W, "-");
     }
 
-    if (p.subtotal != null) w.money("Subtotal", fmtNum(p.subtotal));
-    if (Number(p.taxaEntrega) > 0) w.money("Taxa Entrega", fmtNum(p.taxaEntrega));
-    if (Number(p.desconto) > 0) w.money("Desconto", "-" + fmtNum(p.desconto));
-    if (Number(p.descontoPlataforma) > 0) w.money("Desconto da Plataforma", "-" + fmtNum(p.descontoPlataforma));
-    w.rule(W, "-");
-    w.bold(true);
-    w.money("Valor Total", fmtNum(p.total));
-    w.bold(false);
-    w.rule(W, "-");
-    if (p.pagamentoLabel) w.money(p.pagamentoLabel, fmtNum(p.pagamentoValor));
-    w.bold(true);
-    w.money("Troco", fmtNum(p.troco));
-    w.bold(false);
-    w.rule(W, "-");
-    w.fontB(true);
-    w.row(ctx.version ? `Velara ${ctx.version}` : "Velara", p.diaHora, WB);
-    w.fontB(false);
+    w.secao("Valores");
+    if (p.subtotal != null) w.linha("Subtotal:", fmtNum(p.subtotal));
+    if (Number(p.taxaEntrega) > 0) w.linha("Taxa de entrega:", fmtNum(p.taxaEntrega));
+    if (Number(p.desconto) > 0) w.linha("Desconto:", "-" + fmtNum(p.desconto));
+    if (Number(p.descontoPlataforma) > 0) w.linha("Desconto da plataforma:", "-" + fmtNum(p.descontoPlataforma));
+    w.line();
+
+    w.card("Valor total", fmtNum(p.total));
+
+    if (p.pagamentoLabel) w.linha(`${p.pagamentoLabel}:`, fmtNum(p.pagamentoValor));
+    w.linha("Troco:", fmtNum(p.troco));
+
+    w.rodape(`${ctx.version ? `Velara ${ctx.version}` : "Velara"} - ${p.diaHora}`);
   };
 
-  cabecalho(p.titulo, true);
+  via(p.titulo, true);
 
-  // 2ª via do motoboy: mesmo cabeçalho, sem a tabela de itens — é o que o
-  // entregador confere na porta, não precisa do detalhe do pedido.
+  // 2ª via do motoboy: mesmo cabeçalho e valores, sem a lista de itens — é o
+  // que o entregador confere na porta, não precisa do detalhe do pedido.
   if (p.viaMotoboy) {
     w.line();
-    cabecalho("Via Motoboy", false);
+    via("VIA MOTOBOY", false);
   }
 
   w.cut();
@@ -650,7 +692,8 @@ function buildJobReceipt(job, establishmentName, version) {
     const pagoOnline = String(p.payment_method || "").toLowerCase() === "online" || p.payment_status === "paid";
     const trocoPara = Number(p.change_amount) || 0;
     return buildCupomPedido({
-      titulo: p.order_type === "pickup" ? "BUSCAR" : "TELENTREGA",
+      titulo: p.order_type === "pickup" ? "RETIRADA" : "TELE-ENTREGA",
+      hora: formatHora(agora),
       numero: p.order_number ?? p.ticket_number ?? null,
       externalCode: p.external_code || null,
       externalId: p.external_order_id || null,
@@ -681,7 +724,7 @@ function buildJobReceipt(job, establishmentName, version) {
 
   if (kind === "delivery") {
     return buildComandaEntrega({
-      titulo: p.order_type === "pickup" ? "BUSCAR" : "TELENTREGA",
+      titulo: p.order_type === "pickup" ? "RETIRADA" : "TELE-ENTREGA",
       numero: p.order_number ?? p.ticket_number ?? null,
       externalCode: p.external_code || null,
       externalId: p.external_order_id || null,
