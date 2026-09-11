@@ -66,7 +66,7 @@ export default function DayStatement() {
     queryKey: ["day-orphan-cancelled", date],
     queryFn: async () => {
       const { startISO, endISO } = brtRange(d, d);
-      const [{ data: pdv }, { data: del }] = await Promise.all([
+      const [{ data: pdv }, { data: del }, { data: comanda }] = await Promise.all([
         supabase
           .from("pdv_orders")
           .select("id,order_number,subtotal,total,discount,status,cancellation_reason,cancelled_at,closed_at,created_at,opened_at,source,pdv_payments(payment_method,amount)")
@@ -81,9 +81,32 @@ export default function DayStatement() {
           .eq("status", "cancelled")
           .gte("cancelled_at", startISO)
           .lte("cancelled_at", endISO),
+        // Comanda de salão cancelada nunca vira pdv_orders — some do
+        // fechamento se não buscarmos direto em pdv_comandas.
+        supabase
+          .from("pdv_comandas")
+          .select("id,comanda_number,subtotal,status,cancellation_reason,cancelled_at")
+          .is("cashier_session_id", null)
+          .eq("status", "cancelada")
+          .gte("cancelled_at", startISO)
+          .lte("cancelled_at", endISO),
       ]);
-      return { pdv: pdv ?? [], del: del ?? [] };
+      return { pdv: pdv ?? [], del: del ?? [], comanda: comanda ?? [] };
     },
+  });
+
+  const { data: comandasCanceladas } = useQuery({
+    queryKey: ["day-comandas-cancelled", sessionIds],
+    queryFn: async () => {
+      if (sessionIds.length === 0) return [];
+      const { data: rows } = await supabase
+        .from("pdv_comandas")
+        .select("id,comanda_number,subtotal,status,cancellation_reason,cancelled_at")
+        .in("cashier_session_id", sessionIds)
+        .eq("status", "cancelada");
+      return rows ?? [];
+    },
+    enabled: sessionIds.length > 0,
   });
 
   const cancelledOrders = useMemo(
@@ -92,6 +115,13 @@ export default function DayStatement() {
       ...(canceladosSemSessao?.pdv ?? []),
     ],
     [orders, canceladosSemSessao]
+  );
+  const cancelledComandas = useMemo(
+    () => [
+      ...(comandasCanceladas ?? []),
+      ...(canceladosSemSessao?.comanda ?? []),
+    ],
+    [comandasCanceladas, canceladosSemSessao]
   );
   const discountedOrders = useMemo(() => (orders || []).filter((o: any) => Number(o.discount) > 0 && o.status !== "cancelled"), [orders]);
   const activeOrders = useMemo(() => (orders || []).filter((o: any) => o.status !== "cancelled"), [orders]);
@@ -141,8 +171,9 @@ export default function DayStatement() {
   const allCancelledRows = useMemo(() => {
     const pdv = cancelledOrders.map((o: any) => ({ id: o.id, num: o.order_number, time: o.cancelled_at, amount: Number(o.subtotal || 0), reason: o.cancellation_reason, tipo: "PDV" as const }));
     const del = deliveryCancelled.map((o: any) => ({ id: o.id, num: o.order_number, time: o.cancelled_at, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason, tipo: "Delivery" as const }));
-    return [...pdv, ...del].sort((a, b) => new Date(a.time || "").getTime() - new Date(b.time || "").getTime());
-  }, [cancelledOrders, deliveryCancelled]);
+    const comanda = cancelledComandas.map((o: any) => ({ id: o.id, num: o.comanda_number, time: o.cancelled_at, amount: Number(o.subtotal || 0), reason: o.cancellation_reason, tipo: "Salão" as const }));
+    return [...pdv, ...del, ...comanda].sort((a, b) => new Date(a.time || "").getTime() - new Date(b.time || "").getTime());
+  }, [cancelledOrders, deliveryCancelled, cancelledComandas]);
 
   const allDiscountedRows = useMemo(() => {
     const pdv = discountedOrders.map((o: any) => {
@@ -259,7 +290,7 @@ export default function DayStatement() {
       `Sangrias;${formatBRL(data.kpis.totalWithdrawals)}`,
       `Diferença total;${formatBRL(totalDifference)}`,
       `Sessões;${data.kpis.sessionsCount} (${sessionsClosed} fechadas / ${sessionsOpen} abertas)`,
-      `Cancelamentos;${cancelledOrders.length} pedidos / ${formatBRL(cancTotal)}`,
+      `Cancelamentos;${allCancelledRows.length} pedidos / ${formatBRL(cancTotal)}`,
       `Descontos concedidos;${formatBRL(discTotal)}`,
     ];
     downloadCsv(`demonstrativo_dia_${format(parsedDate, "yyyy-MM-dd")}.csv`, lines);

@@ -331,7 +331,7 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   const expensesTotal = expenses.reduce((a, e) => a + e.amount, 0);
 
   // Cancelamentos e Descontos por sessão
-  let cancelledOrders: Array<{ num: number | null; amount: number; reason: string | null }> = [];
+  let cancelledOrders: Array<{ num: number | string | null; amount: number; reason: string | null }> = [];
   let discountedOrders: Array<{ num: number | null; discount: number; origem?: string }> = [];
   if (session?.id) {
     try {
@@ -343,17 +343,25 @@ export async function printCashierReport(params: PrintCashierReportParams) {
       const fimSessao = session.closed_at || new Date().toISOString();
 
       const [
-        { data: cancelPdv }, { data: cancelDel },
-        { data: cancelPdvSemSessao }, { data: cancelDelSemSessao },
+        { data: cancelPdv }, { data: cancelDel }, { data: cancelComanda },
+        { data: cancelPdvSemSessao }, { data: cancelDelSemSessao }, { data: cancelComandaSemSessao },
         { data: discPdv }, { data: discDel },
       ] = await Promise.all([
         supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
         supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
+        // Cancelamento de comanda de salão nunca chega a virar pdv_orders — a
+        // mesa/comanda cancela direto em pdv_comandas, então sem esta consulta
+        // esses cancelamentos somem do fechamento (ficavam só no "salão", não
+        // no papel entregue ao conferente).
+        supabase.from("pdv_comandas").select("comanda_number,subtotal,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelada"),
         supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason")
           .eq("user_id", session.user_id).is("cashier_session_id", null).eq("status", "cancelled")
           .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao),
         supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason")
           .eq("user_id", session.user_id).is("cashier_session_id", null).eq("status", "cancelled")
+          .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao),
+        supabase.from("pdv_comandas").select("comanda_number,subtotal,cancellation_reason")
+          .eq("user_id", session.user_id).is("cashier_session_id", null).eq("status", "cancelada")
           .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao),
         supabase.from("pdv_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
         supabase.from("delivery_orders").select("order_number,discount,discount_source").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
@@ -361,8 +369,10 @@ export async function printCashierReport(params: PrintCashierReportParams) {
       cancelledOrders = [
         ...(cancelPdv || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
         ...(cancelDel || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason })),
+        ...(cancelComanda || []).map((o: any) => ({ num: o.comanda_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
         ...(cancelPdvSemSessao || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
         ...(cancelDelSemSessao || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason })),
+        ...(cancelComandaSemSessao || []).map((o: any) => ({ num: o.comanda_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
       ];
       discountedOrders = [
         ...(discPdv || []).map((o: any) => ({ num: o.order_number, discount: Number(o.discount || 0) })),
