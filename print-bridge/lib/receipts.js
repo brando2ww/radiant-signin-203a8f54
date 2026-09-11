@@ -19,6 +19,17 @@ function formatDateTime(d = new Date()) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Centraliza com espaços — usado para preencher a linha inteira num fundo
+ * em vídeo invertido (senão a barra preta só cobre o texto, não o resto
+ * da largura do papel). */
+function centerFill(s, width) {
+  s = String(s ?? "");
+  if (s.length >= width) return s.slice(0, width);
+  const pad = width - s.length;
+  const left = Math.floor(pad / 2);
+  return " ".repeat(left) + s + " ".repeat(pad - left);
+}
+
 function buildReceipt({ mesa, comanda, subheader, body, centerName, establishmentName }) {
   const chunks = [];
   const push = (...bytes) => chunks.push(Buffer.from(bytes));
@@ -35,10 +46,16 @@ function buildReceipt({ mesa, comanda, subheader, body, centerName, establishmen
   text("================================");
   line();
 
-  // MESA — destaque (largura+altura 4x)
-  push(GS, 0x21, 0x33);
-  text(String(mesa || "AVULSA").toUpperCase());
+  // MESA — barra em vídeo invertido (branco no preto), estilo Bitbar: bate o
+  // olho antes de ler o resto do cupom. GS B liga/desliga o modo; o texto vem
+  // preenchido com espaços pros dois lados pra barra cobrir a linha inteira,
+  // não só as letras.
+  push(GS, 0x42, 0x01);
+  push(GS, 0x21, 0x01);
+  text(centerFill(String(mesa || "AVULSA").toUpperCase(), 32));
   line();
+  push(GS, 0x21, 0x00);
+  push(GS, 0x42, 0x00);
 
   // Comanda — destaque médio (2x)
   if (comanda) {
@@ -319,10 +336,38 @@ function buildCaixaReceipt(p) {
     if (bold) push(GS, 0x21, 0x00);
   };
 
+  // ─── Layout de marketplace (iFood via Bitbar) ───────────────────────────
+  // Só entra em cena quando o pedido tem external_code (veio de iFood/
+  // marketplace) — pedido manual de balcão/telefone segue no layout de
+  // sempre, mais abaixo, sem nenhuma mudança de comportamento.
+  const isMarketplace = !!p.external_code;
+  const fmtNum = (v) => Number(v || 0).toFixed(2).replace(".", ",");
+  const twoCol = (left, right) => {
+    left = String(left ?? "");
+    right = String(right ?? "");
+    if (left.length + right.length >= 32) {
+      text(left); line();
+      text(right.padStart(32));
+    } else {
+      text(left.padEnd(32 - right.length) + right);
+    }
+    line();
+  };
+  const boxed = (label) => {
+    const inner = ` ${label} `.slice(0, 30).padEnd(30);
+    text("-".repeat(32)); line();
+    text("|" + inner + "|"); line();
+    text("-".repeat(32)); line();
+  };
+
   push(ESC, 0x40);
   push(ESC, 0x61, 0x01);
   push(GS, 0x21, 0x11);
-  text("COMANDA CAIXA");
+  if (isMarketplace) {
+    text(p.order_type === "pickup" ? "BUSCAR" : "TELENTREGA");
+  } else {
+    text("COMANDA CAIXA");
+  }
   line();
   push(GS, 0x21, 0x00);
   divider();
@@ -330,10 +375,18 @@ function buildCaixaReceipt(p) {
   push(ESC, 0x61, 0x00);
   const ticketStr = p.ticket_number != null ? `T#${String(p.ticket_number).padStart(3, "0")}` : null;
   const orderStr = p.order_number ? `Pedido #${p.order_number}` : null;
-  text([orderStr, ticketStr].filter(Boolean).join("  ") || "Pedido");
-  line();
+  if (isMarketplace) {
+    twoCol(orderStr || ticketStr || "Pedido", `iFood #${p.external_code}`);
+  } else {
+    text([orderStr, ticketStr].filter(Boolean).join("  ") || "Pedido");
+    line();
+  }
   text(formatDateTime());
   line();
+
+  if (isMarketplace && p.external_collection_code) {
+    boxed(`codigo coleta ${p.external_collection_code}`);
+  }
 
   // Entrega ou retirada em destaque: e a primeira coisa que o caixa precisa
   // saber, e antes so dava para deduzir pela presenca do endereco.
@@ -369,57 +422,126 @@ function buildCaixaReceipt(p) {
 
   divider("-");
   const items = Array.isArray(p.items) ? p.items : [];
-  text(`ITENS (${items.length}):`);
-  line();
-  items.forEach((it) => {
-    push(GS, 0x21, 0x01);
-    text(`${it.quantity}x ${String(it.product_name || "").toUpperCase()}`);
+
+  if (isMarketplace) {
+    text("Qtd  Produto                    Total");
     line();
-    push(GS, 0x21, 0x00);
-    if (it.notes) { text(`  OBS: ${it.notes}`); line(); }
-    (Array.isArray(it.modifiers) ? it.modifiers : []).forEach((m) => {
-      const lbl = typeof m === "string" ? m : (m && (m.name || m.label)) || "";
-      if (lbl) { text(`  + ${lbl}`); line(); }
+    items.forEach((it) => {
+      const left = `${it.quantity ?? 1} ${String(it.product_name || "").trim()}`;
+      const hasPrice = it.subtotal != null && Number(it.subtotal) > 0;
+      if (hasPrice) {
+        const priceStr = fmtNum(it.subtotal);
+        if (left.length + 1 + priceStr.length <= 32) {
+          text(left.padEnd(32 - priceStr.length) + priceStr);
+        } else {
+          text(left); line();
+          text(priceStr.padStart(32));
+        }
+      } else {
+        text(left);
+      }
+      line();
+      (Array.isArray(it.modifiers) ? it.modifiers : []).forEach((m) => {
+        const lbl = typeof m === "string" ? m : (m && (m.name || m.label)) || "";
+        if (lbl) { text(`  + ${lbl}`); line(); }
+      });
     });
-  });
-
-  divider("=");
-  if (p.subtotal != null) padRow("Subtotal:", fmtBRL(p.subtotal));
-  if (Number(p.delivery_fee) > 0) padRow("Taxa de entrega:", fmtBRL(p.delivery_fee));
-  if (Number(p.discount_amount) > 0) padRow("Desconto:", "-" + fmtBRL(p.discount_amount));
-  padRow("TOTAL:", fmtBRL(p.total), true);
-
-  divider("-");
-  // O banco grava em ingles (cash/credit/debit/pix). O mapa antigo so conhecia
-  // os termos em portugues, entao o cupom saia com "Pagamento: cash".
-  const PM = {
-    pix: "PIX",
-    cash: "Dinheiro", dinheiro: "Dinheiro", money: "Dinheiro",
-    credit: "Cartao de credito", credito: "Cartao de credito",
-    credit_card: "Cartao de credito",
-    debit: "Cartao de debito", debito: "Cartao de debito",
-    debit_card: "Cartao de debito",
-    cartao: "Cartao", card: "Cartao",
-    voucher: "Vale-refeicao", vale_refeicao: "Vale-refeicao",
-    online: "Online (ja pago)",
-  };
-  const pm = PM[String(p.payment_method || "").toLowerCase()] || p.payment_method || "N/D";
-  const paid = p.payment_status === "paid" ? "PAGO" : "A RECEBER";
-  push(GS, 0x21, 0x01);
-  text(`Pagamento: ${pm}`);
-  line();
-  push(GS, 0x21, 0x00);
-  text(`Situacao: ${paid}`);
-  line();
-  // "Troco para" e o valor que o cliente vai entregar, nao o troco em si.
-  if (Number(p.change_amount) > 0) {
-    text(`Troco para: ${fmtBRL(p.change_amount)}`);
+  } else {
+    text(`ITENS (${items.length}):`);
     line();
-    const troco = Number(p.change_amount) - Number(p.total || 0);
-    if (troco > 0) { text(`Levar de troco: ${fmtBRL(troco)}`); line(); }
+    items.forEach((it) => {
+      push(GS, 0x21, 0x01);
+      text(`${it.quantity}x ${String(it.product_name || "").toUpperCase()}`);
+      line();
+      push(GS, 0x21, 0x00);
+      if (it.notes) { text(`  OBS: ${it.notes}`); line(); }
+      (Array.isArray(it.modifiers) ? it.modifiers : []).forEach((m) => {
+        const lbl = typeof m === "string" ? m : (m && (m.name || m.label)) || "";
+        if (lbl) { text(`  + ${lbl}`); line(); }
+      });
+    });
   }
 
   divider("=");
+
+  if (isMarketplace) {
+    // Loja e plataforma bancam partes diferentes do desconto — mostrar as
+    // duas linhas em vez do total somado é o que faz o cupom bater com o
+    // que o operador vê no painel do iFood.
+    if (p.subtotal != null) twoCol("Subtotal", fmtNum(p.subtotal));
+    if (Number(p.delivery_fee) > 0) twoCol("Taxa Entrega", fmtNum(p.delivery_fee));
+    if (Number(p.discount_sponsor_merchant) > 0) twoCol("Desconto", "-" + fmtNum(p.discount_sponsor_merchant));
+    if (Number(p.discount_sponsor_ifood) > 0) twoCol("Desconto da Plataforma", "-" + fmtNum(p.discount_sponsor_ifood));
+    divider("-");
+    twoCol("Valor Total", fmtNum(p.total));
+    divider("-");
+    const pagoOnline = p.payment_status === "paid" ? Number(p.total || 0) : 0;
+    twoCol("Pagto Online", fmtNum(pagoOnline));
+    twoCol("Troco", fmtNum(0));
+  } else {
+    if (p.subtotal != null) padRow("Subtotal:", fmtBRL(p.subtotal));
+    if (Number(p.delivery_fee) > 0) padRow("Taxa de entrega:", fmtBRL(p.delivery_fee));
+    if (Number(p.discount_amount) > 0) padRow("Desconto:", "-" + fmtBRL(p.discount_amount));
+    padRow("TOTAL:", fmtBRL(p.total), true);
+
+    divider("-");
+    // O banco grava em ingles (cash/credit/debit/pix). O mapa antigo so conhecia
+    // os termos em portugues, entao o cupom saia com "Pagamento: cash".
+    const PM = {
+      pix: "PIX",
+      cash: "Dinheiro", dinheiro: "Dinheiro", money: "Dinheiro",
+      credit: "Cartao de credito", credito: "Cartao de credito",
+      credit_card: "Cartao de credito",
+      debit: "Cartao de debito", debito: "Cartao de debito",
+      debit_card: "Cartao de debito",
+      cartao: "Cartao", card: "Cartao",
+      voucher: "Vale-refeicao", vale_refeicao: "Vale-refeicao",
+      online: "Online (ja pago)",
+    };
+    const pm = PM[String(p.payment_method || "").toLowerCase()] || p.payment_method || "N/D";
+    const paid = p.payment_status === "paid" ? "PAGO" : "A RECEBER";
+    push(GS, 0x21, 0x01);
+    text(`Pagamento: ${pm}`);
+    line();
+    push(GS, 0x21, 0x00);
+    text(`Situacao: ${paid}`);
+    line();
+    // "Troco para" e o valor que o cliente vai entregar, nao o troco em si.
+    if (Number(p.change_amount) > 0) {
+      text(`Troco para: ${fmtBRL(p.change_amount)}`);
+      line();
+      const troco = Number(p.change_amount) - Number(p.total || 0);
+      if (troco > 0) { text(`Levar de troco: ${fmtBRL(troco)}`); line(); }
+    }
+  }
+
+  divider("=");
+
+  // Segunda via do motoboy: mesmo cabecalho, sem a tabela de itens — e o que
+  // o entregador confere na porta, nao precisa do detalhe do pedido.
+  if (isMarketplace && p.order_type !== "pickup") {
+    push(GS, 0x21, 0x01);
+    text("Via Motoboy");
+    line();
+    push(GS, 0x21, 0x00);
+    twoCol(orderStr || ticketStr || "Pedido", `iFood #${p.external_code}`);
+    if (p.customer_name) { text(p.customer_name); line(); }
+    if (p.delivery_address) {
+      text(p.delivery_address); line();
+      if (p.delivery_complement) { text("Compl.: " + p.delivery_complement); line(); }
+      if (p.delivery_reference) { text("Ref.: " + p.delivery_reference); line(); }
+    }
+    if (p.external_collection_code) boxed(`codigo coleta ${p.external_collection_code}`);
+    divider("-");
+    if (p.subtotal != null) twoCol("Subtotal", fmtNum(p.subtotal));
+    if (Number(p.delivery_fee) > 0) twoCol("Taxa Entrega", fmtNum(p.delivery_fee));
+    if (Number(p.discount_sponsor_merchant) > 0) twoCol("Desconto", "-" + fmtNum(p.discount_sponsor_merchant));
+    if (Number(p.discount_sponsor_ifood) > 0) twoCol("Desconto da Plataforma", "-" + fmtNum(p.discount_sponsor_ifood));
+    divider("-");
+    twoCol("Valor Total", fmtNum(p.total));
+    divider("=");
+  }
+
   push(LF, LF, LF, LF);
   push(GS, 0x56, 0x41, 0x05);
   return Buffer.concat(chunks);

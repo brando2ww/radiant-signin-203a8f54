@@ -15,7 +15,7 @@ async function fetchOrderItems(orderId: string): Promise<any[]> {
 
   const { data: items } = await (supabase as any)
     .from("delivery_order_items")
-    .select("id,production_center_id,product_name,quantity,notes")
+    .select("id,production_center_id,product_name,quantity,notes,unit_price,subtotal")
     .eq("order_id", orderId);
   if (!items || items.length === 0) return [];
 
@@ -57,6 +57,8 @@ async function fetchOrderItems(orderId: string): Promise<any[]> {
       product_name: item.product_name,
       quantity: item.quantity,
       notes: item.notes,
+      unit_price: item.unit_price,
+      subtotal: item.subtotal,
       center_name: center?.name ?? null,
       printer_ip: center?.printer_ip ?? null,
       printer_port: center?.printer_port ?? null,
@@ -223,7 +225,7 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
   // em nenhum cliente, em centenas de pedidos.
   const { data: orderRow, error: orderError } = await (supabase as any)
     .from("delivery_orders")
-    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,delivery_address_id,subtotal,delivery_fee,discount,total,payment_method,payment_status,change_for,notes")
+    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,delivery_address_id,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,change_for,notes,external_code,external_collection_code")
     .eq("id", orderId)
     .single();
   if (orderError) {
@@ -273,6 +275,8 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
     product_name: r.product_name,
     quantity: r.quantity,
     notes: r.notes,
+    unit_price: r.unit_price,
+    subtotal: r.subtotal,
     modifiers: (r.options ?? []).map((o: any) => ({
       name: o?.quantity && Number(o.quantity) > 1 ? `${o.quantity}x ${o.name}` : o?.name,
     })).filter((m: any) => m.name),
@@ -303,11 +307,20 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
       // A bridge le `discount_amount`/`change_amount` no payload; no banco as
       // colunas tem outro nome. A traducao acontece aqui.
       discount_amount: orderRow.discount,
+      // Split de quem banca o desconto (só existe em pedido de marketplace):
+      // a bridge usa isso pra separar "Desconto" (loja) de "Desconto da
+      // Plataforma" (iFood), em vez de mostrar só o total somado.
+      discount_sponsor_ifood: orderRow.discount_sponsor_ifood,
+      discount_sponsor_merchant: orderRow.discount_sponsor_merchant,
       total: orderRow.total,
       payment_method: orderRow.payment_method,
       payment_status: orderRow.payment_status,
       change_amount: orderRow.change_for,
       notes: orderRow.notes,
+      // Presença de external_code é o que liga a bridge no layout de
+      // marketplace (estilo Bitbar) em vez do cupom genérico de balcão.
+      external_code: orderRow.external_code,
+      external_collection_code: orderRow.external_collection_code,
       items: itemsPayload,
     },
   }));

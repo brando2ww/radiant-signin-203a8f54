@@ -84,6 +84,97 @@ test("comanda do caixa traz totais, endereço e troco", () => {
   assert.match(texto, /Levar de troco: R\$ 45,00/);
 });
 
+test("comanda do caixa de pedido de marketplace sai no layout Bitbar, sem inventar taxa", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "Caixa Principal",
+      source_kind: "comanda_caixa",
+      payload: {
+        kind: "comanda_caixa",
+        order_number: "003",
+        customer_name: "Joel Longaray",
+        order_type: "pickup",
+        subtotal: 42,
+        discount_sponsor_ifood: 15,
+        discount_sponsor_merchant: 5,
+        total: 22.99,
+        payment_method: "online",
+        payment_status: "paid",
+        external_code: "1407",
+        items: [
+          { product_name: "Monte Seu Prato pf", quantity: 1, subtotal: 0 },
+          { product_name: "Frango a Parmegiana", quantity: 1, subtotal: 25 },
+        ],
+      },
+    },
+    "Restaurante Teste",
+  );
+  const texto = buf.toString("latin1");
+  assert.match(texto, /BUSCAR/, "pedido pickup de marketplace usa o rótulo do Bitbar, não COMANDA CAIXA");
+  assert.doesNotMatch(texto, /COMANDA CAIXA/);
+  assert.match(texto, /iFood #1407/);
+  assert.match(texto, /Desconto da Plataforma/, "desconto bancado pelo iFood sai separado do da loja");
+  assert.match(texto, /Pagto Online/);
+  assert.doesNotMatch(texto, /Taxa iFood/, "não existe dado real de taxa iFood — não pode aparecer inventado");
+  assert.doesNotMatch(texto, /Via Motoboy/, "retirada no local não tem 2ª via de motoboy");
+});
+
+test("comanda do caixa de marketplace com entrega própria imprime a 2ª via do motoboy", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "Caixa Principal",
+      source_kind: "comanda_caixa",
+      payload: {
+        kind: "comanda_caixa",
+        order_number: "001",
+        customer_name: "Ricardo",
+        order_type: "delivery",
+        delivery_address: "Rua A, 100",
+        subtotal: 50,
+        delivery_fee: 25,
+        total: 66,
+        payment_method: "online",
+        payment_status: "paid",
+        external_code: "2233",
+        external_collection_code: "3755",
+        items: [{ product_name: "Pizza", quantity: 1, subtotal: 50 }],
+      },
+    },
+    "Restaurante Teste",
+  );
+  const texto = buf.toString("latin1");
+  assert.match(texto, /codigo coleta 3755/);
+  assert.match(texto, /Via Motoboy/);
+  // a 2a via aparece DEPOIS da tabela de itens da 1a via
+  const idxItens = texto.indexOf("Pizza");
+  const idxMotoboy = texto.indexOf("Via Motoboy");
+  assert.ok(idxItens > -1 && idxMotoboy > idxItens);
+});
+
+test("barra da mesa cobre a linha inteira em vídeo invertido", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "Bar",
+      source_kind: "comanda",
+      payload: {
+        kind: "comanda",
+        mesa_numero: "16",
+        comanda_nome: "Jesus",
+        order_number: "021",
+        items: [{ product_name: "Caipirinha", quantity: 2 }],
+      },
+    },
+    "Restaurante Teste",
+  );
+  // GS B 1 liga o vídeo invertido antes do texto da mesa, e GS B 0 desliga
+  // logo depois — sem isso a barra não aparece preta na impressora real.
+  const ligaIdx = buf.indexOf(Buffer.from([0x1d, 0x42, 0x01]));
+  const desligaIdx = buf.indexOf(Buffer.from([0x1d, 0x42, 0x00]));
+  assert.ok(ligaIdx > -1 && desligaIdx > ligaIdx, "vídeo invertido tem de ligar e desligar em volta da MESA");
+  const meio = buf.subarray(ligaIdx, desligaIdx).toString("latin1");
+  assert.match(meio, /MESA 16/);
+});
+
 test("DANFE leva QR Code e chave de acesso", () => {
   const buf = receipts.buildJobReceipt(
     {
