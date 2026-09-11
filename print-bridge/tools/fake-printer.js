@@ -54,7 +54,7 @@ function respostaStatus(n) {
  * senão o preview mente justo onde erra mais: título centralizado, valor
  * dentro de moldura e qualquer coisa em corpo grande.
  */
-function decodificar(buf, colunas = 32) {
+function decodificar(buf, colunas = 48) {
   const linhas = [];
   let atual = "";
   let larguraDupla = false;
@@ -76,7 +76,7 @@ function decodificar(buf, colunas = 32) {
     const b = buf[i];
     if (b === 0x1b && buf[i + 1] === 0x40) { i += 1; larguraDupla = false; alinhamento = 0; continue; }
     if (b === 0x1b && buf[i + 1] === 0x61) { alinhamento = buf[i + 2]; i += 2; continue; }
-    if (b === 0x1b && buf[i + 1] === 0x45) { i += 2; continue; }            // negrito (ESC E)
+    if (b === 0x1b && (buf[i + 1] === 0x45 || buf[i + 1] === 0x47)) { i += 2; continue; } // negrito (ESC E / ESC G)
     if (b === 0x1b && buf[i + 1] === 0x4d) { i += 2; continue; }            // fonte A/B (ESC M)
     if (b === 0x1d && buf[i + 1] === 0x21) { larguraDupla = (buf[i + 2] & 0x10) !== 0; i += 2; continue; }
     if (b === 0x1d && buf[i + 1] === 0x42) { i += 2; continue; }            // vídeo invertido (GS B)

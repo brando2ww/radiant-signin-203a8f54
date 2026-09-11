@@ -257,21 +257,10 @@ function startHttpServer() {
           const alvo = printerName || ip;
           if (!alvo) return json(res, 400, { ok: false, error: "IP ou printerName obrigatório" });
 
-          const buf = receipts.buildJobReceipt(
-            {
-              center_name: centerName,
-              source_kind: "comanda",
-              payload: {
-                kind: "comanda",
-                mesa_numero: "TESTE",
-                comanda_nome: "*** TESTE DE IMPRESSAO ***",
-                order_number: "000",
-                items: [{ product_name: `Print Bridge ${config.version} OK`, quantity: 1 }],
-              },
-            },
-            config.establishmentName,
-            config.version,
-          );
+          const buf = receipts.buildTestePapel(config.printCols, {
+            establishmentName: config.establishmentName,
+            version: config.version,
+          });
           const alvoJob = { printer_ip: alvo, printer_port: port };
           // Pela fila, e não direto: um teste disparado no meio de um cupom
           // intercalaria bytes na mesma impressora.

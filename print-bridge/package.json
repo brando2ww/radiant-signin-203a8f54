@@ -1,6 +1,6 @@
 {
   "name": "velara-print-bridge",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Serviço local que escuta o Supabase Realtime e imprime pedidos nas impressoras térmicas (TCP/IP, COM port, USB, Windows Printer).",
   "main": "server.js",
   "type": "commonjs",

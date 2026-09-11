@@ -14,10 +14,13 @@ const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
 
-// Colunas por linha. A fonte A é a padrão; a B é condensada e cabe mais texto,
-// usada nos blocos densos (endereço, rodapé) como no cupom de referência.
-const W = 32;
-const WB = 42;
+// Colunas por linha na fonte A. 48 é a bobina de 80mm, 32 a de 58mm — quem
+// manda é config.printCols, que chega pelo ctx; este valor só vale para quem
+// chamar o módulo sem contexto (testes de unidade e ferramentas).
+const W_PADRAO = 48;
+
+// A fonte B é condensada: na mesma bobina cabe ~4/3 do que cabe na fonte A.
+const proporcaoFonteB = (w) => Math.floor((w * 4) / 3);
 
 // Coluna em que a descrição começa: a quantidade ocupa as duas primeiras
 // posições e o texto alinha a partir daqui, inclusive nas quebras de linha.
@@ -66,7 +69,8 @@ function wrap(s, w, indent = "") {
 }
 
 /** Escritor ESC/POS: guarda os bytes e oferece os primitivos de layout. */
-function makeWriter() {
+function makeWriter(W = W_PADRAO) {
+  const WB = proporcaoFonteB(W);
   const chunks = [];
   const push = (...bytes) => chunks.push(Buffer.from(bytes));
   const raw = (buf) => chunks.push(buf);
@@ -77,7 +81,13 @@ function makeWriter() {
   const reset = () => push(ESC, 0x40);
   const align = (n) => push(ESC, 0x61, n); // 0 esquerda, 1 centro, 2 direita
   const size = (n) => push(GS, 0x21, n); // 0x00 normal, 0x01 altura 2x, 0x11 2x2
-  const bold = (on) => push(ESC, 0x45, on ? 1 : 0);
+  // ESC E sozinho sai fraco em boa parte das térmicas; o ESC G (double
+  // strike) é o que de fato engrossa o traço. Os dois juntos dão o mesmo
+  // peso que o demonstrativo de fechamento tem no papel.
+  const bold = (on) => {
+    push(ESC, 0x45, on ? 1 : 0);
+    push(ESC, 0x47, on ? 1 : 0);
+  };
   const fontB = (on) => push(ESC, 0x4d, on ? 1 : 0);
 
   const rule = (w = W, c = "-") => write(c.repeat(w));
@@ -218,7 +228,7 @@ function makeWriter() {
  * como sai na comanda de entrega, onde cada componente do prato vira uma
  * etapa de montagem. Na comanda de mesa eles vêm colados, como no balcão.
  */
-function escreverItensCozinha(w, items, largura = W, espacarModificadores = false) {
+function escreverItensCozinha(w, items, largura, espacarModificadores = false) {
   items.forEach((item, idx) => {
     if (idx > 0) {
       // Separador pontilhado entre itens, como no cupom de referência.
@@ -280,7 +290,8 @@ function normalizarModificadores(modifiers) {
  *   Velara 2.1.0 - Vitor  11/09 20:37
  */
 function buildComandaMesa(p, ctx) {
-  const w = makeWriter();
+  const W = ctx.cols || W_PADRAO;
+  const w = makeWriter(W);
   w.reset();
 
   w.titulo("SALAO");
@@ -312,7 +323,8 @@ function buildComandaMesa(p, ctx) {
  *   Comanda #3 - Imp: cozinha
  */
 function buildComandaEntrega(p, ctx) {
-  const w = makeWriter();
+  const W = ctx.cols || W_PADRAO;
+  const w = makeWriter(W);
   w.reset();
 
   w.titulo(p.titulo);
@@ -359,7 +371,8 @@ function buildComandaEntrega(p, ctx) {
  *                 Troco         0,00
  */
 function buildCupomPedido(p, ctx) {
-  const w = makeWriter();
+  const W = ctx.cols || W_PADRAO;
+  const w = makeWriter(W);
   w.reset();
 
   const via = (titulo, comItens) => {
@@ -430,11 +443,51 @@ function buildCupomPedido(p, ctx) {
 
   // 2ª via do motoboy: mesmo cabeçalho e valores, sem a lista de itens — é o
   // que o entregador confere na porta, não precisa do detalhe do pedido.
+  // Vai depois de um corte: uma via fica no caixa e a outra sai com a moto,
+  // então não pode sair tudo grudado numa tira só.
   if (p.viaMotoboy) {
-    w.line();
+    w.cut();
     via("VIA MOTOBOY", false);
   }
 
+  w.cut();
+  return w.done();
+}
+
+/**
+ * Cupom de teste: régua de colunas e uma amostra de cada estilo.
+ *
+ * A régua existe porque a largura da bobina não dá para adivinhar — 80mm
+ * costuma ser 48 colunas e 58mm 32, mas há impressora configurada fora do
+ * padrão. Se o último número da régua não encostar na borda do papel, é
+ * PRINT_COLS no .env que precisa mudar, não o código.
+ */
+function buildTestePapel(cols, ctx = {}) {
+  const W = cols || W_PADRAO;
+  const w = makeWriter(W);
+  w.reset();
+
+  w.titulo("TESTE");
+  w.subtitulo(`${W} COLUNAS`);
+  w.line();
+
+  // Régua: dezenas em cima, unidades embaixo.
+  let dezenas = "";
+  let unidades = "";
+  for (let i = 1; i <= W; i++) {
+    dezenas += i % 10 === 0 ? String(Math.floor(i / 10)) : " ";
+    unidades += String(i % 10);
+  }
+  w.write(dezenas);
+  w.write(unidades);
+  w.write("=".repeat(W));
+
+  w.secao("Amostra");
+  w.linha("Valor em negrito:", "R$ 123,45");
+  w.linha("Texto normal:", "sem negrito");
+  w.card("Card de destaque", "123,45");
+
+  w.rodape(`${ctx.establishmentName || "Velara"} - ${ctx.version || ""} - ${formatDiaHora()}`);
   w.cut();
   return w.done();
 }
@@ -677,10 +730,10 @@ const PAGAMENTOS = {
  * normalização do payload, que antes moravam no meio de processJob e não
  * tinham como ser testadas sem uma impressora do outro lado.
  */
-function buildJobReceipt(job, establishmentName, version) {
+function buildJobReceipt(job, establishmentName, version, cols) {
   const p = job.payload || {};
   const kind = p.kind || job.source_kind || "comanda";
-  const ctx = { establishmentName, version };
+  const ctx = { establishmentName, version, cols };
   const agora = new Date();
 
   if (kind === "danfe") return buildDanfeReceipt(p);
@@ -773,6 +826,7 @@ function jobSummary(job) {
 
 module.exports = {
   buildComandaMesa,
+  buildTestePapel,
   buildComandaEntrega,
   buildCupomPedido,
   buildDanfeReceipt,

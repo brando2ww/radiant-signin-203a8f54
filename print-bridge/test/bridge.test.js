@@ -31,7 +31,7 @@ function papel(buf) {
   return buf
     .toString("latin1")
     .replace(/\x1b@/g, "")
-    .replace(/\x1b[aEM]./g, "")
+    .replace(/\x1b[aEMG]./g, "")
     .replace(/\x1d[!B]./g, "")
     .replace(/\x1dVA./g, "");
 }
@@ -99,7 +99,7 @@ test("comanda de mesa leva titulo grande, card do cliente e pessoas", () => {
   assert.match(texto, / 1   REFRI RODIZIO/);
   assert.match(texto, /     2X PEPSI 600ML/, "complemento alinha na mesma coluna da descricao");
   assert.match(texto, /Garcom:\s+Vitor/);
-  assert.match(texto, /\+-{30}\+\n\| CLIENTE/, "o nome do cliente sai num card, como no demonstrativo");
+  assert.match(texto, /\+-+\+\n\| CLIENTE/, "o nome do cliente sai num card, como no demonstrativo");
 
   // GS ! 0x11 = corpo dobrado nos dois eixos: e o que da o tamanho do titulo.
   assert.ok(buf.includes(Buffer.from([0x1d, 0x21, 0x11])), "o titulo sai em corpo grande");
@@ -132,11 +132,11 @@ test("cupom do pedido alinha valores a direita e separa o desconto da plataforma
   assert.match(texto, /RETIRADA|R E T I R A D A/, "retirada tem titulo proprio");
   assert.match(texto, /PEDIDO #003/);
   assert.match(texto, /iFood:/);
-  assert.match(texto, /Subtotal:                  42,00/, "rotulo e valor encostam nas bordas");
-  assert.match(texto, /Desconto da plataforma:    -5,00|Desconto da plataforma:   -15,00/, "o que o iFood banca sai separado do desconto da loja");
-  assert.match(texto, /Desconto:                  -5,00/);
+  assert.match(texto, /^Subtotal:\s+42,00$/m, "rotulo e valor encostam nas bordas");
+  assert.match(texto, /^Desconto da plataforma:\s+-15,00$/m, "o que o iFood banca sai separado do desconto da loja");
+  assert.match(texto, /^Desconto:\s+-5,00$/m);
   assert.match(texto, /VALOR TOTAL/, "o total vai num card de destaque");
-  assert.match(texto, /Pagto Online:              22,99/);
+  assert.match(texto, /^Pagto Online:\s+22,99$/m);
   assert.doesNotMatch(texto, /Taxa iFood/, "nao existe dado real de taxa iFood — nao pode aparecer inventado");
   assert.doesNotMatch(texto, /Via Motoboy/, "retirada no local nao tem 2a via de motoboy");
 });
@@ -203,7 +203,74 @@ test("pedido em dinheiro mostra o troco a levar", () => {
   const texto = papel(buf);
   assert.match(texto, /Ap 302/);
   assert.match(texto, /Dinheiro/, "o banco grava em ingles; o cupom tem de sair em portugues");
-  assert.match(texto, /Troco:                     45,00/, "o troco e o que volta pro cliente, nao o valor entregue");
+  assert.match(texto, /^Troco:\s+45,00$/m, "o troco e o que volta pro cliente, nao o valor entregue");
+});
+
+test("cupom usa a largura configurada da bobina, de ponta a ponta", () => {
+  for (const cols of [32, 48]) {
+    const buf = receipts.buildJobReceipt(
+      {
+        center_name: "Bar",
+        source_kind: "comanda",
+        payload: {
+          kind: "comanda",
+          mesa_numero: "21",
+          comanda_nome: "Vitor",
+          order_number: "021",
+          items: [{ product_name: "Refri", quantity: 1 }],
+        },
+      },
+      "Restaurante Teste",
+      "2.4.0",
+      cols,
+    );
+    const linhas = papel(buf).split("\n");
+    const reguas = linhas.filter((l) => /^=+$/.test(l));
+    assert.ok(reguas.length > 0, `sem regua em ${cols} colunas`);
+    reguas.forEach((r) =>
+      assert.equal(r.length, cols, `regua tem de ocupar as ${cols} colunas do papel`),
+    );
+    // A moldura do card acompanha a mesma largura.
+    const moldura = linhas.find((l) => /^\+-+\+$/.test(l));
+    assert.equal(moldura.length, cols, "o card tem de encostar nas duas bordas");
+  }
+});
+
+test("entrega sai em duas vias cortadas, e nao numa tira so", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "CAIXA",
+      source_kind: "comanda_caixa",
+      payload: {
+        kind: "comanda_caixa",
+        order_number: "006",
+        order_type: "delivery",
+        customer_name: "Carlos",
+        delivery_address: "Rua A, 100",
+        subtotal: 136,
+        delivery_fee: 10,
+        total: 146,
+        payment_method: "pix",
+        payment_status: "paid",
+        items: [{ product_name: "Combo", quantity: 1, subtotal: 136 }],
+      },
+    },
+    "Restaurante Teste",
+    "2.4.0",
+    48,
+  );
+  // GS V A = corte parcial. Uma via fica no caixa, a outra vai com a moto,
+  // entao tem de haver corte entre elas — e nao so no fim do cupom.
+  const corte = Buffer.from([0x1d, 0x56, 0x41]);
+  let cortes = 0;
+  for (let i = 0; i + 2 < buf.length; i++) {
+    if (buf.subarray(i, i + 3).equals(corte)) cortes += 1;
+  }
+  assert.equal(cortes, 2, "um corte separando as vias e outro no fim");
+
+  const texto = papel(buf);
+  const motoboy = texto.indexOf("VIA MOTOBOY");
+  assert.ok(motoboy > texto.indexOf("Combo"), "a via do motoboy vem depois do cupom do caixa");
 });
 
 test("DANFE leva QR Code e chave de acesso", () => {

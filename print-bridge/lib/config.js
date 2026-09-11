@@ -46,6 +46,12 @@ const config = {
   tenantUserId: env.TENANT_USER_ID || null,
   httpPort: num(env.BRIDGE_HTTP_PORT, 7777),
 
+  // Colunas por linha na fonte A. 48 é o padrão da bobina de 80mm; 32 é o de
+  // 58mm. Errar para menos imprime um cupom estreito no meio do papel, então
+  // fica configurável: dá para ajustar no .env sem gerar outro instalador.
+  // O /selftest imprime uma régua numerada para conferir sem chutar.
+  printCols: num(env.PRINT_COLS, 48),
+
   dataDir: resolveDataDir(),
 
   // ── Reconciliação ──────────────────────────────────────────────────────
