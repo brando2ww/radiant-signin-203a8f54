@@ -88,14 +88,21 @@ async function main() {
 
   preparar();
 
-  const cupom = receipts.buildReceipt({
-    mesa: "TESTE CI",
-    comanda: "GitHub Actions",
-    subheader: ["Centro: CI", receipts.formatDateTime()],
-    body: [{ product_name: "Cupom de teste", quantity: 1 }],
-    centerName: "CI",
-    establishmentName: "Velara CI",
-  });
+  const cupom = receipts.buildJobReceipt(
+    {
+      center_name: "CI",
+      source_kind: "comanda",
+      payload: {
+        kind: "comanda",
+        mesa_numero: "TESTE CI",
+        comanda_nome: "GitHub Actions",
+        order_number: "000",
+        items: [{ product_name: "Cupom de teste", quantity: 1 }],
+      },
+    },
+    "Velara CI",
+    "ci",
+  );
 
   await teste("imprime e o spooler confirma que o documento saiu", async () => {
     if (fs.existsSync(SAIDA)) fs.unlinkSync(SAIDA);

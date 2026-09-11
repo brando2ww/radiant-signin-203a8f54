@@ -55,6 +55,8 @@ function decodificar(buf) {
     const b = buf[i];
     if (b === 0x1b && buf[i + 1] === 0x40) { i += 1; continue; }            // reset
     if (b === 0x1b && buf[i + 1] === 0x61) { i += 2; continue; }            // alinhamento
+    if (b === 0x1b && buf[i + 1] === 0x45) { i += 2; continue; }            // negrito (ESC E)
+    if (b === 0x1b && buf[i + 1] === 0x4d) { i += 2; continue; }            // fonte A/B (ESC M)
     if (b === 0x1d && buf[i + 1] === 0x21) { i += 2; continue; }            // tamanho
     if (b === 0x1d && buf[i + 1] === 0x42) { i += 2; continue; }            // vídeo invertido (GS B)
     if (b === 0x1d && buf[i + 1] === 0x56) { i += 3; linhas.push("──── corte ────"); continue; }

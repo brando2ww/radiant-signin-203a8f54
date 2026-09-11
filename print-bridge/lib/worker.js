@@ -163,7 +163,7 @@ async function processJob(job, { claimed = false } = {}) {
       job = reivindicado;
     }
 
-    const buf = receipts.buildJobReceipt(job, config.establishmentName);
+    const buf = receipts.buildJobReceipt(job, config.establishmentName, config.version);
     log(
       `→ Job ${job.id} | kind=${job.source_kind} | centro=${job.center_name} | ` +
         `${receipts.jobSummary(job)} → ${key}`,
@@ -188,7 +188,7 @@ async function reprint(jobId) {
   emVoo.delete(jobId);
   const claimed = await db.claimOne(jobId, deviceId(), job.attempts || 0);
   if (!claimed) throw new Error("não foi possível reivindicar o job");
-  const buf = receipts.buildJobReceipt(claimed, config.establishmentName);
+  const buf = receipts.buildJobReceipt(claimed, config.establishmentName, config.version);
   const key = io.queueKey(claimed);
   const ok = await imprimirComTentativas(claimed, buf, key);
   if (!ok) throw new Error(state.last_error || "falha ao imprimir");

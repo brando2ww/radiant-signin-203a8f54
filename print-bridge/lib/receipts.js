@@ -2,16 +2,30 @@
 
 // Renderização ESC/POS. Módulo puro: entra payload, sai Buffer. Nenhuma rede,
 // nenhum estado, nenhum I/O — é o que permite testar por snapshot no macOS,
-// sem impressora e sem Windows (ver tools/ e test/receipts.test.js).
+// sem impressora e sem Windows (ver tools/ e test/bridge.test.js).
+//
+// Os layouts seguem o cupom que as lojas já usavam antes do Velara: cabeçalho
+// da mesa em tarja preta, comanda de entrega com o endereço no topo e cupom
+// de pedido com o bloco de valores alinhado à direita. Mexer no espaçamento
+// aqui muda papel impresso em produção — confira com tools/fake-printer.js.
 
 const ESC = 0x1b;
 const GS = 0x1d;
 const LF = 0x0a;
 
+// Colunas por linha. A fonte A é a padrão; a B é condensada e cabe mais texto,
+// usada nos blocos densos (endereço, rodapé) como no cupom de referência.
+const W = 32;
+const WB = 42;
+
+// Coluna em que a descrição começa: a quantidade ocupa as duas primeiras
+// posições e o texto alinha a partir daqui, inclusive nas quebras de linha.
+const QTD_COL = 5;
+
 function stripAccents(s) {
   return String(s ?? "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[̀-ͯ]/g, "");
 }
 
 function formatDateTime(d = new Date()) {
@@ -19,109 +33,368 @@ function formatDateTime(d = new Date()) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Centraliza com espaços — usado para preencher a linha inteira num fundo
- * em vídeo invertido (senão a barra preta só cobre o texto, não o resto
- * da largura do papel). */
-function centerFill(s, width) {
-  s = String(s ?? "");
-  if (s.length >= width) return s.slice(0, width);
-  const pad = width - s.length;
-  const left = Math.floor(pad / 2);
-  return " ".repeat(left) + s + " ".repeat(pad - left);
+function formatHora(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function buildReceipt({ mesa, comanda, subheader, body, centerName, establishmentName }) {
+function formatDiaHora(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const fmtNum = (v) => Number(v || 0).toFixed(2).replace(".", ",");
+
+/** Quebra em linhas de no máximo `w` colunas, sem cortar palavra no meio. */
+function wrap(s, w, indent = "") {
+  const palavras = stripAccents(String(s ?? "")).split(/\s+/).filter(Boolean);
+  if (palavras.length === 0) return [];
+  const linhas = [];
+  let atual = "";
+  for (const p of palavras) {
+    const candidato = atual ? `${atual} ${p}` : p;
+    if ((indent + candidato).length > w && atual) {
+      linhas.push(indent + atual);
+      atual = p;
+    } else {
+      atual = candidato;
+    }
+  }
+  if (atual) linhas.push(indent + atual);
+  return linhas;
+}
+
+/** Escritor ESC/POS: guarda os bytes e oferece os primitivos de layout. */
+function makeWriter() {
   const chunks = [];
   const push = (...bytes) => chunks.push(Buffer.from(bytes));
-  const text = (s) => chunks.push(Buffer.from(stripAccents(s), "utf8"));
+  const raw = (buf) => chunks.push(buf);
+  const text = (s) => chunks.push(Buffer.from(stripAccents(String(s ?? "")), "utf8"));
   const line = () => push(LF);
+  const write = (s) => { text(s); line(); };
 
-  push(ESC, 0x40);
-  // Estabelecimento
-  push(ESC, 0x61, 0x01);
-  push(GS, 0x21, 0x11);
-  text(establishmentName || "Estabelecimento");
-  line();
-  push(GS, 0x21, 0x00);
-  text("================================");
-  line();
+  const reset = () => push(ESC, 0x40);
+  const align = (n) => push(ESC, 0x61, n); // 0 esquerda, 1 centro, 2 direita
+  const size = (n) => push(GS, 0x21, n); // 0x00 normal, 0x01 altura 2x, 0x11 2x2
+  const bold = (on) => push(ESC, 0x45, on ? 1 : 0);
+  const reverse = (on) => push(GS, 0x42, on ? 1 : 0);
+  const fontB = (on) => push(ESC, 0x4d, on ? 1 : 0);
 
-  // MESA — barra em vídeo invertido (branco no preto), estilo Bitbar: bate o
-  // olho antes de ler o resto do cupom. GS B liga/desliga o modo; o texto vem
-  // preenchido com espaços pros dois lados pra barra cobrir a linha inteira,
-  // não só as letras.
-  push(GS, 0x42, 0x01);
-  push(GS, 0x21, 0x01);
-  text(centerFill(String(mesa || "AVULSA").toUpperCase(), 32));
-  line();
-  push(GS, 0x21, 0x00);
-  push(GS, 0x42, 0x00);
+  const rule = (w = W, c = "-") => write(c.repeat(w));
 
-  // Comanda — destaque médio (2x)
-  if (comanda) {
-    push(GS, 0x21, 0x11);
-    text(String(comanda));
-    line();
-  }
-  push(GS, 0x21, 0x00);
-  push(ESC, 0x61, 0x00);
+  /** Texto à esquerda e à direita na mesma linha, encostados nas bordas. */
+  const row = (left, right, w = W) => {
+    const l = stripAccents(String(left ?? ""));
+    const r = stripAccents(String(right ?? ""));
+    if (!r) return write(l);
+    if (l.length + r.length + 1 > w) {
+      write(l);
+      write(r.padStart(w));
+      return;
+    }
+    write(l.padEnd(w - r.length) + r);
+  };
 
-  text("================================");
-  line();
-  (subheader || []).forEach((l) => {
-    text(l);
-    line();
-  });
-  text("--------------------------------");
-  line();
-  body.forEach((item, idx) => {
+  /** Só à direita — usado no "Pessoas 8" e no "Pedidos: 6". */
+  const right = (s, w = W) => write(stripAccents(String(s ?? "")).padStart(w));
+
+  /**
+   * Linha do bloco de valores: rótulo encostado à direita da coluna de
+   * rótulos e o valor encostado na borda. É o que dá a "escada" do cupom de
+   * referência, em que Subtotal/Desconto/Valor Total terminam alinhados.
+   */
+  const money = (label, value, w = W, valueWidth = 9) => {
+    const v = stripAccents(String(value ?? "")).padStart(valueWidth);
+    const l = stripAccents(String(label ?? "")).padStart(w - valueWidth);
+    write(l.slice(-(w - valueWidth)) + v);
+  };
+
+  /** Caixa de destaque (codigo coleta, horario previsto). */
+  const box = (label, w = W) => {
+    const inner = w - 2;
+    const miolo = stripAccents(String(label ?? "")).slice(0, inner);
+    const pad = inner - miolo.length;
+    const esq = Math.floor(pad / 2);
+    write("-".repeat(w));
+    bold(true);
+    write("|" + " ".repeat(esq) + miolo + " ".repeat(pad - esq) + "|");
+    bold(false);
+    write("-".repeat(w));
+  };
+
+  /** Tarja preta de ponta a ponta, com o texto centralizado dentro. */
+  const bar = (label, w = W) => {
+    const miolo = stripAccents(String(label ?? "")).toUpperCase().slice(0, w);
+    const pad = w - miolo.length;
+    const esq = Math.floor(pad / 2);
+    reverse(true);
+    bold(true);
+    write(" ".repeat(esq) + miolo + " ".repeat(pad - esq));
+    bold(false);
+    reverse(false);
+  };
+
+  const cut = () => {
+    push(LF, LF, LF, LF);
+    push(GS, 0x56, 0x41, 0x05);
+  };
+
+  return {
+    push, raw, text, line, write, reset, align, size, bold, reverse, fontB,
+    rule, row, right, money, box, bar, cut,
+    done: () => Buffer.concat(chunks),
+  };
+}
+
+/**
+ * Itens da cozinha: quantidade + produto em destaque, complementos recuados.
+ *
+ * `espacarModificadores` separa cada complemento por uma linha em branco — é
+ * como sai na comanda de entrega, onde cada componente do prato vira uma
+ * etapa de montagem. Na comanda de mesa eles vêm colados, como no balcão.
+ */
+function escreverItensCozinha(w, items, largura = W, espacarModificadores = false) {
+  items.forEach((item, idx) => {
     if (idx > 0) {
-      text("--------------------------------");
-      line();
+      // Separador pontilhado entre itens, como no cupom de referência.
+      w.write("- ".repeat(Math.floor(largura / 2)).trimEnd());
     }
-    // Rótulo do grupo de composição (ex.: "Etapa 1") logo antes do filho
     if (item.composition_group_label) {
-      push(GS, 0x21, 0x00);
-      text(`[${String(item.composition_group_label).toUpperCase()}]`);
-      line();
+      w.write(`[${String(item.composition_group_label).toUpperCase()}]`);
     }
-    push(GS, 0x21, 0x01);
-    text(`${item.quantity}x ${String(item.product_name).toUpperCase()}`);
-    line();
-    push(GS, 0x21, 0x00);
+
+    // Quantidade numa coluna própria e descrição sempre a partir da mesma
+    // posição, inclusive nas quebras de linha e nos complementos.
+    const recuo = " ".repeat(QTD_COL);
+    const prefixo = String(item.quantity ?? 1).padStart(2) + "   ";
+
+    w.size(0x01);
+    w.bold(true);
+    wrap(String(item.product_name || "").toUpperCase(), largura - QTD_COL)
+      .forEach((l, i) => w.write((i === 0 ? prefixo : recuo) + l));
+    w.bold(false);
+    w.size(0x00);
+
     if (!item.composition_group_label && item.parent_product_name) {
-      text(`  (parte de: ${String(item.parent_product_name).toUpperCase()})`);
-      line();
+      w.write(`${recuo}(parte de: ${String(item.parent_product_name).toUpperCase()})`);
     }
-
     if (item.notes) {
-      text(`  OBS: ${item.notes}`);
-      line();
+      wrap(`OBS: ${item.notes}`, largura, recuo).forEach((l) => w.write(l));
     }
-    if (item.modifiers && typeof item.modifiers === "object") {
-      const mods = Array.isArray(item.modifiers)
-        ? item.modifiers
-        : Object.values(item.modifiers);
-      mods.flat().forEach((m) => {
-        if (!m) return;
-        const label = typeof m === "string" ? m : m.name || m.label || JSON.stringify(m);
-        text(`  + ${label}`);
-        line();
-      });
-    }
-  });
-  text("================================");
-  line();
-  if (centerName) {
-    push(ESC, 0x61, 0x01);
-    text(`>> ${centerName} <<`);
-    line();
-    push(ESC, 0x61, 0x00);
-  }
-  push(LF, LF, LF, LF);
-  push(GS, 0x56, 0x41, 0x05);
 
-  return Buffer.concat(chunks);
+    normalizarModificadores(item.modifiers).forEach((label) => {
+      if (espacarModificadores) w.line();
+      w.size(0x01);
+      w.bold(true);
+      wrap(String(label).toUpperCase(), largura, recuo).forEach((l) => w.write(l));
+      w.bold(false);
+      w.size(0x00);
+    });
+  });
+}
+
+function normalizarModificadores(modifiers) {
+  if (!modifiers || typeof modifiers !== "object") return [];
+  const mods = Array.isArray(modifiers) ? modifiers : Object.values(modifiers);
+  return mods
+    .flat()
+    .map((m) => {
+      if (!m) return null;
+      return typeof m === "string" ? m : m.name || m.label || null;
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Comanda de mesa (salão).
+ *
+ *   [ tarja preta: MESA 21 ]
+ *   Vitor                   Pessoas 8
+ *   Qtd  Descricao              20:37
+ *   ...itens...
+ *   Velara 2.1.0 - Vitor  11/09 20:37
+ */
+function buildComandaMesa(p, ctx) {
+  const w = makeWriter();
+  w.reset();
+
+  w.align(1);
+  w.size(0x01);
+  w.bar(p.mesaLabel, W);
+  w.size(0x00);
+  w.align(0);
+
+  w.row(p.nome || "", p.pessoas != null ? `Pessoas ${p.pessoas}` : "");
+  w.rule(W, "-");
+  w.row("Qtd  Descricao", p.hora);
+  w.rule(W, "-");
+
+  escreverItensCozinha(w, p.items, W, false);
+
+  w.rule(W, "-");
+  w.fontB(true);
+  w.row(`${ctx.version ? `Velara ${ctx.version}` : "Velara"}${p.garcom ? ` - ${p.garcom}` : ""}`, p.diaHora, WB);
+  w.fontB(false);
+  w.cut();
+  return w.done();
+}
+
+/**
+ * Comanda de entrega para a produção (cozinha/bar).
+ *
+ *   TELENTREGA                     #3
+ *   **IFOOD** - #2233  NOME - ENDERECO
+ *   QTD DESCRICAO               18:06
+ *   ...itens...
+ *   Comanda #3 - Imp: cozinha
+ */
+function buildComandaEntrega(p, ctx) {
+  const w = makeWriter();
+  w.reset();
+
+  w.fontB(true);
+  w.bold(true);
+  w.row(p.titulo, p.numero ? `#${p.numero}` : "", WB);
+  w.bold(false);
+
+  // Bloco de origem/destino: é o que o balcão confere antes de despachar.
+  const origem = [];
+  if (p.externalCode) origem.push(`**IFOOD** - #${p.externalCode}`);
+  if (p.nome) origem.push(p.nome.toUpperCase());
+  if (origem.length) wrap(origem.join("  "), WB).forEach((l) => w.write(l));
+
+  const destino = [];
+  if (p.endereco) destino.push(p.endereco.toUpperCase());
+  if (p.complemento) destino.push(p.complemento.toUpperCase());
+  if (p.telefone) destino.push(p.telefone);
+  if (p.externalId) destino.push(`ID: ${p.externalId}`);
+  if (destino.length) wrap(destino.join(" - "), WB).forEach((l) => w.write(l));
+  w.fontB(false);
+
+  w.rule(W, "-");
+  w.row("QTD DESCRICAO", p.hora);
+  w.rule(W, "-");
+
+  escreverItensCozinha(w, p.items, W, true);
+
+  w.rule(W, "-");
+  w.fontB(true);
+  w.write(`Comanda #${p.numero ?? "-"}${p.centro ? ` - Imp: ${p.centro}` : ""}`);
+  w.row(ctx.version ? `Velara ${ctx.version}` : "Velara", p.diaHora, WB);
+  w.fontB(false);
+  w.cut();
+  return w.done();
+}
+
+/**
+ * Cupom do pedido (caixa) e a 2ª via do motoboy.
+ *
+ *   BUSCAR / TELENTREGA / BALCAO
+ *   #003                 iFood #1407
+ *   Joel Longaray
+ *   ...endereco...
+ *   [ codigo coleta 3755 ]
+ *   Qtd  Produto              Total
+ *   ...itens com preco...
+ *              Subtotal        42,00
+ *           Valor Total        22,99
+ *          Pagto Online        22,99
+ *                 Troco         0,00
+ */
+function buildCupomPedido(p, ctx) {
+  const w = makeWriter();
+  w.reset();
+
+  const cabecalho = (titulo, comItens) => {
+    w.align(1);
+    w.size(0x11);
+    w.bold(true);
+    w.write(titulo);
+    w.bold(false);
+    w.size(0x00);
+    w.align(0);
+    w.rule(W, "-");
+
+    w.bold(true);
+    w.row(p.numero ? `#${p.numero}` : "Pedido", p.externalCode ? `iFood #${p.externalCode}` : "");
+    if (p.nome) w.write(p.nome);
+    w.bold(false);
+    if (p.pedidosCliente != null) w.right(`Pedidos: ${p.pedidosCliente}`);
+
+    if (p.endereco) {
+      w.bold(true);
+      wrap(p.endereco, W).forEach((l) => w.write(l));
+      w.bold(false);
+      if (p.complemento) wrap(p.complemento, W).forEach((l) => w.write(l));
+      if (p.referencia) wrap(p.referencia, W).forEach((l) => w.write(l));
+      if (p.regiao) wrap(p.regiao, W).forEach((l) => w.write(l));
+    }
+
+    if (p.codigoColeta) w.box(`codigo coleta   ${p.codigoColeta}`, W);
+    if (p.previsto) w.box(p.previsto, W);
+
+    const contato = [p.telefone, p.externalId ? `ID_ ${p.externalId}_` : null].filter(Boolean).join("  ");
+    if (contato) {
+      w.fontB(true);
+      w.write(contato);
+      w.fontB(false);
+    }
+
+    if (comItens) {
+      w.fontB(true);
+      w.row("Otd  Produto", "Total", WB);
+      w.fontB(false);
+      p.items.forEach((it) => {
+        const nome = String(it.product_name || "").trim();
+        const preco = Number(it.subtotal) > 0 ? fmtNum(it.subtotal) : "";
+        const prefixo = String(it.quantity ?? 1).padStart(2) + "   ";
+        const recuo = " ".repeat(QTD_COL);
+        // O preço fica na primeira linha do item; o nome que não coube segue
+        // recuado abaixo, sem empurrar o valor da coluna da direita.
+        wrap(nome, W - QTD_COL - (preco ? preco.length + 1 : 0)).forEach((l, i) => {
+          if (i > 0) return w.write(recuo + l);
+          const linha = prefixo + l;
+          w.write(preco ? linha.padEnd(W - preco.length) + preco : linha);
+        });
+        normalizarModificadores(it.modifiers).forEach((m) => {
+          wrap(m, W, recuo).forEach((l) => w.write(l));
+        });
+      });
+      w.rule(W, "-");
+    } else {
+      w.rule(W, "-");
+    }
+
+    if (p.subtotal != null) w.money("Subtotal", fmtNum(p.subtotal));
+    if (Number(p.taxaEntrega) > 0) w.money("Taxa Entrega", fmtNum(p.taxaEntrega));
+    if (Number(p.desconto) > 0) w.money("Desconto", "-" + fmtNum(p.desconto));
+    if (Number(p.descontoPlataforma) > 0) w.money("Desconto da Plataforma", "-" + fmtNum(p.descontoPlataforma));
+    w.rule(W, "-");
+    w.bold(true);
+    w.money("Valor Total", fmtNum(p.total));
+    w.bold(false);
+    w.rule(W, "-");
+    if (p.pagamentoLabel) w.money(p.pagamentoLabel, fmtNum(p.pagamentoValor));
+    w.bold(true);
+    w.money("Troco", fmtNum(p.troco));
+    w.bold(false);
+    w.rule(W, "-");
+    w.fontB(true);
+    w.row(ctx.version ? `Velara ${ctx.version}` : "Velara", p.diaHora, WB);
+    w.fontB(false);
+  };
+
+  cabecalho(p.titulo, true);
+
+  // 2ª via do motoboy: mesmo cabeçalho, sem a tabela de itens — é o que o
+  // entregador confere na porta, não precisa do detalhe do pedido.
+  if (p.viaMotoboy) {
+    w.line();
+    cabecalho("Via Motoboy", false);
+  }
+
+  w.cut();
+  return w.done();
 }
 
 /**
@@ -320,306 +593,127 @@ function buildDanfeReceipt(p) {
   return Buffer.concat(chunks);
 }
 
-function buildCaixaReceipt(p) {
-  const chunks = [];
-  const push = (...bytes) => chunks.push(Buffer.from(bytes));
-  const text = (s) => chunks.push(Buffer.from(stripAccents(String(s || "")), "utf8"));
-  const line = () => push(LF);
-  const divider = (c = "=") => { text(c.repeat(32)); line(); };
-  const fmtBRL = (v) => "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
-  const padRow = (label, val, bold) => {
-    const l = stripAccents(String(label)).slice(0, 20);
-    const r = String(val).slice(-12);
-    if (bold) push(GS, 0x21, 0x01);
-    text(l.padEnd(20) + r.padStart(12));
-    line();
-    if (bold) push(GS, 0x21, 0x00);
-  };
-
-  // ─── Layout de marketplace (iFood via Bitbar) ───────────────────────────
-  // Só entra em cena quando o pedido tem external_code (veio de iFood/
-  // marketplace) — pedido manual de balcão/telefone segue no layout de
-  // sempre, mais abaixo, sem nenhuma mudança de comportamento.
-  const isMarketplace = !!p.external_code;
-  const fmtNum = (v) => Number(v || 0).toFixed(2).replace(".", ",");
-  const twoCol = (left, right) => {
-    left = String(left ?? "");
-    right = String(right ?? "");
-    if (left.length + right.length >= 32) {
-      text(left); line();
-      text(right.padStart(32));
-    } else {
-      text(left.padEnd(32 - right.length) + right);
-    }
-    line();
-  };
-  const boxed = (label) => {
-    const inner = ` ${label} `.slice(0, 30).padEnd(30);
-    text("-".repeat(32)); line();
-    text("|" + inner + "|"); line();
-    text("-".repeat(32)); line();
-  };
-
-  push(ESC, 0x40);
-  push(ESC, 0x61, 0x01);
-  push(GS, 0x21, 0x11);
-  if (isMarketplace) {
-    text(p.order_type === "pickup" ? "BUSCAR" : "TELENTREGA");
-  } else {
-    text("COMANDA CAIXA");
-  }
-  line();
-  push(GS, 0x21, 0x00);
-  divider();
-
-  push(ESC, 0x61, 0x00);
-  const ticketStr = p.ticket_number != null ? `T#${String(p.ticket_number).padStart(3, "0")}` : null;
-  const orderStr = p.order_number ? `Pedido #${p.order_number}` : null;
-  if (isMarketplace) {
-    twoCol(orderStr || ticketStr || "Pedido", `iFood #${p.external_code}`);
-  } else {
-    text([orderStr, ticketStr].filter(Boolean).join("  ") || "Pedido");
-    line();
-  }
-  text(formatDateTime());
-  line();
-
-  if (isMarketplace && p.external_collection_code) {
-    boxed(`codigo coleta ${p.external_collection_code}`);
-  }
-
-  // Entrega ou retirada em destaque: e a primeira coisa que o caixa precisa
-  // saber, e antes so dava para deduzir pela presenca do endereco.
-  push(ESC, 0x61, 0x01);
-  push(GS, 0x21, 0x01);
-  text(p.order_type === "pickup" ? ">> RETIRADA NO LOCAL <<" : ">> ENTREGA <<");
-  line();
-  push(GS, 0x21, 0x00);
-  push(ESC, 0x61, 0x00);
-  divider("-");
-
-  if (p.customer_name) {
-    push(GS, 0x21, 0x01);
-    text(p.customer_name);
-    line();
-    push(GS, 0x21, 0x00);
-    if (p.customer_phone) { text(p.customer_phone); line(); }
-  }
-
-  if (p.order_type !== "pickup" && p.delivery_address) {
-    divider("-");
-    text("ENDERECO:");
-    line();
-    push(GS, 0x21, 0x01);
-    text(p.delivery_address);
-    line();
-    push(GS, 0x21, 0x00);
-    if (p.delivery_complement) { text("Compl.: " + p.delivery_complement); line(); }
-    if (p.delivery_reference) { text("Ref.: " + p.delivery_reference); line(); }
-  }
-
-  if (p.notes) { divider("-"); text("OBS: " + p.notes); line(); }
-
-  divider("-");
-  const items = Array.isArray(p.items) ? p.items : [];
-
-  if (isMarketplace) {
-    text("Qtd  Produto                    Total");
-    line();
-    items.forEach((it) => {
-      const left = `${it.quantity ?? 1} ${String(it.product_name || "").trim()}`;
-      const hasPrice = it.subtotal != null && Number(it.subtotal) > 0;
-      if (hasPrice) {
-        const priceStr = fmtNum(it.subtotal);
-        if (left.length + 1 + priceStr.length <= 32) {
-          text(left.padEnd(32 - priceStr.length) + priceStr);
-        } else {
-          text(left); line();
-          text(priceStr.padStart(32));
-        }
-      } else {
-        text(left);
-      }
-      line();
-      (Array.isArray(it.modifiers) ? it.modifiers : []).forEach((m) => {
-        const lbl = typeof m === "string" ? m : (m && (m.name || m.label)) || "";
-        if (lbl) { text(`  + ${lbl}`); line(); }
-      });
-    });
-  } else {
-    text(`ITENS (${items.length}):`);
-    line();
-    items.forEach((it) => {
-      push(GS, 0x21, 0x01);
-      text(`${it.quantity}x ${String(it.product_name || "").toUpperCase()}`);
-      line();
-      push(GS, 0x21, 0x00);
-      if (it.notes) { text(`  OBS: ${it.notes}`); line(); }
-      (Array.isArray(it.modifiers) ? it.modifiers : []).forEach((m) => {
-        const lbl = typeof m === "string" ? m : (m && (m.name || m.label)) || "";
-        if (lbl) { text(`  + ${lbl}`); line(); }
-      });
-    });
-  }
-
-  divider("=");
-
-  if (isMarketplace) {
-    // Loja e plataforma bancam partes diferentes do desconto — mostrar as
-    // duas linhas em vez do total somado é o que faz o cupom bater com o
-    // que o operador vê no painel do iFood.
-    if (p.subtotal != null) twoCol("Subtotal", fmtNum(p.subtotal));
-    if (Number(p.delivery_fee) > 0) twoCol("Taxa Entrega", fmtNum(p.delivery_fee));
-    if (Number(p.discount_sponsor_merchant) > 0) twoCol("Desconto", "-" + fmtNum(p.discount_sponsor_merchant));
-    if (Number(p.discount_sponsor_ifood) > 0) twoCol("Desconto da Plataforma", "-" + fmtNum(p.discount_sponsor_ifood));
-    divider("-");
-    twoCol("Valor Total", fmtNum(p.total));
-    divider("-");
-    const pagoOnline = p.payment_status === "paid" ? Number(p.total || 0) : 0;
-    twoCol("Pagto Online", fmtNum(pagoOnline));
-    twoCol("Troco", fmtNum(0));
-  } else {
-    if (p.subtotal != null) padRow("Subtotal:", fmtBRL(p.subtotal));
-    if (Number(p.delivery_fee) > 0) padRow("Taxa de entrega:", fmtBRL(p.delivery_fee));
-    if (Number(p.discount_amount) > 0) padRow("Desconto:", "-" + fmtBRL(p.discount_amount));
-    padRow("TOTAL:", fmtBRL(p.total), true);
-
-    divider("-");
-    // O banco grava em ingles (cash/credit/debit/pix). O mapa antigo so conhecia
-    // os termos em portugues, entao o cupom saia com "Pagamento: cash".
-    const PM = {
-      pix: "PIX",
-      cash: "Dinheiro", dinheiro: "Dinheiro", money: "Dinheiro",
-      credit: "Cartao de credito", credito: "Cartao de credito",
-      credit_card: "Cartao de credito",
-      debit: "Cartao de debito", debito: "Cartao de debito",
-      debit_card: "Cartao de debito",
-      cartao: "Cartao", card: "Cartao",
-      voucher: "Vale-refeicao", vale_refeicao: "Vale-refeicao",
-      online: "Online (ja pago)",
-    };
-    const pm = PM[String(p.payment_method || "").toLowerCase()] || p.payment_method || "N/D";
-    const paid = p.payment_status === "paid" ? "PAGO" : "A RECEBER";
-    push(GS, 0x21, 0x01);
-    text(`Pagamento: ${pm}`);
-    line();
-    push(GS, 0x21, 0x00);
-    text(`Situacao: ${paid}`);
-    line();
-    // "Troco para" e o valor que o cliente vai entregar, nao o troco em si.
-    if (Number(p.change_amount) > 0) {
-      text(`Troco para: ${fmtBRL(p.change_amount)}`);
-      line();
-      const troco = Number(p.change_amount) - Number(p.total || 0);
-      if (troco > 0) { text(`Levar de troco: ${fmtBRL(troco)}`); line(); }
-    }
-  }
-
-  divider("=");
-
-  // Segunda via do motoboy: mesmo cabecalho, sem a tabela de itens — e o que
-  // o entregador confere na porta, nao precisa do detalhe do pedido.
-  if (isMarketplace && p.order_type !== "pickup") {
-    push(GS, 0x21, 0x01);
-    text("Via Motoboy");
-    line();
-    push(GS, 0x21, 0x00);
-    twoCol(orderStr || ticketStr || "Pedido", `iFood #${p.external_code}`);
-    if (p.customer_name) { text(p.customer_name); line(); }
-    if (p.delivery_address) {
-      text(p.delivery_address); line();
-      if (p.delivery_complement) { text("Compl.: " + p.delivery_complement); line(); }
-      if (p.delivery_reference) { text("Ref.: " + p.delivery_reference); line(); }
-    }
-    if (p.external_collection_code) boxed(`codigo coleta ${p.external_collection_code}`);
-    divider("-");
-    if (p.subtotal != null) twoCol("Subtotal", fmtNum(p.subtotal));
-    if (Number(p.delivery_fee) > 0) twoCol("Taxa Entrega", fmtNum(p.delivery_fee));
-    if (Number(p.discount_sponsor_merchant) > 0) twoCol("Desconto", "-" + fmtNum(p.discount_sponsor_merchant));
-    if (Number(p.discount_sponsor_ifood) > 0) twoCol("Desconto da Plataforma", "-" + fmtNum(p.discount_sponsor_ifood));
-    divider("-");
-    twoCol("Valor Total", fmtNum(p.total));
-    divider("=");
-  }
-
-  push(LF, LF, LF, LF);
-  push(GS, 0x56, 0x41, 0x05);
-  return Buffer.concat(chunks);
+/** Itens do payload, aceitando o formato antigo com os campos no topo. */
+function extrairItens(p) {
+  if (Array.isArray(p.items) && p.items.length > 0) return p.items;
+  return [{
+    product_name: p.product_name,
+    quantity: p.quantity,
+    notes: p.notes,
+    modifiers: p.modifiers,
+    parent_product_name: p.parent_product_name,
+    is_composite_child: p.is_composite_child,
+    composition_group_label: p.composition_group_label,
+  }];
 }
+
+function normalizarItens(items) {
+  return items.map((it) => ({
+    product_name: it.product_name,
+    quantity: it.quantity,
+    notes: it.notes,
+    modifiers: it.modifiers,
+    subtotal: it.subtotal,
+    unit_price: it.unit_price,
+    parent_product_name: it.is_composite_child ? it.parent_product_name : null,
+    composition_group_label: it.is_composite_child ? (it.composition_group_label || null) : null,
+  }));
+}
+
+const PAGAMENTOS = {
+  pix: "PIX",
+  cash: "Dinheiro", dinheiro: "Dinheiro", money: "Dinheiro",
+  credit: "Cartao de credito", credito: "Cartao de credito", credit_card: "Cartao de credito",
+  debit: "Cartao de debito", debito: "Cartao de debito", debit_card: "Cartao de debito",
+  cartao: "Cartao", card: "Cartao",
+  voucher: "Vale-refeicao", vale_refeicao: "Vale-refeicao",
+  online: "Pagto Online",
+};
 
 /**
  * Um job da fila vira bytes. Concentra aqui a decisão de layout e a
  * normalização do payload, que antes moravam no meio de processJob e não
  * tinham como ser testadas sem uma impressora do outro lado.
  */
-function buildJobReceipt(job, establishmentName) {
+function buildJobReceipt(job, establishmentName, version) {
   const p = job.payload || {};
   const kind = p.kind || job.source_kind || "comanda";
+  const ctx = { establishmentName, version };
+  const agora = new Date();
 
   if (kind === "danfe") return buildDanfeReceipt(p);
-  if (kind === "comanda_caixa") return buildCaixaReceipt(p);
 
-  // Suporta dois formatos de payload:
-  //  - novo: p.items = [{ product_name, quantity, notes, modifiers, ... }, ...]
-  //  - antigo (retrocompat): campos no topo
-  const items = Array.isArray(p.items) && p.items.length > 0
-    ? p.items
-    : [{
-        product_name: p.product_name,
-        quantity: p.quantity,
-        notes: p.notes,
-        modifiers: p.modifiers,
-        parent_product_name: p.parent_product_name,
-        is_composite_child: p.is_composite_child,
-        composition_group_label: p.composition_group_label,
-      }];
+  if (kind === "comanda_caixa") {
+    // Desconto: quando o pedido vem de marketplace o banco guarda quem banca
+    // cada parte. Somar os dois numa linha só esconde o que o iFood pagou.
+    const temSplit = Number(p.discount_sponsor_ifood) > 0 || Number(p.discount_sponsor_merchant) > 0;
+    const pagoOnline = String(p.payment_method || "").toLowerCase() === "online" || p.payment_status === "paid";
+    const trocoPara = Number(p.change_amount) || 0;
+    return buildCupomPedido({
+      titulo: p.order_type === "pickup" ? "BUSCAR" : "TELENTREGA",
+      numero: p.order_number ?? p.ticket_number ?? null,
+      externalCode: p.external_code || null,
+      externalId: p.external_order_id || null,
+      nome: p.customer_name || null,
+      telefone: p.customer_phone || null,
+      endereco: p.order_type === "pickup" ? null : (p.delivery_address || null),
+      complemento: p.delivery_complement || null,
+      referencia: p.delivery_reference || null,
+      regiao: p.delivery_region || null,
+      codigoColeta: p.external_collection_code || null,
+      previsto: p.previsto || null,
+      pedidosCliente: p.pedidos_cliente ?? null,
+      items: normalizarItens(extrairItens(p)),
+      subtotal: p.subtotal,
+      taxaEntrega: p.delivery_fee,
+      desconto: temSplit ? p.discount_sponsor_merchant : p.discount_amount,
+      descontoPlataforma: temSplit ? p.discount_sponsor_ifood : 0,
+      total: p.total,
+      pagamentoLabel: PAGAMENTOS[String(p.payment_method || "").toLowerCase()] || (pagoOnline ? "Pagto Online" : "A Receber"),
+      pagamentoValor: trocoPara > 0 ? trocoPara : Number(p.total || 0),
+      troco: trocoPara > 0 ? Math.max(0, trocoPara - Number(p.total || 0)) : 0,
+      viaMotoboy: p.order_type !== "pickup",
+      diaHora: formatDiaHora(agora),
+    }, ctx);
+  }
 
-  // Cabeçalho hierárquico: MESA destacada, comanda média
+  const items = normalizarItens(extrairItens(p));
+
+  if (kind === "delivery") {
+    return buildComandaEntrega({
+      titulo: p.order_type === "pickup" ? "BUSCAR" : "TELENTREGA",
+      numero: p.order_number ?? p.ticket_number ?? null,
+      externalCode: p.external_code || null,
+      externalId: p.external_order_id || null,
+      nome: p.customer_name || null,
+      telefone: p.customer_phone || null,
+      endereco: p.order_type === "pickup" ? null : (p.delivery_address || null),
+      complemento: p.delivery_complement || null,
+      centro: job.center_name || null,
+      items,
+      hora: formatHora(agora),
+      diaHora: formatDiaHora(agora),
+    }, ctx);
+  }
+
+  // Salão: mesa numerada, balcão ou avulsa.
   const mesaRaw = p.mesa_numero
     ?? (p.table_number ? String(p.table_number) : null)
-    ?? (kind === "order" ? (p.customer_name || "BALCÃO") : null)
+    ?? (kind === "order" ? (p.customer_name || "BALCAO") : null)
     ?? "AVULSA";
-  const mesa = kind === "delivery" || /^delivery$/i.test(String(mesaRaw))
-    ? "DELIVERY"
-    : (p.is_counter || /^balc[aã]o$/i.test(String(mesaRaw))
-        ? "BALCÃO"
-        : (/^mesa\b/i.test(String(mesaRaw)) ? String(mesaRaw) : `MESA ${mesaRaw}`));
+  const mesaLabel = p.is_counter || /^balc[aã]o$/i.test(String(mesaRaw))
+    ? "BALCAO"
+    : (/^mesa\b/i.test(String(mesaRaw)) ? String(mesaRaw) : `MESA ${mesaRaw}`);
 
-  const comanda = p.comanda_nome
-    || p.customer_name
-    || (p.comanda_number ? `Comanda ${p.comanda_number}` : null)
-    || (p.order_number ? `Pedido #${p.order_number}` : "");
-
-  const ticketLabel = p.ticket_number != null
-    ? `Pedido #${String(p.ticket_number).padStart(3, "0")}`
-    : (p.order_number ? `Pedido #${p.order_number}` : null);
-  const subheader = [
-    `Centro: ${job.center_name ?? "—"}`,
-    kind === "order"
-      ? (ticketLabel || `Pedido #${p.order_number}`)
-      : (ticketLabel || `Comanda #${p.comanda_number}`),
-    formatDateTime(),
-  ];
-  if (kind !== "delivery" && p.waiter_name) subheader.push(`Garçom: ${p.waiter_name}`);
-  if (items.length > 1) subheader.push(`Itens: ${items.length}`);
-
-  const body = items.map((it) => ({
-    product_name: it.product_name,
-    quantity: it.quantity,
-    notes: it.notes,
-    modifiers: it.modifiers,
-    parent_product_name: it.is_composite_child ? it.parent_product_name : null,
-    composition_group_label: it.is_composite_child ? (it.composition_group_label || null) : null,
-  }));
-
-  return buildReceipt({
-    mesa,
-    comanda,
-    subheader,
-    body,
-    centerName: job.center_name,
-    establishmentName,
-  });
+  return buildComandaMesa({
+    mesaLabel,
+    nome: p.comanda_nome || p.customer_name || (p.comanda_number ? `Comanda ${p.comanda_number}` : ""),
+    pessoas: p.person_number ?? null,
+    garcom: p.waiter_name || null,
+    items,
+    hora: formatHora(agora),
+    diaHora: formatDiaHora(agora),
+  }, ctx);
 }
 
 /** Resumo curto do job para o log, sem despejar o payload inteiro. */
@@ -635,12 +729,14 @@ function jobSummary(job) {
 }
 
 module.exports = {
-  buildReceipt,
+  buildComandaMesa,
+  buildComandaEntrega,
+  buildCupomPedido,
   buildDanfeReceipt,
-  buildCaixaReceipt,
   buildJobReceipt,
   jobSummary,
   formatDateTime,
   escposQrCode,
   stripAccents,
+  wrap,
 };

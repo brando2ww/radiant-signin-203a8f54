@@ -25,42 +25,148 @@ const io = require("../lib/printer-io");
 
 // ─── Recibos ─────────────────────────────────────────────────────────────
 
-test("comanda de cozinha sai com acento removido e corte no fim", () => {
+test("comanda de entrega sai sem acento, com endereco e corte no fim", () => {
   const buf = receipts.buildJobReceipt(
     {
-      center_name: "Cozinha",
+      center_name: "cozinha",
       source_kind: "delivery",
       payload: {
         kind: "delivery",
-        mesa_numero: "DELIVERY",
-        comanda_nome: "João Ação",
-        comanda_number: "007",
+        order_number: "007",
+        order_type: "delivery",
+        customer_name: "João Ação",
+        delivery_address: "Rua A, 100",
+        external_code: "2233",
         items: [{ product_name: "Pão de alho", quantity: 2, notes: "sem cebola", modifiers: [{ name: "2x Queijo" }] }],
       },
     },
     "Restaurante Teste",
+    "2.2.0",
   );
   const texto = buf.toString("latin1");
-  assert.match(texto, /Restaurante Teste/);
-  assert.match(texto, /DELIVERY/);
-  assert.match(texto, /Joao Acao/, "acentos precisam sair (a impressora usa outra code page)");
-  assert.match(texto, /2x PAO DE ALHO/);
+  assert.match(texto, /TELENTREGA/);
+  assert.match(texto, /#007/);
+  assert.match(texto, /JOAO ACAO/, "acentos precisam sair (a impressora usa outra code page)");
+  assert.match(texto, /RUA A, 100/, "a producao precisa do endereco para conferir o despacho");
+  assert.match(texto, /2   PAO DE ALHO/);
   assert.match(texto, /OBS: sem cebola/);
-  assert.match(texto, /\+ 2x Queijo/);
+  assert.match(texto, /2X QUEIJO/);
+  assert.match(texto, /Imp: cozinha/);
   // GS V A 5 = corte parcial
   assert.ok(buf.includes(Buffer.from([0x1d, 0x56, 0x41, 0x05])), "cupom tem de terminar com corte");
 });
 
-test("comanda do caixa traz totais, endereço e troco", () => {
+test("comanda de mesa leva tarja preta, pessoas e garcom", () => {
   const buf = receipts.buildJobReceipt(
     {
-      center_name: "Caixa Principal",
+      center_name: "Bar",
+      source_kind: "comanda",
+      payload: {
+        kind: "comanda",
+        mesa_numero: "21",
+        comanda_nome: "Vitor",
+        person_number: 8,
+        waiter_name: "Vitor",
+        order_number: "021",
+        items: [{ product_name: "Refri Rodizio", quantity: 1, modifiers: [{ name: "2x Pepsi 600ml" }] }],
+      },
+    },
+    "Restaurante Teste",
+    "2.2.0",
+  );
+  const texto = buf.toString("latin1");
+  assert.match(texto, /Pessoas 8/);
+  assert.match(texto, /Qtd  Descricao/);
+  assert.match(texto, / 1   REFRI RODIZIO/);
+  assert.match(texto, /     2X PEPSI 600ML/, "complemento alinha na mesma coluna da descricao");
+  assert.match(texto, /Velara 2\.2\.0 - Vitor/);
+
+  // GS B 1 liga a tarja invertida antes do nome da mesa, GS B 0 desliga depois.
+  const liga = buf.indexOf(Buffer.from([0x1d, 0x42, 0x01]));
+  const desliga = buf.indexOf(Buffer.from([0x1d, 0x42, 0x00]));
+  assert.ok(liga > -1 && desliga > liga, "a tarja tem de ligar e desligar em volta da MESA");
+  assert.match(buf.subarray(liga, desliga).toString("latin1"), /MESA 21/);
+});
+
+test("cupom do pedido alinha valores a direita e separa o desconto da plataforma", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "CAIXA",
+      source_kind: "comanda_caixa",
+      payload: {
+        kind: "comanda_caixa",
+        order_number: "003",
+        order_type: "pickup",
+        customer_name: "Joel Longaray",
+        external_code: "1407",
+        subtotal: 42,
+        discount_sponsor_merchant: 5,
+        discount_sponsor_ifood: 15,
+        total: 22.99,
+        payment_method: "online",
+        payment_status: "paid",
+        items: [{ product_name: "Frango a Parmegiana 150g", quantity: 1, subtotal: 25 }],
+      },
+    },
+    "Restaurante Teste",
+    "2.2.0",
+  );
+  const texto = buf.toString("latin1");
+  assert.match(texto, /BUSCAR/, "retirada usa o rotulo de busca");
+  assert.match(texto, /#003                 iFood #1407/);
+  assert.match(texto, /               Subtotal    42,00/, "rotulo e valor encostam nas bordas");
+  assert.match(texto, / Desconto da Plataforma   -15,00/, "o que o iFood banca sai separado do desconto da loja");
+  assert.match(texto, /               Desconto    -5,00/);
+  assert.match(texto, /            Valor Total    22,99/);
+  assert.match(texto, /           Pagto Online    22,99/);
+  assert.doesNotMatch(texto, /Taxa iFood/, "nao existe dado real de taxa iFood — nao pode aparecer inventado");
+  assert.doesNotMatch(texto, /Via Motoboy/, "retirada no local nao tem 2a via de motoboy");
+});
+
+test("cupom de entrega repete o cabecalho na via do motoboy, sem os itens", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "CAIXA",
+      source_kind: "comanda_caixa",
+      payload: {
+        kind: "comanda_caixa",
+        order_number: "001",
+        order_type: "delivery",
+        customer_name: "Ricardo",
+        delivery_address: "Rua A, 100",
+        external_collection_code: "3755",
+        subtotal: 50,
+        delivery_fee: 25,
+        total: 66,
+        payment_method: "online",
+        payment_status: "paid",
+        items: [{ product_name: "Pizza", quantity: 1, subtotal: 50 }],
+      },
+    },
+    "Restaurante Teste",
+    "2.2.0",
+  );
+  const texto = buf.toString("latin1");
+  assert.match(texto, /TELENTREGA/);
+  assert.match(texto, /codigo coleta   3755/);
+  const motoboy = texto.indexOf("Via Motoboy");
+  assert.ok(motoboy > -1, "entrega propria precisa da 2a via");
+  // A 2a via vem depois dos itens e nao repete a tabela de produtos.
+  assert.ok(texto.indexOf("Pizza") < motoboy);
+  assert.ok(!texto.slice(motoboy).includes("Pizza"), "a via do motoboy nao repete os itens");
+  assert.match(texto.slice(motoboy), /Valor Total/, "mas repete os valores");
+});
+
+test("pedido em dinheiro mostra o troco a levar", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "CAIXA",
       source_kind: "comanda_caixa",
       payload: {
         kind: "comanda_caixa",
         order_number: "12",
-        customer_name: "Maria",
         order_type: "delivery",
+        customer_name: "Maria",
         delivery_address: "Rua A, 100",
         delivery_complement: "Ap 302",
         subtotal: 50,
@@ -70,109 +176,16 @@ test("comanda do caixa traz totais, endereço e troco", () => {
         payment_method: "cash",
         payment_status: "pending",
         change_amount: 100,
-        items: [{ product_name: "Pizza", quantity: 1 }],
-      },
-    },
-    "Restaurante Teste",
-  );
-  const texto = buf.toString("latin1");
-  assert.match(texto, /COMANDA CAIXA/);
-  assert.match(texto, />> ENTREGA </);
-  assert.match(texto, /Compl\.: Ap 302/);
-  assert.match(texto, /R\$ 55,00/);
-  assert.match(texto, /Pagamento: Dinheiro/, "o banco grava em inglês; o cupom tem de sair em português");
-  assert.match(texto, /Levar de troco: R\$ 45,00/);
-});
-
-test("comanda do caixa de pedido de marketplace sai no layout Bitbar, sem inventar taxa", () => {
-  const buf = receipts.buildJobReceipt(
-    {
-      center_name: "Caixa Principal",
-      source_kind: "comanda_caixa",
-      payload: {
-        kind: "comanda_caixa",
-        order_number: "003",
-        customer_name: "Joel Longaray",
-        order_type: "pickup",
-        subtotal: 42,
-        discount_sponsor_ifood: 15,
-        discount_sponsor_merchant: 5,
-        total: 22.99,
-        payment_method: "online",
-        payment_status: "paid",
-        external_code: "1407",
-        items: [
-          { product_name: "Monte Seu Prato pf", quantity: 1, subtotal: 0 },
-          { product_name: "Frango a Parmegiana", quantity: 1, subtotal: 25 },
-        ],
-      },
-    },
-    "Restaurante Teste",
-  );
-  const texto = buf.toString("latin1");
-  assert.match(texto, /BUSCAR/, "pedido pickup de marketplace usa o rótulo do Bitbar, não COMANDA CAIXA");
-  assert.doesNotMatch(texto, /COMANDA CAIXA/);
-  assert.match(texto, /iFood #1407/);
-  assert.match(texto, /Desconto da Plataforma/, "desconto bancado pelo iFood sai separado do da loja");
-  assert.match(texto, /Pagto Online/);
-  assert.doesNotMatch(texto, /Taxa iFood/, "não existe dado real de taxa iFood — não pode aparecer inventado");
-  assert.doesNotMatch(texto, /Via Motoboy/, "retirada no local não tem 2ª via de motoboy");
-});
-
-test("comanda do caixa de marketplace com entrega própria imprime a 2ª via do motoboy", () => {
-  const buf = receipts.buildJobReceipt(
-    {
-      center_name: "Caixa Principal",
-      source_kind: "comanda_caixa",
-      payload: {
-        kind: "comanda_caixa",
-        order_number: "001",
-        customer_name: "Ricardo",
-        order_type: "delivery",
-        delivery_address: "Rua A, 100",
-        subtotal: 50,
-        delivery_fee: 25,
-        total: 66,
-        payment_method: "online",
-        payment_status: "paid",
-        external_code: "2233",
-        external_collection_code: "3755",
         items: [{ product_name: "Pizza", quantity: 1, subtotal: 50 }],
       },
     },
     "Restaurante Teste",
+    "2.2.0",
   );
   const texto = buf.toString("latin1");
-  assert.match(texto, /codigo coleta 3755/);
-  assert.match(texto, /Via Motoboy/);
-  // a 2a via aparece DEPOIS da tabela de itens da 1a via
-  const idxItens = texto.indexOf("Pizza");
-  const idxMotoboy = texto.indexOf("Via Motoboy");
-  assert.ok(idxItens > -1 && idxMotoboy > idxItens);
-});
-
-test("barra da mesa cobre a linha inteira em vídeo invertido", () => {
-  const buf = receipts.buildJobReceipt(
-    {
-      center_name: "Bar",
-      source_kind: "comanda",
-      payload: {
-        kind: "comanda",
-        mesa_numero: "16",
-        comanda_nome: "Jesus",
-        order_number: "021",
-        items: [{ product_name: "Caipirinha", quantity: 2 }],
-      },
-    },
-    "Restaurante Teste",
-  );
-  // GS B 1 liga o vídeo invertido antes do texto da mesa, e GS B 0 desliga
-  // logo depois — sem isso a barra não aparece preta na impressora real.
-  const ligaIdx = buf.indexOf(Buffer.from([0x1d, 0x42, 0x01]));
-  const desligaIdx = buf.indexOf(Buffer.from([0x1d, 0x42, 0x00]));
-  assert.ok(ligaIdx > -1 && desligaIdx > ligaIdx, "vídeo invertido tem de ligar e desligar em volta da MESA");
-  const meio = buf.subarray(ligaIdx, desligaIdx).toString("latin1");
-  assert.match(meio, /MESA 16/);
+  assert.match(texto, /Ap 302/);
+  assert.match(texto, /Dinheiro/, "o banco grava em ingles; o cupom tem de sair em portugues");
+  assert.match(texto, /Troco    45,00/, "o troco e o que volta pro cliente, nao o valor entregue");
 });
 
 test("DANFE leva QR Code e chave de acesso", () => {

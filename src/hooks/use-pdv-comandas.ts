@@ -656,6 +656,9 @@ export function usePDVComandas() {
             is_counter: !!first.is_virtual,
             comanda_number: first.comanda_number,
             customer_name: first.customer_name,
+            // "Pessoas N" no cabeçalho: o salão usa para conferir rodízio por
+            // cabeça sem ter de abrir a mesa no sistema.
+            person_number: first.person_number ?? null,
             table_number: first.table_number,
             kind: "comanda",
               waiter_name: waiterName,

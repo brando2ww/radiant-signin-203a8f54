@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 async function fetchOrderItems(orderId: string): Promise<any[]> {
   const { data: order } = await (supabase as any)
     .from("delivery_orders")
-    .select("order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,user_id")
+    .select("order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,user_id,external_code,external_order_id")
     .eq("id", orderId)
     .single();
   if (!order) return [];
@@ -68,6 +68,8 @@ async function fetchOrderItems(orderId: string): Promise<any[]> {
       customer_phone: order.customer_phone,
       order_type: order.order_type,
       delivery_address_text: order.delivery_address_text,
+      external_code: order.external_code,
+      external_order_id: order.external_order_id,
       tenant_user_id: order.user_id,
       options: opts,
     };
@@ -150,6 +152,10 @@ export async function dispatchDeliveryPrintJobs(
         customer_phone: first.customer_phone,
         order_type: first.order_type,
         delivery_address: first.delivery_address_text,
+        // Origem do pedido no cabeçalho da produção: é o que o balcão usa
+        // para casar a comanda com o pedido no painel do marketplace.
+        external_code: first.external_code,
+        external_order_id: first.external_order_id,
         items: groupItems.map((r: any) => ({
           product_name: r.product_name,
           quantity: r.quantity,
@@ -225,7 +231,7 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
   // em nenhum cliente, em centenas de pedidos.
   const { data: orderRow, error: orderError } = await (supabase as any)
     .from("delivery_orders")
-    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,delivery_address_id,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,change_for,notes,external_code,external_collection_code")
+    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,delivery_address_id,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,change_for,notes,external_code,external_order_id,external_collection_code")
     .eq("id", orderId)
     .single();
   if (orderError) {
@@ -317,9 +323,8 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
       payment_status: orderRow.payment_status,
       change_amount: orderRow.change_for,
       notes: orderRow.notes,
-      // Presença de external_code é o que liga a bridge no layout de
-      // marketplace (estilo Bitbar) em vez do cupom genérico de balcão.
       external_code: orderRow.external_code,
+      external_order_id: orderRow.external_order_id,
       external_collection_code: orderRow.external_collection_code,
       items: itemsPayload,
     },
