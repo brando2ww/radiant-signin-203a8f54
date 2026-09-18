@@ -231,7 +231,7 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
   // em nenhum cliente, em centenas de pedidos.
   const { data: orderRow, error: orderError } = await (supabase as any)
     .from("delivery_orders")
-    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,delivery_address_id,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,change_for,notes,external_code,external_order_id,external_collection_code")
+    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,customer_document,order_type,delivery_address_text,delivery_address_id,delivery_notes,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,external_payment_type,external_payment_brand,change_for,notes,external_code,external_order_id,external_collection_code")
     .eq("id", orderId)
     .single();
   if (orderError) {
@@ -304,8 +304,10 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
       ticket_number: orderRow.ticket_number,
       customer_name: orderRow.customer_name,
       customer_phone: orderRow.customer_phone,
+      customer_document: orderRow.customer_document,
       order_type: orderRow.order_type,
       delivery_address: orderRow.delivery_address_text,
+      delivery_notes: orderRow.delivery_notes,
       delivery_complement: complemento,
       delivery_reference: referencia,
       subtotal: orderRow.subtotal,
@@ -321,6 +323,11 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
       total: orderRow.total,
       payment_method: orderRow.payment_method,
       payment_status: orderRow.payment_status,
+      // ONLINE/OFFLINE do marketplace: é o que diz se o entregador cobra na
+      // porta. O payment_status não serve — há pedido OFFLINE gravado como
+      // "paid", e seguir ele mandaria a entrega sair sem cobrar.
+      external_payment_type: orderRow.external_payment_type,
+      external_payment_brand: orderRow.external_payment_brand,
       change_amount: orderRow.change_for,
       notes: orderRow.notes,
       external_code: orderRow.external_code,

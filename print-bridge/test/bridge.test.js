@@ -136,12 +136,11 @@ test("cupom do pedido alinha valores a direita e separa o desconto da plataforma
   assert.match(texto, /^Desconto da plataforma:\s+-15,00$/m, "o que o iFood banca sai separado do desconto da loja");
   assert.match(texto, /^Desconto:\s+-5,00$/m);
   assert.match(texto, /VALOR TOTAL/, "o total vai num card de destaque");
-  assert.match(texto, /^Pagto Online:\s+22,99$/m);
+  assert.match(texto, /JA PAGO PELO APP/);
   assert.doesNotMatch(texto, /Taxa iFood/, "nao existe dado real de taxa iFood — nao pode aparecer inventado");
-  assert.doesNotMatch(texto, /Via Motoboy/, "retirada no local nao tem 2a via de motoboy");
 });
 
-test("cupom de entrega repete o cabecalho na via do motoboy, sem os itens", () => {
+test("pedido do iFood leva contato do cliente e diz que ja foi pago", () => {
   const buf = receipts.buildJobReceipt(
     {
       center_name: "CAIXA",
@@ -151,28 +150,70 @@ test("cupom de entrega repete o cabecalho na via do motoboy, sem os itens", () =
         order_number: "001",
         order_type: "delivery",
         customer_name: "Ricardo",
+        customer_phone: "54 99123-4567",
+        customer_document: "123.456.789-00",
         delivery_address: "Rua A, 100",
+        delivery_notes: "Portao azul, tocar a campainha",
+        external_code: "2233",
+        external_order_id: "12511834",
         external_collection_code: "3755",
+        external_payment_type: "ONLINE",
+        external_payment_brand: "Visa",
+        payment_method: "credit",
+        payment_status: "paid",
         subtotal: 50,
         delivery_fee: 25,
         total: 66,
-        payment_method: "online",
-        payment_status: "paid",
         items: [{ product_name: "Pizza", quantity: 1, subtotal: 50 }],
       },
     },
     "Restaurante Teste",
-    "2.2.0",
+    "2.5.0",
   );
   const texto = papel(buf);
-  assert.match(texto, /TELE-ENTREGA|T E L E - E N T R E G A/);
-  assert.match(texto, /CODIGO DE COLETA/);
-  const motoboy = texto.indexOf("VIA MOTOBOY");
-  assert.ok(motoboy > -1, "entrega propria precisa da 2a via");
-  // A 2a via vem depois dos itens e nao repete a tabela de produtos.
-  assert.ok(texto.indexOf("Pizza") < motoboy);
-  assert.ok(!texto.slice(motoboy).includes("Pizza"), "a via do motoboy nao repete os itens");
-  assert.match(texto.slice(motoboy), /VALOR TOTAL/, "mas repete os valores");
+  assert.match(texto, /Fone:\s+54 99123-4567/, "o balcao so fala com o cliente por esse numero");
+  assert.match(texto, /CPF:\s+123\.456\.789-00/);
+  assert.match(texto, /iFood:\s+#2233/);
+  assert.match(texto, /Portao azul/, "observacao do cliente tem de chegar na entrega");
+  assert.match(texto, /Forma:\s+Cartao de credito/);
+  assert.match(texto, /Bandeira:\s+Visa/);
+  assert.match(texto, /JA PAGO PELO APP/);
+  assert.doesNotMatch(texto, /COBRAR NA ENTREGA/);
+  assert.doesNotMatch(texto, /VIA MOTOBOY/, "a via do motoboy foi retirada a pedido da operacao");
+});
+
+test("pedido do iFood para pagar na entrega manda cobrar, mesmo marcado como pago", () => {
+  const buf = receipts.buildJobReceipt(
+    {
+      center_name: "CAIXA",
+      source_kind: "comanda_caixa",
+      payload: {
+        kind: "comanda_caixa",
+        order_number: "002",
+        order_type: "delivery",
+        customer_name: "Joana",
+        delivery_address: "Rua B, 200",
+        external_code: "9988",
+        external_payment_type: "OFFLINE",
+        payment_method: "cash",
+        // O banco grava OFFLINE como "paid" em parte dos pedidos; seguir esse
+        // campo faria a entrega sair sem cobrar. Quem manda e o tipo.
+        payment_status: "paid",
+        subtotal: 40,
+        total: 40,
+        change_amount: 100,
+        items: [{ product_name: "Temaki", quantity: 1, subtotal: 40 }],
+      },
+    },
+    "Restaurante Teste",
+    "2.5.0",
+  );
+  const texto = papel(buf);
+  assert.match(texto, /COBRAR NA ENTREGA/);
+  assert.doesNotMatch(texto, /JA PAGO PELO APP/);
+  assert.match(texto, /Forma:\s+Dinheiro/);
+  assert.match(texto, /Troco para:\s+100,00/);
+  assert.match(texto, /Levar de troco:\s+60,00/);
 });
 
 test("pedido em dinheiro mostra o troco a levar", () => {
@@ -202,8 +243,8 @@ test("pedido em dinheiro mostra o troco a levar", () => {
   );
   const texto = papel(buf);
   assert.match(texto, /Ap 302/);
-  assert.match(texto, /Dinheiro/, "o banco grava em ingles; o cupom tem de sair em portugues");
-  assert.match(texto, /^Troco:\s+45,00$/m, "o troco e o que volta pro cliente, nao o valor entregue");
+  assert.match(texto, /Forma:\s+Dinheiro/, "o banco grava em ingles; o cupom tem de sair em portugues");
+  assert.match(texto, /Levar de troco:\s+45,00/, "o troco e o que volta pro cliente, nao o valor entregue");
 });
 
 test("cupom usa a largura configurada da bobina, de ponta a ponta", () => {
@@ -234,43 +275,6 @@ test("cupom usa a largura configurada da bobina, de ponta a ponta", () => {
     const moldura = linhas.find((l) => /^\+-+\+$/.test(l));
     assert.equal(moldura.length, cols, "o card tem de encostar nas duas bordas");
   }
-});
-
-test("entrega sai em duas vias cortadas, e nao numa tira so", () => {
-  const buf = receipts.buildJobReceipt(
-    {
-      center_name: "CAIXA",
-      source_kind: "comanda_caixa",
-      payload: {
-        kind: "comanda_caixa",
-        order_number: "006",
-        order_type: "delivery",
-        customer_name: "Carlos",
-        delivery_address: "Rua A, 100",
-        subtotal: 136,
-        delivery_fee: 10,
-        total: 146,
-        payment_method: "pix",
-        payment_status: "paid",
-        items: [{ product_name: "Combo", quantity: 1, subtotal: 136 }],
-      },
-    },
-    "Restaurante Teste",
-    "2.4.0",
-    48,
-  );
-  // GS V A = corte parcial. Uma via fica no caixa, a outra vai com a moto,
-  // entao tem de haver corte entre elas — e nao so no fim do cupom.
-  const corte = Buffer.from([0x1d, 0x56, 0x41]);
-  let cortes = 0;
-  for (let i = 0; i + 2 < buf.length; i++) {
-    if (buf.subarray(i, i + 3).equals(corte)) cortes += 1;
-  }
-  assert.equal(cortes, 2, "um corte separando as vias e outro no fim");
-
-  const texto = papel(buf);
-  const motoboy = texto.indexOf("VIA MOTOBOY");
-  assert.ok(motoboy > texto.indexOf("Combo"), "a via do motoboy vem depois do cupom do caixa");
 });
 
 test("DANFE leva QR Code e chave de acesso", () => {

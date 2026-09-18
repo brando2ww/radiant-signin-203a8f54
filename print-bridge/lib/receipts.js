@@ -375,81 +375,83 @@ function buildCupomPedido(p, ctx) {
   const w = makeWriter(W);
   w.reset();
 
-  const via = (titulo, comItens) => {
-    w.titulo(titulo);
-    if (p.numero) w.subtitulo(`PEDIDO #${p.numero}`);
+  w.titulo(p.titulo);
+  if (p.numero) w.subtitulo(`PEDIDO #${p.numero}`);
+  w.line();
+
+  if (p.nome) w.card("Cliente", p.nome);
+
+  // Contato antes de tudo: quando o pedido vem de marketplace, é por aqui que
+  // o balcão fala com o cliente — o app não dá outro caminho.
+  if (p.telefone) w.linha("Fone:", p.telefone);
+  if (p.documento) w.linha("CPF:", p.documento);
+  if (p.externalCode) w.linha("iFood:", `#${p.externalCode}`);
+  if (p.externalId) w.linha("ID:", p.externalId);
+  w.linha("Hora:", p.hora);
+  w.line();
+
+  if (p.endereco) {
+    w.secao("Endereco");
+    wrap(p.endereco, W).forEach((l) => w.write(l));
+    if (p.complemento) wrap(p.complemento, W).forEach((l) => w.write(l));
+    if (p.referencia) wrap(p.referencia, W).forEach((l) => w.write(l));
+    if (p.regiao) wrap(p.regiao, W).forEach((l) => w.write(l));
     w.line();
-
-    if (p.nome) w.card("Cliente", p.nome);
-
-    if (p.externalCode) w.linha("iFood:", `#${p.externalCode}`);
-    if (p.telefone) w.linha("Fone:", p.telefone);
-    w.linha("Hora:", p.hora);
-    w.line();
-
-    if (p.endereco) {
-      w.secao("Endereco");
-      wrap(p.endereco, W).forEach((l) => w.write(l));
-      if (p.complemento) wrap(p.complemento, W).forEach((l) => w.write(l));
-      if (p.referencia) wrap(p.referencia, W).forEach((l) => w.write(l));
-      if (p.regiao) wrap(p.regiao, W).forEach((l) => w.write(l));
-      w.line();
-    }
-
-    if (p.codigoColeta) w.card("Codigo de coleta", p.codigoColeta);
-
-    if (comItens) {
-      w.secao(`Itens (${p.items.length})`);
-      w.row("Qtd  Produto", "Total", W);
-      p.items.forEach((it) => {
-        const nome = String(it.product_name || "").trim();
-        const preco = Number(it.subtotal) > 0 ? fmtNum(it.subtotal) : "";
-        const prefixo = String(it.quantity ?? 1).padStart(2) + "   ";
-        const recuo = " ".repeat(QTD_COL);
-        // O preço fica na primeira linha do item; o nome que não coube segue
-        // recuado abaixo, sem empurrar o valor da coluna da direita.
-        wrap(nome, W - QTD_COL - (preco ? preco.length + 1 : 0)).forEach((l, i) => {
-          if (i > 0) return w.write(recuo + l);
-          const inicio = prefixo + l;
-          if (!preco) return w.write(inicio);
-          w.text(inicio.padEnd(W - preco.length));
-          w.bold(true);
-          w.text(preco);
-          w.bold(false);
-          w.line();
-        });
-        normalizarModificadores(it.modifiers).forEach((m) => {
-          wrap(m, W, recuo).forEach((l) => w.write(l));
-        });
-      });
-    }
-
-    w.secao("Valores");
-    if (p.subtotal != null) w.linha("Subtotal:", fmtNum(p.subtotal));
-    if (Number(p.taxaEntrega) > 0) w.linha("Taxa de entrega:", fmtNum(p.taxaEntrega));
-    if (Number(p.desconto) > 0) w.linha("Desconto:", "-" + fmtNum(p.desconto));
-    if (Number(p.descontoPlataforma) > 0) w.linha("Desconto da plataforma:", "-" + fmtNum(p.descontoPlataforma));
-    w.line();
-
-    w.card("Valor total", fmtNum(p.total));
-
-    if (p.pagamentoLabel) w.linha(`${p.pagamentoLabel}:`, fmtNum(p.pagamentoValor));
-    w.linha("Troco:", fmtNum(p.troco));
-
-    w.rodape(`${ctx.version ? `Velara ${ctx.version}` : "Velara"} - ${p.diaHora}`);
-  };
-
-  via(p.titulo, true);
-
-  // 2ª via do motoboy: mesmo cabeçalho e valores, sem a lista de itens — é o
-  // que o entregador confere na porta, não precisa do detalhe do pedido.
-  // Vai depois de um corte: uma via fica no caixa e a outra sai com a moto,
-  // então não pode sair tudo grudado numa tira só.
-  if (p.viaMotoboy) {
-    w.cut();
-    via("VIA MOTOBOY", false);
   }
 
+  if (p.observacoes) {
+    w.secao("Observacoes");
+    wrap(p.observacoes, W).forEach((l) => w.write(l));
+    w.line();
+  }
+
+  if (p.codigoColeta) w.card("Codigo de coleta", p.codigoColeta);
+
+  w.secao(`Itens (${p.items.length})`);
+  w.row("Qtd  Produto", "Total", W);
+  p.items.forEach((it) => {
+    const nome = String(it.product_name || "").trim();
+    const preco = Number(it.subtotal) > 0 ? fmtNum(it.subtotal) : "";
+    const prefixo = String(it.quantity ?? 1).padStart(2) + "   ";
+    const recuo = " ".repeat(QTD_COL);
+    // O preço fica na primeira linha do item; o nome que não coube segue
+    // recuado abaixo, sem empurrar o valor da coluna da direita.
+    wrap(nome, W - QTD_COL - (preco ? preco.length + 1 : 0)).forEach((l, i) => {
+      if (i > 0) return w.write(recuo + l);
+      const inicio = prefixo + l;
+      if (!preco) return w.write(inicio);
+      w.text(inicio.padEnd(W - preco.length));
+      w.bold(true);
+      w.text(preco);
+      w.bold(false);
+      w.line();
+    });
+    normalizarModificadores(it.modifiers).forEach((m) => {
+      wrap(m, W, recuo).forEach((l) => w.write(l));
+    });
+  });
+
+  w.secao("Valores");
+  if (p.subtotal != null) w.linha("Subtotal:", fmtNum(p.subtotal));
+  if (Number(p.taxaEntrega) > 0) w.linha("Taxa de entrega:", fmtNum(p.taxaEntrega));
+  if (Number(p.desconto) > 0) w.linha("Desconto:", "-" + fmtNum(p.desconto));
+  if (Number(p.descontoPlataforma) > 0) w.linha("Desconto da plataforma:", "-" + fmtNum(p.descontoPlataforma));
+  w.line();
+
+  w.card("Valor total", fmtNum(p.total));
+
+  // Pagamento em bloco próprio e com o status em card: é a linha que decide
+  // se o entregador cobra ou não, e errar aqui custa o valor do pedido.
+  w.secao("Pagamento");
+  w.linha("Forma:", p.pagamentoForma);
+  if (p.pagamentoBandeira) w.linha("Bandeira:", p.pagamentoBandeira);
+  w.card(p.pagoOnline ? "Ja pago pelo app" : "Cobrar na entrega", fmtNum(p.total));
+  if (!p.pagoOnline && Number(p.trocoPara) > 0) {
+    w.linha("Troco para:", fmtNum(p.trocoPara));
+    w.linha("Levar de troco:", fmtNum(p.troco));
+  }
+
+  w.rodape(`${ctx.version ? `Velara ${ctx.version}` : "Velara"} - ${p.diaHora}`);
   w.cut();
   return w.done();
 }
@@ -722,7 +724,9 @@ const PAGAMENTOS = {
   debit: "Cartao de debito", debito: "Cartao de debito", debit_card: "Cartao de debito",
   cartao: "Cartao", card: "Cartao",
   voucher: "Vale-refeicao", vale_refeicao: "Vale-refeicao",
-  online: "Pagto Online",
+  meal_voucher: "Vale-refeicao", food_voucher: "Vale-alimentacao",
+  digital_wallet: "Carteira digital",
+  online: "Online",
 };
 
 /**
@@ -742,7 +746,16 @@ function buildJobReceipt(job, establishmentName, version, cols) {
     // Desconto: quando o pedido vem de marketplace o banco guarda quem banca
     // cada parte. Somar os dois numa linha só esconde o que o iFood pagou.
     const temSplit = Number(p.discount_sponsor_ifood) > 0 || Number(p.discount_sponsor_merchant) > 0;
-    const pagoOnline = String(p.payment_method || "").toLowerCase() === "online" || p.payment_status === "paid";
+
+    // Quem decide se o entregador cobra é o tipo do pagamento no marketplace
+    // (ONLINE = pago no app), não o payment_status: há pedido OFFLINE gravado
+    // como "paid" no banco, e confiar nele faria a entrega sair sem cobrar.
+    const tipoExterno = String(p.external_payment_type || "").toUpperCase();
+    const metodo = String(p.payment_method || "").toLowerCase();
+    const pagoOnline = tipoExterno
+      ? tipoExterno === "ONLINE"
+      : metodo === "online" || p.payment_status === "paid";
+
     const trocoPara = Number(p.change_amount) || 0;
     return buildCupomPedido({
       titulo: p.order_type === "pickup" ? "RETIRADA" : "TELE-ENTREGA",
@@ -752,23 +765,24 @@ function buildJobReceipt(job, establishmentName, version, cols) {
       externalId: p.external_order_id || null,
       nome: p.customer_name || null,
       telefone: p.customer_phone || null,
+      documento: p.customer_document || null,
       endereco: p.order_type === "pickup" ? null : (p.delivery_address || null),
       complemento: p.delivery_complement || null,
       referencia: p.delivery_reference || null,
       regiao: p.delivery_region || null,
+      observacoes: p.delivery_notes || p.notes || null,
       codigoColeta: p.external_collection_code || null,
-      previsto: p.previsto || null,
-      pedidosCliente: p.pedidos_cliente ?? null,
       items: normalizarItens(extrairItens(p)),
       subtotal: p.subtotal,
       taxaEntrega: p.delivery_fee,
       desconto: temSplit ? p.discount_sponsor_merchant : p.discount_amount,
       descontoPlataforma: temSplit ? p.discount_sponsor_ifood : 0,
       total: p.total,
-      pagamentoLabel: PAGAMENTOS[String(p.payment_method || "").toLowerCase()] || (pagoOnline ? "Pagto Online" : "A Receber"),
-      pagamentoValor: trocoPara > 0 ? trocoPara : Number(p.total || 0),
+      pagamentoForma: PAGAMENTOS[metodo] || p.payment_method || "Nao informado",
+      pagamentoBandeira: p.external_payment_brand || null,
+      pagoOnline,
+      trocoPara,
       troco: trocoPara > 0 ? Math.max(0, trocoPara - Number(p.total || 0)) : 0,
-      viaMotoboy: p.order_type !== "pickup",
       diaHora: formatDiaHora(agora),
     }, ctx);
   }
