@@ -19,13 +19,17 @@ import { useReportBrand } from "@/hooks/use-report-brand";
 import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { eachDay } from "@/lib/report-period";
-import { fetchPaymentsByOrderIds, fetchItemsByOrderIds, aggregateItemsByOrder } from "@/lib/reports-data-source";
+import { fetchPaymentsByOrderIds, brtRange, brtDateKey } from "@/lib/reports-data-source";
+import { fetchCancelledSales } from "@/lib/reports/cancellations";
 
 interface CancelOrder {
   id: string;
-  order_number: number | null;
+  /** número da comanda · "#123" quando vem do pedido antigo */
+  label: string;
+  origin: "comanda" | "pedido";
   customer_name: string | null;
   total: number;
+  itemCount: number;
   reason: string;
   cancelled_at: string | null;
   opened_at: string | null;
@@ -44,84 +48,49 @@ export default function CancellationsReport() {
     queryKey: ["report-cancellations-v2", visibleUserId, startDate.toISOString(), endDate.toISOString()],
     enabled: !!visibleUserId,
     queryFn: async () => {
-      const start = new Date(startDate); start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+      const { startISO, endISO } = brtRange(startDate, endDate);
 
-      const [cancelledRes, closedRes] = await Promise.all([
-        supabase
-          .from("pdv_orders")
-          .select("id, order_number, customer_name, cancellation_reason, cancelled_at, opened_at, closed_by_user_id, opened_by")
-          .eq("user_id", visibleUserId!)
-          .eq("status", "cancelada")
-          .gte("opened_at", start.toISOString())
-          .lte("opened_at", end.toISOString())
-          .order("cancelled_at", { ascending: false }),
+      // Cancelamento mora na comanda, não no pedido (ver lib/reports/cancellations).
+      const [{ sales, items: cancelItems }, closedRes] = await Promise.all([
+        fetchCancelledSales(visibleUserId!, startISO, endISO),
         supabase
           .from("pdv_orders")
           .select("id")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
-          .gte("opened_at", start.toISOString())
-          .lte("opened_at", end.toISOString()),
+          .gte("opened_at", startISO)
+          .lte("opened_at", endISO),
       ]);
-      if (cancelledRes.error) throw cancelledRes.error;
-      const cancelled = cancelledRes.data || [];
       const closed = closedRes.data || [];
 
-      // Revenue base = closed payments
+      // Base de comparação = receita dos pedidos fechados no período
       const closedPayments = await fetchPaymentsByOrderIds(closed.map((o: any) => o.id));
       let totalSales = 0;
       let totalClosedOrders = 0;
       closedPayments.forEach((r) => { totalSales += r.total; if (r.total > 0) totalClosedOrders += 1; });
 
-      // Cancelled order value = sum of comanda items (no payments expected)
-      const cancelIds = cancelled.map((o: any) => o.id);
-      const cancelItems = await fetchItemsByOrderIds(cancelIds);
-      const cancelValByOrder = aggregateItemsByOrder(cancelItems);
-
-      const userIds = Array.from(new Set(cancelled.map((o: any) => o.closed_by_user_id || o.opened_by).filter(Boolean))) as string[];
+      const userIds = Array.from(new Set(sales.map((v) => v.userId).filter(Boolean))) as string[];
       const { data: profiles } = userIds.length
         ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
         : { data: [] as any[] };
       const nameMap = new Map((profiles || []).map((p: any) => [p.id, p.full_name || "—"]));
 
-      // Fallback de nome do cliente via pdv_comandas
-      const comandaNameMap = new Map<string, string>();
-      if (cancelIds.length) {
-        const { data: comandas } = await supabase
-          .from("pdv_comandas")
-          .select("order_id, customer_name")
-          .in("order_id", cancelIds);
-        (comandas || []).forEach((c: any) => {
-          const n = (c.customer_name || "").trim();
-          if (!n) return;
-          const existing = comandaNameMap.get(c.order_id);
-          // prefere nome real ao invés de "Mesa ..."
-          if (!existing || (/^mesa\b/i.test(existing) && !/^mesa\b/i.test(n))) {
-            comandaNameMap.set(c.order_id, n);
-          }
-        });
-      }
-
-      const orders: CancelOrder[] = cancelled.map((o: any) => {
-        const uid = o.closed_by_user_id || o.opened_by;
-        const ttm = o.cancelled_at && o.opened_at
-          ? (new Date(o.cancelled_at).getTime() - new Date(o.opened_at).getTime()) / 60000
-          : 0;
-        const displayName = (o.customer_name && String(o.customer_name).trim()) || comandaNameMap.get(o.id) || "";
-        return {
-          id: o.id,
-          order_number: o.order_number,
-          customer_name: displayName,
-          total: cancelValByOrder.get(o.id)?.revenue || 0,
-          reason: o.cancellation_reason || "Sem motivo",
-          cancelled_at: o.cancelled_at,
-          opened_at: o.opened_at,
-          user_id: uid,
-          user_name: nameMap.get(uid) || "—",
-          timeToCancelMin: ttm,
-        };
-      });
+      const orders: CancelOrder[] = sales.map((v) => ({
+        id: v.id,
+        label: v.label,
+        origin: v.origin,
+        customer_name: v.customerName,
+        total: v.value,
+        itemCount: v.itemCount,
+        reason: v.reason,
+        cancelled_at: v.cancelledAt,
+        opened_at: v.openedAt,
+        user_id: v.userId,
+        user_name: (v.userId && nameMap.get(v.userId)) || "—",
+        timeToCancelMin: v.cancelledAt && v.openedAt
+          ? Math.max(0, (new Date(v.cancelledAt).getTime() - new Date(v.openedAt).getTime()) / 60000)
+          : 0,
+      }));
 
       // Per reason
       const byReason = new Map<string, { reason: string; count: number; value: number }>();
@@ -144,7 +113,8 @@ export default function CancellationsReport() {
       const days = eachDay(start, end);
       const byDay = new Map(days.map((d) => [d, { day: d, count: 0, value: 0 }]));
       orders.forEach((o) => {
-        const k = (o.cancelled_at || o.opened_at || "").slice(0, 10);
+        const t = o.cancelled_at || o.opened_at;
+        const k = t ? brtDateKey(t) : "";
         if (byDay.has(k)) {
           const r = byDay.get(k)!;
           r.count += 1; r.value += o.total;
@@ -226,13 +196,14 @@ export default function CancellationsReport() {
       {
         name: "Cancelamentos",
         rows: orders.map((o) => ({
-          data: o.cancelled_at, pedido: o.order_number, cliente: o.customer_name,
+          data: o.cancelled_at, comanda: o.label, cliente: o.customer_name, itens: o.itemCount,
           valor: o.total, motivo: o.reason, usuario: o.user_name, tempo_min: o.timeToCancelMin,
         })),
         columns: [
           { key: "data", label: "Data", width: 18, type: "datetime" },
-          { key: "pedido", label: "Pedido", width: 10, type: "number" },
+          { key: "comanda", label: "Comanda", width: 12 },
           { key: "cliente", label: "Cliente", width: 26 },
+          { key: "itens", label: "Itens", width: 8, type: "number" },
           { key: "valor", label: "Valor", width: 14, type: "currency" },
           { key: "motivo", label: "Motivo", width: 30 },
           { key: "usuario", label: "Usuário", width: 22 },
@@ -379,7 +350,7 @@ export default function CancellationsReport() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Pedidos cancelados</CardTitle>
+          <CardTitle>Cancelamentos do período</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Motivo:</span>
             <Select value={reasonFilter} onValueChange={setReasonFilter}>
@@ -395,20 +366,22 @@ export default function CancellationsReport() {
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Data</TableHead>
-                <TableHead>Pedido</TableHead>
+                <TableHead>Comanda</TableHead>
                 <TableHead>Cliente</TableHead>
+                <TableHead className="text-right">Itens</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Motivo</TableHead>
                 <TableHead>Usuário</TableHead>
                 <TableHead className="text-right">Tempo</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {filtered.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Sem cancelamentos</TableCell></TableRow> :
+                {filtered.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Sem cancelamentos</TableCell></TableRow> :
                   filtered.slice(0, 100).map((o) => (
                     <TableRow key={o.id}>
                       <TableCell className="text-muted-foreground">{o.cancelled_at ? format(new Date(o.cancelled_at), "dd/MM/yy HH:mm", { locale: ptBR }) : "—"}</TableCell>
-                      <TableCell>#{o.order_number ?? "—"}</TableCell>
+                      <TableCell>{o.label}</TableCell>
                       <TableCell>{o.customer_name || "—"}</TableCell>
+                      <TableCell className="text-right">{o.itemCount || "—"}</TableCell>
                       <TableCell className="text-right">{formatBRL(o.total)}</TableCell>
                       <TableCell>{o.reason}</TableCell>
                       <TableCell>{o.user_name}</TableCell>

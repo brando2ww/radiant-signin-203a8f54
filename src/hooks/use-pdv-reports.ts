@@ -8,9 +8,9 @@ import {
   summarizeCashierSales,
   fetchItemsByOrderIds,
   fetchDeliveryItemsByPeriod,
-  fetchPaymentsByOrderIds,
   channelOfSource,
 } from "@/lib/reports-data-source";
+import { fetchCancelledSales } from "@/lib/reports/cancellations";
 
 interface SalesReport {
   totalSales: number;
@@ -49,20 +49,16 @@ export function usePDVReports(startDate: Date, endDate: Date) {
       ]);
       const totalOrders = (closedCount || 0) + (deliveredCount || 0);
 
-      // Cancelamentos (informativo)
-      const { data: cancelledOrdersData } = await supabase
-        .from("pdv_orders").select("id").eq("user_id", owner!).eq("status", "cancelada")
-        .gte("opened_at", start).lte("opened_at", end);
-      const cancelledIds = (cancelledOrdersData || []).map((o: any) => o.id);
-      const payCancelled = await fetchPaymentsByOrderIds(cancelledIds);
-      let cancelledValue = 0;
-      payCancelled.forEach((r) => (cancelledValue += r.total));
+      // Cancelamentos (informativo) · moram na comanda, não no pedido, e o
+      // valor é o dos itens: cancelado não gera pagamento para somar.
+      const { sales: cancelled } = await fetchCancelledSales(owner!, start, end);
+      const cancelledValue = cancelled.reduce((acc, c) => acc + c.value, 0);
 
       return {
         totalSales,
         totalOrders,
         averageTicket: totalOrders > 0 ? totalSales / totalOrders : 0,
-        cancelledOrders: cancelledIds.length,
+        cancelledOrders: cancelled.length,
         cancelledValue,
       };
     },

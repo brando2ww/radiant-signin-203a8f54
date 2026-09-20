@@ -18,6 +18,7 @@ import { useReportBrand } from "@/hooks/use-report-brand";
 import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { fetchPaymentsByOrderIds, fetchItemsByOrderIds } from "@/lib/reports-data-source";
+import { fetchCancelledSales } from "@/lib/reports/cancellations";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted-foreground))", "hsl(var(--destructive))"];
 
@@ -37,6 +38,8 @@ interface UserRow {
   topPaymentMethod: string;
   topPaymentPct: number;
 }
+
+const SEM_USUARIO = "sem-usuario";
 
 const PM_LABELS: Record<string, string> = {
   pix: "Pix", cash: "Dinheiro", credit_card: "Crédito", debit_card: "Débito",
@@ -62,9 +65,17 @@ export default function ByUserReport() {
         .lte("opened_at", end.toISOString());
       if (error) throw error;
 
+      // Cancelamento mora na comanda, com autor próprio (ver lib/reports/cancellations).
+      const { sales: cancelamentos } = await fetchCancelledSales(
+        visibleUserId!,
+        start.toISOString(),
+        end.toISOString(),
+      );
+
       const userIds = Array.from(new Set([
         ...(orders || []).map((o: any) => o.opened_by).filter(Boolean),
         ...(orders || []).map((o: any) => o.closed_by_user_id).filter(Boolean),
+        ...cancelamentos.map((c) => c.userId).filter(Boolean),
       ])) as string[];
       const { data: profiles } = userIds.length
         ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
@@ -128,10 +139,15 @@ export default function ByUserReport() {
             if (!row.firstSale || t < row.firstSale) row.firstSale = t;
             if (!row.lastSale || t > row.lastSale) row.lastSale = t;
           }
-        } else if (o.status === "cancelada") {
-          row.cancelled += 1;
-          row.cancelledValue += rev;
         }
+      });
+
+      cancelamentos.forEach((c) => {
+        const uid = c.userId || SEM_USUARIO;
+        const row = ensure(uid);
+        if (uid === SEM_USUARIO) row.name = "Sem usuário";
+        row.cancelled += 1;
+        row.cancelledValue += c.value;
       });
 
       grouped.forEach((r) => {

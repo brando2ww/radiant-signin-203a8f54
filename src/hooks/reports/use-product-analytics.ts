@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchCancelledSales } from "@/lib/reports/cancellations";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useMemo } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
@@ -39,7 +40,8 @@ export interface ProductRow {
 
 export interface CancelledItemRow {
   date: string;
-  order_number: number | null;
+  /** número da comanda cancelada (ou "#123" do pedido antigo) */
+  source_label: string;
   product_name: string;
   quantity: number;
   value: number;
@@ -237,14 +239,9 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
         : { data: [] as any[] };
       const { cost: unitCostOf, compMap } = buildUnitCostResolver(recipes || [], comps || [], productIds);
 
-      // 6. Cancelled PDV items in period — items live in pdv_comanda_items via pdv_comandas
-      const { data: cancelledOrders } = await supabase
-        .from("pdv_orders")
-        .select("id, order_number, cancellation_reason, cancelled_at, pdv_comandas(pdv_comanda_items(product_id, product_name, quantity, subtotal))")
-        .eq("user_id", visibleUserId!)
-        .eq("status", "cancelada")
-        .gte("cancelled_at", startISO)
-        .lte("cancelled_at", endISO);
+      // 6. Itens cancelados no período · o cancelamento mora na comanda, não no
+      //    pedido (ver lib/reports/cancellations).
+      const { items: cancelledItems } = await fetchCancelledSales(visibleUserId!, startISO, endISO);
 
       // 7. Ingredients for coverage
       const ingredientMap = new Map<string, any>();
@@ -468,23 +465,21 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       // Cancelled aggregation
       const cancelledByProd = new Map<string, { product_id: string; product_name: string; quantity: number; value: number; orders: Set<string> }>();
       const cancelledDetails: CancelledItemRow[] = [];
-      (cancelledOrders || []).forEach((o: any) => {
-        const items: any[] = (o.pdv_comandas || []).flatMap((c: any) => c.pdv_comanda_items || []);
-        items.forEach((it: any) => {
-          const pid = it.product_id || it.product_name;
-          if (!cancelledByProd.has(pid)) cancelledByProd.set(pid, { product_id: pid, product_name: it.product_name, quantity: 0, value: 0, orders: new Set() });
-          const c = cancelledByProd.get(pid)!;
-          c.quantity += Number(it.quantity || 0);
-          c.value += Number(it.subtotal || 0);
-          c.orders.add(o.id);
-          cancelledDetails.push({
-            date: o.cancelled_at,
-            order_number: o.order_number,
-            product_name: it.product_name,
-            quantity: Number(it.quantity || 0),
-            value: Number(it.subtotal || 0),
-            reason: o.cancellation_reason,
-          });
+      cancelledItems.forEach((it) => {
+        const pid = it.product_id || it.product_name;
+        if (!pid) return;
+        if (!cancelledByProd.has(pid)) cancelledByProd.set(pid, { product_id: pid, product_name: it.product_name, quantity: 0, value: 0, orders: new Set() });
+        const c = cancelledByProd.get(pid)!;
+        c.quantity += it.quantity;
+        c.value += it.subtotal;
+        c.orders.add(it.saleId);
+        cancelledDetails.push({
+          date: it.cancelledAt || "",
+          source_label: it.label,
+          product_name: it.product_name,
+          quantity: it.quantity,
+          value: it.subtotal,
+          reason: it.reason,
         });
       });
       const cancelled = Array.from(cancelledByProd.values()).map((c) => ({

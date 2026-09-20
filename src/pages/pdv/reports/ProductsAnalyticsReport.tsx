@@ -748,7 +748,7 @@ function CancelledSection({ cancelled, details }: { cancelled: any[]; details: a
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
-                  <TableHead>Pedido</TableHead>
+                  <TableHead>Comanda</TableHead>
                   <TableHead>Produto</TableHead>
                   <TableHead className="text-right">Qtd</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
@@ -761,7 +761,7 @@ function CancelledSection({ cancelled, details }: { cancelled: any[]; details: a
                 ) : details.map((d, i) => (
                   <TableRow key={i}>
                     <TableCell>{d.date ? format(new Date(d.date), "dd/MM HH:mm", { locale: ptBR }) : "—"}</TableCell>
-                    <TableCell>#{d.order_number ?? "—"}</TableCell>
+                    <TableCell>{d.source_label || "—"}</TableCell>
                     <TableCell>{d.product_name}</TableCell>
                     <TableCell className="text-right">{d.quantity}</TableCell>
                     <TableCell className="text-right">{formatBRL(d.value)}</TableCell>

@@ -23,6 +23,7 @@ import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { toast } from "sonner";
 import { previousPeriod, pctDelta, fmtDelta } from "@/lib/report-period";
+import { fetchCancelledSales } from "@/lib/reports/cancellations";
 import { fetchPaymentsByOrderIds, fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -60,7 +61,12 @@ export default function OverviewReport() {
       const prevOrders = prevRes.data || [];
 
       const closed = curOrders.filter((o: any) => o.status === "fechada");
-      const cancelled = curOrders.filter((o: any) => o.status === "cancelada");
+      // Cancelamento mora na comanda (ver lib/reports/cancellations).
+      const { sales: cancelled } = await fetchCancelledSales(
+        visibleUserId!,
+        start.toISOString(),
+        end.toISOString(),
+      );
       const prevClosed = prevOrders.filter((o: any) => o.status === "fechada");
 
       // Buscar pagamentos e itens reais
@@ -75,7 +81,8 @@ export default function OverviewReport() {
       const revenue = closed.reduce((s, o: any) => s + orderRevenue(o.id), 0);
       const totalDiscount = closed.reduce((s, o: any) => s + Number(o.discount || 0), 0);
       const totalItems = items.reduce((s, it) => s + it.quantity, 0);
-      const cancelledRate = curOrders.length > 0 ? cancelled.length / curOrders.length : 0;
+      const baseCancelamento = closed.length + cancelled.length;
+      const cancelledRate = baseCancelamento > 0 ? cancelled.length / baseCancelamento : 0;
 
       const ordersWithRevenue = closed.filter((o: any) => orderRevenue(o.id) > 0).length;
       let prevRevenue = 0;

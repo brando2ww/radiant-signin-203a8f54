@@ -9,9 +9,9 @@ import {
   fetchItemsByOrderIds,
   fetchDeliveryItemsByPeriod,
 } from "@/lib/reports-data-source";
+import { fetchCancelledSales } from "@/lib/reports/cancellations";
 
 const PDV_CLOSED_STATUSES = ["fechada", "fechado"];
-const PDV_CANCELLED_STATUSES = ["cancelada"];
 
 export function usePDVDre(selectedMonth?: Date) {
   const { visibleUserId } = useEstablishmentId();
@@ -48,20 +48,14 @@ export function usePDVDre(selectedMonth?: Date) {
         .lte("opened_at", endISO);
 
       const closedPdvOrders = (pdvOrders || []).filter((o: any) => PDV_CLOSED_STATUSES.includes(o.status));
-      const cancelledPdvOrders = (pdvOrders || []).filter(
-        (o: any) => PDV_CANCELLED_STATUSES.includes(o.status) || !!o.cancelled_at,
-      );
       const closedIds = closedPdvOrders.map((o: any) => o.id);
 
       const pdvDiscounts = closedPdvOrders.reduce((s: number, o: any) => s + Number(o.discount || 0), 0);
 
-      // Cancelamentos PDV (informativo): valor dos itens dos pedidos cancelados (via comanda_items)
-      const cancelIds = cancelledPdvOrders.map((o: any) => o.id);
-      let pdvCancellations = 0;
-      if (cancelIds.length > 0) {
-        const cItems = await fetchItemsByOrderIds(cancelIds);
-        pdvCancellations = cItems.reduce((s, it) => s + Number(it.subtotal || 0), 0);
-      }
+      // Cancelamentos PDV (informativo): valor dos itens das comandas canceladas.
+      // O cancelamento mora na comanda, não no pedido (ver lib/reports/cancellations).
+      const { sales: cancelamentosPdv } = await fetchCancelledSales(owner, startISO, endISO);
+      const pdvCancellations = cancelamentosPdv.reduce((acc, c) => acc + c.value, 0);
 
       // Taxas de meios de pagamento (fee_amount dos pagamentos dos pedidos fechados)
       let paymentFees = 0;
