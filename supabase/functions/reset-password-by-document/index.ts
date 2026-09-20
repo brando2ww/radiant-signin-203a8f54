@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { sendMail } from "../_shared/smtp-mailer.ts";
+import { corpoDoEmailDeSenha } from "../_shared/password-reset-email.ts";
+
+/** Destinos aceitos para o link do e-mail. */
+const ORIGENS_PERMITIDAS = ["https://pdv.velaraia.app", "http://localhost:8080"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,19 +72,36 @@ serve(async (req) => {
       if (!userError && user?.email) {
         console.log("User found, generating reset link");
         
-        // 3. Enviar email de redefinição usando generateLink
+        // 3. Gerar o link e MANDAR o e-mail.
+        //    `generateLink` só devolve o endereço, não envia nada: antes o link
+        //    era gerado e jogado fora, então ninguém nunca recebeu a mensagem.
+        const origem = req.headers.get('origin');
+        const destino = origem && ORIGENS_PERMITIDAS.includes(origem)
+          ? `${origem}/redefinir-senha`
+          : `${ORIGENS_PERMITIDAS[0]}/redefinir-senha`;
+
         const { data: linkData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
           type: 'recovery',
           email: user.email,
-          options: {
-            redirectTo: `${req.headers.get('origin') || 'https://frbziqazwhymwsrtneoy.supabase.co'}/`,
-          }
+          options: { redirectTo: destino },
         });
 
-        if (resetError) {
+        if (resetError || !linkData?.properties?.action_link) {
           console.error("Error generating reset link:", resetError);
         } else {
-          console.log("Reset link generated successfully");
+          try {
+            await sendMail({
+              to: user.email,
+              subject: "Redefinir sua senha",
+              html: corpoDoEmailDeSenha(
+                linkData.properties.action_link,
+                (user.user_metadata?.full_name as string | undefined) ?? null,
+              ),
+            });
+            console.log("Reset email sent");
+          } catch (smtpErr) {
+            console.error("SMTP error sending reset email:", smtpErr);
+          }
         }
       } else {
         console.log("User not found or error:", userError);

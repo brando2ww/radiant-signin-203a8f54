@@ -64,11 +64,14 @@ export const CustomerLogin = ({ onConfirm, onBack }: CustomerLoginProps) => {
       toast.error("Digite seu e-mail primeiro");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+    // Sai pelo SMTP do Velara (send-password-reset). O envio direto pelo Auth
+    // usa o servidor compartilhado do Supabase, com 2 mensagens por hora no
+    // projeto inteiro, e o cliente simplesmente não recebia.
+    const { error } = await supabase.functions.invoke("send-password-reset", {
+      body: { email, redirectTo: `${window.location.origin}/redefinir-senha` },
     });
-    if (error) toast.error("Erro: " + error.message);
-    else toast.success("E-mail de recuperação enviado");
+    if (error) toast.error("Não foi possível enviar agora. Tente de novo em alguns minutos.");
+    else toast.success("Se este e-mail estiver cadastrado, você vai receber o link em instantes");
   };
 
   return (

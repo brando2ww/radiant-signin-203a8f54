@@ -34,6 +34,12 @@ import { Comanda, ComandaItem, KitchenStatus } from "@/hooks/use-pdv-comandas";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { CATEGORIA_LABEL } from "@/lib/reports/cancellations";
+import { CancelItemDialog, type ItemParaCancelar } from "@/components/pdv/cashier/CancelItemDialog";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface ComandaDetailsDialogProps {
   open: boolean;
@@ -42,7 +48,7 @@ interface ComandaDetailsDialogProps {
   items: ComandaItem[];
   onAddItem: () => void;
   onUpdateItem: (id: string, updates: Partial<ComandaItem>) => void;
-  onRemoveItem: (id: string) => void;
+  onRemoveItem: (arg: { id: string; reason?: string; category?: string }) => void;
   onTransferItem?: (itemId: string) => void;
   onTransferMultiple?: (itemIds: string[]) => void;
   onSendToKitchen: (itemIds: string[]) => void;
@@ -94,6 +100,33 @@ export function ComandaDetailsDialog({
   if (!comanda) return null;
 
   const isOpen = comanda.status === "aberta";
+  // Itens cancelados desta comanda. O cliente pediu que o cancelamento ficasse
+  // visível na própria comanda, com autor, horário e motivo.
+  const { data: itensCancelados = [] } = useQuery({
+    queryKey: ["comanda-itens-cancelados", comanda?.id],
+    enabled: open && !!comanda?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("pdv_cancelled_comanda_items")
+        .select("id, product_name, quantity, subtotal, cancelled_at, cancelled_by_user_id, cancellation_reason, cancellation_category")
+        .eq("comanda_id", comanda!.id)
+        .order("cancelled_at", { ascending: false });
+      const linhas = data || [];
+      const ids = Array.from(new Set(linhas.map((l: any) => l.cancelled_by_user_id).filter(Boolean))) as string[];
+      const nomes = new Map<string, string>();
+      if (ids.length) {
+        const { data: perfis } = await supabase.from("profiles").select("id, full_name").in("id", ids);
+        (perfis || []).forEach((p: any) => nomes.set(p.id, p.full_name || "—"));
+      }
+      return linhas.map((l: any) => ({
+        ...l,
+        userName: nomes.get(l.cancelled_by_user_id) || "—",
+      }));
+    },
+  });
+
+  const [itemParaCancelar, setItemParaCancelar] = useState<ItemParaCancelar | null>(null);
+
   const pendingItems = items.filter(
     (item) => !item.sent_to_kitchen_at && item.kitchen_status === "pendente"
   );
@@ -311,7 +344,7 @@ export function ComandaDetailsDialog({
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={() => onRemoveItem(item.id)}
+                                  onClick={() => setItemParaCancelar(item)}
                                   title="Remover item"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -324,6 +357,34 @@ export function ComandaDetailsDialog({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {itensCancelados.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <Separator />
+                <p className="text-xs font-medium text-muted-foreground pt-1">
+                  Itens cancelados ({itensCancelados.length})
+                </p>
+                {itensCancelados.map((c: any) => (
+                  <div key={c.id} className="flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm line-through text-muted-foreground truncate">
+                        {c.quantity}x {c.product_name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {format(new Date(c.cancelled_at), "dd/MM HH:mm", { locale: ptBR })} · {c.userName}
+                        {c.cancellation_category ? ` · ${CATEGORIA_LABEL[c.cancellation_category] || c.cancellation_category}` : ""}
+                      </p>
+                      {c.cancellation_reason && (
+                        <p className="text-[11px] text-muted-foreground italic truncate">{c.cancellation_reason}</p>
+                      )}
+                    </div>
+                    <span className="text-sm text-muted-foreground line-through shrink-0">
+                      {formatBRL(Number(c.subtotal || 0))}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </ScrollArea>
@@ -392,6 +453,15 @@ export function ComandaDetailsDialog({
       </Dialog>
 
       {/* Close Confirmation */}
+      <CancelItemDialog
+        item={itemParaCancelar}
+        onOpenChange={(aberto) => { if (!aberto) setItemParaCancelar(null); }}
+        onConfirm={(payload) => {
+          onRemoveItem(payload);
+          setItemParaCancelar(null);
+        }}
+      />
+
       <AlertDialog open={confirmClose} onOpenChange={setConfirmClose}>
         <AlertDialogContent>
           <AlertDialogHeader>

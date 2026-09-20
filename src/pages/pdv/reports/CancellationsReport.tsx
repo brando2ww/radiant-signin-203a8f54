@@ -20,7 +20,7 @@ import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 import { periodLabel } from "@/components/pdv/reports/ReportShell";
 import { eachDay } from "@/lib/report-period";
 import { fetchPaymentsByOrderIds, brtRange, brtDateKey } from "@/lib/reports-data-source";
-import { fetchCancelledSales } from "@/lib/reports/cancellations";
+import { fetchCancelledSales, fetchCancelledItems, CATEGORIA_LABEL } from "@/lib/reports/cancellations";
 
 interface CancelOrder {
   id: string;
@@ -51,8 +51,9 @@ export default function CancellationsReport() {
       const { startISO, endISO } = brtRange(startDate, endDate);
 
       // Cancelamento mora na comanda, não no pedido (ver lib/reports/cancellations).
-      const [{ sales, items: cancelItems }, closedRes] = await Promise.all([
+      const [{ sales, items: cancelItems }, itensAvulsos, closedRes] = await Promise.all([
         fetchCancelledSales(visibleUserId!, startISO, endISO),
+        fetchCancelledItems(visibleUserId!, startISO, endISO),
         supabase
           .from("pdv_orders")
           .select("id")
@@ -69,7 +70,10 @@ export default function CancellationsReport() {
       let totalClosedOrders = 0;
       closedPayments.forEach((r) => { totalSales += r.total; if (r.total > 0) totalClosedOrders += 1; });
 
-      const userIds = Array.from(new Set(sales.map((v) => v.userId).filter(Boolean))) as string[];
+      const userIds = Array.from(new Set([
+        ...sales.map((v) => v.userId),
+        ...itensAvulsos.map((i) => i.userId),
+      ].filter(Boolean))) as string[];
       const { data: profiles } = userIds.length
         ? await supabase.from("profiles").select("id, full_name").in("id", userIds)
         : { data: [] as any[] };
@@ -131,8 +135,15 @@ export default function CancellationsReport() {
         r.value += it.subtotal;
       });
 
+      const itensCancelados = itensAvulsos.map((i) => ({
+        ...i,
+        userName: (i.userId && nameMap.get(i.userId)) || "—",
+      }));
+
       return {
         orders,
+        itensCancelados,
+        itensValor: itensCancelados.reduce((acc, i) => acc + i.subtotal, 0),
         byReason: Array.from(byReason.values()).sort((a, b) => b.count - a.count),
         byUser: Array.from(byUser.values()).sort((a, b) => b.count - a.count),
         byDay: Array.from(byDay.values()),
@@ -144,6 +155,7 @@ export default function CancellationsReport() {
   });
 
   const orders = data?.orders || [];
+  const itensCancelados = data?.itensCancelados || [];
   const byReason = data?.byReason || [];
   const byUser = data?.byUser || [];
   const byDay = data?.byDay || [];
@@ -211,6 +223,24 @@ export default function CancellationsReport() {
         ],
       },
       {
+        name: "Itens cancelados",
+        rows: itensCancelados.map((i) => ({
+          data: i.cancelledAt, comanda: i.comandaNumber, item: i.productName,
+          qtd: i.quantity, valor: i.subtotal,
+          motivo: [i.category ? (CATEGORIA_LABEL[i.category] || i.category) : "", i.reason || ""].filter(Boolean).join(" · "),
+          usuario: i.userName,
+        })),
+        columns: [
+          { key: "data", label: "Data", width: 18, type: "datetime" },
+          { key: "comanda", label: "Comanda", width: 12 },
+          { key: "item", label: "Item", width: 28 },
+          { key: "qtd", label: "Qtd", width: 8, type: "number" },
+          { key: "valor", label: "Valor", width: 14, type: "currency" },
+          { key: "motivo", label: "Motivo", width: 34 },
+          { key: "usuario", label: "Usuário", width: 22 },
+        ],
+      },
+      {
         name: "Por motivo",
         rows: byReason.map((r) => ({ motivo: r.reason, qtd: r.count, valor: r.value })),
         columns: [{ key: "motivo", label: "Motivo", width: 30 }, { key: "qtd", label: "Qtd", width: 10, type: "number" }, { key: "valor", label: "Valor", width: 14, type: "currency" }],
@@ -247,7 +277,8 @@ export default function CancellationsReport() {
         <Kpi label="Ticket médio cancelado" value={formatBRL(totals.avgTicket)} />
         <Kpi label="Tempo médio p/ cancelar" value={`${totals.avgTime.toFixed(0)} min`} />
       </div>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
+        <Kpi label="Itens cancelados" value={`${itensCancelados.length} · ${formatBRL(data?.itensValor || 0)}`} />
         <Kpi label="% sobre receita" value={`${(totals.pctVal * 100).toFixed(1)}%`} />
         <Kpi label="% sobre pedidos" value={`${(totals.pctCnt * 100).toFixed(1)}%`} />
         <Kpi label="Top motivo" value={totals.topReason} />
@@ -349,8 +380,54 @@ export default function CancellationsReport() {
       </div>
 
       <Card>
+        <CardHeader>
+          <CardTitle>Itens cancelados dentro da comanda</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Item que saiu da conta com a comanda seguindo aberta. Cada linha guarda quem cancelou, quando e por quê.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? <Skeleton className="h-48 w-full" /> : (
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Comanda</TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead className="text-right">Qtd</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Motivo</TableHead>
+                <TableHead>Usuário</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {itensCancelados.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum item cancelado no período</TableCell></TableRow>
+                ) : itensCancelados.slice(0, 100).map((i) => (
+                  <TableRow key={i.id}>
+                    <TableCell className="text-muted-foreground">{format(new Date(i.cancelledAt), "dd/MM/yy HH:mm", { locale: ptBR })}</TableCell>
+                    <TableCell>{i.comandaNumber || "—"}</TableCell>
+                    <TableCell className="font-medium">
+                      {i.productName}
+                      {i.foiParaCozinha && <span className="ml-2 text-[10px] text-amber-600">já tinha ido para a praça</span>}
+                    </TableCell>
+                    <TableCell className="text-right">{i.quantity}</TableCell>
+                    <TableCell className="text-right">{formatBRL(i.subtotal)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {i.category ? (CATEGORIA_LABEL[i.category] || i.category) : "—"}
+                      {i.reason ? ` · ${i.reason}` : ""}
+                    </TableCell>
+                    <TableCell>{i.userName}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {itensCancelados.length > 100 && <p className="text-xs text-muted-foreground mt-2">Mostrando 100 de {itensCancelados.length}. Exporte para ver todos.</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Cancelamentos do período</CardTitle>
+          <CardTitle>Comandas canceladas por inteiro</CardTitle>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Motivo:</span>
             <Select value={reasonFilter} onValueChange={setReasonFilter}>

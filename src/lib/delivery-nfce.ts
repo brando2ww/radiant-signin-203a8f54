@@ -43,13 +43,17 @@ export async function emitNFCeForDeliveryOrder(order: {
     return { emitted: false, reason: "pedido já tem nota" };
   }
 
-  const { data: items } = await supabase
+  const { data: todosOsItens } = await supabase
     .from("delivery_order_items")
     .select("product_id, product_name, quantity, unit_price")
     .eq("order_id", order.id);
 
-  if (!items || items.length === 0) {
-    return { emitted: false, reason: "pedido sem itens" };
+  // Adicional sem preço (acompanhamento, opção incluída) não é item de venda:
+  // fica no pedido e na via da cozinha, fora da nota.
+  const items = (todosOsItens || []).filter((i: any) => Number(i.unit_price || 0) > 0);
+
+  if (items.length === 0) {
+    return { emitted: false, reason: "pedido sem itens com valor" };
   }
 
   // Dados fiscais dos produtos (as colunas são `origin` e `tax_unit`).

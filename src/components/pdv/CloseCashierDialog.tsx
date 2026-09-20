@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { CATEGORIA_LABEL } from "@/lib/reports/cancellations";
 import {
   Dialog,
   DialogContent,
@@ -333,6 +334,10 @@ export async function printCashierReport(params: PrintCashierReportParams) {
   // Cancelamentos e Descontos por sessão
   let cancelledOrders: Array<{ num: number | string | null; amount: number; reason: string | null }> = [];
   let discountedOrders: Array<{ num: number | null; discount: number; origem?: string }> = [];
+  // Item cancelado dentro de comanda que seguiu viva. A comanda inteira
+  // cancelada já aparece acima; isto aqui é o item solto, que até agora sumia
+  // sem deixar rastro nenhum no papel do fechamento.
+  let cancelledItems: Array<{ item: string; comanda: string | null; qtd: number; amount: number; motivo: string | null }> = [];
   if (session?.id) {
     try {
       // Cancelado sem caixa aberto não tem sessão, e sair só por
@@ -345,7 +350,7 @@ export async function printCashierReport(params: PrintCashierReportParams) {
       const [
         { data: cancelPdv }, { data: cancelDel }, { data: cancelComanda },
         { data: cancelPdvSemSessao }, { data: cancelDelSemSessao }, { data: cancelComandaSemSessao },
-        { data: discPdv }, { data: discDel },
+        { data: discPdv }, { data: discDel }, { data: cancelItens },
       ] = await Promise.all([
         supabase.from("pdv_orders").select("order_number,subtotal,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
         supabase.from("delivery_orders").select("order_number,subtotal,total,cancellation_reason").eq("cashier_session_id", session.id).eq("status", "cancelled"),
@@ -365,7 +370,29 @@ export async function printCashierReport(params: PrintCashierReportParams) {
           .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao),
         supabase.from("pdv_orders").select("order_number,discount").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
         supabase.from("delivery_orders").select("order_number,discount,discount_source").eq("cashier_session_id", session.id).neq("status", "cancelled").gt("discount", 0),
+        supabase.from("pdv_cancelled_comanda_items")
+          .select("product_name,quantity,subtotal,cancellation_reason,cancellation_category,comanda_id")
+          .eq("owner_user_id", session.user_id)
+          .gte("cancelled_at", inicioSessao).lte("cancelled_at", fimSessao)
+          .order("cancelled_at", { ascending: true }),
       ]);
+
+      // Número da comanda de cada item cancelado, para o conferente localizar.
+      const comandaIds = Array.from(new Set((cancelItens || []).map((i: any) => i.comanda_id).filter(Boolean)));
+      const numeroPorComanda = new Map<string, string>();
+      if (comandaIds.length) {
+        const { data: cmds } = await supabase
+          .from("pdv_comandas").select("id,comanda_number").in("id", comandaIds);
+        (cmds || []).forEach((c: any) => numeroPorComanda.set(c.id, c.comanda_number));
+      }
+      cancelledItems = (cancelItens || []).map((i: any) => ({
+        item: i.product_name,
+        comanda: numeroPorComanda.get(i.comanda_id) ?? null,
+        qtd: Number(i.quantity || 0),
+        amount: Number(i.subtotal || 0),
+        motivo: [CATEGORIA_LABEL[i.cancellation_category as string] || i.cancellation_category, i.cancellation_reason]
+          .filter(Boolean).join(" · ") || null,
+      }));
       cancelledOrders = [
         ...(cancelPdv || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || 0), reason: o.cancellation_reason })),
         ...(cancelDel || []).map((o: any) => ({ num: o.order_number, amount: Number(o.subtotal || o.total || 0), reason: o.cancellation_reason })),
@@ -389,6 +416,7 @@ export async function printCashierReport(params: PrintCashierReportParams) {
     }
   }
   const cancTotal = cancelledOrders.reduce((a, o) => a + o.amount, 0);
+  const cancItensTotal = cancelledItems.reduce((a, i) => a + i.amount, 0);
   const discTotal = discountedOrders.reduce((a, o) => a + o.discount, 0);
 
   const reinforcementItems = movements.filter((m) => m.type === "reforco");
@@ -414,7 +442,10 @@ export async function printCashierReport(params: PrintCashierReportParams) {
 <div class="section">
   <div class="section-title">CANCELAMENTOS</div>
   <div class="row total"><span>${cancelledOrders.length} cancelamento${cancelledOrders.length !== 1 ? "s" : ""}${totalSales > 0 && cancTotal > 0 ? ` <small>(${((cancTotal / totalSales) * 100).toFixed(1)}% das vendas)</small>` : ""}</span><span>${cancelledOrders.length > 0 ? `- ${formatBRL(cancTotal)}` : "R$ 0,00"}</span></div>
-  ${cancelledOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}${o.reason ? ` — ${String(o.reason).slice(0, 30)}` : ""}</span><span>${formatBRL(o.amount)}</span></div>`).join("")}
+  ${cancelledOrders.map((o) => `<div class="row"><span>#${o.num ?? "—"}${o.reason ? ` · ${String(o.reason).slice(0, 30)}` : ""}</span><span>${formatBRL(o.amount)}</span></div>`).join("")}
+  ${cancelledItems.length > 0 ? `
+  <div class="row total" style="margin-top:6px"><span>${cancelledItems.length} item${cancelledItems.length !== 1 ? "ns" : ""} cancelado${cancelledItems.length !== 1 ? "s" : ""} em comanda aberta</span><span>- ${formatBRL(cancItensTotal)}</span></div>
+  ${cancelledItems.map((i) => `<div class="row"><span>${i.qtd}x ${i.item}${i.comanda ? ` <small>(comanda ${i.comanda})</small>` : ""}${i.motivo ? ` · ${String(i.motivo).slice(0, 28)}` : ""}</span><span>${formatBRL(i.amount)}</span></div>`).join("")}` : ""}
 </div>`;
 
   const discountsHtml = `<div class="divider"></div>

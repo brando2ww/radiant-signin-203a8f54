@@ -3680,6 +3680,72 @@ export type Database = {
         }
         Relationships: []
       }
+      pdv_cancelled_comanda_items: {
+        Row: {
+          cancellation_category: string | null
+          cancellation_reason: string | null
+          cancelled_at: string
+          cancelled_by_user_id: string | null
+          comanda_id: string
+          id: string
+          item_created_at: string | null
+          item_id: string
+          kitchen_status: string | null
+          notes: string | null
+          order_id: string | null
+          owner_user_id: string
+          paid_quantity: number
+          product_id: string | null
+          product_name: string
+          quantity: number
+          sent_to_kitchen_at: string | null
+          subtotal: number
+          unit_price: number
+        }
+        Insert: {
+          cancellation_category?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string
+          cancelled_by_user_id?: string | null
+          comanda_id: string
+          id?: string
+          item_created_at?: string | null
+          item_id: string
+          kitchen_status?: string | null
+          notes?: string | null
+          order_id?: string | null
+          owner_user_id: string
+          paid_quantity?: number
+          product_id?: string | null
+          product_name: string
+          quantity?: number
+          sent_to_kitchen_at?: string | null
+          subtotal?: number
+          unit_price?: number
+        }
+        Update: {
+          cancellation_category?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string
+          cancelled_by_user_id?: string | null
+          comanda_id?: string
+          id?: string
+          item_created_at?: string | null
+          item_id?: string
+          kitchen_status?: string | null
+          notes?: string | null
+          order_id?: string | null
+          owner_user_id?: string
+          paid_quantity?: number
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          sent_to_kitchen_at?: string | null
+          subtotal?: number
+          unit_price?: number
+        }
+        Relationships: []
+      }
       pdv_action_permissions: {
         Row: {
           action: Database["public"]["Enums"]["pdv_permission_action"]
@@ -10051,6 +10117,14 @@ export type Database = {
         Returns: Json
       }
       pdv_cleanup_old_cashier_sessions: { Args: never; Returns: number }
+      pdv_cancel_comanda_item: {
+        Args: {
+          p_category?: string
+          p_item_id: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
       pdv_close_attendance: {
         Args: {
           p_close_whole_table?: boolean

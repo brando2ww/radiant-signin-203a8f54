@@ -205,3 +205,90 @@ export async function fetchCancelledSales(
   sales.sort((a, b) => (b.cancelledAt || "").localeCompare(a.cancelledAt || ""));
   return { sales, items };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Itens cancelados dentro de uma comanda que seguiu viva.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface CancelledComandaItem {
+  id: string;
+  comandaId: string;
+  orderId: string | null;
+  comandaNumber: string | null;
+  customerName: string | null;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  paidQuantity: number;
+  cancelledAt: string;
+  userId: string | null;
+  reason: string | null;
+  category: string | null;
+  /** Já tinha ido para a praça quando foi cancelado. */
+  foiParaCozinha: boolean;
+}
+
+/**
+ * Lê `pdv_cancelled_comanda_items`, onde cada linha é um item que saiu da
+ * comanda. É diferente da comanda cancelada inteira: aqui a venda aconteceu e
+ * só aquele item caiu fora, que é o caso do dia a dia (cliente desistiu do
+ * prato, garçom lançou errado).
+ */
+export async function fetchCancelledItems(
+  ownerId: string,
+  startISO: string,
+  endISO: string,
+): Promise<CancelledComandaItem[]> {
+  const { data, error } = await supabase
+    .from("pdv_cancelled_comanda_items")
+    .select(
+      "id, comanda_id, order_id, product_name, quantity, unit_price, subtotal, paid_quantity, sent_to_kitchen_at, cancelled_at, cancelled_by_user_id, cancellation_reason, cancellation_category",
+    )
+    .eq("owner_user_id", ownerId)
+    .gte("cancelled_at", startISO)
+    .lte("cancelled_at", endISO)
+    .order("cancelled_at", { ascending: false });
+  if (error) throw error;
+
+  const linhas = data || [];
+  const comandaIds = Array.from(new Set(linhas.map((l: any) => l.comanda_id).filter(Boolean)));
+  const porComanda = new Map<string, { numero: string | null; cliente: string | null }>();
+  if (comandaIds.length) {
+    const { data: comandas } = await supabase
+      .from("pdv_comandas")
+      .select("id, comanda_number, customer_name")
+      .in("id", comandaIds);
+    (comandas || []).forEach((c: any) =>
+      porComanda.set(c.id, { numero: c.comanda_number ?? null, cliente: c.customer_name ?? null }),
+    );
+  }
+
+  return linhas.map((l: any) => ({
+    id: l.id,
+    comandaId: l.comanda_id,
+    orderId: l.order_id ?? null,
+    comandaNumber: porComanda.get(l.comanda_id)?.numero ?? null,
+    customerName: porComanda.get(l.comanda_id)?.cliente ?? null,
+    productName: l.product_name || "—",
+    quantity: Number(l.quantity || 0),
+    unitPrice: Number(l.unit_price || 0),
+    subtotal: Number(l.subtotal || 0),
+    paidQuantity: Number(l.paid_quantity || 0),
+    cancelledAt: l.cancelled_at,
+    userId: l.cancelled_by_user_id ?? null,
+    reason: l.cancellation_reason ?? null,
+    category: l.cancellation_category ?? null,
+    foiParaCozinha: !!l.sent_to_kitchen_at,
+  }));
+}
+
+/** Rótulos das categorias, iguais aos da tela de cancelamento. */
+export const CATEGORIA_LABEL: Record<string, string> = {
+  cliente_desistiu: "Cliente desistiu",
+  pedido_errado: "Pedido errado",
+  problema_cozinha: "Problema na cozinha",
+  demora_excessiva: "Demora excessiva",
+  item_indisponivel: "Item indisponível",
+  outro: "Outro",
+};

@@ -177,10 +177,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
+    // Ver o comentário em send-password-reset: o SMTP padrão do Supabase é
+    // compartilhado e limitado a 2 mensagens por hora no projeto inteiro.
+    const { error } = await supabase.functions.invoke("send-password-reset", {
+      body: { email, redirectTo: `${window.location.origin}/redefinir-senha` },
     });
-    
+
     return { error };
   };
 

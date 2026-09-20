@@ -459,16 +459,27 @@ export function usePDVComandas() {
   });
 
   // Remove item
+  // Cancelar item passa pela RPC: ela confere a permissão "Cancelar item",
+  // guarda o item cancelado em pdv_cancelled_comanda_items com autor, motivo e
+  // horário, e registra na auditoria. O DELETE direto que existia aqui não
+  // deixava rastro nenhum.
   const removeItemMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("pdv_comanda_items")
-        .delete()
-        .eq("id", id);
+    mutationFn: async (
+      arg: string | { id: string; reason?: string; category?: string },
+    ) => {
+      const id = typeof arg === "string" ? arg : arg.id;
+      const reason = typeof arg === "string" ? undefined : arg.reason;
+      const category = typeof arg === "string" ? undefined : arg.category;
+      const { error } = await supabase.rpc("pdv_cancel_comanda_item", {
+        p_item_id: id,
+        p_reason: reason ?? null,
+        p_category: category ?? null,
+      });
 
       if (error) throw error;
     },
-    onMutate: async (id: string) => {
+    onMutate: async (arg: string | { id: string; reason?: string; category?: string }) => {
+      const id = typeof arg === "string" ? arg : arg.id;
       // Atualização otimista: remove o item de todas as queries de items em cache
       // para que a UI reflita a remoção instantaneamente, sem esperar o refetch.
       await queryClient.cancelQueries({ queryKey: ["pdv-comanda-items"] });
@@ -485,15 +496,15 @@ export function usePDVComandas() {
       });
       return { snapshots };
     },
-    onError: (error, _id, ctx) => {
-      // Rollback: restaura snapshots se o delete falhar no servidor
+    onError: (error, _arg, ctx) => {
+      // Rollback: restaura snapshots se o cancelamento falhar no servidor
       ctx?.snapshots?.forEach(([key, data]) => {
         queryClient.setQueryData(key, data);
       });
-      toast.error("Erro ao remover item: " + error.message);
+      toast.error("Erro ao cancelar item: " + error.message);
     },
     onSuccess: () => {
-      toast.success("Item removido!");
+      toast.success("Item cancelado");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });

@@ -24,6 +24,7 @@ import PublicPurchaseReceipt from "./pages/PublicPurchaseReceipt";
 import PublicStockCount from "./pages/PublicStockCount";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
 import NotFound from "./pages/NotFound";
+import ResetPassword from "./pages/ResetPassword";
 import { RadixBodyUnlock } from "@/components/RadixBodyUnlock";
 import Onboarding from "./pages/Onboarding";
 import OnboardingSuccess from "./pages/OnboardingSuccess";
@@ -93,6 +94,10 @@ const App = () => (
                   <Route path="/pedido/:token" element={<PublicSupplierOrder />} />
                   <Route path="/recebimento/:token" element={<PublicPurchaseReceipt />} />
                   <Route path="/contagem/:token" element={<PublicStockCount />} />
+                  {/* Link do e-mail de recuperação de senha. O caminho em inglês
+                      fica de pé porque links antigos já saíram com ele. */}
+                  <Route path="/redefinir-senha" element={<ResetPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   {/* Onboarding (auth-only, sem ProtectedRoute para evitar loop) */}
                   <Route path="/onboarding" element={<AuthOnlyRoute><Onboarding /></AuthOnlyRoute>} />
                   <Route path="/onboarding/sucesso" element={<AuthOnlyRoute><OnboardingSuccess /></AuthOnlyRoute>} />

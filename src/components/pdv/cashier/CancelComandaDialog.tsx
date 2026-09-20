@@ -30,7 +30,7 @@ export type CancelCategory =
   | "item_indisponivel"
   | "outro";
 
-const CATEGORIES: { value: CancelCategory; label: string }[] = [
+export const CATEGORIES: { value: CancelCategory; label: string }[] = [
   { value: "cliente_desistiu", label: "Cliente desistiu" },
   { value: "pedido_errado", label: "Pedido errado" },
   { value: "problema_cozinha", label: "Problema na cozinha" },

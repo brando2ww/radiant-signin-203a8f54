@@ -53,6 +53,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useFiscalPause } from "@/hooks/use-fiscal-pause";
 import { Comanda, ComandaItem, usePDVComandas } from "@/hooks/use-pdv-comandas";
+import { CATEGORIES as CANCEL_CATEGORIES, type CancelCategory } from "@/components/pdv/cashier/CancelComandaDialog";
 import { PDVTable } from "@/hooks/use-pdv-tables";
 import { usePDVPayments, PaymentMethod } from "@/hooks/use-pdv-payments";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
@@ -249,6 +250,8 @@ export function PaymentDialog({
 
   // Edição do pedido (correção pelo caixa)
   const [itemToRemove, setItemToRemove] = useState<ComandaItem | null>(null);
+  const [cancelCategory, setCancelCategory] = useState<CancelCategory | "">("");
+  const [cancelReason, setCancelReason] = useState("");
   // IDs removidos otimisticamente — garante que o item suma do Resumo
   // imediatamente, mesmo no fallback de Balcão (props snapshot).
   const [optimisticallyRemoved, setOptimisticallyRemoved] = useState<Set<string>>(new Set());
@@ -351,6 +354,14 @@ export function PaymentDialog({
     (it) => !optimisticallyRemoved.has(it.id),
   );
 
+  // Item sem valor (filho de composição tipo "Etapa 1", acompanhamento, cortesia)
+  // não é cobrado nem vai para a nota. Ele continua na comanda e na via da
+  // cozinha, que é onde serve para alguma coisa. Sem esse corte o caixa rola a
+  // tela inteira para achar o que cobrar: 6 de cada 10 linhas não têm preço.
+  const temValorParaCobrar = (it: { subtotal?: number | null; unit_price?: number | null }) =>
+    Number(it.subtotal || 0) > 0 || Number(it.unit_price || 0) > 0;
+  const itensCobraveis: ComandaItem[] = displayItems.filter(temValorParaCobrar);
+
   const liveSubtotal = displayItems.reduce(
     (sum, it) => sum + Number(it.subtotal || 0),
     0,
@@ -378,7 +389,7 @@ export function PaymentDialog({
   const supportsByProduct = liveItemsForPayment.length > 0 && !isTablePayment;
 
   // Itens disponíveis para seleção parcial (apenas com quantidade pendente)
-  const selectableItems = displayItems.filter((it) => {
+  const selectableItems = itensCobraveis.filter((it) => {
     const paid = (it as any).paid_quantity || 0;
     return it.quantity - paid > 0;
   });
@@ -793,7 +804,7 @@ export function PaymentDialog({
       // itens removidos pelo operador (ex.: 2 águas), fazendo o cupom
       // exibir um total diferente do que foi cobrado do cliente.
       printSnapshotRef.current = {
-        items: displayItems.map((i) => ({
+        items: itensCobraveis.map((i) => ({
           product_name: i.product_name,
           quantity: i.quantity,
           unit_price: i.unit_price,
@@ -1025,7 +1036,7 @@ export function PaymentDialog({
     const snap = printSnapshotRef.current;
     const printItems = snap
       ? snap.items
-      : displayItems.map((i) => ({
+      : itensCobraveis.map((i) => ({
           product_name: i.product_name,
           quantity: i.quantity,
           unit_price: i.unit_price,
@@ -1071,7 +1082,7 @@ export function PaymentDialog({
     printNonFiscalReceipt({
       business: buildBusinessInfo(),
       header: { mesa: mesaLabel, comanda: comandaLabel },
-      items: displayItems.map((i) => ({
+      items: itensCobraveis.map((i) => ({
         product_name: i.product_name,
         quantity: i.quantity,
         unit_price: i.unit_price,
@@ -1119,7 +1130,7 @@ export function PaymentDialog({
       // As colunas corretas em `pdv_products` são `origin` e `tax_unit` — o
       // código pedia `origem`/`unit`, que não existem, e como o erro era
       // descartado TODO item saía com NCM "00000000" (rejeição garantida).
-      const productIds = Array.from(new Set(displayItems.map((i) => i.product_id).filter(Boolean)));
+      const productIds = Array.from(new Set(itensCobraveis.map((i) => i.product_id).filter(Boolean)));
       const productMap: Record<string, any> = {};
       if (productIds.length) {
         const { data: prods, error: prodErr } = await supabase
@@ -1135,7 +1146,7 @@ export function PaymentDialog({
       const num = (v: any) => (v == null || v === "" ? null : Number(v));
 
       const result = await emitNFCe({
-        items: displayItems.map((i) => {
+        items: itensCobraveis.map((i) => {
           const p = productMap[i.product_id] || {};
           return {
             product_id: i.product_id,
@@ -1426,7 +1437,7 @@ export function PaymentDialog({
                 <ScrollArea className={cn(isByProduct ? "h-[260px]" : "h-[160px]")}>
                   <div className="space-y-1">
                     <AnimatePresence initial={false}>
-                      {displayItems.map((item) => {
+                      {itensCobraveis.map((item) => {
                         const canRemove =
                           item.kitchen_status === "pendente" ||
                           item.kitchen_status === "preparando";
@@ -2551,50 +2562,79 @@ export function PaymentDialog({
     </Dialog>
 
     {/* Confirmação de remoção de item */}
-    <AlertDialog open={!!itemToRemove} onOpenChange={(o) => { if (!o) setItemToRemove(null); }}>
+    <AlertDialog open={!!itemToRemove} onOpenChange={(o) => { if (!o) { setItemToRemove(null); setCancelCategory(""); setCancelReason(""); } }}>
       <AlertDialogContent hideOverlay container={paymentContentRef.current}>
         <AlertDialogHeader>
-          <AlertDialogTitle>Remover item?</AlertDialogTitle>
+          <AlertDialogTitle>Cancelar item?</AlertDialogTitle>
           <AlertDialogDescription>
             {itemToRemove && (
               <>
                 <span className="font-medium text-foreground">
                   {itemToRemove.quantity}x {itemToRemove.product_name}
                 </span>{" "}
-                — {formatCurrency(itemToRemove.subtotal)} será removido da conta.
+                · {formatCurrency(itemToRemove.subtotal)} sai da conta.
                 <br />
-                Esta ação não pode ser desfeita.
+                O cancelamento fica registrado com seu nome, o horário e o motivo.
               </>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+
+        <div className="space-y-3 py-1">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Motivo *</Label>
+            <Select value={cancelCategory} onValueChange={(v) => setCancelCategory(v as CancelCategory)}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Escolha o motivo" />
+              </SelectTrigger>
+              <SelectContent>
+                {CANCEL_CATEGORIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Observação (opcional)</Label>
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Alguma informação que ajude a entender depois"
+              rows={2}
+              className="resize-none text-sm"
+            />
+          </div>
+        </div>
+
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isRemovingItem}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel disabled={isRemovingItem}>Voltar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={isRemovingItem}
+            disabled={isRemovingItem || !cancelCategory}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={(e) => {
               e.preventDefault();
-              if (!itemToRemove) return;
+              if (!itemToRemove || !cancelCategory) return;
               const id = itemToRemove.id;
               setOptimisticallyRemoved((prev) => {
                 const next = new Set(prev);
                 next.add(id);
                 return next;
               });
-              removeItem(id);
+              removeItem({ id, reason: cancelReason.trim() || undefined, category: cancelCategory });
               setItemToRemove(null);
+              setCancelCategory("");
+              setCancelReason("");
             }}
           >
             {isRemovingItem ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Removendo...
+                Cancelando...
               </>
             ) : (
               <>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Remover
+                Cancelar item
               </>
             )}
           </AlertDialogAction>
