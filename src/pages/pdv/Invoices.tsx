@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, FileText, Download } from "lucide-react";
+import { Upload, FileText, Download, Landmark, Loader2 } from "lucide-react";
 import { InvoiceUploadDialog } from "@/components/pdv/invoices/InvoiceUploadDialog";
 import { InvoiceReviewWizard } from "@/components/pdv/invoices/InvoiceReviewWizard";
 import { InvoiceCard } from "@/components/pdv/invoices/InvoiceCard";
@@ -62,6 +63,7 @@ function invoiceToEditableData(invoice: PDVInvoice): EditableInvoiceData {
 }
 
 export default function Invoices() {
+  const queryClient = useQueryClient();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [parsedInvoice, setParsedInvoice] = useState<ParsedInvoice | null>(null);
@@ -71,6 +73,9 @@ export default function Invoices() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<PDVInvoice | null>(null);
   const [fetchingXml, setFetchingXml] = useState(false);
+  const [lancando, setLancando] = useState<string | null>(null);
+  const [lancandoLote, setLancandoLote] = useState(false);
+  const [confirmLoteOpen, setConfirmLoteOpen] = useState(false);
 
   const { invoices, isLoading } = usePDVInvoices({
     status: statusFilter === 'all' ? undefined : statusFilter,
@@ -115,6 +120,52 @@ export default function Invoices() {
     setReviewOpen(true);
   };
 
+  // Lança a nota no contas a pagar usando só o cabeçalho (fornecedor, valor e
+  // emissão), que é o que o resumo da SEFAZ traz. O estoque continua entrando
+  // pelo assistente quando o XML completo chegar.
+  const lancarNoFinanceiro = async (invoice: PDVInvoice) => {
+    setLancando(invoice.id);
+    try {
+      const { data, error } = await supabase.rpc("pdv_lancar_nota_no_financeiro", {
+        p_invoice_id: invoice.id,
+      });
+      if (error) throw error;
+      const r = data as any;
+      if (r?.ok) toast.success(`NF-e ${invoice.invoice_number} lançada no contas a pagar`);
+      else if (r?.motivo === "ja_lancada") toast.info("Esta nota já estava no financeiro");
+      else toast.warning("Nota sem valor para lançar");
+      queryClient.invalidateQueries({ queryKey: ["pdv-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-financial-transactions"] });
+    } catch (e: any) {
+      toast.error("Não foi possível lançar: " + (e?.message || "erro desconhecido"));
+    } finally {
+      setLancando(null);
+    }
+  };
+
+  const lancarTodasPendentes = async () => {
+    const alvo = invoices.filter(
+      (i) => i.status === "pending" && !(i as any).financial_transaction_id && Number(i.total_invoice || 0) > 0,
+    );
+    if (alvo.length === 0) return;
+    setLancandoLote(true);
+    let ok = 0;
+    let falhas = 0;
+    for (const nota of alvo) {
+      const { data, error } = await supabase.rpc("pdv_lancar_nota_no_financeiro", {
+        p_invoice_id: nota.id,
+      });
+      if (error || !(data as any)?.ok) falhas += 1;
+      else ok += 1;
+    }
+    setLancandoLote(false);
+    queryClient.invalidateQueries({ queryKey: ["pdv-invoices"] });
+    queryClient.invalidateQueries({ queryKey: ["pdv-financial-transactions"] });
+    setConfirmLoteOpen(false);
+    if (ok > 0) toast.success(`${ok} nota${ok !== 1 ? "s" : ""} lançada${ok !== 1 ? "s" : ""} no contas a pagar`);
+    if (falhas > 0) toast.warning(`${falhas} nota${falhas !== 1 ? "s" : ""} não puderam ser lançadas`);
+  };
+
   const handleDelete = (invoice: PDVInvoice) => {
     setSelectedInvoice(invoice);
     setDeleteDialogOpen(true);
@@ -127,6 +178,10 @@ export default function Invoices() {
       setSelectedInvoice(null);
     }
   };
+
+  const pendentesSemFinanceiro = invoices.filter(
+    (i) => i.status === "pending" && !(i as any).financial_transaction_id && Number(i.total_invoice || 0) > 0,
+  );
 
   const filteredInvoices = invoices.filter(invoice => {
     const matchesSearch = 
@@ -162,6 +217,12 @@ export default function Invoices() {
           </p>
         </div>
         <div className="flex gap-2">
+          {pendentesSemFinanceiro.length > 0 && (
+            <Button variant="outline" onClick={() => setConfirmLoteOpen(true)} disabled={lancandoLote}>
+              {lancandoLote ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Landmark className="h-4 w-4 mr-2" />}
+              Lançar {pendentesSemFinanceiro.length} no financeiro
+            </Button>
+          )}
           <Button onClick={() => setUploadOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
             Importar NF-e
@@ -256,6 +317,8 @@ export default function Invoices() {
         ) : (
           filteredInvoices.map((invoice) => (
             <InvoiceCard
+              onLancarFinanceiro={lancarNoFinanceiro}
+              lancandoFinanceiro={lancando === invoice.id}
               key={invoice.id}
               invoice={invoice}
               onView={handleView}
@@ -277,6 +340,28 @@ export default function Invoices() {
         invoice={parsedInvoice}
         initialEditableData={reviewEditableData}
       />
+
+      <AlertDialog open={confirmLoteOpen} onOpenChange={setConfirmLoteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Lançar {pendentesSemFinanceiro.length} notas no financeiro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cada nota vira uma conta a pagar de {formatBRL(pendentesSemFinanceiro.reduce((a, i) => a + Number(i.total_invoice || 0), 0))} no total,
+              com o fornecedor da nota. O resumo da SEFAZ não informa duplicata, então o vencimento entra igual à data de
+              emissão e aparece vencido, para você conferir. O estoque não é tocado: ele continua entrando pelo assistente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={lancandoLote}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={lancandoLote}
+              onClick={(e) => { e.preventDefault(); lancarTodasPendentes(); }}
+            >
+              {lancandoLote ? "Lançando..." : "Lançar todas"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

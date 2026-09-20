@@ -75,7 +75,7 @@ async function consultMdeForTenant(service: any, ownerId: string) {
           .maybeSingle();
         if (selErr) continue;
         if (!existing) {
-          const { error: insErr } = await service.from("pdv_invoices").insert({
+          const { data: notaCriada, error: insErr } = await service.from("pdv_invoices").insert({
             user_id: ownerId,
             invoice_key: chave,
             invoice_number: String(note.numero || numeroFromChave || ""),
@@ -93,9 +93,18 @@ async function consultMdeForTenant(service: any, ownerId: string) {
             mde_status: situacaoMde,
             mde_raw_payload: note,
             mde_queried_at: new Date().toISOString(),
-          });
+          }).select("id").maybeSingle();
           if (!insErr) {
             newCount++;
+
+            // Lançamento automático no contas a pagar, quando o estabelecimento
+            // pediu. O resumo já traz fornecedor, valor e emissão, que é tudo o
+            // que a conta a pagar precisa; o estoque continua esperando o XML.
+            if (config?.nfe_auto_financeiro && notaCriada?.id) {
+              try {
+                await service.rpc("pdv_lancar_nota_no_financeiro", { p_invoice_id: notaCriada.id });
+              } catch { /* nota fica pendente para o lançamento manual */ }
+            }
             // Ciência automática para notas ainda em resumo: libera o XML completo
             // (com itens) na próxima distribuição. Evento inócuo, disparado 1x.
             if (note.nfe_completa === false) {

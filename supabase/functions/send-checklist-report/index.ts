@@ -111,14 +111,22 @@ async function sendReportForUser(
   // Fetch settings
   const { data: settings } = await supabase
     .from("operational_task_settings")
-    .select("email_report_address, email_report_include_checklists, email_report_include_tasks")
+    .select("email_report_address, email_report_addresses, email_report_include_checklists, email_report_include_tasks")
     .eq("user_id", userId)
     .maybeSingle();
 
-  // test_email (passado pelo botão de teste na UI) tem prioridade sobre o e-mail salvo no banco
-  const recipientEmail = testEmail || settings?.email_report_address;
+  // test_email (do botão de teste na UI) manda só para quem pediu o teste.
+  // Fora isso vale a lista inteira: o principal mais os adicionais, sem repetir.
+  const destinatarios = testEmail
+    ? [testEmail]
+    : Array.from(new Set(
+        [settings?.email_report_address, ...((settings?.email_report_addresses as string[] | null) ?? [])]
+          .map((e) => String(e ?? "").trim().toLowerCase())
+          .filter((e) => e.includes("@")),
+      ));
+  const recipientEmail = destinatarios.join(", ");
 
-  if (!recipientEmail) {
+  if (destinatarios.length === 0) {
     await logReport(supabase, userId, reportDate, null, "skipped", null, null);
     return { status: "skipped" };
   }
@@ -130,6 +138,7 @@ async function sendReportForUser(
   let checklistStats = {
     total: 0, concluido: 0, atrasado: 0, nao_iniciado: 0, em_andamento: 0,
     executions: [] as Array<{ name: string; sector: string; status: string; score: number | null }>,
+    naoRealizados: [] as Array<{ name: string; sector: string; turno: string; hora: string }>,
     criticalFailures: [] as Array<{ checklist: string; item: string }>,
     openAlerts: 0,
   };
@@ -137,9 +146,45 @@ async function sendReportForUser(
   if (includeChecklists) {
     const { data: executions } = await supabase
       .from("checklist_executions")
-      .select("id, status, score, checklist_id, checklists(name, sector)")
+      .select("id, status, score, checklist_id, schedule_id, checklists(name, sector)")
       .eq("user_id", userId)
       .eq("execution_date", reportDate);
+
+    // Checklist não feito NÃO gera linha em checklist_executions: sem cruzar com
+    // a agenda, o relatório só mostrava o que deu certo e o gestor nunca ficava
+    // sabendo do que ninguém abriu. Aqui sai a lista do que era para ter sido
+    // feito e não foi.
+    const diaDaSemana = new Date(`${reportDate}T12:00:00Z`).getUTCDay();
+    const { data: agendas } = await supabase
+      .from("checklist_schedules")
+      .select("id, checklist_id, shift, start_time, days_of_week, recurrence_type, recurrence_date, recurrence_day_of_month, checklists(name, sector)")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+
+    const previstoHoje = (a: any): boolean => {
+      const tipo = String(a.recurrence_type || "weekly");
+      if (tipo === "once") return String(a.recurrence_date || "").slice(0, 10) === reportDate;
+      if (tipo === "monthly") return Number(a.recurrence_day_of_month || 0) === Number(reportDate.slice(8, 10));
+      const dias = Array.isArray(a.days_of_week) ? a.days_of_week.map(Number) : [];
+      return dias.length === 0 ? true : dias.includes(diaDaSemana);
+    };
+
+    const executadas = new Set(
+      (executions || []).map((e: any) => String(e.schedule_id ?? `checklist:${e.checklist_id}`)),
+    );
+    const executadasPorChecklist = new Set((executions || []).map((e: any) => String(e.checklist_id)));
+
+    for (const a of (agendas || []).filter(previstoHoje)) {
+      const jaFeito = executadas.has(String(a.id)) || executadasPorChecklist.has(String(a.checklist_id));
+      if (jaFeito) continue;
+      const ch = (a as any).checklists as { name: string; sector: string } | null;
+      checklistStats.naoRealizados.push({
+        name: ch?.name || "—",
+        sector: ch?.sector || "—",
+        turno: String(a.shift || ""),
+        hora: String(a.start_time || "").slice(0, 5),
+      });
+    }
 
     for (const ex of executions || []) {
       checklistStats.total++;
@@ -226,6 +271,7 @@ async function sendReportForUser(
     checklistStats,
     taskStats,
     completionRate,
+    naoRealizados: checklistStats.naoRealizados.length,
   });
 
   // ---- Send email ----
@@ -414,6 +460,21 @@ function renderEmailHtml(opts: RenderOptions): string {
           </tbody>
         </table>`
     }
+    ${checklistStats.naoRealizados.length > 0 ? `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+        <tr>
+          <td style="background:#fffbeb;border:1px solid #fde68a;border-left:3px solid #d97706;border-radius:8px;padding:14px 18px;">
+            <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;color:#92400e;">
+              Não realizados (${checklistStats.naoRealizados.length})
+            </p>
+            ${checklistStats.naoRealizados.map((n) => `
+              <p style="margin:3px 0;font-size:13px;color:#78350f;">
+                ${n.name}
+                <span style="color:#a16207;">· ${SECTOR_LABELS[n.sector] || n.sector}${n.hora ? ` · previsto ${n.hora}` : ""}</span>
+              </p>`).join("")}
+          </td>
+        </tr>
+      </table>` : ""}
     ${checklistStats.criticalFailures.length > 0 ? `
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
         <tr>

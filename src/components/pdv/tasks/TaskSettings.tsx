@@ -80,6 +80,7 @@ export function TaskSettings({ onNavigate }: Props) {
             reportWeeklyDay: state.reportWeeklyDay,
             emailReportEnabled: state.emailReportEnabled,
             emailReportAddress: state.emailReportAddress,
+            emailReportAddresses: state.emailReportAddresses,
             emailReportTime: state.emailReportTime,
             emailReportIncludeChecklists: state.emailReportIncludeChecklists,
             emailReportIncludeTasks: state.emailReportIncludeTasks,

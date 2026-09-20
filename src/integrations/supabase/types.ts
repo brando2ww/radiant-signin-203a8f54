@@ -3404,6 +3404,7 @@ export type Database = {
           created_at: string
           default_max_duration_minutes: number | null
           email_report_address: string | null
+          email_report_addresses: string[]
           email_report_enabled: boolean | null
           email_report_include_checklists: boolean | null
           email_report_include_tasks: boolean | null
@@ -3443,6 +3444,7 @@ export type Database = {
           created_at?: string
           default_max_duration_minutes?: number | null
           email_report_address?: string | null
+          email_report_addresses?: string[]
           email_report_enabled?: boolean | null
           email_report_include_checklists?: boolean | null
           email_report_include_tasks?: boolean | null
@@ -3482,6 +3484,7 @@ export type Database = {
           created_at?: string
           default_max_duration_minutes?: number | null
           email_report_address?: string | null
+          email_report_addresses?: string[]
           email_report_enabled?: boolean | null
           email_report_include_checklists?: boolean | null
           email_report_include_tasks?: boolean | null
@@ -8914,6 +8917,7 @@ export type Database = {
           last_test_status: string | null
           logradouro: string | null
           municipio: string | null
+          nfe_auto_financeiro: boolean
           nome_fantasia: string | null
           numero: string | null
           razao_social: string | null
@@ -8959,6 +8963,7 @@ export type Database = {
           last_test_status?: string | null
           logradouro?: string | null
           municipio?: string | null
+          nfe_auto_financeiro?: boolean
           nome_fantasia?: string | null
           numero?: string | null
           razao_social?: string | null
@@ -9004,6 +9009,7 @@ export type Database = {
           last_test_status?: string | null
           logradouro?: string | null
           municipio?: string | null
+          nfe_auto_financeiro?: boolean
           nome_fantasia?: string | null
           numero?: string | null
           razao_social?: string | null
@@ -10122,6 +10128,13 @@ export type Database = {
           p_category?: string
           p_item_id: string
           p_reason?: string
+        }
+        Returns: Json
+      }
+      pdv_lancar_nota_no_financeiro: {
+        Args: {
+          p_due_date?: string
+          p_invoice_id: string
         }
         Returns: Json
       }

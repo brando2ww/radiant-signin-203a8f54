@@ -238,6 +238,27 @@ export function FiscalTab() {
 
           <Separator />
 
+          {/* Notas recebidas (compras) */}
+          <section className="space-y-4">
+            <h3 className="font-semibold">Notas de compra recebidas</h3>
+            <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label>Lançar automaticamente no contas a pagar</Label>
+                <p className="text-xs text-muted-foreground">
+                  Toda nota de entrada que a SEFAZ entregar vira uma conta a pagar com o fornecedor e o valor da nota.
+                  O vencimento entra igual à emissão, porque o resumo da SEFAZ não informa duplicata. O estoque
+                  continua entrando pelo assistente, quando o XML completo chegar.
+                </p>
+              </div>
+              <Switch
+                checked={!!form.nfe_auto_financeiro}
+                onCheckedChange={(c) => update("nfe_auto_financeiro", c)}
+              />
+            </div>
+          </section>
+
+          <Separator />
+
           {/* Habilitação + Séries + Ambiente */}
           <section id="section-habilitacao" className="space-y-4 scroll-mt-24">
             <h3 className="font-semibold">Habilitação e ambiente</h3>

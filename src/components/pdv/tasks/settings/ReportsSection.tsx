@@ -38,6 +38,7 @@ interface ReportSettings {
   reportWeeklyDay: number;
   emailReportEnabled: boolean;
   emailReportAddress: string;
+  emailReportAddresses: string[];
   emailReportTime: string;
   emailReportIncludeChecklists: boolean;
   emailReportIncludeTasks: boolean;
@@ -109,6 +110,25 @@ export function ReportsSection({ values, onChange }: Props) {
                 onChange={(e) => onChange({ emailReportAddress: e.target.value })}
                 className="mt-1 h-8"
               />
+            </div>
+            <div>
+              <Label className="text-xs">Outros destinatários</Label>
+              <Input
+                placeholder="gerente@restaurante.com, supervisor@restaurante.com"
+                value={(values.emailReportAddresses || []).join(", ")}
+                onChange={(e) =>
+                  onChange({
+                    emailReportAddresses: e.target.value
+                      .split(",")
+                      .map((x) => x.trim())
+                      .filter(Boolean),
+                  })
+                }
+                className="mt-1 h-8"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Separe por vírgula. Todos recebem o mesmo relatório.
+              </p>
             </div>
             <div className="w-32">
               <Label className="text-xs">Horário de envio</Label>

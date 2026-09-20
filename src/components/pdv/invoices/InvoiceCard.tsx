@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PDVInvoice } from "@/hooks/use-pdv-invoices";
-import { FileText, MoreVertical, Trash2, Eye, Package } from "lucide-react";
+import { FileText, MoreVertical, Trash2, Eye, Package, Landmark } from "lucide-react";
 import { format } from "date-fns";
 import { formatCNPJ } from "@/lib/invoice/validators";
 import { formatCurrency } from "@/lib/utils";
@@ -18,9 +18,20 @@ interface InvoiceCardProps {
   invoice: PDVInvoice;
   onView: (invoice: PDVInvoice) => void;
   onDelete: (invoice: PDVInvoice) => void;
+  onLancarFinanceiro?: (invoice: PDVInvoice) => void;
+  lancandoFinanceiro?: boolean;
 }
 
-export function InvoiceCard({ invoice, onView, onDelete }: InvoiceCardProps) {
+export function InvoiceCard({
+  invoice,
+  onView,
+  onDelete,
+  onLancarFinanceiro,
+  lancandoFinanceiro = false,
+}: InvoiceCardProps) {
+  // Nota que já virou conta a pagar. O resumo da SEFAZ não traz item, então o
+  // financeiro anda sozinho e o estoque espera o XML completo.
+  const noFinanceiro = !!(invoice as any).financial_transaction_id;
   const getStatusBadge = () => {
     const variants: Record<string, { label: string; variant: any }> = {
       pending: { label: 'Pendente', variant: 'secondary' },
@@ -96,12 +107,29 @@ export function InvoiceCard({ invoice, onView, onDelete }: InvoiceCardProps) {
                   {formatCurrency(invoice.total_invoice)}
                 </p>
               </div>
-              {invoice.status === 'pending' && (
-                <Button size="sm" variant="outline" onClick={() => onView(invoice)}>
-                  <Package className="h-4 w-4 mr-1" />
-                  Cadastrar Insumos
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {invoice.status === 'pending' && onLancarFinanceiro && !noFinanceiro && (
+                  <Button
+                    size="sm"
+                    onClick={() => onLancarFinanceiro(invoice)}
+                    disabled={lancandoFinanceiro}
+                  >
+                    <Landmark className="h-4 w-4 mr-1" />
+                    Lançar no financeiro
+                  </Button>
+                )}
+                {noFinanceiro && (
+                  <Badge variant="outline" className="text-xs border-emerald-500/50 text-emerald-600">
+                    No financeiro
+                  </Badge>
+                )}
+                {invoice.status === 'pending' && (
+                  <Button size="sm" variant="outline" onClick={() => onView(invoice)}>
+                    <Package className="h-4 w-4 mr-1" />
+                    Cadastrar Insumos
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

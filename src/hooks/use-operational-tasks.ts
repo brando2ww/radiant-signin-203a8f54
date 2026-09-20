@@ -72,6 +72,8 @@ export interface TaskSettings {
   sectorsConfig: any[];
   emailReportEnabled: boolean;
   emailReportAddress: string;
+  /** Destinatários adicionais do relatório diário. */
+  emailReportAddresses: string[];
   emailReportTime: string;
   emailReportIncludeChecklists: boolean;
   emailReportIncludeTasks: boolean;
@@ -94,7 +96,7 @@ const DEFAULT_SETTINGS = (userId: string): TaskSettings => ({
   allowLateCompletion: true, requirePhotoDefault: false, defaultMaxDurationMinutes: 60,
   allowFreeNotes: true, showCountdownTimer: true, blockEarlyExecution: false,
   minPinDigits: 4, sessionTimeoutMinutes: 30, sectorsConfig: [],
-  emailReportEnabled: false, emailReportAddress: "", emailReportTime: "08:00",
+  emailReportEnabled: false, emailReportAddress: "", emailReportAddresses: [], emailReportTime: "08:00",
   emailReportIncludeChecklists: true, emailReportIncludeTasks: true,
 });
 
@@ -185,6 +187,7 @@ export function useOperationalTasks(selectedDate?: string) {
         sectorsConfig: (data.sectors_config as any) ?? [],
         emailReportEnabled: data.email_report_enabled ?? false,
         emailReportAddress: data.email_report_address ?? "",
+        emailReportAddresses: (data.email_report_addresses as string[] | null) ?? [],
         emailReportTime: data.email_report_time ?? "08:00",
         emailReportIncludeChecklists: data.email_report_include_checklists ?? true,
         emailReportIncludeTasks: data.email_report_include_tasks ?? true,
@@ -316,6 +319,7 @@ export function useOperationalTasks(selectedDate?: string) {
         sectors_config: s.sectorsConfig as any,
         email_report_enabled: s.emailReportEnabled,
         email_report_address: s.emailReportAddress || null,
+        email_report_addresses: s.emailReportAddresses ?? [],
         email_report_time: s.emailReportTime || "08:00",
         email_report_include_checklists: s.emailReportIncludeChecklists,
         email_report_include_tasks: s.emailReportIncludeTasks,
