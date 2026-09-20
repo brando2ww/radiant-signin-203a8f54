@@ -43,6 +43,39 @@ A fila `pdv_print_jobs` é a fonte de verdade da impressão:
    npm install
    ```
 
+## Maquininha (TEF)
+
+Só preencha se esta instalação for cobrar no cartão pelo PDV. Sem `TEF_PROVIDER`
+a ponte ignora a fila da maquininha e segue só imprimindo.
+
+```
+TEF_PROVIDER=http          # "simulado" para testar sem maquininha
+TEF_HTTP_URL=http://127.0.0.1:9999/tef   # endereço do agente de TEF da loja
+TEF_HTTP_TOKEN=            # se o agente exigir
+TEF_TIMEOUT_MS=120000
+```
+
+O adaptador `http` manda para o agente:
+
+```json
+{ "operacao": "venda", "valor": 87.5, "modalidade": "credito",
+  "parcelas": 1, "financiamento": "avista", "referencia": "<id do pedido>" }
+```
+
+e espera de volta:
+
+```json
+{ "aprovado": true, "nsu": "123456789", "autorizacao": "654321",
+  "bandeira": "VISA", "cartao_final": "1234",
+  "via_cliente": "...", "via_estabelecimento": "..." }
+```
+
+Cada TEF de mercado (Getnet local, ConnectTEF, PayGo, SiTef) tem o seu próprio
+contrato. Quando o estabelecimento disser qual usa, o adaptador dele entra em
+`lib/tef.js` ao lado dos dois que já existem, sem mexer em mais nada.
+
+Do lado do PDV, a maquininha se liga em Integrações > Getnet.
+
 ## Execução manual
 
 ```

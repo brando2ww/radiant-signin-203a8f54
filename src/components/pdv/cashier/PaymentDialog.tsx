@@ -88,6 +88,7 @@ import { RedeemCouponDialog, type AppliedCouponReward } from "@/components/pdv/c
 
 
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
+import { useTefSettings, useTefCobranca } from "@/hooks/use-tef";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
 import { CancelComandaDialog, type CancelCategory } from "./CancelComandaDialog";
 import { formatBRL, formatCpf, isValidCpf } from "@/lib/format";
@@ -150,6 +151,11 @@ export function PaymentDialog({
   // Payment state
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("dinheiro");
   const [cardType, setCardType] = useState<CardType>("credito");
+  // TEF: quando o estabelecimento tem maquininha integrada, o valor vai para
+  // ela e o NSU volta sozinho, sem ninguém digitar nada.
+  const { data: tefSettings } = useTefSettings();
+  const tef = useTefCobranca();
+  const tefLigado = !!tefSettings?.enabled;
   const [cashReceived, setCashReceived] = useState("");
   const [installments, setInstallments] = useState("1");
 
@@ -876,6 +882,9 @@ export function PaymentDialog({
         cashReceived: selectedMethod === "dinheiro" ? cashReceivedNum : undefined,
         changeAmount: selectedMethod === "dinheiro" ? changeAmount : undefined,
         installments: resolvedMethod === "credito" ? parseInt(installments) : undefined,
+        // Vindos da maquininha, quando a cobrança passou por ela.
+        nsu: tef.status === "approved" ? tef.resultado?.nsu ?? undefined : undefined,
+        authorizationCode: tef.status === "approved" ? tef.resultado?.autorizacao ?? undefined : undefined,
         discountAmount: appliedDiscount ? discountAmount : undefined,
         discountReason: appliedDiscount ? appliedDiscount.reason : undefined,
         discountAuthorizedBy: appliedDiscount ? appliedDiscount.authorizedBy : undefined,
@@ -2453,6 +2462,66 @@ export function PaymentDialog({
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      )}
+
+                      {tefLigado && (
+                        <div className="rounded-lg border p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">Maquininha</p>
+                              <p className="text-xs text-muted-foreground">
+                                {tefSettings?.terminal_label || "Terminal da loja"}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={tef.status === "pending" || tef.status === "processing" || total <= 0}
+                              onClick={async () => {
+                                const r = await tef.cobrar({
+                                  amount: total,
+                                  paymentType: cardType === "debito" ? "debito" : "credito",
+                                  installments: cardType === "credito" ? parseInt(installments) || 1 : 1,
+                                  financing: (parseInt(installments) || 1) > 1 ? "loja" : "avista",
+                                  sourceKind: comanda ? "comanda" : (table ? "mesa" : null),
+                                  sourceId: comanda?.id ?? table?.id ?? null,
+                                });
+                                if (r.status === "approved") toast.success("Pagamento aprovado na maquininha");
+                                else if (r.status !== "error") toast.error(tef.erro || "A maquininha não aprovou");
+                              }}
+                            >
+                              {tef.status === "pending" || tef.status === "processing" ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  Na maquininha...
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="h-4 w-4 mr-1" />
+                                  Cobrar {formatCurrency(total)}
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          {tef.status === "approved" && tef.resultado && (
+                            <p className="text-xs text-emerald-600">
+                              Aprovado · {tef.resultado.bandeira || "cartão"}
+                              {tef.resultado.cartao_final ? ` final ${tef.resultado.cartao_final}` : ""}
+                              {tef.resultado.nsu ? ` · NSU ${tef.resultado.nsu}` : ""}
+                            </p>
+                          )}
+                          {tef.status && ["denied", "cancelled", "error", "expired"].includes(tef.status) && (
+                            <p className="text-xs text-destructive">
+                              {tef.erro || "A maquininha não aprovou esta cobrança"}
+                            </p>
+                          )}
+                          {(tef.status === "pending" || tef.status === "processing") && (
+                            <p className="text-xs text-muted-foreground">
+                              Peça para o cliente passar o cartão na maquininha.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

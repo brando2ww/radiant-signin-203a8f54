@@ -269,7 +269,36 @@ async function centersFromHistory() {
   }));
 }
 
+// ─── TEF ────────────────────────────────────────────────────────────────────
+
+/** Reivindica pedidos de maquininha desta instalação. */
+async function tefClaim(deviceId, limit = 2) {
+  const { data, error } = await supabase.rpc("tef_bridge_claim_batch", {
+    p_tenant: config.tenantUserId,
+    p_device: deviceId,
+    p_limit: limit,
+  });
+  if (error) {
+    // Banco sem a migration da TEF: a ponte segue imprimindo normalmente.
+    if (faltaFuncao(error)) return [];
+    throw error;
+  }
+  return data || [];
+}
+
+async function tefFinish(requestId, status, result, errorMessage) {
+  const { error } = await supabase.rpc("tef_bridge_finish", {
+    p_request_id: requestId,
+    p_status: status,
+    p_result: result,
+    p_error: errorMessage,
+  });
+  if (error && !faltaFuncao(error)) throw error;
+}
+
 module.exports = {
+  tefClaim,
+  tefFinish,
   supabase,
   claimBatch,
   claimOne,

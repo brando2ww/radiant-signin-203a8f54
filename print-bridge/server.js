@@ -12,6 +12,7 @@
 //   db.js          Supabase (RPCs da v2 com queda para o caminho antigo)
 //   worker.js      execução de um job
 //   reconciler.js  polling + Realtime com watchdog
+//   tef.js         fila da maquininha (TEF), por adaptador
 //   heartbeat.js   telemetria no banco
 //   printers.js    estado por impressora
 
@@ -44,6 +45,7 @@ const printers = require("./lib/printers");
 const receipts = require("./lib/receipts");
 const worker = require("./lib/worker");
 const reconciler = require("./lib/reconciler");
+const tef = require("./lib/tef");
 const heartbeat = require("./lib/heartbeat");
 const winSpool = require("./lib/win-spool");
 const { runSelfTest } = require("./lib/selftest");
@@ -313,6 +315,8 @@ sondagem.unref?.();
 
 reconciler.start();
 heartbeat.start(identity, panelToken);
+// Fila da maquininha. Só atende se esta instalação tiver TEF_PROVIDER.
+tef.iniciar(identity.install_id);
 
 setInterval(() => journal.compact(), 6 * 60 * 60 * 1000).unref?.();
 

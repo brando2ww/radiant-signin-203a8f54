@@ -22,6 +22,9 @@ interface RegisterPaymentParams {
   cashReceived?: number;
   changeAmount?: number;
   installments?: number;
+  /** Vindos da maquininha (TEF), quando a cobrança passou por ela. */
+  nsu?: string;
+  authorizationCode?: string;
   notes?: string;
   discountAmount?: number;
   discountReason?: string;
@@ -76,6 +79,8 @@ export function usePDVPayments() {
       cashReceived,
       changeAmount,
       installments,
+      nsu,
+      authorizationCode,
       discountAmount,
       discountReason,
       discountAuthorizedBy,
@@ -141,6 +146,8 @@ export function usePDVPayments() {
             cash_received: cashReceived || null,
             change_amount: changeAmount || null,
             installments: installments || 1,
+            nsu: nsu || null,
+            authorization_code: authorizationCode || null,
             ...feeColumns,
           });
 

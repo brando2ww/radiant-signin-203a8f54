@@ -67,11 +67,10 @@ const integrations: IntegrationItem[] = [
   {
     slug: "getnet",
     name: "Getnet",
-    description: "Conecte sua maquininha Getnet (Santander) com POS integrado via Cloud, USB ou HTTP.",
+    description: "Cobre na maquininha direto do caixa: o valor vai para o terminal e o NSU volta sozinho.",
     logo: getnetLogo,
     category: "Maquininha",
     categoryColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    comingSoon: true,
   },
   {
     slug: "rede",

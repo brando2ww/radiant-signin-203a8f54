@@ -7638,6 +7638,120 @@ export type Database = {
         }
         Relationships: []
       }
+      pdv_tef_settings: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          getnet_base_url: string | null
+          getnet_client_id: string | null
+          getnet_secret_cifrado: string | null
+          getnet_terminal_id: string | null
+          install_id: string | null
+          provider: string
+          terminal_label: string | null
+          timeout_seconds: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          getnet_base_url?: string | null
+          getnet_client_id?: string | null
+          getnet_secret_cifrado?: string | null
+          getnet_terminal_id?: string | null
+          install_id?: string | null
+          provider?: string
+          terminal_label?: string | null
+          timeout_seconds?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          getnet_base_url?: string | null
+          getnet_client_id?: string | null
+          getnet_secret_cifrado?: string | null
+          getnet_terminal_id?: string | null
+          install_id?: string | null
+          provider?: string
+          terminal_label?: string | null
+          timeout_seconds?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pdv_tef_requests: {
+        Row: {
+          amount: number
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          error_message: string | null
+          expires_at: string
+          financing: string | null
+          finished_at: string | null
+          id: string
+          install_id: string | null
+          installments: number
+          operation: string
+          original_request_id: string | null
+          payment_type: string | null
+          requested_by: string | null
+          result: Json | null
+          source_id: string | null
+          source_kind: string | null
+          status: string
+          tenant_user_id: string
+        }
+        Insert: {
+          amount?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          financing?: string | null
+          finished_at?: string | null
+          id?: string
+          install_id?: string | null
+          installments?: number
+          operation: string
+          original_request_id?: string | null
+          payment_type?: string | null
+          requested_by?: string | null
+          result?: Json | null
+          source_id?: string | null
+          source_kind?: string | null
+          status?: string
+          tenant_user_id: string
+        }
+        Update: {
+          amount?: number
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          financing?: string | null
+          finished_at?: string | null
+          id?: string
+          install_id?: string | null
+          installments?: number
+          operation?: string
+          original_request_id?: string | null
+          payment_type?: string | null
+          requested_by?: string | null
+          result?: Json | null
+          source_id?: string | null
+          source_kind?: string | null
+          status?: string
+          tenant_user_id?: string
+        }
+        Relationships: []
+      }
       pdv_settings: {
         Row: {
           accept_tips: boolean | null
@@ -10135,6 +10249,19 @@ export type Database = {
         Args: {
           p_due_date?: string
           p_invoice_id: string
+        }
+        Returns: Json
+      }
+      pdv_tef_solicitar: {
+        Args: {
+          p_amount?: number
+          p_financing?: string
+          p_installments?: number
+          p_operation: string
+          p_original_request_id?: string
+          p_payment_type?: string
+          p_source_id?: string
+          p_source_kind?: string
         }
         Returns: Json
       }

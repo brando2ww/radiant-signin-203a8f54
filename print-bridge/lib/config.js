@@ -46,6 +46,15 @@ const config = {
   tenantUserId: env.TENANT_USER_ID || null,
   httpPort: num(env.BRIDGE_HTTP_PORT, 7777),
 
+  // TEF. Vazio = esta instalação não atende a fila da maquininha.
+  //   simulado → aprova sozinho, para validar o caminho sem hardware
+  //   http     → fala com o agente de TEF da loja (ver lib/tef.js)
+  tefProvider: env.TEF_PROVIDER || "",
+  tefHttpUrl: env.TEF_HTTP_URL || "",
+  tefHttpToken: env.TEF_HTTP_TOKEN || "",
+  tefPollMs: num(env.TEF_POLL_MS, 2000),
+  tefTimeoutMs: num(env.TEF_TIMEOUT_MS, 120000),
+
   // Colunas por linha na fonte A. 48 é o padrão da bobina de 80mm; 32 é o de
   // 58mm. Errar para menos imprime um cupom estreito no meio do papel, então
   // fica configurável: dá para ajustar no .env sem gerar outro instalador.
