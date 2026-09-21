@@ -20,7 +20,7 @@
 #define ServiceName    "VelaraPrintBridge"
 #define ExeName        "velara-print-bridge.exe"
 #define TrayName       "velara-tray.exe"
-#define SupabaseUrl    "https://frbziqazwhymwsrtneoy.supabase.co"
+#define SupabaseUrl    "https://velara-pdv.db.venzorgroup.com.br"
 
 [Setup]
 AppId={{8F3A6C21-9D4E-4B7A-A1C3-5E2F7B9D0A64}

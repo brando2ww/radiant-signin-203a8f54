@@ -124,7 +124,7 @@ jobs:
         shell: pwsh
         working-directory: print-bridge/installer
         env:
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg5NzU4MDg5LCJleHAiOjIxMDUxMTgwODl9.Vy8vjQHxKavjnxL_6rJ5tDyM4GhHsk5t6TBxmSxsJTw
         run: |
           if (-not $env:SUPABASE_ANON_KEY) { throw "segredo SUPABASE_ANON_KEY não configurado no repositório" }
           $versao = (Get-Content ../package.json | ConvertFrom-Json).version
