@@ -60,6 +60,13 @@ export const useDeliveryOrdersWatcher = () => {
             } catch {}
             toast.success("Novo pedido recebido!");
 
+            // O cardápio online grava em três idas do celular do cliente
+            // (pedido, itens, complementos). Esperar só até aparecer o primeiro
+            // complemento não bastava: o pedido sem complemento seguia na hora
+            // e o com complemento às vezes chegava depois do cupom. 20s é a
+            // mesma regra do robô do servidor (enqueue_delivery_prints_sweep).
+            await new Promise((r) => setTimeout(r, 20_000));
+
             // Aguarda persistência de itens e adicionais antes de imprimir.
             try {
               let itemIds: string[] = [];

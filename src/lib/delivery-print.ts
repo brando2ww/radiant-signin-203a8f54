@@ -35,7 +35,7 @@ async function fetchOrderItems(orderId: string): Promise<any[]> {
   const optionsMap = new Map<string, any[]>();
   const { data: options } = await (supabase as any)
     .from("delivery_order_item_options")
-    .select("order_item_id,item_name,option_name,quantity")
+    .select("order_item_id,item_name,option_name,quantity,price_adjustment")
     .in("order_item_id", itemIds);
   (options ?? []).forEach((o: any) => {
     const arr = optionsMap.get(o.order_item_id) || [];
@@ -49,6 +49,7 @@ async function fetchOrderItems(orderId: string): Promise<any[]> {
       name: o.item_name,
       option_name: o.option_name,
       quantity: o.quantity,
+      price_adjustment: o.price_adjustment,
     }));
     return {
       id: item.id,
@@ -223,6 +224,20 @@ export async function dispatchDeliveryPrintJobs(
  *   simetria, reimprimir um pedido soltava só o cupom da cozinha e o do caixa
  *   ficava para trás (relatado no La Vecchia em 31/07/2026).
  */
+/** Complemento no cupom do caixa: "2x Massas: Carbonara (+39,80)". */
+function rotuloComplementoCaixa(o: any): string | null {
+  if (!o?.name) return null;
+  const qtd = Number(o.quantity) || 1;
+  const grupo = String(o.option_name ?? "").trim();
+  const valor = Number(o.price_adjustment) * qtd;
+  return (
+    (qtd > 1 ? `${qtd}x ` : "") +
+    (grupo ? `${grupo}: ` : "") +
+    o.name +
+    (valor > 0 ? ` (+${valor.toFixed(2).replace(".", ",")})` : "")
+  );
+}
+
 async function dispatchCaixaJobs(orderId: string, auto: boolean) {
 
   // As colunas sao `discount` e `change_for`. Pedir `discount_amount`/
@@ -283,9 +298,10 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
     notes: r.notes,
     unit_price: r.unit_price,
     subtotal: r.subtotal,
-    modifiers: (r.options ?? []).map((o: any) => ({
-      name: o?.quantity && Number(o.quantity) > 1 ? `${o.quantity}x ${o.name}` : o?.name,
-    })).filter((m: any) => m.name),
+    // O cupom do caixa é o que o cliente confere: o complemento sai como na
+    // tela do pedido, com o grupo e o valor ("Massas: Carbonara (+19,90)").
+    modifiers: (r.options ?? []).map((o: any) => ({ name: rotuloComplementoCaixa(o) }))
+      .filter((m: any) => m.name),
   }));
 
   const caixaJobs = (centers as any[]).map((center) => ({
