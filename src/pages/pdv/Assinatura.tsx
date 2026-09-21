@@ -105,7 +105,7 @@ export default function Assinatura() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-create-checkout`,
+        `${"https://velara-pdv.db.venzorgroup.com.br"}/functions/v1/stripe-create-checkout`,
         {
           method: "POST",
           headers: {
@@ -130,7 +130,7 @@ export default function Assinatura() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-customer-portal`,
+        `${"https://velara-pdv.db.venzorgroup.com.br"}/functions/v1/stripe-customer-portal`,
         {
           method: "POST",
           headers: {

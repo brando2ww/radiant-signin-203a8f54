@@ -18,7 +18,7 @@ export function useNfeMdeConsultar() {
       if (!session) throw new Error("Sessão expirada");
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/focusnfe-mde-consultar`,
+        `${"https://velara-pdv.db.venzorgroup.com.br"}/functions/v1/focusnfe-mde-consultar`,
         {
           method: "POST",
           headers: {

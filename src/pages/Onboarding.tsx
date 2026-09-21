@@ -106,7 +106,7 @@ export default function Onboarding() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-tenant-self-service`,
+        `${"https://velara-pdv.db.venzorgroup.com.br"}/functions/v1/create-tenant-self-service`,
         {
           method: "POST",
           headers: {
@@ -141,7 +141,7 @@ export default function Onboarding() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-create-checkout`,
+        `${"https://velara-pdv.db.venzorgroup.com.br"}/functions/v1/stripe-create-checkout`,
         {
           method: "POST",
           headers: {
@@ -185,7 +185,7 @@ export default function Onboarding() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-create-checkout`,
+        `${"https://velara-pdv.db.venzorgroup.com.br"}/functions/v1/stripe-create-checkout`,
         {
           method: "POST",
           headers: {
