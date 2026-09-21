@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/l/cotacao/:token",
-      "destination": "https://frbziqazwhymwsrtneoy.supabase.co/functions/v1/og-cotacao?token=:token"
+      "destination": "https://velara-pdv.db.venzorgroup.com.br/functions/v1/og-cotacao?token=:token"
     },
     {
       "source": "/l/pedido/:token",
-      "destination": "https://frbziqazwhymwsrtneoy.supabase.co/functions/v1/og-pedido?token=:token"
+      "destination": "https://velara-pdv.db.venzorgroup.com.br/functions/v1/og-pedido?token=:token"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
