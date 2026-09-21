@@ -108,6 +108,7 @@ Deno.serve(async (req) => {
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <meta name="twitter:image" content="${escapeHtml(logoUrl)}" />
 <link rel="canonical" href="${escapeHtml(target)}" />
+<script>location.replace(${JSON.stringify(target).replace(/</g, "\\u003c")});</script>
 </head>
 <body>
 <h1>${escapeHtml(title)}</h1>
@@ -118,7 +119,12 @@ Deno.serve(async (req) => {
 
     return new Response(html, {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300" },
+      headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8", // \`private\`: o robô pode guardar, a CDN da Vercel não. Com \`public\` a
+      // Vercel guardava este card por 5 minutos e entregava ele também para a
+      // pessoa que clicava logo depois do envio · que é quando o fornecedor
+      // clica. Ela ficava parada na tela do card, sem ir para a página.
+      "Cache-Control": "private, max-age=300",
+      Vary: "User-Agent" },
     });
   } catch (err) {
     console.error("og-cotacao error", err);
