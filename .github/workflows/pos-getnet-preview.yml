@@ -1,0 +1,64 @@
+# Instala o app num emulador e tira foto da tela.
+# Serve para ver como ficou sem ter maquininha em mãos.
+name: Foto da tela do app Getnet
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tela:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: SDK do Android
+        run: |
+          set -e
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          GERENTE=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager | head -1)
+          yes | "$GERENTE" --licenses > /dev/null 2>&1 || true
+          "$GERENTE" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compilar versão de teste
+        working-directory: pos-getnet
+        run: gradle assembleDebug --no-daemon
+
+      - name: Liberar a virtualização
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          profile: Nexus 5
+          disable-animations: true
+          script: |
+            adb install -r pos-getnet/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -n app.velara.pos/.MainActivity
+            sleep 8
+            adb exec-out screencap -p > tela-1-primeira-abertura.png
+            adb shell input keyevent 4
+            sleep 3
+            adb exec-out screencap -p > tela-2-aguardando-cobranca.png
+            adb shell pm list packages | grep velara || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: telas-do-app
+          path: tela-*.png
+          if-no-files-found: error
