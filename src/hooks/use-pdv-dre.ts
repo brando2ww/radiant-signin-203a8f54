@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { startOfMonth, endOfMonth, format } from "date-fns";
 import {
@@ -40,12 +41,14 @@ export function usePDVDre(selectedMonth?: Date) {
       const chargedRevenue = sales.revenue; // cobrado, já líquido de desconto
 
       // ---------- Pedidos do mês (descontos, cancelamentos informativos, taxas, CMV) ----------
-      const { data: pdvOrders } = await supabase
+      const pdvOrders = await fetchAll((de, ate) => supabase
         .from("pdv_orders")
         .select("id, discount, status, cancelled_at")
         .eq("user_id", owner)
         .gte("opened_at", startISO)
-        .lte("opened_at", endISO);
+        .lte("opened_at", endISO)
+        .order("id")
+        .range(de, ate));
 
       const closedPdvOrders = (pdvOrders || []).filter((o: any) => PDV_CLOSED_STATUSES.includes(o.status));
       const closedIds = closedPdvOrders.map((o: any) => o.id);
@@ -61,26 +64,32 @@ export function usePDVDre(selectedMonth?: Date) {
       let paymentFees = 0;
       for (let i = 0; i < closedIds.length; i += 200) {
         const slice = closedIds.slice(i, i + 200);
-        const { data: pays } = await supabase.from("pdv_payments").select("fee_amount").in("order_id", slice);
+        const pays = await fetchAll((de, ate) => supabase
+          .from("pdv_payments").select("fee_amount").in("order_id", slice)
+          .order("id").range(de, ate));
         paymentFees += (pays || []).reduce((s: number, p: any) => s + Number(p.fee_amount || 0), 0);
       }
-      const { data: receivedTx } = await supabase
+      const receivedTx = await fetchAll((de, ate) => supabase
         .from("pdv_financial_transactions")
         .select("fee_amount")
         .eq("user_id", owner)
         .eq("transaction_type", "receivable")
         .eq("status", "paid")
         .gte("payment_date", ms)
-        .lte("payment_date", me);
+        .lte("payment_date", me)
+        .order("id")
+        .range(de, ate));
       paymentFees += (receivedTx || []).reduce((s: number, t: any) => s + Number(t.fee_amount || 0), 0);
 
       // ---------- DELIVERY (descontos/cancelamentos informativos) ----------
-      const { data: deliveryOrders } = await supabase
+      const deliveryOrders = await fetchAll((de, ate) => supabase
         .from("delivery_orders")
         .select("total, discount, status, discount_source")
         .eq("user_id", owner)
         .gte("created_at", startISO)
-        .lte("created_at", endISO);
+        .lte("created_at", endISO)
+        .order("id")
+        .range(de, ate));
       let deliveryDiscounts = 0;
       let deliveryCancellations = 0;
       // Resgate de fidelidade é desconto como qualquer outro no resultado, mas
@@ -140,15 +149,16 @@ export function usePDVDre(selectedMonth?: Date) {
       // O erro nunca era descartado aqui: quando a consulta falhava (foi o que
       // aconteceu por meses, com a coluna de competência inexistente), a lista
       // vinha nula e a linha aparecia zerada como se não houvesse despesa.
-      const { data: expenses, error: expensesError } = await supabase
+      const expenses = await fetchAll((de, ate) => supabase
         .from("pdv_financial_transactions")
         .select("amount, description, chart_account_id, pdv_chart_of_accounts(id, code, name, parent_id)")
         .eq("user_id", owner)
         .eq("transaction_type", "payable")
         .neq("status", "cancelled")
         .gte("competence_date", ms)
-        .lte("competence_date", me);
-      if (expensesError) throw expensesError;
+        .lte("competence_date", me)
+        .order("id")
+        .range(de, ate));
 
       // O plano de contas é hierárquico e a DRE precisa respeitar isso: o
       // gestor lê por grupo (MÃO-DE-OBRA, TERCEIROS), não por conta-folha

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,25 +53,31 @@ export default function MonthlyReport() {
       const movements = await fetchCashierSalesByPeriod(visibleUserId!, startISO, endISO);
 
       // 2) Itens (apenas para "Itens vendidos") — comanda items + delivery items
-      const [pdvOrdersRes, delItemsRes] = await Promise.all([
-        supabase
+      // São dois anos de movimento numa consulta só: sem paginar, o gráfico
+      // mensal perdia tudo que passava de 1000 linhas.
+      const [pdvOrdersData, delItemsData] = await Promise.all([
+        fetchAll((de, ate) => supabase
           .from("pdv_orders")
           .select("id, opened_at")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
           .gte("opened_at", startISO)
-          .lt("opened_at", endISO),
-        supabase
+          .lt("opened_at", endISO)
+          .order("id")
+          .range(de, ate)),
+        fetchAll((de, ate) => supabase
           .from("delivery_order_items")
           .select("quantity, order:delivery_orders!inner(user_id, status, delivered_at, created_at)")
           .eq("order.user_id", visibleUserId!)
           .in("order.status", ["entregue", "delivered", "completed"])
           .gte("order.created_at", startISO)
-          .lt("order.created_at", endISO),
+          .lt("order.created_at", endISO)
+          .order("id")
+          .range(de, ate)),
       ]);
-      const pdvOrderIds = (pdvOrdersRes.data || []).map((o: any) => o.id);
+      const pdvOrderIds = pdvOrdersData.map((o: any) => o.id);
       const orderTime = new Map<string, string>(
-        (pdvOrdersRes.data || []).map((o: any) => [o.id, o.opened_at]),
+        pdvOrdersData.map((o: any) => [o.id, o.opened_at]),
       );
       const pdvItems = pdvOrderIds.length
         ? await (await import("@/lib/reports-data-source")).fetchItemsByOrderIds(pdvOrderIds)
@@ -100,7 +107,7 @@ export default function MonthlyReport() {
         ensure(key).items += Number(it.quantity || 0);
       });
 
-      (delItemsRes.data || []).forEach((it: any) => {
+      delItemsData.forEach((it: any) => {
         const t = it.order?.delivered_at || it.order?.created_at;
         if (!t) return;
         const d = new Date(t);

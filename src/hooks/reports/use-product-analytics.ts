@@ -5,6 +5,7 @@ import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { useMemo } from "react";
 import { differenceInCalendarDays, format } from "date-fns";
 import { buildDeliveryProductBridge } from "@/lib/reports/delivery-product-bridge";
+import { fetchAll } from "@/lib/reports/fetch-all";
 
 /** Status de pedido entregue. Produção usa 'completed'; os outros dois existem
  *  por compatibilidade com bases antigas. */
@@ -175,19 +176,21 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
 
       // 2. PDV items in period — items live in pdv_comanda_items, linked via pdv_comandas.order_id
       const wantPdv = channels.includes("salao") || channels.includes("balcao");
-      const { data: pdvItems } = wantPdv
-        ? await supabase
+      const pdvItems = wantPdv
+        ? await fetchAll((de, ate) => supabase
           .from("pdv_comanda_items")
           .select("product_id, product_name, quantity, subtotal, modifiers, created_at, comanda:pdv_comandas!inner(order_id, created_at, order:pdv_orders!inner(id, order_number, user_id, status, source, closed_at, opened_at))")
           .eq("comanda.order.user_id", visibleUserId!)
           .in("comanda.order.status", ["fechada", "fechado"])
           .gte("comanda.created_at", startISO)
           .lte("comanda.created_at", endISO)
-        : { data: [] as any[] };
+          .order("id")
+          .range(de, ate))
+        : ([] as any[]);
 
       // 3. Delivery items
-      const { data: delItems } = channels.includes("delivery")
-        ? await supabase
+      const delItems = channels.includes("delivery")
+        ? await fetchAll((de, ate) => supabase
           .from("delivery_order_items")
           // Os adicionais vêm juntos: sem eles o relatório de adicionais só
           // enxergava o salão, e todo cream cheese extra vendido no delivery
@@ -200,27 +203,33 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
           .in("order.status", DELIVERED)
           .gte("order.delivered_at", startISO)
           .lte("order.delivered_at", endISO)
-        : { data: [] as any[] };
+          .order("id")
+          .range(de, ate))
+        : ([] as any[]);
 
       // 4. Previous-period revenue per product (for delta) — combined PDV+delivery
-      const { data: prevPdv } = wantPdv
-        ? await supabase
+      const prevPdv = wantPdv
+        ? await fetchAll((de, ate) => supabase
           .from("pdv_comanda_items")
           .select("product_id, subtotal, comanda:pdv_comandas!inner(created_at, order:pdv_orders!inner(user_id, status))")
           .eq("comanda.order.user_id", visibleUserId!)
           .in("comanda.order.status", ["fechada", "fechado"])
           .gte("comanda.created_at", prevStartISO)
           .lte("comanda.created_at", prevEndISO)
-        : { data: [] as any[] };
-      const { data: prevDel } = channels.includes("delivery")
-        ? await supabase
+          .order("id")
+          .range(de, ate))
+        : ([] as any[]);
+      const prevDel = channels.includes("delivery")
+        ? await fetchAll((de, ate) => supabase
           .from("delivery_order_items")
           .select("product_id, product_name, subtotal, order:delivery_orders!inner(user_id, status, delivered_at)")
           .eq("order.user_id", visibleUserId!)
           .in("order.status", DELIVERED)
           .gte("order.delivered_at", prevStartISO)
           .lte("order.delivered_at", prevEndISO)
-        : { data: [] as any[] };
+          .order("id")
+          .range(de, ate))
+        : ([] as any[]);
       const prevRevByProduct = new Map<string, number>();
       [...(prevPdv || []), ...(prevDel || [])].forEach((it: any) => {
         // Sem resolver aqui também, a variação vs período anterior compararia
@@ -510,12 +519,13 @@ export function useProductAnalytics(params: ProductAnalyticsParams) {
       let lastSaleByProduct = new Map<string, string>();
       if (inactiveCandidates.length) {
         const ids = inactiveCandidates.map((p: any) => p.id);
-        const { data: lastSales } = await supabase
+        const lastSales = await fetchAll((de, ate) => supabase
           .from("pdv_comanda_items")
           .select("product_id, created_at")
           .in("product_id", ids)
           .order("created_at", { ascending: false })
-          .limit(2000);
+          .order("id")
+          .range(de, ate), { maxRows: 4000 });
         (lastSales || []).forEach((it: any) => {
           if (!lastSaleByProduct.has(it.product_id)) lastSaleByProduct.set(it.product_id, it.created_at);
         });

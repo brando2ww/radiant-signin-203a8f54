@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { brtRange } from "@/lib/reports-data-source";
 import { buildDeliveryProductBridge } from "@/lib/reports/delivery-product-bridge";
@@ -57,11 +58,13 @@ export function useRecipeCoverage(from: Date, to: Date) {
     queryFn: async (): Promise<RecipeCoverage> => {
       const owner = visibleUserId!;
 
-      const [{ data: produtos }, { data: fichas }, { data: pdvItems }, { data: delItems }] =
+      const [produtos, fichas, pdvItems, delItems] =
         await Promise.all([
-          supabase.from("pdv_products").select("id, name").eq("user_id", owner),
-          supabase.from("pdv_product_recipes").select("product_id"),
-          supabase
+          fetchAll((de, ate) => supabase.from("pdv_products").select("id, name")
+            .eq("user_id", owner).order("id").range(de, ate)),
+          fetchAll((de, ate) => supabase.from("pdv_product_recipes").select("product_id")
+            .order("id").range(de, ate)),
+          fetchAll((de, ate) => supabase
             .from("pdv_comanda_items")
             .select(
               "product_id, product_name, quantity, subtotal, comanda:pdv_comandas!inner(created_at, order:pdv_orders!inner(user_id, status))",
@@ -69,8 +72,10 @@ export function useRecipeCoverage(from: Date, to: Date) {
             .eq("comanda.order.user_id", owner)
             .in("comanda.order.status", ["fechada", "fechado"])
             .gte("comanda.created_at", startISO)
-            .lte("comanda.created_at", endISO),
-          supabase
+            .lte("comanda.created_at", endISO)
+            .order("id")
+            .range(de, ate)),
+          fetchAll((de, ate) => supabase
             .from("delivery_order_items")
             .select(
               "product_id, product_name, quantity, subtotal, delivery_order_item_options(item_name, option_item_id, quantity, price_adjustment), order:delivery_orders!inner(user_id, status, delivered_at)",
@@ -78,7 +83,9 @@ export function useRecipeCoverage(from: Date, to: Date) {
             .eq("order.user_id", owner)
             .in("order.status", DELIVERED)
             .gte("order.delivered_at", startISO)
-            .lte("order.delivered_at", endISO),
+            .lte("order.delivered_at", endISO)
+            .order("id")
+            .range(de, ate)),
         ]);
 
       const lista = (produtos ?? []) as { id: string; name: string }[];

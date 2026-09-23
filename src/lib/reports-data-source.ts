@@ -11,6 +11,7 @@
 // `pdv_comandas.order_id`) and `delivery_order_items`.
 
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 
 export interface OrderRevenue {
   total: number;
@@ -25,15 +26,17 @@ export async function fetchPaymentsByOrderIds(
   const map = new Map<string, OrderRevenue>();
   if (!orderIds.length) return map;
 
-  // Supabase has a 1000 row default; chunk just in case
+  // Quebrar em lotes de pedidos não basta: 500 pedidos rendem mais de 1000
+  // pagamentos e o teto do PostgREST cortava o resto sem avisar.
   const chunkSize = 500;
   for (let i = 0; i < orderIds.length; i += chunkSize) {
     const chunk = orderIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    const data = await fetchAll((de, ate) => supabase
       .from("pdv_payments")
       .select("order_id, payment_method, amount, processed_at, processed_by")
-      .in("order_id", chunk);
-    if (error) throw error;
+      .in("order_id", chunk)
+      .order("id")
+      .range(de, ate));
     (data || []).forEach((p: any) => {
       const id = p.order_id as string;
       if (!map.has(id)) {
@@ -73,13 +76,16 @@ export async function fetchItemsByOrderIds(orderIds: string[]): Promise<
   const all: any[] = [];
   for (let i = 0; i < orderIds.length; i += chunkSize) {
     const chunk = orderIds.slice(i, i + chunkSize);
-    const { data, error } = await supabase
+    // 200 pedidos passam fácil de 1000 itens: sem paginar, o relatório perdia
+    // item no meio do lote.
+    const data = await fetchAll((de, ate) => supabase
       .from("pdv_comanda_items")
       .select(
         "product_id, product_name, quantity, unit_price, subtotal, comanda:pdv_comandas!inner(order_id)"
       )
-      .in("comanda.order_id", chunk);
-    if (error) throw error;
+      .in("comanda.order_id", chunk)
+      .order("id")
+      .range(de, ate));
     (data || []).forEach((it: any) => {
       all.push({
         order_id: it.comanda?.order_id,

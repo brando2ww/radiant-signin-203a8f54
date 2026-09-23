@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { startOfDay, endOfDay, format } from "date-fns";
 
 export interface ProductDailyPoint {
@@ -18,27 +19,32 @@ export const useProductDailySales = (
     enabled: !!userId && !!productId,
     queryKey: ["product-daily-sales", userId, productId, startDate, endDate],
     queryFn: async (): Promise<ProductDailyPoint[]> => {
-      const { data: orders, error: oErr } = await supabase
+      const orders = await fetchAll((de, ate) => supabase
         .from("delivery_orders")
         .select("id, created_at")
         .eq("user_id", userId)
         .neq("status", "cancelled")
         .gte("created_at", startOfDay(startDate).toISOString())
-        .lte("created_at", endOfDay(endDate).toISOString());
+        .lte("created_at", endOfDay(endDate).toISOString())
+        .order("id")
+        .range(de, ate));
 
-      if (oErr) throw oErr;
       if (!orders.length) return [];
 
       const orderDate = new Map(orders.map((o) => [o.id, o.created_at]));
       const orderIds = orders.map((o) => o.id);
 
-      const { data: items, error: iErr } = await supabase
-        .from("delivery_order_items")
-        .select("order_id, quantity, subtotal")
-        .eq("product_id", productId!)
-        .in("order_id", orderIds);
-
-      if (iErr) throw iErr;
+      const items: any[] = [];
+      for (let i = 0; i < orderIds.length; i += 200) {
+        const lote = orderIds.slice(i, i + 200);
+        items.push(...await fetchAll((de, ate) => supabase
+          .from("delivery_order_items")
+          .select("order_id, quantity, subtotal")
+          .eq("product_id", productId!)
+          .in("order_id", lote)
+          .order("id")
+          .range(de, ate)));
+      }
 
       const byDate = new Map<string, { quantity: number; revenue: number }>();
 

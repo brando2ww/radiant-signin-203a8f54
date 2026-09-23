@@ -11,6 +11,7 @@
 // cancelados nos últimos 120 dias contra 18 comandas canceladas.
 
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { fetchItemsByOrderIds } from "@/lib/reports-data-source";
 
 export const SEM_MOTIVO = "Sem motivo";
@@ -66,12 +67,14 @@ async function fetchComandaItems(comandaIds: string[]) {
   if (!comandaIds.length) return [] as any[];
   const todos: any[] = [];
   for (let i = 0; i < comandaIds.length; i += 200) {
-    const { data, error } = await supabase
+    const lote = comandaIds.slice(i, i + 200);
+    const data = await fetchAll((de, ate) => supabase
       .from("pdv_comanda_items")
       .select("comanda_id, product_id, product_name, quantity, subtotal")
-      .in("comanda_id", comandaIds.slice(i, i + 200));
-    if (error) throw error;
-    todos.push(...(data || []));
+      .in("comanda_id", lote)
+      .order("id")
+      .range(de, ate));
+    todos.push(...data);
   }
   return todos;
 }
@@ -81,32 +84,32 @@ export async function fetchCancelledSales(
   startISO: string,
   endISO: string,
 ): Promise<CancelledData> {
-  const [comandasRes, legadoRes] = await Promise.all([
-    supabase
+  const [comandas, legadoTodo] = await Promise.all([
+    fetchAll((de, ate) => supabase
       .from("pdv_comandas")
       .select(
         "id, order_id, comanda_number, customer_name, created_at, cancelled_at, cancellation_reason, cancellation_category, cancelled_by_user_id, closed_by_user_id",
       )
       .eq("user_id", ownerId)
       .eq("status", "cancelada")
-      .or(janela("cancelled_at", "created_at", startISO, endISO)),
-    supabase
+      .or(janela("cancelled_at", "created_at", startISO, endISO))
+      .order("id")
+      .range(de, ate)),
+    fetchAll((de, ate) => supabase
       .from("pdv_orders")
       .select(
         "id, order_number, customer_name, opened_at, cancelled_at, cancellation_reason, closed_by_user_id, opened_by",
       )
       .eq("user_id", ownerId)
       .eq("status", "cancelada")
-      .or(janela("cancelled_at", "opened_at", startISO, endISO)),
+      .or(janela("cancelled_at", "opened_at", startISO, endISO))
+      .order("id")
+      .range(de, ate)),
   ]);
-  if (comandasRes.error) throw comandasRes.error;
-  if (legadoRes.error) throw legadoRes.error;
-
-  const comandas = comandasRes.data || [];
   // Um pedido antigo cancelado cuja comanda também está cancelada é o MESMO
   // cancelamento nas duas tabelas. Vale a comanda, que tem motivo e autor.
   const jaContados = new Set(comandas.map((c: any) => c.order_id).filter(Boolean));
-  const legado = (legadoRes.data || []).filter((o: any) => !jaContados.has(o.id));
+  const legado = legadoTodo.filter((o: any) => !jaContados.has(o.id));
 
   const [itensComanda, itensPedido] = await Promise.all([
     fetchComandaItems(comandas.map((c: any) => c.id)),
@@ -116,10 +119,12 @@ export async function fetchCancelledSales(
   // Nome do cliente do legado: o pedido costuma vir sem, a comanda tem.
   const nomePorPedido = new Map<string, string>();
   if (legado.length) {
-    const { data: comandasDoLegado } = await supabase
+    const comandasDoLegado = await fetchAll((de, ate) => supabase
       .from("pdv_comandas")
       .select("order_id, customer_name")
-      .in("order_id", legado.map((o: any) => o.id));
+      .in("order_id", legado.map((o: any) => o.id))
+      .order("id")
+      .range(de, ate));
     (comandasDoLegado || []).forEach((c: any) => {
       const n = (c.customer_name || "").trim();
       if (!n) return;
@@ -240,7 +245,7 @@ export async function fetchCancelledItems(
   startISO: string,
   endISO: string,
 ): Promise<CancelledComandaItem[]> {
-  const { data, error } = await supabase
+  const linhas = await fetchAll((de, ate) => supabase
     .from("pdv_cancelled_comanda_items")
     .select(
       "id, comanda_id, order_id, product_name, quantity, unit_price, subtotal, paid_quantity, sent_to_kitchen_at, cancelled_at, cancelled_by_user_id, cancellation_reason, cancellation_category",
@@ -248,17 +253,18 @@ export async function fetchCancelledItems(
     .eq("owner_user_id", ownerId)
     .gte("cancelled_at", startISO)
     .lte("cancelled_at", endISO)
-    .order("cancelled_at", { ascending: false });
-  if (error) throw error;
-
-  const linhas = data || [];
+    .order("cancelled_at", { ascending: false })
+    .order("id")
+    .range(de, ate));
   const comandaIds = Array.from(new Set(linhas.map((l: any) => l.comanda_id).filter(Boolean)));
   const porComanda = new Map<string, { numero: string | null; cliente: string | null }>();
   if (comandaIds.length) {
-    const { data: comandas } = await supabase
+    const comandas = await fetchAll((de, ate) => supabase
       .from("pdv_comandas")
       .select("id, comanda_number, customer_name")
-      .in("id", comandaIds);
+      .in("id", comandaIds)
+      .order("id")
+      .range(de, ate));
     (comandas || []).forEach((c: any) =>
       porComanda.set(c.id, { numero: c.comanda_number ?? null, cliente: c.customer_name ?? null }),
     );

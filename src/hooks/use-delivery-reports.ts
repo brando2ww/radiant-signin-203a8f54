@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { format, differenceInMinutes } from "date-fns";
 import { brtRange } from "@/lib/reports-data-source";
 
@@ -39,14 +40,14 @@ export const useDeliveryMetrics = (userId: string, startDate: Date, endDate: Dat
     queryKey: ["delivery-metrics", userId, startDate, endDate],
     queryFn: async () => {
       const { startISO, endISO } = brtRange(startDate, endDate);
-      const { data, error } = await supabase
+      const data = await fetchAll((de, ate) => supabase
         .from("delivery_orders")
         .select("total,status,order_type,created_at,delivered_at")
         .eq("user_id", userId)
         .gte("created_at", startISO)
-        .lte("created_at", endISO);
-
-      if (error) throw error;
+        .lte("created_at", endISO)
+        .order("id")
+        .range(de, ate));
 
       const totalOrders = data.length;
       const cancelled = data.filter((o) => isCancelled(o.status)).length;
@@ -85,16 +86,16 @@ export const useDailySales = (userId: string, startDate: Date, endDate: Date) =>
     queryKey: ["daily-sales", userId, startDate, endDate],
     queryFn: async () => {
       const { startISO, endISO } = brtRange(startDate, endDate);
-      const { data, error } = await supabase
+      const data = await fetchAll((de, ate) => supabase
         .from("delivery_orders")
         .select("created_at, total")
         .eq("user_id", userId)
         .neq("status", "cancelled")
         .gte("created_at", startISO)
         .lte("created_at", endISO)
-        .order("created_at");
-
-      if (error) throw error;
+        .order("created_at")
+        .order("id")
+        .range(de, ate));
 
       const salesByDate = new Map<string, { orders: number; revenue: number }>();
 
@@ -132,25 +133,31 @@ export const useTopProducts = (userId: string, startDate: Date, endDate: Date) =
     queryKey: ["top-products", userId, startDate, endDate],
     queryFn: async () => {
       const { startISO, endISO } = brtRange(startDate, endDate);
-      const { data: orders, error: ordersError } = await supabase
+      const orders = await fetchAll((de, ate) => supabase
         .from("delivery_orders")
         .select("id")
         .eq("user_id", userId)
         .neq("status", "cancelled")
         .gte("created_at", startISO)
-        .lte("created_at", endISO);
+        .lte("created_at", endISO)
+        .order("id")
+        .range(de, ate));
 
-      if (ordersError) throw ordersError;
       if (!orders.length) return [];
 
       const orderIds = orders.map((o) => o.id);
 
-      const { data: items, error: itemsError } = await supabase
-        .from("delivery_order_items")
-        .select("product_id, product_name, quantity, subtotal")
-        .in("order_id", orderIds);
-
-      if (itemsError) throw itemsError;
+      // Em lotes de pedidos: 1000 itens cabem em bem menos de 1000 pedidos.
+      const items: any[] = [];
+      for (let i = 0; i < orderIds.length; i += 200) {
+        const lote = orderIds.slice(i, i + 200);
+        items.push(...await fetchAll((de, ate) => supabase
+          .from("delivery_order_items")
+          .select("product_id, product_name, quantity, subtotal")
+          .in("order_id", lote)
+          .order("id")
+          .range(de, ate)));
+      }
 
       const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean)));
 

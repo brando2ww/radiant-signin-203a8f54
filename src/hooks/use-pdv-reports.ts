@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/reports/fetch-all";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import {
   brtRange,
@@ -89,10 +90,11 @@ export function usePDVReports(startDate: Date, endDate: Date) {
     queryKey: ["pdv-product-report-v3", owner, start, end],
     enabled: !!owner,
     queryFn: async (): Promise<ProductReport[]> => {
-      const { data: orders } = await supabase
+      const orders = await fetchAll((de, ate) => supabase
         .from("pdv_orders").select("id").eq("user_id", owner!).in("status", CLOSED)
-        .gte("opened_at", start).lte("opened_at", end);
-      const orderIds = (orders || []).map((o: any) => o.id);
+        .gte("opened_at", start).lte("opened_at", end)
+        .order("id").range(de, ate));
+      const orderIds = orders.map((o: any) => o.id);
       const salao = await fetchItemsByOrderIds(orderIds);
       const delivery = await fetchDeliveryItemsByPeriod(owner!, start, end);
 
