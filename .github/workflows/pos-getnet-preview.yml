@@ -65,7 +65,10 @@ jobs:
             adb shell "run-as app.velara.pos cp /data/local/tmp/velara.xml /data/data/app.velara.pos/shared_prefs/velara.xml"
             adb shell am start -n app.velara.pos/.MainActivity
             sleep 12
-            adb exec-out screencap -p > tela-2-terminal-conectado.png
+            adb exec-out screencap -p > tela-2-terminal-aguardando.png
+            adb shell input tap 883 1588
+            sleep 4
+            adb exec-out screencap -p > tela-3-ajustes-e-cobranca-de-teste.png
 
       - uses: actions/upload-artifact@v4
         if: always()
