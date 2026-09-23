@@ -76,10 +76,15 @@ jobs:
 
       - name: Conferir o pacote
         run: |
+          set -e
           APK=$(find pos-getnet/app/build/outputs/apk/release -name "*.apk" | head -1)
           echo "APK: $APK"
           ls -la "$APK"
-          "$ANDROID_HOME"/build-tools/*/aapt dump badging "$APK" | head -8 || true
+          FERRAMENTAS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "== identidade =="
+          "$FERRAMENTAS/aapt2" dump badging "$APK" | grep -E "^package|^application-label|^launchable-activity|uses-permission|sdkVersion|targetSdkVersion"
+          echo "== assinatura =="
+          "$FERRAMENTAS/apksigner" verify --verbose "$APK"
           echo "APK_CAMINHO=$APK" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4

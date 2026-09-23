@@ -25,6 +25,10 @@ android {
         storePassword = System.getenv("KEYSTORE_PASSWORD")
         keyAlias = System.getenv("KEY_ALIAS")
         keyPassword = System.getenv("KEY_PASSWORD")
+        // As duas assinaturas: a v2 basta para Android 7 em diante, mas a
+        // certificação da Getnet confere o pacote também pelo esquema antigo.
+        enableV1Signing = true
+        enableV2Signing = true
       }
     }
   }
