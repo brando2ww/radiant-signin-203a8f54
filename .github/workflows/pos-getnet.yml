@@ -1,0 +1,93 @@
+# Compila o APK do terminal Getnet na nuvem.
+#
+# Aqui não há Android SDK nem Java na máquina do dia a dia, e o disco é curto:
+# o runner do GitHub já vem com tudo. O APK sai como artefato, pronto para
+# subir no Portal do Desenvolvedor da Getnet.
+name: APK da maquininha Getnet
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pos-getnet]
+    paths:
+      - "pos-getnet/**"
+      - ".github/workflows/pos-getnet.yml"
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Chave de assinatura
+        env:
+          CHAVE_B64: ${{ secrets.KEYSTORE_B64 }}
+          SENHA: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -e
+          mkdir -p "$RUNNER_TEMP/chave"
+          SENHA="${SENHA:-velara-pos-getnet}"
+          echo "SENHA_CHAVE=$SENHA" >> "$GITHUB_ENV"
+          if [ -n "$CHAVE_B64" ]; then
+            echo "$CHAVE_B64" | base64 -d > "$RUNNER_TEMP/chave/velara.jks"
+            echo "GERADA=nao" >> "$GITHUB_ENV"
+            echo "Usando a chave guardada no segredo do repositório."
+          else
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/chave/velara.jks" -alias velara \
+              -keyalg RSA -keysize 2048 -validity 10950 \
+              -storepass "$SENHA" -keypass "$SENHA" \
+              -dname "CN=Velara PDV, OU=Velara, O=Quantique, L=Farroupilha, ST=RS, C=BR"
+            echo "GERADA=sim" >> "$GITHUB_ENV"
+            echo "::warning::Chave NOVA gerada. Baixe o artefato chave-de-assinatura e guarde: sem ela não dá para publicar atualização deste app."
+          fi
+
+      - name: Compilar
+        working-directory: pos-getnet
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/chave/velara.jks
+          KEYSTORE_PASSWORD: ${{ env.SENHA_CHAVE }}
+          KEY_ALIAS: velara
+          KEY_PASSWORD: ${{ env.SENHA_CHAVE }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Conferir o pacote
+        run: |
+          APK=$(find pos-getnet/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "APK: $APK"
+          ls -la "$APK"
+          "$ANDROID_HOME"/build-tools/*/aapt dump badging "$APK" | head -8 || true
+          echo "APK_CAMINHO=$APK" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: velara-pos-getnet-apk
+          path: ${{ env.APK_CAMINHO }}
+          if-no-files-found: error
+
+      - name: Guardar a chave quando ela é nova
+        if: env.GERADA == 'sim'
+        run: |
+          base64 -w0 "$RUNNER_TEMP/chave/velara.jks" > "$RUNNER_TEMP/chave/velara.jks.base64.txt"
+          echo "Guarde este arquivo em local seguro e cadastre como segredo KEYSTORE_B64." > "$RUNNER_TEMP/chave/LEIA-ME.txt"
+          echo "Senha usada: $SENHA_CHAVE (cadastre como KEYSTORE_PASSWORD)" >> "$RUNNER_TEMP/chave/LEIA-ME.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: env.GERADA == 'sim'
+        with:
+          name: chave-de-assinatura
+          path: |
+            ${{ runner.temp }}/chave/velara.jks
+            ${{ runner.temp }}/chave/velara.jks.base64.txt
+            ${{ runner.temp }}/chave/LEIA-ME.txt
