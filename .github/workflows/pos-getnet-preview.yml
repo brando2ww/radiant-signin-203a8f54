@@ -4,6 +4,10 @@ name: Foto da tela do app Getnet
 
 on:
   workflow_dispatch:
+  push:
+    branches: [pos-getnet]
+    paths:
+      - ".github/workflows/pos-getnet-preview.yml"
 
 jobs:
   tela:
