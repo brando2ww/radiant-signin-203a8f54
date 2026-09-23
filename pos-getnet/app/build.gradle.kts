@@ -12,8 +12,8 @@ android {
     // A maquininha POS Digital roda Android 7 em diante.
     minSdk = 24
     targetSdk = 34
-    versionCode = 3
-    versionName = "2.0.1"
+    versionCode = 4
+    versionName = "2.0.2"
   }
 
   signingConfigs {

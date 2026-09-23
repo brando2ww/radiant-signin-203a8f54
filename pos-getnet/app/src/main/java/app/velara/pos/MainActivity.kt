@@ -245,7 +245,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun concluirTransacao(extras: Bundle?, ehEstorno: Boolean) {
-        val pedido = pedidoAtual ?: return
+        val pedido = pedidoAtual
+        if (pedido == null) {
+            // Cobrança de teste: mostra o resultado e volta ao normal.
+            val status = Getnet.statusDe(extras?.getString("result"))
+            val motivo = extras?.getString("resultDetails")
+            if (status == "approved") {
+                mostrarEstado(
+                    "TESTE APROVADO",
+                    emReais(1.0),
+                    listOfNotNull(
+                        extras?.getString("brand"),
+                        extras?.getString("nsu")?.let { "NSU $it" },
+                    ).joinToString(" · ").ifBlank { "Maquininha respondendo." },
+                    "#059669",
+                )
+            } else {
+                mostrarEstado("TESTE NÃO APROVADO", emReais(1.0), motivo ?: "A transação não foi concluída.", "#DC2626")
+            }
+            ocupado = false
+            relogio.postDelayed({ if (!ocupado) mostrarPronto() }, 12000)
+            return
+        }
         if (extras == null) {
             concluir(pedido.id, "cancelled", null, "Encerrado na maquininha")
             mostrarEstado(if (ehEstorno) "CANCELAMENTO" else "COBRANÇA", "Encerrada", "Nada foi cobrado.", "#DC2626")
@@ -343,6 +364,25 @@ class MainActivity : AppCompatActivity() {
             "#059669",
         )
         relogio.postDelayed({ if (!ocupado) mostrarPronto() }, 10000)
+    }
+
+    /**
+     * Cobrança de R$ 1,00 disparada no próprio terminal, sem passar pela fila.
+     * É como o técnico (e a certificação da Getnet) confere a maquininha sem
+     * depender do caixa do Velara.
+     */
+    private fun cobrancaDeTeste() {
+        AlertDialog.Builder(this)
+            .setTitle("Cobrança de teste")
+            .setMessage("Vai ser cobrado R$ 1,00 em crédito à vista neste terminal, só para conferir a maquininha. O resultado não é enviado ao caixa.")
+            .setNegativeButton("Voltar", null)
+            .setPositiveButton("Cobrar R$ 1,00") { _, _ ->
+                ocupado = true
+                pedidoAtual = null
+                mostrarEstado("COBRANÇA DE TESTE", emReais(1.0), "Aproxime, insira ou passe o cartão.", "#111827", carregando = true)
+                abrir(Getnet.pagamento(1.0, "credito", 1, "avista"), Getnet.PAGAMENTO) { ocupado = false }
+            }
+            .show()
     }
 
     // ── tela ─────────────────────────────────────────────────────────────────
@@ -456,9 +496,16 @@ class MainActivity : AppCompatActivity() {
             .setView(corpo)
             .setPositiveButton("Salvar", null)
             .setNegativeButton("Fechar", null)
+            // Serve ao técnico que instala a maquininha e à equipe de
+            // certificação da Getnet, que não têm o caixa do Velara em mãos.
+            .setNeutralButton("Cobrança de teste", null)
             .create()
 
         janela.setOnShowListener {
+            janela.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                janela.dismiss()
+                cobrancaDeTeste()
+            }
             janela.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val loja = campoLoja.text.toString().trim()
                 val nome = campoNome.text.toString().trim().ifBlank { "Terminal" }
