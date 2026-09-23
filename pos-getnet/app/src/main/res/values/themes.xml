@@ -2,7 +2,8 @@
     <style name="Theme.Velara" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="colorPrimary">#111827</item>
         <item name="colorPrimaryDark">#111827</item>
-        <item name="colorAccent">#F5C400</item>
+        <!-- O amarelo da marca some no branco do diálogo; nos botões vale o âmbar escuro. -->
+        <item name="colorAccent">#B45309</item>
         <item name="android:windowBackground">#F8F8F5</item>
     </style>
 </resources>

@@ -3,6 +3,7 @@ package app.velara.pos
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -116,7 +117,13 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /** Cinza escuro parado, verde aprovado, vermelho quando não passou. */
+    private fun pintar(cor: String) {
+        estado.setTextColor(Color.parseColor(cor))
+    }
+
     private fun mostrarEspera() {
+        pintar("#111827")
         estado.text = "Aguardando cobrança"
         detalhe.text = "Este terminal recebe o valor direto do caixa."
     }
@@ -128,6 +135,7 @@ class MainActivity : AppCompatActivity() {
         // sem acordar a aplicação de pagamento nem pedir cartão.
         if (pedido.operacao == "teste") {
             concluir(pedido.id, "approved", JSONObject().put("mensagem", "Terminal respondendo"), null)
+            pintar("#059669")
             estado.text = "Teste recebido"
             detalhe.text = "A maquininha está conectada ao caixa."
             return
@@ -138,6 +146,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        pintar("#111827")
         estado.text = "Cobrando ${emReais(pedido.valor)}"
         detalhe.text = "Aproxime, insira ou passe o cartão."
 
@@ -166,6 +175,7 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intencao, PEDIDO_PAGAMENTO)
         } catch (e: Exception) {
             concluir(pedido.id, "error", null, "Aplicação de pagamento da Getnet não encontrada neste terminal")
+            pintar("#DC2626")
             estado.text = "Falha ao abrir o pagamento"
             detalhe.text = "A aplicação de Pagamento da Getnet não respondeu."
         }
@@ -183,6 +193,7 @@ class MainActivity : AppCompatActivity() {
 
         if (e == null) {
             concluir(pedido.id, "cancelled", null, "Cobrança encerrada na maquininha")
+            pintar("#DC2626")
             estado.text = "Cobrança cancelada"
             detalhe.text = "Nada foi cobrado."
             return
@@ -209,10 +220,12 @@ class MainActivity : AppCompatActivity() {
         concluir(pedido.id, status, resultado, if (status == "approved") null else (motivo ?: "Transação não aprovada"))
 
         if (status == "approved") {
+            pintar("#059669")
             estado.text = "Aprovado"
             detalhe.text = "${e.getString("brand") ?: "Cartão"} · NSU ${e.getString("nsu") ?: "-"}"
             ultima.text = "Última cobrança: ${emReais(pedido.valor)} aprovada"
         } else {
+            pintar("#DC2626")
             estado.text = "Não aprovado"
             detalhe.text = motivo ?: "A transação não foi concluída."
             ultima.text = "Última cobrança: ${emReais(pedido.valor)} não aprovada"
