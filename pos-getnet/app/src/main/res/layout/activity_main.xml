@@ -1,76 +1,211 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:background="@color/fundo">
 
+    <!-- Cabeçalho da marca, com o estado da conexão sempre à vista -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:background="@color/tinta"
+        android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tituloLoja"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Velara PDV"
-            android:textColor="#111827"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:adjustViewBounds="true"
+                android:src="@drawable/velara_logo"
+                android:contentDescription="Velara" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <View
+                android:id="@+id/pontoConexao"
+                android:layout_width="9dp"
+                android:layout_height="9dp"
+                android:layout_marginEnd="7dp"
+                android:background="@drawable/ponto" />
+
+            <TextView
+                android:id="@+id/textoConexao"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="conectando"
+                android:textColor="#D1D5DB"
+                android:textSize="12sp" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/terminal"
+            android:id="@+id/identificacao"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textColor="#6B7280"
-            android:textSize="13sp" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="3dp"
             android:layout_marginTop="12dp"
-            android:background="#F5C400" />
+            android:textColor="#9CA3AF"
+            android:textSize="13sp"
+            android:text="Terminal não configurado" />
+    </LinearLayout>
 
-        <TextView
-            android:id="@+id/estado"
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="Aguardando cobrança"
-            android:textColor="#111827"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:orientation="vertical"
+            android:padding="14dp">
 
-        <TextView
-            android:id="@+id/detalhe"
+            <!-- Cartão de estado: o que a maquininha está fazendo agora -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/card"
+                android:padding="20dp">
+
+                <View
+                    android:id="@+id/faixa"
+                    android:layout_width="38dp"
+                    android:layout_height="4dp"
+                    android:background="@drawable/faixa_amarela" />
+
+                <TextView
+                    android:id="@+id/rotulo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="TERMINAL PRONTO"
+                    android:textColor="@color/tinta_fraca"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.09" />
+
+                <TextView
+                    android:id="@+id/valor"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Aguardando"
+                    android:textColor="@color/tinta"
+                    android:textSize="30sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/detalhe"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="O valor vem do caixa da Velara."
+                    android:textColor="@color/texto"
+                    android:textSize="15sp"
+                    android:lineSpacingMultiplier="1.15" />
+
+                <ProgressBar
+                    android:id="@+id/progresso"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:indeterminate="true"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:layout_marginStart="4dp"
+                android:text="ÚLTIMAS COBRANÇAS"
+                android:textColor="@color/tinta_fraca"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.09" />
+
+            <LinearLayout
+                android:id="@+id/lista"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical"
+                android:background="@drawable/card"
+                android:padding="4dp" />
+
+            <TextView
+                android:id="@+id/vazio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:gravity="center"
+                android:text="Nenhuma cobrança ainda neste terminal."
+                android:textColor="@color/tinta_fraca"
+                android:textSize="13sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Ações, na altura do polegar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/branco"
+        android:padding="12dp"
+        android:elevation="8dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="Este terminal recebe o valor direto do caixa."
-            android:textColor="#374151"
-            android:textSize="15sp" />
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/ultima"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:textColor="#6B7280"
-            android:textSize="13sp" />
+            <Button
+                android:id="@+id/botaoReimprimir"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/botao"
+                android:text="Reimprimir"
+                android:textAllCaps="false"
+                android:textColor="@color/tinta"
+                android:textSize="14sp" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            <Button
+                android:id="@+id/botaoTestar"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/botao"
+                android:text="Testar"
+                android:textAllCaps="false"
+                android:textColor="@color/tinta"
+                android:textSize="14sp" />
 
-        <Button
-            android:id="@+id/botaoConfig"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Configurar terminal" />
+            <Button
+                android:id="@+id/botaoConfig"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:background="@drawable/botao"
+                android:text="Ajustes"
+                android:textAllCaps="false"
+                android:textColor="@color/tinta"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/rodape"
@@ -81,4 +216,4 @@
             android:textColor="#9CA3AF"
             android:textSize="11sp" />
     </LinearLayout>
-</ScrollView>
+</LinearLayout>

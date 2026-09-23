@@ -1,3 +1,13 @@
 <resources>
     <color name="fundo_icone">#111827</color>
+    <color name="tinta">#111827</color>
+    <color name="tinta_fraca">#6B7280</color>
+    <color name="texto">#374151</color>
+    <color name="fundo">#F3F4F6</color>
+    <color name="branco">#FFFFFF</color>
+    <color name="amarelo">#F5C400</color>
+    <color name="verde">#059669</color>
+    <color name="vermelho">#DC2626</color>
+    <color name="ambar">#B45309</color>
+    <color name="borda">#E5E7EB</color>
 </resources>
