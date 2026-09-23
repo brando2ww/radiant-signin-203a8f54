@@ -24,7 +24,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      # O runner já traz o SDK do Android. A ação setup-android tenta instalar o
+      # pacote "tools", que o Google descontinuou, e morre com exit 1.
+      - name: SDK do Android
+        run: |
+          set -e
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          GERENTE=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          echo "sdkmanager: $GERENTE"
+          yes | "$GERENTE" --licenses > /dev/null 2>&1 || true
+          "$GERENTE" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          ls "$SDK/platforms" "$SDK/build-tools"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
