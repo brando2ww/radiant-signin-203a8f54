@@ -54,34 +54,22 @@ jobs:
           disable-animations: true
           script: |
             adb install -r pos-getnet/app/build/outputs/apk/debug/app-debug.apk
-
-            # 1) primeira abertura: pede a configuração
             adb shell am start -n app.velara.pos/.MainActivity
             sleep 8
             adb exec-out screencap -p > tela-1-primeira-abertura.png
-
-            # 2) terminal já configurado (estabelecimento de teste, sem dado de cliente)
             adb shell am force-stop app.velara.pos
-            adb root
-            sleep 3
-            cat > velara.xml <<'PREFS'
-            <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
-            <map>
-                <string name="estabelecimento">39c340fe-c74e-48e8-80ed-0c29cc08d189</string>
-                <string name="nome">Caixa 1</string>
-                <string name="terminal">22222222-3333-4444-5555-666666666666</string>
-            </map>
-            PREFS
-            sed -i 's/^            //' velara.xml
+            printf '%s' '<?xml version="1.0" encoding="utf-8" standalone="yes" ?><map><string name="estabelecimento">39c340fe-c74e-48e8-80ed-0c29cc08d189</string><string name="nome">Caixa 1</string><string name="terminal">22222222-3333-4444-5555-666666666666</string></map>' > velara.xml
             adb push velara.xml /data/local/tmp/velara.xml
-            adb shell "mkdir -p /data/data/app.velara.pos/shared_prefs && cp /data/local/tmp/velara.xml /data/data/app.velara.pos/shared_prefs/velara.xml && chown -R \$(adb shell dumpsys package app.velara.pos | grep userId= | head -1 | sed 's/.*userId=//') /data/data/app.velara.pos/shared_prefs" || true
+            adb shell chmod 644 /data/local/tmp/velara.xml
+            adb shell "run-as app.velara.pos mkdir -p /data/data/app.velara.pos/shared_prefs"
+            adb shell "run-as app.velara.pos cp /data/local/tmp/velara.xml /data/data/app.velara.pos/shared_prefs/velara.xml"
             adb shell am start -n app.velara.pos/.MainActivity
-            sleep 10
+            sleep 12
             adb exec-out screencap -p > tela-2-terminal-conectado.png
-            adb shell pm list packages | grep velara || true
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: telas-do-app
           path: tela-*.png
-          if-no-files-found: error
+          if-no-files-found: warn
