@@ -52,7 +52,7 @@ jobs:
           SENHA="${SENHA:-velara-pos-getnet}"
           echo "SENHA_CHAVE=$SENHA" >> "$GITHUB_ENV"
           # A GetStore só aceita atualização assinada com a MESMA chave do app
-          # já enviado (a do 2.0.2). Sem o segredo, parar; gerar chave nova
+          # já enviado (a do 2.0.1). Sem o segredo, parar; gerar chave nova
           # produziria um APK que a Getnet recusa.
           if [ -z "$CHAVE_B64" ]; then
             echo "::error::Segredo KEYSTORE_B64 ausente. Cadastre a chave do app antes de compilar."
@@ -82,8 +82,8 @@ jobs:
           "$FERRAMENTAS/aapt2" dump badging "$APK" | grep -E "^package|^application-label|^launchable-activity|uses-permission|sdkVersion|targetSdkVersion"
           echo "== assinatura =="
           "$FERRAMENTAS/apksigner" verify --verbose --print-certs "$APK"
-          # Impressão digital do certificado do 2.0.2 enviado à GetStore.
-          ESPERADA="aef9cb4989751f4ac515487e3711082e6bfcaab50d114bf356edf3e96c01168d"
+          # Impressão digital do certificado do 2.0.1, a versão que está na GetStore.
+          ESPERADA="7285d2821c08a6dccc89d8286c7c5a5b704c8a65ce5c1115760da796c94caffa"
           ACHADA=$("$FERRAMENTAS/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
           echo "certificado: $ACHADA"
           if [ "$ACHADA" != "$ESPERADA" ]; then
