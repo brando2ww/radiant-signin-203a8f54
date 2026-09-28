@@ -448,8 +448,11 @@ class MainActivity : AppCompatActivity() {
         linhas += "Site: ${getString(R.string.suporte_site)}"
         getString(R.string.suporte_horario).takeIf { it.isNotBlank() }?.let { linhas += ""; linhas += it }
         linhas += ""
-        linhas += "Ao chamar, informe o nome do restaurante e o número de série deste terminal: " +
-            (prefs.getString("serie_sdk", null) ?: prefs.getString("serie", null) ?: idTerminal.take(8)) + "."
+        val serie = prefs.getString("serie_sdk", null) ?: prefs.getString("serie", null)
+        linhas += if (serie != null)
+            "Ao chamar, informe o nome do restaurante e o número de série deste terminal: $serie."
+        else
+            "Ao chamar, informe o nome do restaurante e o código deste terminal: ${idTerminal.take(8)}."
         linhas += ""
         linhas += "Dúvidas sobre a maquininha, o cartão ou o repasse das vendas são atendidas pela Central de Relacionamento da adquirente."
         AlertDialog.Builder(this)
