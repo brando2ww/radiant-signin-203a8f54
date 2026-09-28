@@ -1,6 +1,6 @@
-export function validateCNPJ(cnpj: string | null | undefined): boolean {
+export function validateCNPJ(cnpj: string | number | null | undefined): boolean {
   if (!cnpj) return false;
-  const cleanCNPJ = cnpj.replace(/\D/g, '');
+  const cleanCNPJ = String(cnpj).replace(/\D/g, '');
   
   if (cleanCNPJ.length !== 14) return false;
   if (/^(\d)\1+$/.test(cleanCNPJ)) return false;
@@ -28,9 +28,11 @@ export function validateCNPJ(cnpj: string | null | undefined): boolean {
   return result === parseInt(cleanCNPJ.charAt(13));
 }
 
-export function formatCNPJ(cnpj: string | null | undefined): string {
+export function formatCNPJ(cnpj: string | number | null | undefined): string {
   if (!cnpj) return '';
-  const clean = cnpj.replace(/\D/g, '');
+  // String() porque CNPJ vindo de XML já chegou aqui como número mais de uma
+  // vez, e replace em número derruba a tela inteira.
+  const clean = String(cnpj).replace(/\D/g, '');
   return clean.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 }
 
@@ -39,7 +41,7 @@ export function validateNFeKey(key: string | null | undefined): boolean {
   return /^\d{44}$/.test(key);
 }
 
-export function formatNFeKey(key: string | null | undefined): string {
+export function formatNFeKey(key: string | number | null | undefined): string {
   if (!key) return '';
-  return key.replace(/(\d{4})(?=\d)/g, '$1 ');
+  return String(key).replace(/(\d{4})(?=\d)/g, '$1 ');
 }

@@ -72,10 +72,17 @@ export interface ParsedInvoiceItem {
 }
 
 export async function parseNFeXML(xmlContent: string): Promise<ParsedInvoice> {
+  // parseTagValue: false é obrigatório aqui. Com a conversão automática ligada,
+  // o CNPJ do fornecedor virava número e a tela de dar entrada quebrava em
+  // branco ao tentar formatá-lo; o NCM 03034900 perdia o zero da frente; e o
+  // tPag "01" (dinheiro) virava 1, que não existe na tabela de formas de
+  // pagamento. Tudo que é número de verdade nesta nota já passa por parseFloat
+  // logo abaixo, então ler o XML como texto é o comportamento correto.
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
     parseAttributeValue: true,
+    parseTagValue: false,
   });
 
   const result = parser.parse(xmlContent);
@@ -97,14 +104,17 @@ export async function parseNFeXML(xmlContent: string): Promise<ParsedInvoice> {
   const total = infNFe.total;
   const det = Array.isArray(infNFe.det) ? infNFe.det : [infNFe.det];
 
-  // Determine operation type based on tNF (0 = entrada, 1 = saida)
-  const operationType = ide.tNF === '1' ? 'saida' : 'entrada';
+  // O que passa por aqui é sempre nota RECEBIDA (compra, MDe ou XML do
+  // fornecedor), então quem emitiu é o fornecedor. O <tNF> descreve a operação
+  // do ponto de vista de quem emitiu a nota e não serve para decidir isso: numa
+  // venda normal ele vem 1 (saída de lá), que é a nossa entrada.
+  const operationType: 'entrada' | 'saida' = 'entrada';
 
   // Extract invoice key
   const invoiceKey = infNFe['@_Id']?.replace('NFe', '') || '';
 
-  // Parse supplier (emitente for entrada, destinatário for saida)
-  const supplierData = operationType === 'entrada' ? emit : dest;
+  // Parse supplier: o emitente da nota recebida.
+  const supplierData = emit ?? dest ?? {};
   const supplier = {
     cnpj: supplierData.CNPJ || supplierData.CPF || '',
     name: supplierData.xNome || supplierData.xFant || '',

@@ -71,7 +71,9 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
 
     // Fornecedor pelo CNPJ da nota. Achar sozinho evita que a mesma empresa
     // vire dois cadastros a cada importação.
-    const cnpj = (nfe.supplier.cnpj || "").replace(/\D/g, "");
+    // String() de propósito: nota antiga pode trazer o CNPJ como número, e
+    // um replace direto em número derruba a tela inteira.
+    const cnpj = String(nfe.supplier?.cnpj ?? "").replace(/\D/g, "");
     const achado = suppliers.find(
       (s: any) => (s.cnpj || "").replace(/\D/g, "") === cnpj && cnpj.length === 14,
     );
@@ -141,7 +143,7 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
         <DialogHeader>
           <DialogTitle>Dar entrada · {PASSOS[passo - 1]}</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            NF-e {nfe.invoiceNumber} · {nfe.supplier.name} · {formatBRL(nfe.totals.invoice)}
+            NF-e {nfe.invoiceNumber} · {nfe.supplier?.name} · {formatBRL(nfe.totals?.invoice ?? 0)}
           </p>
         </DialogHeader>
 
