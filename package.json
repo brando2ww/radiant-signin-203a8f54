@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "ponto:mesa": "esbuild scripts/ponto-teste-de-mesa.mjs --bundle --platform=node --format=esm --outfile=node_modules/.cache/ponto-mesa.mjs --log-level=error && node node_modules/.cache/ponto-mesa.mjs"
   },
   "dependencies": {
     "@carbon/icons-react": "^11.81.0",

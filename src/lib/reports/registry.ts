@@ -10,7 +10,7 @@ import {
   BarChart3, CalendarRange, Package, Layers, Users, Ban, BadgePercent,
   ShoppingCart, FileBarChart, ArrowLeftRight, PieChart, PackageSearch, Receipt,
   Truck, MapPin, Clock, Filter, Star, ClipboardCheck, ClipboardList, Bike,
-  Warehouse, TrendingUp, Target, FileText, UserCheck, UserMinus, Gift, Boxes, ChefHat,
+  Warehouse, TrendingUp, Scale, Target, FileText, UserCheck, UserMinus, Gift, Boxes, ChefHat,
 } from "lucide-react";
 
 /**
@@ -44,7 +44,7 @@ export type ReportGroup =
 /** Ordem em que os grupos aparecem no catálogo. */
 export const GROUP_ORDER: ReportGroup[] = [
   "Vendas", "Financeiro", "Compras", "Estoque",
-  "Delivery", "Clientes", "Fiscal", "Avaliações", "Operacional",
+  "Delivery", "Clientes", "Fiscal", "Avaliações", "Operacional", "Ponto",
 ];
 
 export interface ReportDef {
@@ -77,8 +77,42 @@ const DELIVERY = "/pdv/delivery";
 const ESTOQUE = "/pdv/estoque";
 const FISCAL = "/pdv/notas-fiscais";
 const CLIENTES = "/pdv/clientes";
+const PONTO = "/pdv/ponto";
 
 export const REPORTS: ReportDef[] = [
+  // ------------------------------------------------------------------- Ponto
+  {
+    slug: "ponto-espelho",
+    title: "Espelho de ponto",
+    description: "O que cada um trabalhou no mês, dia a dia, com as marcações e os ajustes.",
+    icon: Clock, group: "Ponto",
+    gatePath: PONTO, href: `${PONTO}/espelho`,
+    keywords: ["jornada", "folha", "horas", "fechamento", "cartão de ponto"],
+  },
+  {
+    slug: "ponto-folha",
+    title: "Exportação para a folha",
+    description: "O arquivo que o escritório de contabilidade importa no sistema de folha.",
+    icon: FileText, group: "Ponto",
+    gatePath: PONTO, href: `${PONTO}/folha`,
+    keywords: ["contador", "alterdata", "sage", "eventos", "importação"],
+  },
+  {
+    slug: "ponto-banco-horas",
+    title: "Banco de horas",
+    description: "Saldo de cada colaborador, com o que vence e quando.",
+    icon: Scale, group: "Ponto",
+    gatePath: PONTO, href: `${PONTO}/banco-horas`,
+    keywords: ["compensação", "saldo", "horas"],
+  },
+  {
+    slug: "ponto-operacao",
+    title: "Ponto e operação",
+    description: "Hora trabalhada contra faturamento, para montar escala pela curva de vendas.",
+    icon: TrendingUp, group: "Ponto",
+    gatePath: PONTO, href: `${PONTO}/operacao`,
+    keywords: ["mão de obra", "escala", "produtividade"],
+  },
   // ------------------------------------------------------------------ Vendas
   {
     slug: "vendas-visao-geral",

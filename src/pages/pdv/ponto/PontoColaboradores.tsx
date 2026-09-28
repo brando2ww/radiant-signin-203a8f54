@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Copy, KeyRound, Loader2, Plus, QrCode, UserMinus } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
-import { usePontoColaboradores, type PontoColaborador } from "@/hooks/use-ponto";
+import { usePontoColaboradores, usePontoQuiosques, type PontoColaborador } from "@/hooks/use-ponto";
 
 const CONTRATOS = [
   { valor: "clt", rotulo: "CLT" },
@@ -35,7 +35,8 @@ const formataCpf = (v: string | null) => {
 const senhaSugerida = () => String(Math.floor(1000 + Math.random() * 9000));
 
 export default function PontoColaboradores() {
-  const { colaboradores, isLoading, salvar, desligar, definirSenha } = usePontoColaboradores();
+  const { colaboradores, isLoading, salvar, desligar, definirSenha, definirPin } = usePontoColaboradores();
+  const { quiosques, criar: criarQuiosque } = usePontoQuiosques();
   const [aberto, setAberto] = useState(false);
   const [edicao, setEdicao] = useState<Partial<PontoColaborador>>({});
   const [acesso, setAcesso] = useState<{ nome: string; url: string; senha: string } | null>(null);
@@ -60,6 +61,8 @@ export default function PontoColaboradores() {
   const gerarAcesso = async (c: PontoColaborador) => {
     const senha = senhaSugerida();
     const r = await definirSenha.mutateAsync({ id: c.id, senha });
+    // A mesma senha vale no tablet do salão: quem não tem celular bate por lá.
+    await definirPin.mutateAsync({ id: c.id, pin: senha }).catch(() => undefined);
     setAcesso({
       nome: c.nome,
       url: `${window.location.origin}/ponto/${r.token}`,
@@ -162,6 +165,49 @@ export default function PontoColaboradores() {
           </p>
         </div>
       )}
+
+      <Card className="p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <p className="font-medium">Tablet do salão</p>
+            <p className="text-sm text-muted-foreground">
+              Para quem não tem celular e para a cozinha sem sinal. A pessoa digita a mesma senha de
+              quatro dígitos e tira a foto ali.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              await criarQuiosque.mutateAsync(`Tablet ${quiosques.length + 1}`);
+              toast.success("Tablet criado");
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" /> Novo tablet
+          </Button>
+        </div>
+        {quiosques.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum tablet configurado.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {quiosques.map((q) => (
+              <li key={q.id} className="flex items-center justify-between gap-3">
+                <span>{q.nome}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/ponto-tablet/${q.token}`);
+                    toast.success("Link do tablet copiado. Abra no aparelho e deixe fixo nesta tela.");
+                  }}
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" /> copiar link
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {/* Cadastro */}
       <Dialog open={aberto} onOpenChange={setAberto}>

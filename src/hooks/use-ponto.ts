@@ -111,6 +111,13 @@ export function usePontoColaboradores() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ponto-colaboradores"] }),
   });
 
+  const definirPin = useMutation({
+    mutationFn: async ({ id, pin }: { id: string; pin: string }) => {
+      const { error } = await supabase.rpc("ponto_definir_pin", { _colaborador_id: id, _pin: pin });
+      if (error) throw error;
+    },
+  });
+
   const definirSenha = useMutation({
     mutationFn: async ({ id, senha }: { id: string; senha: string }) => {
       const { data, error } = await supabase.rpc("ponto_definir_acesso", {
@@ -123,7 +130,43 @@ export function usePontoColaboradores() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ponto-acessos"] }),
   });
 
-  return { colaboradores: query.data ?? [], isLoading: query.isLoading, salvar, desligar, definirSenha };
+  return { colaboradores: query.data ?? [], isLoading: query.isLoading, salvar, desligar, definirSenha, definirPin };
+}
+
+/** Tablets do salão. O link fica aberto na tela, então é token longo. */
+export function usePontoQuiosques() {
+  const { visibleUserId } = useEstablishmentId();
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["ponto-quiosques", visibleUserId],
+    enabled: !!visibleUserId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ponto_quiosques").select("*").eq("user_id", visibleUserId!).order("nome");
+      if (error) throw error;
+      return (data ?? []) as { id: string; nome: string; token: string; ativo: boolean }[];
+    },
+  });
+
+  const criar = useMutation({
+    mutationFn: async (nome: string) => {
+      const { data, error } = await supabase
+        .from("ponto_quiosques").insert({ user_id: visibleUserId, nome }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ponto-quiosques"] }),
+  });
+
+  return { quiosques: query.data ?? [], criar };
+}
+
+/** URL assinada da selfie, válida por poucos minutos. */
+export async function urlDaSelfie(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from("ponto-selfies").createSignedUrl(path, 300);
+  if (error) return null;
+  return data?.signedUrl ?? null;
 }
 
 export function usePontoLocais() {
@@ -240,6 +283,39 @@ export async function baterPonto(params: {
   const r = data as any;
   if (r?.error) throw new Error(r.error);
   return r as ResultadoBatida;
+}
+
+/**
+ * Batida COM selfie: passa pela edge function, que guarda a foto no bucket
+ * privado e registra a marcação na mesma chamada. O navegador do colaborador
+ * nunca fala com o Storage, porque ele é anônimo.
+ */
+export async function baterComSelfie(params: {
+  sessionToken?: string;
+  quiosqueToken?: string;
+  pin?: string;
+  imagem: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
+  horaDispositivo?: string | null;
+}) {
+  const { data, error } = await supabase.functions.invoke("ponto-selfie", {
+    body: {
+      session_token: params.sessionToken ?? null,
+      quiosque_token: params.quiosqueToken ?? null,
+      pin: params.pin ?? null,
+      imagem: params.imagem,
+      latitude: params.latitude ?? null,
+      longitude: params.longitude ?? null,
+      accuracy_m: params.accuracy ?? null,
+      hora_dispositivo: params.horaDispositivo ?? null,
+    },
+  });
+  if (error) throw error;
+  const r = data as any;
+  if (r?.error) throw new Error(r.error);
+  return r as ResultadoBatida & { com_selfie?: boolean; colaborador_nome?: string };
 }
 
 export async function minhasMarcacoes(sessionToken: string) {

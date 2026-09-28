@@ -14,3 +14,8 @@ verify_jwt = false
 
 [functions.og-pedido]
 verify_jwt = false
+
+# O colaborador bate ponto sem login (entra por link com senha), então a função
+# da selfie não pode exigir JWT. A trava é o token de sessão, conferido no banco.
+[functions.ponto-selfie]
+verify_jwt = false

@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, CloudOff, Clock, Loader2, MapPin, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  abrirPonto, baterPonto, minhasMarcacoes, traduzErroPonto,
+  abrirPonto, baterComSelfie, baterPonto, minhasMarcacoes, traduzErroPonto,
   type ResultadoBatida, type SessaoPonto,
 } from "@/hooks/use-ponto";
+import { CameraSelfie } from "@/components/ponto/CameraSelfie";
 import {
   enfileirar, idDoAparelho, lerFila, lerSessao, limparSessao, marcarTentativa,
   removerDaFila, salvarSessao, type BatidaPendente,
@@ -32,6 +33,7 @@ export default function PontoRegistro() {
   const [erro, setErro] = useState("");
 
   const [batendo, setBatendo] = useState(false);
+  const [cameraAberta, setCameraAberta] = useState(false);
   const [ultima, setUltima] = useState<ResultadoBatida | null>(null);
   const [historico, setHistorico] = useState<{ nsr: number; marcado_em: string; dentro_raio: boolean | null }[]>([]);
   const [pendentes, setPendentes] = useState<BatidaPendente[]>([]);
@@ -128,7 +130,17 @@ export default function PontoRegistro() {
     if (online && sessao) subirPendentes(sessao.session_token);
   }, [online, sessao, subirPendentes]);
 
+  /** Abre a câmera primeiro quando o restaurante exige foto. */
   const bater = async () => {
+    if (!sessao) return;
+    if (sessao.config?.exige_selfie && online) {
+      setCameraAberta(true);
+      return;
+    }
+    await registrar(null);
+  };
+
+  const registrar = async (imagem: string | null) => {
     if (!sessao) return;
     setBatendo(true);
     setErro("");
@@ -140,11 +152,18 @@ export default function PontoRegistro() {
     };
 
     try {
-      const r = await baterPonto({
-        sessionToken: sessao.session_token,
-        ...coords,
-        horaDispositivo: new Date().toISOString(),
-      });
+      const r = imagem
+        ? await baterComSelfie({
+            sessionToken: sessao.session_token,
+            imagem,
+            ...coords,
+            horaDispositivo: new Date().toISOString(),
+          })
+        : await baterPonto({
+            sessionToken: sessao.session_token,
+            ...coords,
+            horaDispositivo: new Date().toISOString(),
+          });
       setUltima(r);
       await carregarHistorico(sessao.session_token);
     } catch (e: any) {
@@ -206,6 +225,14 @@ export default function PontoRegistro() {
   // ── Bater ───────────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-dvh flex-col bg-muted/30">
+      <CameraSelfie
+        aberto={cameraAberta}
+        onCancelar={() => setCameraAberta(false)}
+        onCapturar={(imagem) => {
+          setCameraAberta(false);
+          registrar(imagem);
+        }}
+      />
       <header className="flex items-center justify-between border-b bg-background px-5 py-3">
         <div>
           <p className="font-semibold leading-tight">{sessao.colaborador.nome}</p>

@@ -61,6 +61,12 @@ import Tasks from "./pdv/Tasks";
 import PontoHoje from "./pdv/ponto/PontoHoje";
 import PontoColaboradores from "./pdv/ponto/PontoColaboradores";
 import PontoLocais from "./pdv/ponto/PontoLocais";
+import PontoEscalas from "./pdv/ponto/PontoEscalas";
+import PontoEspelho from "./pdv/ponto/PontoEspelho";
+import PontoAjustes from "./pdv/ponto/PontoAjustes";
+import PontoFolha from "./pdv/ponto/PontoFolha";
+import PontoBancoHoras from "./pdv/ponto/PontoBancoHoras";
+import PontoOperacao from "./pdv/ponto/PontoOperacao";
 import ChecklistEditor from "./pdv/ChecklistEditor";
 import Customers from "./pdv/Customers";
 import CustomerDetail from "./pdv/CustomerDetail";
@@ -225,6 +231,12 @@ export default function PDV() {
               <Route path="ponto" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoHoje /></RoleRoute>} />
               <Route path="ponto/colaboradores" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoColaboradores /></RoleRoute>} />
               <Route path="ponto/locais" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoLocais /></RoleRoute>} />
+              <Route path="ponto/escalas" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoEscalas /></RoleRoute>} />
+              <Route path="ponto/espelho" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoEspelho /></RoleRoute>} />
+              <Route path="ponto/ajustes" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoAjustes /></RoleRoute>} />
+              <Route path="ponto/folha" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoFolha /></RoleRoute>} />
+              <Route path="ponto/banco-horas" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoBancoHoras /></RoleRoute>} />
+              <Route path="ponto/operacao" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoOperacao /></RoleRoute>} />
 
               {/* Clientes */}
               <Route path="clientes" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><Customers /></RoleRoute>} />

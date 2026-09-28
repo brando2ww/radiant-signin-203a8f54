@@ -23,6 +23,7 @@ import PublicSupplierOrder from "./pages/PublicSupplierOrder";
 import PublicPurchaseReceipt from "./pages/PublicPurchaseReceipt";
 import PublicStockCount from "./pages/PublicStockCount";
 import PontoRegistro from "./pages/PontoRegistro";
+import PontoQuiosque from "./pages/PontoQuiosque";
 import EvaluationsPanel from "./pages/EvaluationsPanel";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
@@ -96,6 +97,7 @@ const App = () => (
                   <Route path="/recebimento/:token" element={<PublicPurchaseReceipt />} />
                   <Route path="/contagem/:token" element={<PublicStockCount />} />
                   <Route path="/ponto/:token" element={<PontoRegistro />} />
+                  <Route path="/ponto-tablet/:token" element={<PontoQuiosque />} />
                   {/* Link do e-mail de recuperação de senha. O caminho em inglês
                       fica de pé porque links antigos já saíram com ele. */}
                   <Route path="/redefinir-senha" element={<ResetPassword />} />
