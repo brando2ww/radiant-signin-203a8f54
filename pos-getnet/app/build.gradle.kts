@@ -9,11 +9,11 @@ android {
 
   defaultConfig {
     applicationId = "app.velara.pos"
-    // A maquininha POS Digital roda Android 7 em diante.
+    // A maquininha POS Digital roda Android 7 em diante (o P2 é 7.1).
     minSdk = 24
     targetSdk = 34
-    versionCode = 4
-    versionName = "2.0.2"
+    versionCode = 5
+    versionName = "2.0.3"
   }
 
   signingConfigs {
@@ -53,4 +53,6 @@ android {
 
 dependencies {
   implementation("androidx.appcompat:appcompat:1.7.0")
+  // SDK de Hardware da Getnet, obrigatório na certificação da GetStore.
+  implementation(files("libs/libposdigital-2.1.0-release.aar"))
 }

@@ -3,10 +3,15 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- SDK de Hardware da Getnet (libposdigital). -->
+    <uses-permission android:name="com.getnet.posdigital.service.POSDIGITAL" />
 
     <!-- O app de Pagamento da Getnet responde por deeplink; no Android 11+ é
          preciso declarar o que se pretende abrir. -->
     <queries>
+        <!-- Serviço do SDK de Hardware: sem isto o Android 11+ esconde o
+             serviço e, no P3, a impressora não responde. -->
+        <package android:name="com.getnet.posdigital.service" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="getnet" />

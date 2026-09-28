@@ -36,7 +36,11 @@ import java.util.UUID
 class MainActivity : AppCompatActivity() {
 
     private companion object {
+        // Perto de uma venda o caixa espera resposta rápida; parado, o terminal
+        // consulta menos para poupar o chip 3G/4G.
         const val CICLO_MS = 3000L
+        const val CICLO_OCIOSO_MS = 10000L
+        const val OCIOSO_APOS_MS = 5 * 60 * 1000L
         const val BATIMENTO_MS = 30000L
         const val PREFS = "velara"
     }
@@ -57,13 +61,25 @@ class MainActivity : AppCompatActivity() {
     private var ocupado = false
     private var pedidoAtual: Fila.Pedido? = null
     private var nomeLoja: String? = null
+    private var ultimaAtividade = System.currentTimeMillis()
 
     private val prefs by lazy { getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     private val estabelecimento get() = prefs.getString("estabelecimento", "")!!.trim()
     private val nomeTerminal get() = prefs.getString("nome", "")!!.ifBlank { "Terminal" }
+    /**
+     * Identidade do terminal no Velara. Pelos requisitos da Getnet ela vem do
+     * número de série que o SDK de Hardware devolve; como o banco guarda a
+     * identidade em formato UUID, o número de série vira sempre o mesmo UUID.
+     * Só fora de uma maquininha (emulador) cai num código gerado.
+     */
     private val idTerminal: String
-        get() = prefs.getString("terminal", null) ?: UUID.randomUUID().toString().also {
-            prefs.edit().putString("terminal", it).apply()
+        get() {
+            prefs.getString("serie_sdk", null)?.let {
+                return UUID.nameUUIDFromBytes("getnet-serie:$it".toByteArray()).toString()
+            }
+            return prefs.getString("terminal", null) ?: UUID.randomUUID().toString().also {
+                prefs.edit().putString("terminal", it).apply()
+            }
         }
 
     // ── ciclo de vida ────────────────────────────────────────────────────────
@@ -89,8 +105,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.botaoConfig).setOnClickListener { abrirAjustes() }
         findViewById<Button>(R.id.botaoTestar).setOnClickListener { testarMaquininha() }
         findViewById<Button>(R.id.botaoReimprimir).setOnClickListener { reimprimir() }
+        findViewById<Button>(R.id.botaoContato).setOnClickListener { faleConosco() }
 
-        rodape.text = "Velara PDV ${BuildConfig.VERSION_NAME} · terminal ${idTerminal.take(8)}"
+        atualizarRodape()
+        Hardware.ligar(this, aoConectar = { lerHardware() }, aoCair = {})
         nomeLoja = prefs.getString("nome_loja", null)
         mostrarPronto()
         atualizarCabecalho()
@@ -106,6 +124,16 @@ class MainActivity : AppCompatActivity() {
         relogio.postDelayed(batimento, BATIMENTO_MS)
     }
 
+    override fun onDestroy() {
+        Hardware.desligar(this)
+        super.onDestroy()
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        ultimaAtividade = System.currentTimeMillis()
+    }
+
     override fun onPause() {
         super.onPause()
         relogio.removeCallbacks(ciclo)
@@ -118,7 +146,8 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             atualizarConexao()
             if (!ocupado && estabelecimento.isNotBlank()) buscar()
-            relogio.postDelayed(this, CICLO_MS)
+            val parado = System.currentTimeMillis() - ultimaAtividade > OCIOSO_APOS_MS
+            relogio.postDelayed(this, if (parado) CICLO_OCIOSO_MS else CICLO_MS)
         }
     }
 
@@ -136,7 +165,8 @@ class MainActivity : AppCompatActivity() {
     private fun apresentar() {
         val info = JSONObject()
             .put("app_version", BuildConfig.VERSION_NAME)
-            .put("serial", prefs.getString("serie", null) ?: JSONObject.NULL)
+            .put("serial", prefs.getString("serie_sdk", null) ?: prefs.getString("serie", null) ?: JSONObject.NULL)
+            .put("model", prefs.getString("modelo", null) ?: JSONObject.NULL)
             .put("logic_number", prefs.getString("numlogic", null) ?: JSONObject.NULL)
         Thread {
             val id = Fila.registrar(estabelecimento, idTerminal, nomeTerminal, info)
@@ -165,6 +195,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun executar(pedido: Fila.Pedido) {
         pedidoAtual = pedido
+        ultimaAtividade = System.currentTimeMillis()
         when (pedido.operacao) {
             "teste" -> {
                 mostrarEstado("TESTE DO CAIXA", "Tudo certo", "O caixa falou com esta maquininha.", "#059669")
@@ -382,6 +413,49 @@ class MainActivity : AppCompatActivity() {
                 mostrarEstado("COBRANÇA DE TESTE", emReais(1.0), "Aproxime, insira ou passe o cartão.", "#111827", carregando = true)
                 abrir(Getnet.pagamento(1.0, "credito", 1, "avista"), Getnet.PAGAMENTO) { ocupado = false }
             }
+            .show()
+    }
+
+    /** Número de série e modelo pelo SDK de Hardware, assim que o serviço conecta. */
+    private fun lerHardware() {
+        Hardware.informacoes { terminal ->
+            runOnUiThread {
+                val serie = terminal?.serie ?: return@runOnUiThread
+                val mudou = prefs.getString("serie_sdk", null) != serie
+                prefs.edit()
+                    .putString("serie_sdk", serie)
+                    .putString("modelo", listOfNotNull(terminal.fabricante, terminal.modelo)
+                        .filter { it.isNotBlank() }.joinToString(" ").ifBlank { null })
+                    .apply()
+                atualizarRodape()
+                if (mudou && estabelecimento.isNotBlank()) { apresentar(); carregarLista() }
+            }
+        }
+    }
+
+    private fun atualizarRodape() {
+        val serie = prefs.getString("serie_sdk", null)
+        rodape.text = "Velara PDV ${BuildConfig.VERSION_NAME} · " +
+            (if (serie != null) "série $serie" else "terminal ${idTerminal.take(8)}")
+    }
+
+    /** Atendimento ao lojista, exigido pela certificação da Getnet. */
+    private fun faleConosco() {
+        val linhas = mutableListOf<String>()
+        val whatsapp = getString(R.string.suporte_whatsapp)
+        if (whatsapp.isNotBlank()) linhas += "WhatsApp: $whatsapp"
+        linhas += "E-mail: ${getString(R.string.suporte_email)}"
+        linhas += "Site: ${getString(R.string.suporte_site)}"
+        getString(R.string.suporte_horario).takeIf { it.isNotBlank() }?.let { linhas += ""; linhas += it }
+        linhas += ""
+        linhas += "Ao chamar, informe o nome do restaurante e o número de série deste terminal: " +
+            (prefs.getString("serie_sdk", null) ?: prefs.getString("serie", null) ?: idTerminal.take(8)) + "."
+        linhas += ""
+        linhas += "Dúvidas sobre a maquininha, o cartão ou o repasse das vendas são atendidas pela Central de Relacionamento da adquirente."
+        AlertDialog.Builder(this)
+            .setTitle("Fale conosco · Velara")
+            .setMessage(linhas.joinToString("\n"))
+            .setPositiveButton("Fechar", null)
             .show()
     }
 

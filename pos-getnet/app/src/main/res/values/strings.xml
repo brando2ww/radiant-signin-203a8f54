@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Velara PDV</string>
+
+    <!-- Fale conosco. WhatsApp e horário em branco somem da tela. -->
+    <string name="suporte_whatsapp"></string>
+    <string name="suporte_email">suporte@velaraia.app</string>
+    <string name="suporte_site">velaraia.app</string>
+    <string name="suporte_horario"></string>
 </resources>

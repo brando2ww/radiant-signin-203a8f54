@@ -207,11 +207,23 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
+        <!-- Atendimento ao lojista: a certificação da Getnet exige à vista -->
+        <Button
+            android:id="@+id/botaoContato"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="6dp"
+            android:text="Fale conosco · suporte Velara"
+            android:textAllCaps="false"
+            android:textColor="@color/tinta"
+            android:textSize="14sp" />
+
         <TextView
             android:id="@+id/rodape"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="2dp"
             android:gravity="center"
             android:textColor="#9CA3AF"
             android:textSize="11sp" />

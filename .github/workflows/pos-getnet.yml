@@ -51,19 +51,16 @@ jobs:
           mkdir -p "$RUNNER_TEMP/chave"
           SENHA="${SENHA:-velara-pos-getnet}"
           echo "SENHA_CHAVE=$SENHA" >> "$GITHUB_ENV"
-          if [ -n "$CHAVE_B64" ]; then
-            echo "$CHAVE_B64" | base64 -d > "$RUNNER_TEMP/chave/velara.jks"
-            echo "GERADA=nao" >> "$GITHUB_ENV"
-            echo "Usando a chave guardada no segredo do repositório."
-          else
-            keytool -genkeypair -v \
-              -keystore "$RUNNER_TEMP/chave/velara.jks" -alias velara \
-              -keyalg RSA -keysize 2048 -validity 10950 \
-              -storepass "$SENHA" -keypass "$SENHA" \
-              -dname "CN=Velara PDV, OU=Velara, O=Quantique, L=Farroupilha, ST=RS, C=BR"
-            echo "GERADA=sim" >> "$GITHUB_ENV"
-            echo "::warning::Chave NOVA gerada. Baixe o artefato chave-de-assinatura e guarde: sem ela não dá para publicar atualização deste app."
+          # A GetStore só aceita atualização assinada com a MESMA chave do app
+          # já enviado (a do 2.0.2). Sem o segredo, parar; gerar chave nova
+          # produziria um APK que a Getnet recusa.
+          if [ -z "$CHAVE_B64" ]; then
+            echo "::error::Segredo KEYSTORE_B64 ausente. Cadastre a chave do app antes de compilar."
+            exit 1
           fi
+          echo "$CHAVE_B64" | base64 -d > "$RUNNER_TEMP/chave/velara.jks"
+          echo "GERADA=nao" >> "$GITHUB_ENV"
+          echo "Usando a chave guardada no segredo do repositório."
 
       - name: Compilar
         working-directory: pos-getnet
@@ -84,7 +81,15 @@ jobs:
           echo "== identidade =="
           "$FERRAMENTAS/aapt2" dump badging "$APK" | grep -E "^package|^application-label|^launchable-activity|uses-permission|sdkVersion|targetSdkVersion"
           echo "== assinatura =="
-          "$FERRAMENTAS/apksigner" verify --verbose "$APK"
+          "$FERRAMENTAS/apksigner" verify --verbose --print-certs "$APK"
+          # Impressão digital do certificado do 2.0.2 enviado à GetStore.
+          ESPERADA="aef9cb4989751f4ac515487e3711082e6bfcaab50d114bf356edf3e96c01168d"
+          ACHADA=$("$FERRAMENTAS/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          echo "certificado: $ACHADA"
+          if [ "$ACHADA" != "$ESPERADA" ]; then
+            echo "::error::APK assinado com chave diferente da enviada à Getnet."
+            exit 1
+          fi
           echo "APK_CAMINHO=$APK" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
