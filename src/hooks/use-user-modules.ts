@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type UserModule = 'financeiro' | 'crm' | 'delivery' | 'pdv' | 'avaliacoes' | 'tarefas' | 'compras';
+export type UserModule = 'financeiro' | 'crm' | 'delivery' | 'pdv' | 'avaliacoes' | 'tarefas' | 'compras' | 'ponto';
 
 interface TenantModuleRow {
   id: string;
@@ -85,8 +85,10 @@ export function useUserModules() {
 
   const hasModule = (module: UserModule): boolean => {
     if (!user) return false;
-    // Sem tenant vinculado (legado): libera tudo
-    if (!tenantId) return true;
+    // Sem tenant vinculado (legado): libera tudo, MENOS ponto. Jornada é dado
+    // pessoal e a policy no banco (ponto_tem_modulo) também responde não sem
+    // tenant: liberar na tela e negar no banco só geraria tela quebrada.
+    if (!tenantId) return module !== 'ponto';
 
     const mod = modules.find((m) => m.module === module);
     if (!mod) return false;

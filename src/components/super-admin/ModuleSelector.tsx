@@ -19,6 +19,7 @@ export const availableModules: ModuleEntry[] = [
   { value: "avaliacoes", label: "Avaliações", description: "Pesquisa de satisfação NPS" },
   { value: "tarefas", label: "Tarefas", description: "Checklists operacionais e tarefas diárias" },
   { value: "compras", label: "Compras", description: "Cotações, pedidos de compra, lista de compras e importação NF-e" },
+  { value: "ponto", label: "Ponto", description: "Registro de jornada pelo celular, com foto, cerca virtual e espelho de ponto" },
 ];
 
 export function moduleSlugsFor(mod: ModuleEntry): string[] {

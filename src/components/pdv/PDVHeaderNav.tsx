@@ -36,6 +36,8 @@ import {
   Store,
   Megaphone,
   Users,
+  Clock,
+  MapPin,
   UserCheck,
   Star,
   GitBranch,
@@ -143,6 +145,15 @@ const sectionItems: Section[] = [
     icon: ClipboardCheck,
     items: [
       { title: "Tarefas", url: "/pdv/tarefas", icon: ClipboardCheck },
+    ],
+  },
+  {
+    title: "Ponto",
+    icon: Clock,
+    items: [
+      { title: "Hoje", url: "/pdv/ponto", icon: Clock },
+      { title: "Colaboradores", url: "/pdv/ponto/colaboradores", icon: Users },
+      { title: "Locais", url: "/pdv/ponto/locais", icon: MapPin },
     ],
   },
   {

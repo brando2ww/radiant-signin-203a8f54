@@ -14,7 +14,7 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 |---|---|---|
 | [x] | Conferir no código os furos que o módulo herdaria | 8 confirmados, listados no PLANO.md seção 4 |
 | [x] | Gate do módulo no banco (`ponto_tem_modulo`) | lê `tenant_modules`; sem tenant responde não |
-| [ ] | Ligar `ponto` no trilho do frontend | `use-user-modules.ts`, `module-routes.ts`, `PDVHeaderNav.tsx`, `ModuleSelector.tsx` |
+| [x] | Ligar `ponto` no trilho do frontend | tipo, rotas, menu e super admin · legado NÃO recebe ponto de graça |
 | [ ] | Preço na Stripe (`STRIPE_PRICE_PONTO`) | **R$ 97/mês por restaurante, decidido em 28/09** |
 | [ ] | Consertar o manifest do PWA | hoje aponta para arquivo que não existe |
 | [ ] | Confirmar se bucket privado é mesmo privado neste stack | teste de 28/09 deixou dúvida |
@@ -36,13 +36,13 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 | [x] | Bater ponto, com recusa de toque duplo em menos de 1 minuto | |
 | [x] | Últimas 48 horas para o colaborador | exigência do art. 80 |
 | [x] | Definir a senha de acesso pelo painel | RPC pronta |
-| [ ] | Tela do gestor: cadastro de colaborador | |
-| [ ] | Tela do gestor: gerar o link e a senha, com QR | |
-| [ ] | Tela do colaborador: `/ponto/:token`, relógio do servidor e botão de bater | |
-| [ ] | Comprovante na tela, com número e hash | |
-| [ ] | Fila offline no aparelho, com pendentes visíveis | molde em `stock-count-offline.ts` |
+| [x] | Tela do gestor: cadastro de colaborador | com CPF, cargo, admissão e tipo de contrato |
+| [x] | Tela do gestor: gerar o link e a senha, com QR | senha de 4 dígitos, QR e copiar |
+| [x] | Tela do colaborador: `/ponto/:token`, relógio do servidor e botão de bater | testado em navegador real |
+| [x] | Comprovante na tela, com número e hash | mais as últimas 48 horas |
+| [x] | Fila offline no aparelho, com pendentes visíveis | com modo avião: guardou 1 e subiu sozinha ao voltar a rede |
 | [ ] | Modo quiosque no tablet do salão, com PIN ou QR | resolve cozinha sem sinal e quem não tem celular |
-| [ ] | Desligamento por data e bloqueio de exclusão de quem tem marcação | hoje `delete-establishment-user` apagaria a prova |
+| [~] | Desligamento por data | feito na tela; falta bloquear a exclusão do usuário em `delete-establishment-user` |
 
 ## Fase 1b · Provar quem bateu
 
@@ -109,8 +109,10 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 
 ## Onde estamos
 
-Fase 1a com o banco pronto e testado, faltando as telas. O módulo está desligado nos 18 tenants, então nada disso aparece para cliente nenhum.
+Fase 1a quase fechada: banco, telas do gestor, tela do colaborador e fila offline prontos e testados em navegador real. Falta o modo quiosque no tablet e a trava de exclusão de usuário. O módulo está desligado nos 18 tenants, então nada disso aparece para cliente nenhum.
 
-**Próxima entrega:** as três telas da fase 1a (cadastro de colaborador, geração do link com senha, e a tela de bater ponto), que é o que permite você bater um ponto de teste no seu próprio celular.
+**Próxima entrega:** modo quiosque no tablet do salão e a selfie da fase 1b.
+
+**Teste feito em 28/09**, no tenant de demonstração, em navegador real com GPS simulado: bateu dentro da área (0 m), bateu a 3 km e registrou com aviso de fora da área, e em modo avião guardou a batida e subiu sozinha quando a rede voltou. As três marcações estão no banco com número sequencial 1, 2 e 3.
 
 **Decisões tomadas:** preço de R$ 97/mês por restaurante, e a exportação para folha sai com planilha, PDF e dois presets de layout público (Alterdata e Sage/IOB), sem depender do contador para começar.

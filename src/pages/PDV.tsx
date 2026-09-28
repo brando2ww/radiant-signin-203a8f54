@@ -58,6 +58,9 @@ import UserForm from "./pdv/UserForm";
 import EvaluationsLayout from "./pdv/EvaluationsLayout";
 import FranchiseImport from "./pdv/FranchiseImport";
 import Tasks from "./pdv/Tasks";
+import PontoHoje from "./pdv/ponto/PontoHoje";
+import PontoColaboradores from "./pdv/ponto/PontoColaboradores";
+import PontoLocais from "./pdv/ponto/PontoLocais";
 import ChecklistEditor from "./pdv/ChecklistEditor";
 import Customers from "./pdv/Customers";
 import CustomerDetail from "./pdv/CustomerDetail";
@@ -218,6 +221,11 @@ export default function PDV() {
               <Route path="tarefas/checklists/novo" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ChecklistEditor /></RoleRoute>} />
               <Route path="tarefas/checklists/:id" element={<RoleRoute path="/pdv/tarefas" canAccess={canAccess} defaultRoute={defaultRoute}><ChecklistEditor /></RoleRoute>} />
               
+              {/* Ponto */}
+              <Route path="ponto" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoHoje /></RoleRoute>} />
+              <Route path="ponto/colaboradores" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoColaboradores /></RoleRoute>} />
+              <Route path="ponto/locais" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoLocais /></RoleRoute>} />
+
               {/* Clientes */}
               <Route path="clientes" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><Customers /></RoleRoute>} />
               <Route path="clientes/:id" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><CustomerDetail /></RoleRoute>} />

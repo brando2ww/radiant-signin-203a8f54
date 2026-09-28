@@ -48,6 +48,7 @@ export const MODULE_ROUTES: Record<UserModule, string[]> = {
   avaliacoes: ["/pdv/avaliacoes", "/avaliacoes"],
   tarefas: ["/pdv/tarefas"],
   crm: ["/pdv/crm"],
+  ponto: ["/pdv/ponto"],
 };
 
 
@@ -88,4 +89,5 @@ export const MODULE_LABELS: Record<UserModule, string> = {
   avaliacoes: "Avaliações",
   tarefas: "Tarefas",
   crm: "CRM",
+  ponto: "Ponto",
 };
