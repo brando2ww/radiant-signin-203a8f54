@@ -52,7 +52,42 @@ export function useNfeEntry() {
     const vinculados = input.items.filter((i) => i.ingredientId && i.quantity > 0);
 
     setSaving(true);
+    let notaTravada: { id: string; statusAnterior: string | null } | null = null;
     try {
+      // Trava contra entrada dobrada. Sem ela, clicar "Dar entrada" de novo na
+      // mesma nota lança o estoque e as contas a pagar outra vez — foi o que
+      // aconteceu com a NF-e 2270, que entrou 21,56 kg duas vezes.
+      // O update só passa se a nota ainda não estava lançada, então duas telas
+      // abertas ao mesmo tempo também não conseguem lançar em dobro.
+      const { data: existente } = await supabase
+        .from("pdv_invoices")
+        .select("id, status, entry_date")
+        .eq("invoice_key", nfe.invoiceKey)
+        .maybeSingle();
+
+      if (existente?.status === "imported") {
+        const quando = (existente as any).entry_date
+          ? ` em ${new Date((existente as any).entry_date).toLocaleDateString("pt-BR")}`
+          : "";
+        toast.error(`Esta nota já teve entrada${quando}. Estoque e contas a pagar já foram lançados.`);
+        return false;
+      }
+
+      if (existente?.id) {
+        const { data: travada } = await supabase
+          .from("pdv_invoices")
+          .update({ status: "imported", entry_date: new Date().toISOString() })
+          .eq("id", existente.id)
+          .neq("status", "imported")
+          .select("id")
+          .maybeSingle();
+        if (!travada) {
+          toast.error("Esta nota acabou de receber entrada em outra tela.");
+          return false;
+        }
+        notaTravada = { id: existente.id, statusAnterior: existente.status ?? null };
+      }
+
       // 1) Financeiro. Com duplicatas na nota, uma conta a pagar por duplicata,
       //    com o vencimento que o fornecedor declarou. Sem elas, uma só.
       const duplicatas = nfe.payment?.duplicatas ?? [];
@@ -223,6 +258,14 @@ export function useNfeEntry() {
       return true;
     } catch (e: any) {
       console.error("[entrada-nfe]", e);
+      // Deu errado no meio: a nota volta a ficar disponível, senão ela ficaria
+      // marcada como lançada sem estoque nem financeiro.
+      if (notaTravada) {
+        await supabase
+          .from("pdv_invoices")
+          .update({ status: notaTravada.statusAnterior ?? "pending", entry_date: null })
+          .eq("id", notaTravada.id);
+      }
       toast.error(e?.message ?? "Não foi possível dar entrada nesta nota.");
       return false;
     } finally {

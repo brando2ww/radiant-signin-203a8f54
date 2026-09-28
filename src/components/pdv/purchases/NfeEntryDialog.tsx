@@ -52,6 +52,10 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
 
   const [passo, setPasso] = useState(1);
   const [vinculos, setVinculos] = useState<Record<number, string | null>>({});
+  // Quanto entra no estoque de cada item. Começa com a quantidade da nota, mas
+  // a unidade de compra nem sempre é a do insumo (caixa com 12, fardo com 6),
+  // e quem confere a mercadoria é quem sabe o que entrou de fato.
+  const [quantidades, setQuantidades] = useState<Record<number, number>>({});
   const [supplierId, setSupplierId] = useState<string | null>(null);
   const [chartAccountId, setChartAccountId] = useState<string | null>(null);
   const [costCenterId, setCostCenterId] = useState<string | null>(null);
@@ -65,6 +69,7 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
     if (!open || !nfe) return;
     setPasso(1);
     setVinculos({});
+    setQuantidades({});
     setNotes("");
     setPaid(false);
     setPaymentMethod(nfe.payment?.formaPagamento ?? "boleto");
@@ -88,6 +93,11 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
       label: i.name,
       hint: i.unit || undefined,
     })),
+    [ingredients],
+  );
+
+  const insumoPorId = useMemo(
+    () => new Map((ingredients ?? []).map((i: any) => [i.id, i])),
     [ingredients],
   );
 
@@ -119,12 +129,28 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
 
   const vinculados = Object.values(vinculos).filter(Boolean).length;
 
+  /** O que entra no estoque: o que o operador digitou, ou a quantidade da nota. */
+  const quantidadeDe = (idx: number, item: { quantity: number }) => {
+    const v = quantidades[idx];
+    return v === undefined || Number.isNaN(v) ? item.quantity : v;
+  };
+
+  /**
+   * O valor do item é fixo, quem muda é a quantidade. Mudar 1 caixa para 12
+   * unidades sem recalcular gravaria um custo 12 vezes maior no insumo e
+   * estragaria a margem de tudo que leva ele.
+   */
+  const custoUnitarioDe = (idx: number, item: { quantity: number; totalValue: number; unitValue: number }) => {
+    const qtd = quantidadeDe(idx, item);
+    return qtd > 0 ? item.totalValue / qtd : item.unitValue;
+  };
+
   const confirmar = async () => {
     const items: NfeEntryItem[] = nfe.items.map((item, idx) => ({
       index: idx,
       ingredientId: vinculos[idx] ?? null,
-      quantity: item.quantity,
-      unitPrice: item.unitValue,
+      quantity: quantidadeDe(idx, item),
+      unitPrice: custoUnitarioDe(idx, item),
     }));
 
     const ok = await save({
@@ -181,6 +207,38 @@ export function NfeEntryDialog({ open, onOpenChange, nfe, onDone }: Props) {
                     searchPlaceholder="Buscar insumo..."
                     emptyText="Nenhum insumo cadastrado com esse nome."
                   />
+
+                  {vinculos[idx] && (
+                    <div className="mt-2 flex flex-wrap items-end gap-3 border-t pt-2">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] text-muted-foreground">
+                          Entra no estoque
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            className="h-8 w-28 tabular-nums"
+                            value={quantidades[idx] ?? item.quantity}
+                            onChange={(e) =>
+                              setQuantidades((m) => ({ ...m, [idx]: Number(e.target.value) }))
+                            }
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {insumoPorId.get(vinculos[idx]!)?.unit || item.unit}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="pb-1.5 text-[11px] text-muted-foreground">
+                        A nota trouxe {item.quantity} {item.unit}. Custo de{" "}
+                        <span className="font-medium text-foreground">
+                          {formatBRL(custoUnitarioDe(idx, item))}
+                        </span>{" "}
+                        por {insumoPorId.get(vinculos[idx]!)?.unit || item.unit}.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

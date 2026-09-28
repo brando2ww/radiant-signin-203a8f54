@@ -12,6 +12,7 @@ export interface NfeMde {
   supplier_name: string;
   total_invoice: number;
   status: string;
+  entry_date?: string | null;
   source?: string | null;
   mde_status?: string | null;
   mde_queried_at?: string | null;
@@ -35,7 +36,7 @@ export function useNfeMde(filters?: { mde_status?: string }) {
       let query = supabase
         .from("pdv_invoices")
         .select(
-          "id, invoice_key, invoice_number, series, emission_date, supplier_cnpj, supplier_name, total_invoice, status, source, mde_status, mde_nfe_completa, mde_queried_at, created_at"
+          "id, invoice_key, invoice_number, series, emission_date, supplier_cnpj, supplier_name, total_invoice, status, entry_date, source, mde_status, mde_nfe_completa, mde_queried_at, created_at"
         )
         .eq("user_id", visibleUserId)
         // Compra avulsa (source 'manual') grava na MESMA tabela da nota, mas

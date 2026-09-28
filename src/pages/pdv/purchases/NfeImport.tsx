@@ -281,6 +281,13 @@ export default function NfeImport() {
                         <span className="text-xs text-muted-foreground">
                           Lançada manualmente
                         </span>
+                      ) : nfe.status === "imported" ? (
+                        /* Nota já lançada não pode oferecer o botão de novo:
+                           era assim que a mesma nota entrava duas vezes no
+                           estoque e no contas a pagar. */
+                        <span className="text-xs text-muted-foreground">
+                          Entrada feita{nfe.entry_date ? ` · ${formatDate(nfe.entry_date)}` : ""}
+                        </span>
                       ) : (nfe as any).mde_nfe_completa ? (
                         <Button
                           size="sm"
