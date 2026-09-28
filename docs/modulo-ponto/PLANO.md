@@ -153,9 +153,19 @@ Os seis blocos do art. 84, com marcação original e tratamento lado a lado, em 
 Solicitação de ajuste pelo colaborador com justificativa e aprovação do gestor, sempre como registro paralelo. Relatório de inconsistências para fechar o mês (dia com número ímpar de marcações, dia sem marcação, batida fora da cerca, batida offline, ajuste sem ciência). Validador de escala que bloqueia a **publicação** (nunca a marcação): domingo de folga a cada três semanas, interjornada de 11 horas, menor de 18 entre 22h e 5h. Troca de folga entre colegas com aprovação. Fechamento mensal com trava e reabertura registrada.
 
 ### Fase 5 · O contador
-Resumo de fechamento em PDF e XLSX. Motor de layout configurável por tenant, começando com **um preset só, o do contador do piloto**. Tabela de/para de código de evento, com trava: sem de/para preenchido não gera arquivo. Prévia mostrando o mesmo valor nos quatro formatos de hora, porque formato trocado paga salário errado sem gerar erro nenhum. Envio automático do pacote do mês por e-mail.
+Resumo de fechamento em PDF e XLSX. Motor de layout configurável por tenant.
 
-**Pronto quando:** o contador importa o arquivo no sistema dele sem ajuste manual e o valor bate com o espelho.
+**Como os concorrentes resolvem isso, levantado em 28/09/2026:** nenhum entrega layout pronto para todo mundo. O Pontomais exporta só TXT e, para um sistema fora da lista dele, o cliente manda o layout pelo chat e a integração sai em **até 60 dias úteis**. A Ahgora diz ter mais de 50 formatos e também deixa o cliente montar o próprio. A Secullum cria layout novo sem custo e distribui cada layout como um arquivo importável. Ou seja, o que o mercado vende não é a lista de sistemas suportados, é a **velocidade de atender o contador que apareceu**.
+
+Por isso o primeiro release sai com três saídas, sem depender de nenhum contador:
+
+1. **Planilha e PDF de fechamento**, que qualquer escritório lê e digita. É o piso, e sozinho já atende.
+2. **Preset Alterdata DP**, posição fixa de 128 posições, com faltas em minutos. Leiaute público, conferido campo a campo.
+3. **Preset Sage Gestão Contábil / IOB**, 55 posições com pipe e hora sexagesimal (2h30 vira 00230). Leiaute público, conferido campo a campo.
+
+O que só o contador do cliente tem é a **relação de códigos de evento** dele, e isso não é código: é uma tela de de/para preenchida no onboarding, em minutos. Enquanto ela estiver vazia, a exportação não gera arquivo, de propósito. Tabela de/para de código de evento, com trava: sem de/para preenchido não gera arquivo. Prévia mostrando o mesmo valor nos quatro formatos de hora, porque formato trocado paga salário errado sem gerar erro nenhum. Envio automático do pacote do mês por e-mail.
+
+**Pronto quando:** o contador importa o arquivo no sistema dele sem ajuste manual e o valor bate com o espelho. Se o sistema dele não for Alterdata nem Sage, o de/para mais o motor de layout resolvem sem release novo.
 
 ### Fase 6 · Banco de horas
 Livro-caixa com validade por lançamento e consumo FIFO, com os três regimes (mês, 6 meses por acordo escrito, 12 meses por norma coletiva). Aviso mensal de saldo no app, que a convenção exige. Entra depois do primeiro fechamento validado por contador.
@@ -186,20 +196,12 @@ Gorjeta e taxa de serviço rateadas por horas efetivamente trabalhadas (atençã
 **1. REP-P ou gerencial?**
 Recomendação: começar gerencial, com o nome "Ponto Velara Gestão" e o texto "não substitui o registro eletrônico oficial" em toda oferta, e tratar o REP-P como projeto próprio depois da fase 5. Motivo: a maior parte da base está abaixo de 20 trabalhadores e não é obrigada por lei, então o que vende é controle, não obrigação. Nunca chamar de ponto eletrônico legal antes de o INPI e o certificado existirem.
 
-**2. Preço.**
-Recomendação: fixo por loja, em faixas de colaboradores ativos, com foto e cerca virtual **incluídas** no base (no Genyo são upsell).
+**2. Preço · DECIDIDO EM 28/09/2026.**
+**R$ 97 por mês, valor único por restaurante**, sem faixa por número de colaboradores e sem mínimo. Foto e cerca virtual incluídas.
 
-| Faixa | Avulso | No pacote com o PDV Completo (-20%) |
-|---|---|---|
-| 1 a 8 | R$ 99 | R$ 79 |
-| 9 a 15 | R$ 169 | R$ 135 |
-| 16 a 25 | R$ 249 | R$ 199 |
-| 26 a 40 | R$ 369 | R$ 295 |
-| 41 a 60 | R$ 519 | R$ 415 |
+Onde isso cai no mercado: um restaurante de 12 pessoas paga hoje R$ 68 no Oitchau ou R$ 169 no Genyo só de ponto, em outra assinatura e com outro suporte. R$ 97 fica no meio dessa faixa, e abaixo do que o cliente paga hoje na maioria dos casos. Preço único também evita o atrito mensal da rotatividade do setor, que é alta.
 
-Sem mínimo de colaboradores, que é argumento direto contra Sesame (mínimo 15) e Oitchau (tabela começa em 11). Piso que não se rompe: R$ 99, porque abaixo disso o módulo não paga o próprio suporte. Adicional REP-P, quando existir: + R$ 79 por loja. Implantação assistida opcional: R$ 249 uma vez, que é o que monetiza a hora de ler a convenção e falar com o contador.
-
-O número que importa: um Completo com Ponto sobe o ticket do cliente em 13% com custo de aquisição zero.
+O que isso exige do produto: como não há faixa, o custo por colaborador cai conforme o restaurante cresce, então o teto prático é o suporte. A conta fecha porque o custo de infraestrutura por colaborador é de centavos (selfie comprimida, sem reconhecimento facial) e porque o módulo entra na fatura que o cliente já paga.
 
 **3. Retenção da selfie e da coordenada.**
 Recomendação: 90 dias para a selfie, guardando depois só o hash, e prazo curto para a coordenada crua, guardando para sempre apenas o resultado (dentro ou fora do raio e a distância). A marcação precisa de 5 anos pela prescrição do art. 11 da CLT; o rosto não. Doze funcionários dão cerca de 1.400 imagens por mês por restaurante.

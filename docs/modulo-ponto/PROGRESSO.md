@@ -15,11 +15,11 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 | [x] | Conferir no código os furos que o módulo herdaria | 8 confirmados, listados no PLANO.md seção 4 |
 | [x] | Gate do módulo no banco (`ponto_tem_modulo`) | lê `tenant_modules`; sem tenant responde não |
 | [ ] | Ligar `ponto` no trilho do frontend | `use-user-modules.ts`, `module-routes.ts`, `PDVHeaderNav.tsx`, `ModuleSelector.tsx` |
-| [ ] | Preço na Stripe (`STRIPE_PRICE_PONTO`) | depende da sua decisão de preço |
+| [ ] | Preço na Stripe (`STRIPE_PRICE_PONTO`) | **R$ 97/mês por restaurante, decidido em 28/09** |
 | [ ] | Consertar o manifest do PWA | hoje aponta para arquivo que não existe |
 | [ ] | Confirmar se bucket privado é mesmo privado neste stack | teste de 28/09 deixou dúvida |
 | [ ] | Documento de retenção de selfie e GPS, e quem é controlador | precisa existir antes da primeira foto |
-| [ ] | Pedir ao contador do Kōten o layout de importação e a relação de eventos | trava a fase 5 |
+| [ ] | Pedir ao contador do Kōten a relação de códigos de evento | não trava mais a fase 5: saímos com planilha, Alterdata e Sage/IOB |
 | [ ] | Conseguir a convenção coletiva de Garibaldi e Bento | trava a fase 3b |
 
 ## Fase 1a · Bater e não perder
@@ -85,7 +85,7 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 | | Item |
 |---|---|
 | [ ] | Resumo de fechamento em PDF e XLSX |
-| [ ] | Exportador configurável, começando com um preset só |
+| [ ] | Exportador configurável, com preset Alterdata e Sage/IOB |
 | [ ] | De/para de código de evento, com trava sem preenchimento |
 | [ ] | Prévia mostrando o mesmo valor nos quatro formatos de hora |
 | [ ] | Envio automático do pacote mensal ao contador |
@@ -113,4 +113,4 @@ Fase 1a com o banco pronto e testado, faltando as telas. O módulo está desliga
 
 **Próxima entrega:** as três telas da fase 1a (cadastro de colaborador, geração do link com senha, e a tela de bater ponto), que é o que permite você bater um ponto de teste no seu próprio celular.
 
-**Duas decisões suas que já travam trabalho:** o preço (para criar o produto na Stripe) e o pedido do layout ao contador do Kōten (que trava a fase 5, a mais longe daqui).
+**Decisões tomadas:** preço de R$ 97/mês por restaurante, e a exportação para folha sai com planilha, PDF e dois presets de layout público (Alterdata e Sage/IOB), sem depender do contador para começar.
