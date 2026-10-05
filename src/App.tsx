@@ -12,6 +12,8 @@ import { SuperAdminGuard } from "@/components/SuperAdminGuard";
 import Index from "./pages/Index";
 import PDV from "./pages/PDV";
 import Garcom from "./pages/Garcom";
+import RepresentanteApp from "./pages/representante/RepresentanteApp";
+import PublicProposta from "./pages/PublicProposta";
 import SuperAdmin from "./pages/SuperAdmin";
 import PublicMenu from "./pages/PublicMenu";
 import PublicMenuLoyalty from "./pages/PublicMenuLoyalty";
@@ -63,6 +65,14 @@ const App = () => (
                     }
                   />
                   <Route
+                    path="/representante/*"
+                    element={
+                      <ProtectedRoute>
+                        <RepresentanteApp />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/garcom/*"
                     element={
                       <ProtectedRoute>
@@ -94,6 +104,7 @@ const App = () => (
                   <Route path="/c/:checklistId" element={<PublicChecklistAccess />} />
                   <Route path="/cotacao/:token" element={<PublicSupplierQuotation />} />
                   <Route path="/pedido/:token" element={<PublicSupplierOrder />} />
+                  <Route path="/proposta/:token" element={<PublicProposta />} />
                   <Route path="/recebimento/:token" element={<PublicPurchaseReceipt />} />
                   <Route path="/contagem/:token" element={<PublicStockCount />} />
                   <Route path="/ponto/:token" element={<PontoRegistro />} />
