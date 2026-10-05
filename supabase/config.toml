@@ -19,3 +19,9 @@ verify_jwt = false
 # da selfie não pode exigir JWT. A trava é o token de sessão, conferido no banco.
 [functions.ponto-selfie]
 verify_jwt = false
+
+# Força de vendas: o Asaas avisa os pagamentos sem login. A trava é o token do
+# estabelecimento na URL + o header asaas-access-token, conferidos na função.
+# (No self-hosted o VERIFY_JWT é global e desligado; isto vale para a nuvem.)
+[functions.vendas-asaas-webhook]
+verify_jwt = false

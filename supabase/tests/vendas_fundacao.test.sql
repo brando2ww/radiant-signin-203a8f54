@@ -38,9 +38,9 @@ insert into public.establishment_users (establishment_owner_id, user_id, role, d
   ('00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000002', 'representante', 'Saulo Rep', true),
   ('00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000003', 'gerente', 'Gil Gerente', true),
   ('00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000004', 'caixa', 'Caio Caixa', true);
-insert into public.vendas_representantes (id, user_id, rep_user_id, name, commission_percent) values
-  ('00000000-0000-4000-f000-0000000000b1', '00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000001', 'Rita Rep', 5),
-  ('00000000-0000-4000-f000-0000000000b2', '00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000002', 'Saulo Rep', 3);
+insert into public.vendas_representantes (id, user_id, rep_user_id, name, commission_percent, max_discount_percent) values
+  ('00000000-0000-4000-f000-0000000000b1', '00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000001', 'Rita Rep', 5, 20),
+  ('00000000-0000-4000-f000-0000000000b2', '00000000-0000-4000-f000-00000000000f', '00000000-0000-4000-f000-000000000002', 'Saulo Rep', 3, 0);
 insert into public.pdv_customers (id, user_id, name, cnpj, company_name, representative_id, is_b2b) values
   ('00000000-0000-4000-f000-0000000000c1', '00000000-0000-4000-f000-00000000000f', 'Mercado da Rita', '11222333000181', 'Mercado da Rita Ltda', '00000000-0000-4000-f000-0000000000b1', true),
   ('00000000-0000-4000-f000-0000000000c2', '00000000-0000-4000-f000-00000000000f', 'Loja do Saulo', null, null, '00000000-0000-4000-f000-0000000000b2', true),

@@ -1,6 +1,10 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { AgendaView } from "@/components/vendas/agenda/AgendaView";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** App do representante · a agenda dele (o banco só devolve os compromissos dele). */
 export default function RepAgenda() {
-  return <VendasPlaceholder title="Minha agenda" />;
+  return (
+    <div className="mx-auto w-full max-w-5xl p-4">
+      <AgendaView mode="representante" />
+    </div>
+  );
 }

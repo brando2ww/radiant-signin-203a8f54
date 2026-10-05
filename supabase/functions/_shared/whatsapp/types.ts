@@ -35,7 +35,10 @@ export type MessagePurpose =
   | "supplier_order"
   | "tasks_report"
   | "two_factor"
-  | "phone_verification";
+  | "phone_verification"
+  // Força de vendas (vendas-enviar): proposta ao cliente B2B e cobrança do Asaas.
+  | "proposal"
+  | "charge";
 
 export interface MessageContext {
   purpose: MessagePurpose;

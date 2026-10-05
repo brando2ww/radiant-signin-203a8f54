@@ -1,6 +1,12 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { FinancialLedger } from "@/components/pdv/financial/FinancialLedger";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** Contas a pagar da empresa: a mesma tela de lançamentos do financeiro, travada em "a pagar". */
 export default function ContasPagar() {
-  return <VendasPlaceholder title="Contas a pagar" />;
+  return (
+    <FinancialLedger
+      lockedType="payable"
+      title="Contas a pagar"
+      subtitle="Fornecedores, despesas e as comissões pagas aos representantes"
+    />
+  );
 }

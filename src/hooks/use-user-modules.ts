@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type UserModule = 'financeiro' | 'crm' | 'delivery' | 'pdv' | 'avaliacoes' | 'tarefas' | 'compras' | 'ponto';
+export type UserModule = 'financeiro' | 'crm' | 'delivery' | 'pdv' | 'avaliacoes' | 'tarefas' | 'compras' | 'ponto' | 'vendas';
 
 interface TenantModuleRow {
   id: string;
@@ -85,10 +85,12 @@ export function useUserModules() {
 
   const hasModule = (module: UserModule): boolean => {
     if (!user) return false;
-    // Sem tenant vinculado (legado): libera tudo, MENOS ponto. Jornada é dado
-    // pessoal e a policy no banco (ponto_tem_modulo) também responde não sem
-    // tenant: liberar na tela e negar no banco só geraria tela quebrada.
-    if (!tenantId) return module !== 'ponto';
+    // Sem tenant vinculado (legado): libera tudo, MENOS ponto e força de vendas.
+    // Jornada é dado pessoal e a policy no banco (ponto_tem_modulo) também
+    // responde não sem tenant; a força de vendas idem (vendas_tem_modulo exige
+    // o módulo em tenant_modules). Liberar na tela e negar no banco só geraria
+    // tela quebrada.
+    if (!tenantId) return module !== 'ponto' && module !== 'vendas';
 
     const mod = modules.find((m) => m.module === module);
     if (!mod) return false;
@@ -118,6 +120,7 @@ export function useUserModules() {
     if (hasModule('delivery')) return '/pdv/delivery/pedidos';
     if (hasModule('financeiro')) return '/pdv/financeiro/lancamentos';
     if (hasModule('crm')) return '/pdv/crm';
+    if (hasModule('vendas')) return '/pdv/vendas';
     return '/pdv/caixa';
   };
 

@@ -1,6 +1,6 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { PropostasLista } from "@/components/vendas/propostas/PropostasLista";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** App do representante · as propostas dele (as regras do banco só devolvem as dele). */
 export default function RepPropostas() {
-  return <VendasPlaceholder title="Minhas propostas" />;
+  return <PropostasLista mode="representante" />;
 }

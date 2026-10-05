@@ -1,6 +1,12 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { useParams } from "react-router-dom";
+import { PedidoDetalheView } from "@/components/vendas/pedidos/PedidoDetalheView";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** Força de vendas · um pedido: itens, parcelas, faturar, entregar e cancelar. */
 export default function PedidoDetalhe() {
-  return <VendasPlaceholder title="Pedido" />;
+  const { id } = useParams<{ id: string }>();
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:py-6 lg:px-6">
+      <PedidoDetalheView key={id} id={id!} mode="gestao" voltar="/pdv/vendas/pedidos" />
+    </div>
+  );
 }

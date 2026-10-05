@@ -1,6 +1,6 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { PedidosLista } from "@/components/vendas/pedidos/PedidosLista";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** Força de vendas · pedidos de venda da empresa. */
 export default function Pedidos() {
-  return <VendasPlaceholder title="Pedidos" />;
+  return <PedidosLista mode="gestao" />;
 }

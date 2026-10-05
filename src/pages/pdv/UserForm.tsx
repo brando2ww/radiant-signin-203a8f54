@@ -6,9 +6,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Eye, EyeOff, ChevronDown, Save, KeyRound, Trash2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, ChevronDown, Save, KeyRound, Trash2, Briefcase } from "lucide-react";
 import { roleConfig, RolePermissionsView } from "@/components/pdv/users/RolePermissionsView";
 import { usePDVUsers } from "@/hooks/use-pdv-users";
+import { useUserModules } from "@/hooks/use-user-modules";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
@@ -18,6 +19,7 @@ export default function UserForm() {
   const isEditing = !!id;
   const { users, createUser, updateUser, deleteUser } = usePDVUsers();
   const { user: currentUser } = useAuth();
+  const { hasModule } = useUserModules();
 
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -33,6 +35,8 @@ export default function UserForm() {
   const [showDiscountPassword, setShowDiscountPassword] = useState(false);
   const [maxDiscountPercent, setMaxDiscountPercent] = useState(100);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  // Papel com que o usuário foi carregado (para saber se ele JÁ é representante).
+  const [originalRole, setOriginalRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (isEditing && users.length > 0) {
@@ -42,6 +46,7 @@ export default function UserForm() {
         setEmail(user.email || "");
         setPhone(user.phone || "");
         setRole(user.role || "garcom");
+        setOriginalRole(user.role || null);
         setDiscountPassword(user.discount_password || "");
         setMaxDiscountPercent(user.max_discount_percent ?? 100);
         setEditingUserId(user.user_id);
@@ -51,7 +56,19 @@ export default function UserForm() {
 
   const isSelf = isEditing && editingUserId === currentUser?.id;
 
+  // Representante só existe com a Força de vendas ligada, e nasce na tela de
+  // Representantes (lá vão comissão, desconto máximo e região, e o cadastro que
+  // o liga à carteira). Por aqui só se edita quem já é representante.
+  const roleOptions = Object.entries(roleConfig).filter(
+    ([key]) => key !== "representante" || hasModule("vendas") || originalRole === "representante",
+  );
+  const representanteBloqueado = role === "representante" && originalRole !== "representante";
+
   const handleSubmit = () => {
+    if (representanteBloqueado) {
+      toast.error("Cadastre o representante em Força de vendas › Representantes.");
+      return;
+    }
     if (!displayName.trim()) {
       toast.error("Nome é obrigatório");
       return;
@@ -298,7 +315,7 @@ export default function UserForm() {
           <h2 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Função no Sistema</h2>
 
           <RadioGroup value={role} onValueChange={setRole} className="space-y-2">
-            {Object.entries(roleConfig).map(([key, config]) => (
+            {roleOptions.map(([key, config]) => (
               <label
                 key={key}
                 className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-muted/50 ${role === key ? "border-primary bg-primary/5" : "border-border"}`}
@@ -311,6 +328,19 @@ export default function UserForm() {
               </label>
             ))}
           </RadioGroup>
+
+          {representanteBloqueado && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-sm">
+                O representante é cadastrado em <strong>Força de vendas › Representantes</strong>: lá você define a
+                comissão, o desconto máximo e a região, e o acesso ao app dele já sai pronto.
+              </p>
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => navigate("/pdv/vendas/representantes")}>
+                <Briefcase className="h-4 w-4" />
+                Ir para Representantes
+              </Button>
+            </div>
+          )}
 
           {/* Permissions collapsible */}
           <Collapsible open={permissionsOpen} onOpenChange={setPermissionsOpen}>
@@ -359,7 +389,7 @@ export default function UserForm() {
           <Button variant="outline" onClick={() => navigate("/pdv/usuarios")} disabled={isPending}>
             Cancelar
           </Button>
-          <Button onClick={handleSubmit} disabled={isPending} className="gap-2">
+          <Button onClick={handleSubmit} disabled={isPending || representanteBloqueado} className="gap-2">
             <Save className="h-4 w-4" />
             {isEditing ? "Salvar Alterações" : "Criar Usuário"}
           </Button>

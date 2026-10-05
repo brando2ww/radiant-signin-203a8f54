@@ -1,6 +1,20 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { useSearchParams } from "react-router-dom";
+import { PedidosLista } from "@/components/vendas/pedidos/PedidosLista";
+import { PedidoDetalheView } from "@/components/vendas/pedidos/PedidoDetalheView";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/**
+ * App do representante · pedidos dos clientes dele, só leitura. O detalhe abre na mesma rota (?id=), porque o app do
+ * representante não tem rota própria de pedido.
+ */
 export default function RepPedidos() {
-  return <VendasPlaceholder title="Meus pedidos" />;
+  const [params] = useSearchParams();
+  const id = params.get("id");
+  if (id) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-4 sm:py-6">
+        <PedidoDetalheView key={id} id={id} mode="representante" voltar="/representante/pedidos" />
+      </div>
+    );
+  }
+  return <PedidosLista mode="representante" />;
 }

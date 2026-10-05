@@ -1,6 +1,8 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { useParams } from "react-router-dom";
+import { PropostaEditor } from "@/components/vendas/propostas/PropostaEditor";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** Força de vendas · criar (/nova, aceita ?cliente=) ou abrir uma proposta. Remonta quando o id muda. */
 export default function PropostaEditar() {
-  return <VendasPlaceholder title="Proposta" />;
+  const { id } = useParams<{ id: string }>();
+  return <PropostaEditor key={id ?? "nova"} mode="gestao" />;
 }

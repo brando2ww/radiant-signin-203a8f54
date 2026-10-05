@@ -25,6 +25,10 @@ import {
   Palette,
   Plug,
   Users,
+  Building2,
+  BookOpen,
+  CalendarDays,
+  Percent,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -142,6 +146,20 @@ export const roleConfig: Record<string, RolePermissions> = {
       { label: "Pedidos Delivery", icon: ShoppingBag },
       { label: "Cardápio", icon: UtensilsCrossed },
       { label: "Cupons", icon: Tag },
+    ],
+  },
+  representante: {
+    label: "Representante",
+    color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+    description:
+      "Vendedor externo da Força de vendas. Usa só o app do representante no celular: vê os clientes da carteira dele, monta propostas e acompanha pedidos, agenda e comissões. Não entra no PDV.",
+    permissions: [
+      { label: "Clientes da carteira", icon: Building2 },
+      { label: "Catálogo", icon: BookOpen },
+      { label: "Propostas", icon: FileText },
+      { label: "Pedidos (visualizar)", icon: ShoppingBag },
+      { label: "Agenda", icon: CalendarDays },
+      { label: "Comissões", icon: Percent },
     ],
   },
 };

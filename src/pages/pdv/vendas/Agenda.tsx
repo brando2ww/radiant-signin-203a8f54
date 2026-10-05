@@ -1,6 +1,10 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { AgendaView } from "@/components/vendas/agenda/AgendaView";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** Força de vendas · agenda da equipe (dono, gerente e financeiro), com filtro por representante. */
 export default function Agenda() {
-  return <VendasPlaceholder title="Agenda" />;
+  return (
+    <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+      <AgendaView mode="gestao" />
+    </div>
+  );
 }

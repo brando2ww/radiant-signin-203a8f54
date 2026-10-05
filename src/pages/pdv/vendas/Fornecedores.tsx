@@ -1,6 +1,9 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import PDVSuppliers from "@/pages/pdv/Suppliers";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/**
+ * Força de vendas · fornecedores. É o mesmo cadastro de /pdv/fornecedores (tabela pdv_suppliers), reaproveitado aqui
+ * para que a empresa tenha fornecedores sem precisar do módulo de compras.
+ */
 export default function Fornecedores() {
-  return <VendasPlaceholder title="Fornecedores" />;
+  return <PDVSuppliers />;
 }

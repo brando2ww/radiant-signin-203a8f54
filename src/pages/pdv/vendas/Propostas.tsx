@@ -1,6 +1,6 @@
-import { VendasPlaceholder } from "@/components/vendas/VendasPlaceholder";
+import { PropostasLista } from "@/components/vendas/propostas/PropostasLista";
 
-// Página provisória do esqueleto da Força de vendas: o agente dono deste arquivo substitui pelo conteúdo real.
+/** Força de vendas · propostas da empresa (dono, gerente e financeiro). */
 export default function Propostas() {
-  return <VendasPlaceholder title="Propostas" />;
+  return <PropostasLista mode="gestao" />;
 }
