@@ -20,11 +20,6 @@ export const availableModules: ModuleEntry[] = [
   { value: "tarefas", label: "Tarefas", description: "Checklists operacionais e tarefas diárias" },
   { value: "compras", label: "Compras", description: "Cotações, pedidos de compra, lista de compras e importação NF-e" },
   { value: "ponto", label: "Ponto", description: "Registro de jornada pelo celular, com foto, cerca virtual e espelho de ponto" },
-  {
-    value: "vendas",
-    label: "Força de vendas",
-    description: "Representantes com carteira de clientes, catálogo, proposta em PDF que vira pedido, contas a receber, cobrança e comissão",
-  },
 ];
 
 export function moduleSlugsFor(mod: ModuleEntry): string[] {

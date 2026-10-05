@@ -46,14 +46,6 @@ import {
   Factory,
   Bike,
   ShoppingCart,
-  Briefcase,
-  Building2,
-  BookOpen,
-  TrendingUp,
-  TrendingDown,
-  Banknote,
-  Percent,
-  FileSignature,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -140,27 +132,6 @@ const sectionItems: Section[] = [
       { title: "Fornecedores",      url: "/pdv/fornecedores",           icon: Truck },
       { title: "Importação NF-e",  url: "/pdv/compras/importacao-nfe", icon: FileText },
       { title: "Relatórios",        url: "/pdv/compras/relatorios",     icon: FileBarChart },
-    ],
-  },
-  {
-    // Força de vendas (módulo "vendas"): gestão dos representantes, propostas e
-    // do financeiro que nasce do pedido. O representante usa /representante.
-    title: "Força de vendas",
-    icon: Briefcase,
-    items: [
-      { title: "Painel",           url: "/pdv/vendas",               icon: LayoutDashboard },
-      { title: "Propostas",        url: "/pdv/vendas/propostas",     icon: FileSignature },
-      { title: "Pedidos",          url: "/pdv/vendas/pedidos",       icon: ClipboardCheck },
-      { title: "Clientes",         url: "/pdv/vendas/clientes",      icon: Building2 },
-      { title: "Catálogo",         url: "/pdv/vendas/produtos",      icon: BookOpen },
-      { title: "Agenda",           url: "/pdv/vendas/agenda",        icon: CalendarDays },
-      { title: "Contas a receber", url: "/pdv/vendas/receber",       icon: TrendingUp },
-      { title: "Contas a pagar",   url: "/pdv/vendas/pagar",         icon: TrendingDown },
-      { title: "Cobranças",        url: "/pdv/vendas/cobrancas",     icon: Banknote },
-      { title: "Comissões",        url: "/pdv/vendas/comissoes",     icon: Percent },
-      { title: "Representantes",   url: "/pdv/vendas/representantes", icon: Briefcase },
-      { title: "Fornecedores",     url: "/pdv/vendas/fornecedores",  icon: Truck },
-      { title: "Configurações",    url: "/pdv/vendas/configuracoes", icon: Settings2 },
     ],
   },
   {

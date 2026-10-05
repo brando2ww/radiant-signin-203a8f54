@@ -67,7 +67,6 @@ import PontoAjustes from "./pdv/ponto/PontoAjustes";
 import PontoFolha from "./pdv/ponto/PontoFolha";
 import PontoBancoHoras from "./pdv/ponto/PontoBancoHoras";
 import PontoOperacao from "./pdv/ponto/PontoOperacao";
-import VendasRoutes from "./pdv/vendas/VendasRoutes";
 import ChecklistEditor from "./pdv/ChecklistEditor";
 import Customers from "./pdv/Customers";
 import CustomerDetail from "./pdv/CustomerDetail";
@@ -238,9 +237,6 @@ export default function PDV() {
               <Route path="ponto/folha" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoFolha /></RoleRoute>} />
               <Route path="ponto/banco-horas" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoBancoHoras /></RoleRoute>} />
               <Route path="ponto/operacao" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoOperacao /></RoleRoute>} />
-
-              {/* Força de vendas */}
-              <Route path="vendas/*" element={<RoleRoute path="/pdv/vendas" canAccess={canAccess} defaultRoute={defaultRoute}><VendasRoutes /></RoleRoute>} />
 
               {/* Clientes */}
               <Route path="clientes" element={<RoleRoute path="/pdv/clientes" canAccess={canAccess} defaultRoute={defaultRoute}><Customers /></RoleRoute>} />

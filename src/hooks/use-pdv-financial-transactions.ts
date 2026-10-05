@@ -2,8 +2,6 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEstablishmentId } from "@/hooks/use-establishment-id";
-import { useUserRole } from "@/hooks/use-user-role";
 import { buildPaymentSnapshot } from "@/lib/financial/build-payment-snapshot";
 import { toast } from "sonner";
 import { format, addMonths } from "date-fns";
@@ -60,22 +58,11 @@ export interface TransactionFilters {
 export function usePDVFinancialTransactions(filters?: TransactionFilters) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  // O financeiro é da empresa: o dono é a chave (user_id). Gerente e financeiro
-  // enxergam e lançam no financeiro do dono (política do banco de 05/10). Os
-  // demais papéis continuam gravando como antes, no próprio usuário, para não
-  // esbarrar na política (ex.: estoquista lançando nota de entrada).
-  const { visibleUserId } = useEstablishmentId();
-  const { role } = useUserRole();
-  const donoDaEmpresa = visibleUserId ?? user?.id ?? null;
-  const gravarComo =
-    user && donoDaEmpresa && (donoDaEmpresa === user.id || role === "gerente" || role === "financeiro")
-      ? donoDaEmpresa
-      : user?.id ?? null;
 
   const { data: transactions, isLoading } = useQuery({
-    queryKey: ["pdv-financial-transactions", donoDaEmpresa, filters],
+    queryKey: ["pdv-financial-transactions", user?.id, filters],
     queryFn: async () => {
-      if (!user || !donoDaEmpresa) throw new Error("Usuário não autenticado");
+      if (!user) throw new Error("Usuário não autenticado");
 
       let query = supabase
         .from("pdv_financial_transactions")
@@ -86,7 +73,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
           pdv_suppliers(company_name),
           pdv_customers(name)
         `)
-        .eq("user_id", donoDaEmpresa);
+        .eq("user_id", user.id);
 
       // Apply filters
       if (filters?.search) {
@@ -139,7 +126,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
       if (error) throw error;
       return data;
     },
-    enabled: !!user && !!donoDaEmpresa,
+    enabled: !!user,
   });
 
   /**
@@ -193,7 +180,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
 
   const createTransaction = useMutation({
     mutationFn: async (transaction: Omit<PDVFinancialTransaction, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
-      if (!user || !gravarComo) throw new Error("Usuário não autenticado");
+      if (!user) throw new Error("Usuário não autenticado");
 
       // Snapshot de taxa por forma de pagamento (apenas se for entrada/recebimento)
       let feeColumns: Record<string, number> = {
@@ -205,7 +192,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
       };
       if (transaction.transaction_type === 'receivable' && transaction.payment_method) {
         const snap = await buildPaymentSnapshot(
-          donoDaEmpresa,
+          user.id,
           transaction.payment_method,
           Number(transaction.amount) || 0,
         );
@@ -244,7 +231,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
           amount: i === parcelas - 1 ? ultima : cada,
           gross_amount: i === parcelas - 1 ? ultima : cada,
           net_amount: i === parcelas - 1 ? ultima : cada,
-          user_id: gravarComo,
+          user_id: user.id,
           description: `${transaction.description} (${i + 1}/${parcelas})`,
           due_date: dia(addMonths(venc, i)),
           competence_date: dia(addMonths(comp, i)),
@@ -271,7 +258,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         .insert([{
           ...base,
           ...feeColumns,
-          user_id: gravarComo,
+          user_id: user.id,
           due_date: dia(venc),
           competence_date: dia(comp),
           payment_date: transaction.payment_date ? dia(transaction.payment_date as Date) : null,
@@ -289,7 +276,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
         // fim). Uma falha aqui não desfaz o lançamento: a âncora existe e o
         // horizonte é completado na próxima abertura do módulo.
         const { error: extErr } = await supabase.rpc("pdv_extend_recurring_transactions", {
-          _user_id: gravarComo,
+          _user_id: user.id,
         });
         if (extErr) console.error("[financeiro] falha ao gerar recorrências", extErr);
       }
@@ -433,7 +420,7 @@ export function usePDVFinancialTransactions(filters?: TransactionFilters) {
 
       if (existing && existing.transaction_type === 'receivable' && payment_method && user) {
         const snap = await buildPaymentSnapshot(
-          donoDaEmpresa,
+          user.id,
           payment_method,
           Number(existing.amount) || 0,
         );

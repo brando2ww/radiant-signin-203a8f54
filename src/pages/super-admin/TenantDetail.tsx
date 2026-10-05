@@ -44,7 +44,6 @@ const roleLabels: Record<string, string> = {
   estoquista: "Estoquista",
   financeiro: "Financeiro",
   atendente_delivery: "Atendente Delivery",
-  representante: "Representante",
 };
 
 const roleOptions = Object.entries(roleLabels);

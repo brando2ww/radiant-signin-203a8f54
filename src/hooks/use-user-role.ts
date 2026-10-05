@@ -12,8 +12,7 @@ export type AppRole =
   | "cozinheiro"
   | "estoquista"
   | "financeiro"
-  | "atendente_delivery"
-  | "representante";
+  | "atendente_delivery";
 
 /**
  * Escopo estrutural de cada papel: quais MÓDULOS o papel pode usar.
@@ -29,7 +28,7 @@ interface RoleScope {
 const ROLE_SCOPE: Record<AppRole, RoleScope> = {
   proprietario: { modules: "*" },
   gerente: {
-    modules: ["pdv", "financeiro", "delivery", "avaliacoes", "tarefas", "crm", "vendas"],
+    modules: ["pdv", "financeiro", "delivery", "avaliacoes", "tarefas", "crm"],
   },
   // "Operador" do produto: Frente de Caixa + pedidos de delivery, sem
   // financeiro/configurações/relatórios.
@@ -59,10 +58,8 @@ const ROLE_SCOPE: Record<AppRole, RoleScope> = {
     ],
   },
   financeiro: {
-    modules: ["financeiro", "vendas"],
-    // Força de vendas: contas a receber/pagar, cobranças e comissões do módulo
-    // são trabalho do financeiro (o banco também o trata como gestor: vendas_gestor).
-    subRoutes: ["/pdv/financeiro", "/pdv/relatorios", "/pdv/vendas"],
+    modules: ["financeiro"],
+    subRoutes: ["/pdv/financeiro", "/pdv/relatorios"],
   },
   atendente_delivery: {
     modules: ["delivery"],
@@ -72,12 +69,6 @@ const ROLE_SCOPE: Record<AppRole, RoleScope> = {
       "/pdv/delivery/cupons",
       "/pdv/delivery/entregadores",
     ],
-  },
-  // Representante comercial (Força de vendas): só o app dele, no celular. Nada
-  // do PDV; o banco limita o que ele vê à carteira dele (vendas_da_carteira).
-  representante: {
-    modules: ["vendas"],
-    subRoutes: ["/representante"],
   },
 };
 
@@ -90,7 +81,6 @@ const roleDefaultRoute: Record<AppRole, string> = {
   estoquista: "/pdv/estoque",
   financeiro: "/pdv/financeiro/lancamentos",
   atendente_delivery: "/pdv/delivery/pedidos",
-  representante: "/representante",
 };
 
 export function useUserRole() {
@@ -142,10 +132,7 @@ export function useUserRole() {
   // Se o default do papel está em um módulo inativo no tenant, usa
   // a primeira rota do primeiro módulo ativo.
   const active = activeModules();
-  const defaultRoute =
-    // O representante não tem para onde cair fora do app dele: sem o módulo,
-    // é lá mesmo que ele vê o aviso de módulo indisponível.
-    role === "representante" || canAccess(roleDefault)
+  const defaultRoute = canAccess(roleDefault)
     ? roleDefault
     : active.includes("avaliacoes")
     ? "/avaliacoes"
@@ -153,8 +140,6 @@ export function useUserRole() {
     ? "/pdv/delivery/pedidos"
     : active.includes("financeiro")
     ? "/pdv/financeiro/lancamentos"
-    : active.includes("vendas") && canAccess("/pdv/vendas")
-    ? "/pdv/vendas"
     : roleDefault;
 
 

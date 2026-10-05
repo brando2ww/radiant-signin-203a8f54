@@ -49,8 +49,6 @@ export const MODULE_ROUTES: Record<UserModule, string[]> = {
   tarefas: ["/pdv/tarefas"],
   crm: ["/pdv/crm"],
   ponto: ["/pdv/ponto"],
-  // Gestão no computador (/pdv/vendas) e app do representante no celular (/representante).
-  vendas: ["/pdv/vendas", "/representante"],
 };
 
 
@@ -92,5 +90,4 @@ export const MODULE_LABELS: Record<UserModule, string> = {
   tarefas: "Tarefas",
   crm: "CRM",
   ponto: "Ponto",
-  vendas: "Força de vendas",
 };

@@ -40,17 +40,6 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/onboarding?step=2" replace />;
   }
 
-  // Representante (Força de vendas) só usa o app dele: qualquer outra tela
-  // (PDV, garçom, avaliações) manda para /representante. Lá dentro, sem o
-  // módulo ligado, o RouteModuleGuard mostra o aviso de módulo indisponível
-  // (redirecionar de novo para o mesmo lugar daria laço infinito).
-  if (role === 'representante') {
-    if (pathname !== '/representante' && !pathname.startsWith('/representante/')) {
-      return <Navigate to="/representante" replace />;
-    }
-    return <RouteModuleGuard>{children}</RouteModuleGuard>;
-  }
-
   // Bloqueia acesso a rotas fora do escopo do papel
   if (!canAccess(pathname)) {
     return <Navigate to={defaultRoute} replace />;
