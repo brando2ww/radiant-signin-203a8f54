@@ -10,7 +10,8 @@ import { MobileProductOptionSelector } from "@/components/garcom/MobileProductOp
 import { MobileCompositionGroupSelector } from "@/components/garcom/MobileCompositionGroupSelector";
 import { ProductCategoryNav } from "@/components/garcom/ProductCategoryNav";
 import {
-  casaBusca, normalizar, useWaiterMenuItems, useWaiterMenuSettings, useWaiterTopProducts,
+  casaBusca, normalizar, ordenarDestaques, useWaiterMenuItems, useWaiterMenuSettings,
+  useWaiterTopProducts,
 } from "@/hooks/use-waiter-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -143,12 +144,16 @@ export default function GarcomAdicionarItem() {
       .map((t) => available.find((p) => p.id === t.product_id))
       .filter(Boolean) as typeof available;
 
-    if (modo === "manual") return fixados;
-    if (modo === "historico") return doHistorico;
-    // Misto: o que o dono fixou abre a lista, o histórico completa sem repetir.
-    const vistos = new Set(fixados.map((p) => p.id));
-    return [...fixados, ...doHistorico.filter((p) => !vistos.has(p.id))];
-  }, [available, maisPedidos, prefPorProduto, settings]);
+    const base =
+      modo === "manual" ? fixados
+      : modo === "historico" ? doHistorico
+      // Misto: o que o dono fixou abre a lista, o histórico completa sem repetir.
+      : [...fixados, ...doHistorico.filter((p) => !fixados.some((f) => f.id === p.id))];
+
+    // A ordem arrastada no painel manda: o que a tela do dono mostra na prévia
+    // é o que o garçom vê aqui, senão a prévia seria uma promessa falsa.
+    return ordenarDestaques(base, prefPorProduto as any, postoNoRanking);
+  }, [available, maisPedidos, prefPorProduto, settings, postoNoRanking]);
 
   const buscando = search.trim().length > 0;
 

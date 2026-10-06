@@ -117,7 +117,59 @@ export function useWaiterMenuItems() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["waiter-menu-items"] }),
   });
 
-  return { itens: query.data ?? [], isLoading: query.isLoading, definir };
+  /**
+   * Grava a ordem de uma lista inteira de uma vez.
+   *
+   * Quem arrasta na prévia espera que a lista inteira fique como ficou na tela,
+   * então o item que tinha ordem automática passa a ter ordem explícita. O que
+   * entrar depois pelo histórico vai para o fim, sem bagunçar o que foi
+   * arrumado à mão.
+   */
+  const ordenar = useMutation({
+    mutationFn: async (productIds: string[]) => {
+      const linhas = productIds.map((product_id, i) => {
+        const atual = (query.data ?? []).find((x) => x.product_id === product_id);
+        return {
+          user_id: visibleUserId,
+          product_id,
+          ordem: i,
+          fixado: atual?.fixado ?? false,
+          oculto: atual?.oculto ?? false,
+          atualizado_em: new Date().toISOString(),
+        };
+      });
+      const { error } = await supabase
+        .from("pdv_waiter_menu_items")
+        .upsert(linhas, { onConflict: "user_id,product_id" });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["waiter-menu-items"] }),
+  });
+
+  /** Devolve a lista ao automático: tira a ordem manual, mantém fixados e ocultos. */
+  const limparOrdem = useMutation({
+    mutationFn: async () => {
+      const comOrdem = (query.data ?? []).filter((i) => i.ordem !== null);
+      if (!comOrdem.length) return;
+      const { error } = await supabase
+        .from("pdv_waiter_menu_items")
+        .upsert(
+          comOrdem.map((i) => ({
+            user_id: visibleUserId,
+            product_id: i.product_id,
+            ordem: null,
+            fixado: i.fixado,
+            oculto: i.oculto,
+            atualizado_em: new Date().toISOString(),
+          })),
+          { onConflict: "user_id,product_id" },
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["waiter-menu-items"] }),
+  });
+
+  return { itens: query.data ?? [], isLoading: query.isLoading, definir, ordenar, limparOrdem };
 }
 
 /** Os mais pedidos, calculados no banco. */
@@ -169,4 +221,33 @@ export function casaBusca(nome: string, busca: string): boolean {
   const termos = normalizar(busca).split(" ").filter(Boolean);
   if (!termos.length) return true;
   return termos.every((t) => alvo.includes(t));
+}
+
+
+/**
+ * A ordem em que os destaques aparecem para o garçom.
+ *
+ * Três regras, nesta ordem: o que foi arrastado à mão manda; depois o que o
+ * dono fixou; por último o ranking de vendas. Assim a mão do dono vence o
+ * histórico, mas o histórico continua trabalhando para o resto da lista.
+ */
+export function ordenarDestaques<T extends { id: string }>(
+  produtos: T[],
+  prefs: Map<string, { fixado?: boolean; ordem?: number | null }>,
+  posicaoNoRanking: Map<string, number>,
+): T[] {
+  return [...produtos].sort((a, b) => {
+    const oa = prefs.get(a.id)?.ordem;
+    const ob = prefs.get(b.id)?.ordem;
+    if (oa != null && ob != null) return oa - ob;
+    if (oa != null) return -1;
+    if (ob != null) return 1;
+
+    const fa = prefs.get(a.id)?.fixado ? 0 : 1;
+    const fb = prefs.get(b.id)?.fixado ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+
+    return (posicaoNoRanking.get(a.id) ?? Number.MAX_SAFE_INTEGER)
+         - (posicaoNoRanking.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+  });
 }

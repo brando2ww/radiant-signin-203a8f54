@@ -16,12 +16,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  ChevronRight, Eye, EyeOff, Flame, GripVertical, Loader2, Pin, PinOff, Search, Smartphone,
+  ArrowUpDown, ChevronRight, Eye, EyeOff, Flame, GripVertical, Loader2, Pin, PinOff, Search, Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import {
-  casaBusca, useWaiterMenuItems, useWaiterMenuSettings, useWaiterTopProducts,
+  casaBusca, ordenarDestaques, useWaiterMenuItems, useWaiterMenuSettings, useWaiterTopProducts,
 } from "@/hooks/use-waiter-menu";
 import { formatBRL } from "@/lib/format";
 
@@ -32,6 +32,46 @@ const JANELAS = [
   { valor: 60, rotulo: "últimos 60 dias" },
   { valor: 90, rotulo: "últimos 90 dias" },
 ];
+
+/** Item da prévia. Arrasta para cima e para baixo para fixar a posição. */
+function DestaqueArrastavel({
+  produto, posicao, fixado, manual, vendas,
+}: {
+  produto: any;
+  posicao: number;
+  fixado: boolean;
+  manual: boolean;
+  vendas?: number;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: produto.id });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-2 rounded-md border bg-card p-2 ${isDragging ? "opacity-60" : ""}`}
+    >
+      <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing">
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <span className="w-5 text-xs text-muted-foreground tabular-nums">{posicao}</span>
+      {manual ? (
+        <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
+      ) : fixado ? (
+        <Pin className="h-3.5 w-3.5 text-primary" />
+      ) : (
+        <Flame className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+      <span className="min-w-0 flex-1 truncate">{produto.name}</span>
+      {vendas != null && (
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {Math.round(Number(vendas))}x
+        </span>
+      )}
+    </li>
+  );
+}
 
 /**
  * Categoria na lista de ordenação.
@@ -123,7 +163,7 @@ function CategoriaArrastavel({
 export default function CardapioGarcom() {
   const { products, isLoading } = usePDVProducts();
   const { settings, salvar } = useWaiterMenuSettings();
-  const { itens, definir } = useWaiterMenuItems();
+  const { itens, definir, ordenar, limparOrdem } = useWaiterMenuItems();
   const { data: maisPedidos = [], isLoading: carregandoRanking } = useWaiterTopProducts(
     settings?.destaque_janela_dias ?? 30,
     settings?.destaque_quantidade ?? 20,
@@ -193,17 +233,37 @@ export default function CardapioGarcom() {
     [ativos, prefPorProduto],
   );
 
+  const posicaoNoRanking = useMemo(() => {
+    const mapa = new Map<string, number>();
+    maisPedidos.forEach((t, i) => mapa.set(t.product_id, i));
+    return mapa;
+  }, [maisPedidos]);
+
   // O que o garçom vai ver quando abrir a tela, na ordem exata.
   const previa = useMemo(() => {
     const modo = settings?.destaque_modo ?? "misto";
     const doHistorico = maisPedidos
       .map((t) => ativos.find((p) => p.id === t.product_id))
       .filter(Boolean) as typeof ativos;
-    if (modo === "manual") return fixados;
-    if (modo === "historico") return doHistorico;
-    const vistos = new Set(fixados.map((p) => p.id));
-    return [...fixados, ...doHistorico.filter((p) => !vistos.has(p.id))];
-  }, [settings, maisPedidos, ativos, fixados]);
+
+    const base =
+      modo === "manual" ? fixados
+      : modo === "historico" ? doHistorico
+      : [...fixados, ...doHistorico.filter((p) => !fixados.some((f) => f.id === p.id))];
+
+    return ordenarDestaques(base, prefPorProduto as any, posicaoNoRanking);
+  }, [settings, maisPedidos, ativos, fixados, prefPorProduto, posicaoNoRanking]);
+
+  const temOrdemManual = itens.some((i) => i.ordem !== null);
+
+  const aoSoltarDestaque = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const de = previa.findIndex((p) => p.id === active.id);
+    const para = previa.findIndex((p) => p.id === over.id);
+    if (de < 0 || para < 0) return;
+    ordenar.mutate(arrayMove(previa, de, para).map((p) => p.id));
+  };
 
   const resultadoBusca = useMemo(
     () => (busca.trim() ? ativos.filter((p) => casaBusca(p.name, busca)).slice(0, 40) : []),
@@ -307,8 +367,21 @@ export default function CardapioGarcom() {
             <Smartphone className="h-4 w-4" /> O que o garçom vê
           </p>
           <p className="mb-3 text-xs text-muted-foreground">
-            Exatamente nesta ordem, ao abrir "adicionar item".
+            Exatamente nesta ordem, ao abrir "adicionar item". <strong>Arraste para mudar</strong> a
+            posição de qualquer item.
           </p>
+          {temOrdemManual && (
+            <button
+              type="button"
+              className="mb-2 text-[11px] text-muted-foreground underline"
+              onClick={async () => {
+                await limparOrdem.mutateAsync();
+                toast.success("Ordem automática restaurada: a lista volta a seguir as vendas.");
+              }}
+            >
+              Voltar para a ordem automática
+            </button>
+          )}
           {carregandoRanking ? (
             <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>
           ) : previa.length === 0 ? (
@@ -316,24 +389,22 @@ export default function CardapioGarcom() {
               Ainda sem histórico de vendas. Fixe os carro-chefe abaixo para a tela abrir com eles.
             </p>
           ) : (
-            <ol className="max-h-[420px] space-y-1 overflow-auto pr-1 text-sm">
-              {previa.map((p, i) => (
-                <li key={p.id} className="flex items-center gap-2 rounded-md border p-2">
-                  <span className="w-5 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
-                  {prefPorProduto.get(p.id)?.fixado ? (
-                    <Pin className="h-3.5 w-3.5 text-primary" />
-                  ) : (
-                    <Flame className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  {vendasPorProduto.has(p.id) && (
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                      {Math.round(Number(vendasPorProduto.get(p.id)))}x
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ol>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltarDestaque}>
+              <SortableContext items={previa.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                <ol className="max-h-[420px] space-y-1 overflow-auto pr-1 text-sm">
+                  {previa.map((p, i) => (
+                    <DestaqueArrastavel
+                      key={p.id}
+                      produto={p}
+                      posicao={i + 1}
+                      fixado={!!prefPorProduto.get(p.id)?.fixado}
+                      manual={prefPorProduto.get(p.id)?.ordem != null}
+                      vendas={vendasPorProduto.get(p.id)}
+                    />
+                  ))}
+                </ol>
+              </SortableContext>
+            </DndContext>
           )}
         </Card>
       </div>
