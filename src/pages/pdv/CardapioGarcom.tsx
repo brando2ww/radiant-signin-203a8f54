@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Eye, EyeOff, Flame, GripVertical, Loader2, Pin, PinOff, Search, Smartphone,
+  ChevronRight, Eye, EyeOff, Flame, GripVertical, Loader2, Pin, PinOff, Search, Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
@@ -33,26 +33,89 @@ const JANELAS = [
   { valor: 90, rotulo: "últimos 90 dias" },
 ];
 
+/**
+ * Categoria na lista de ordenação.
+ *
+ * Abre ao toque e mostra os produtos dela, cada um com os mesmos botões de
+ * fixar e esconder. Sem isso, esconder meia dúzia de itens de uma categoria
+ * exigia buscar um por um no campo lá de baixo.
+ */
 function CategoriaArrastavel({
-  categoria, oculta, quantidade, onAlternar,
-}: { categoria: string; oculta: boolean; quantidade: number; onAlternar: () => void }) {
+  categoria, oculta, produtos, prefs, vendas, aberta, onAbrir, onAlternar, onDefinir,
+}: {
+  categoria: string;
+  oculta: boolean;
+  produtos: any[];
+  prefs: Map<string, { fixado: boolean; oculto: boolean }>;
+  vendas: Map<string, number>;
+  aberta: boolean;
+  onAbrir: () => void;
+  onAlternar: () => void;
+  onDefinir: (m: any) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: categoria });
+
+  const escondidos = produtos.filter((p) => prefs.get(p.id)?.oculto).length;
+  const fixados = produtos.filter((p) => prefs.get(p.id)?.fixado).length;
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-3 rounded-lg border bg-card p-2.5 ${isDragging ? "opacity-60" : ""} ${oculta ? "opacity-50" : ""}`}
+      className={`rounded-lg border bg-card ${isDragging ? "opacity-60" : ""} ${oculta ? "opacity-50" : ""}`}
     >
-      <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing">
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <span className="flex-1 text-sm font-medium">{categoria}</span>
-      <span className="text-xs text-muted-foreground">{quantidade}</span>
-      <Button size="sm" variant="ghost" onClick={onAlternar}>
-        {oculta ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </Button>
+      <div className="flex items-center gap-2 p-2.5">
+        <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground active:cursor-grabbing">
+          <GripVertical className="h-4 w-4" />
+        </button>
+
+        <button type="button" onClick={onAbrir} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${aberta ? "rotate-90" : ""}`} />
+          <span className="truncate text-sm font-medium">{categoria}</span>
+        </button>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {fixados > 0 && (
+            <Badge variant="secondary" className="gap-1 text-[10px]">
+              <Pin className="h-3 w-3" />{fixados}
+            </Badge>
+          )}
+          {escondidos > 0 && (
+            <Badge variant="outline" className="gap-1 text-[10px] text-muted-foreground">
+              <EyeOff className="h-3 w-3" />{escondidos}
+            </Badge>
+          )}
+          <span className="w-8 text-right text-xs text-muted-foreground tabular-nums">{produtos.length}</span>
+          <Button size="sm" variant="ghost" onClick={onAlternar} title={oculta ? "Mostrar categoria" : "Esconder categoria inteira"}>
+            {oculta ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+        </div>
+      </div>
+
+      {aberta && (
+        <div className="space-y-1.5 border-t bg-muted/30 p-2.5">
+          {oculta && (
+            <p className="pb-1 text-[11px] text-muted-foreground">
+              A categoria inteira está escondida do garçom. O que você marcar aqui vale quando ela voltar.
+            </p>
+          )}
+          {produtos.length === 0 ? (
+            <p className="py-2 text-center text-xs text-muted-foreground">Nenhum produto ativo nesta categoria.</p>
+          ) : (
+            produtos.map((p) => (
+              <LinhaProduto
+                key={p.id}
+                produto={p}
+                pref={prefs.get(p.id)}
+                vendas={vendas.get(p.id)}
+                onDefinir={onDefinir}
+                compacta
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -66,6 +129,7 @@ export default function CardapioGarcom() {
     settings?.destaque_quantidade ?? 20,
   );
   const [busca, setBusca] = useState("");
+  const [categoriaAberta, setCategoriaAberta] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -83,6 +147,31 @@ export default function CardapioGarcom() {
   }, [ativos, settings]);
 
   const ocultas = new Set(settings?.categorias_ocultas ?? []);
+
+  const vendasPorProduto = useMemo(
+    () => new Map(maisPedidos.map((t) => [t.product_id, t.quantidade])),
+    [maisPedidos],
+  );
+
+  const produtosPorCategoria = useMemo(() => {
+    const mapa = new Map<string, typeof ativos>();
+    for (const p of ativos) {
+      const lista = mapa.get(p.category) ?? [];
+      lista.push(p);
+      mapa.set(p.category, lista);
+    }
+    // Dentro da categoria, o que mais vende aparece primeiro: é onde a mão do
+    // dono costuma querer mexer.
+    for (const [, lista] of mapa) {
+      lista.sort((a, b) => {
+        const va = vendasPorProduto.get(a.id) ?? -1;
+        const vb = vendasPorProduto.get(b.id) ?? -1;
+        if (va !== vb) return Number(vb) - Number(va);
+        return a.name.localeCompare(b.name);
+      });
+    }
+    return mapa;
+  }, [ativos, vendasPorProduto]);
 
   const aoSoltar = (e: DragEndEvent) => {
     const { active, over } = e;
@@ -121,10 +210,6 @@ export default function CardapioGarcom() {
     [ativos, busca],
   );
 
-  const vendasPorProduto = useMemo(
-    () => new Map(maisPedidos.map((t) => [t.product_id, t.quantidade])),
-    [maisPedidos],
-  );
 
   return (
     <div className="space-y-6 p-6">
@@ -191,19 +276,24 @@ export default function CardapioGarcom() {
         <Card className="p-4">
           <p className="mb-1 font-medium">Ordem das categorias</p>
           <p className="mb-3 text-xs text-muted-foreground">
-            Arraste para ordenar. O olho fechado esconde a categoria do app do garçom, como as de
-            delivery, sem tirar do catálogo.
+            Arraste para ordenar e <strong>toque no nome</strong> para abrir os produtos dela. O olho
+            fechado esconde do app do garçom, sem tirar do catálogo.
           </p>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
             <SortableContext items={categorias} strategy={verticalListSortingStrategy}>
-              <div className="max-h-[420px] space-y-1.5 overflow-auto pr-1">
+              <div className="max-h-[560px] space-y-1.5 overflow-auto pr-1">
                 {categorias.map((c) => (
                   <CategoriaArrastavel
                     key={c}
                     categoria={c}
                     oculta={ocultas.has(c)}
-                    quantidade={ativos.filter((p) => p.category === c).length}
+                    produtos={produtosPorCategoria.get(c) ?? []}
+                    prefs={prefPorProduto as any}
+                    vendas={vendasPorProduto as any}
+                    aberta={categoriaAberta === c}
+                    onAbrir={() => setCategoriaAberta(categoriaAberta === c ? null : c)}
                     onAlternar={() => alternarCategoria(c)}
+                    onDefinir={definir.mutate}
                   />
                 ))}
               </div>
@@ -305,23 +395,25 @@ export default function CardapioGarcom() {
 }
 
 function LinhaProduto({
-  produto, pref, vendas, onDefinir,
+  produto, pref, vendas, onDefinir, compacta,
 }: {
   produto: any;
   pref?: { fixado: boolean; oculto: boolean };
   vendas?: number;
   onDefinir: (m: any) => void;
+  /** Dentro da categoria aberta, onde o nome dela já está no cabeçalho. */
+  compacta?: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-3 rounded-lg border p-2.5 ${pref?.oculto ? "opacity-50" : ""}`}>
+    <div className={`flex items-center gap-2 rounded-lg border bg-background p-2 ${pref?.oculto ? "opacity-50" : ""}`}>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{produto.name}</p>
         <p className="text-xs text-muted-foreground">
-          {produto.category} · {formatBRL(produto.price_salon)}
+          {compacta ? formatBRL(produto.price_salon) : `${produto.category} · ${formatBRL(produto.price_salon)}`}
           {vendas != null && ` · ${Math.round(Number(vendas))} vendidos`}
         </p>
       </div>
-      {vendas == null && (
+      {vendas == null && !compacta && (
         <Badge variant="outline" className="text-[10px]">sem venda no período</Badge>
       )}
       <Button
