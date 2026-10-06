@@ -17,6 +17,7 @@ import PDVSalon from "./pdv/Salon";
 import PDVCashier from "./pdv/Cashier";
 
 import PDVProducts from "./pdv/Products";
+import CardapioGarcom from "./pdv/CardapioGarcom";
 import PDVStock from "./pdv/Stock";
 import StockCounts from "./pdv/StockCounts";
 import PDVSuppliers from "./pdv/Suppliers";
@@ -167,6 +168,7 @@ export default function PDV() {
               
               {/* Administrador */}
               <Route path="produtos" element={<RoleRoute path="/pdv/produtos" canAccess={canAccess} defaultRoute={defaultRoute}><PDVProducts /></RoleRoute>} />
+              <Route path="cardapio-garcom" element={<RoleRoute path="/pdv/produtos" canAccess={canAccess} defaultRoute={defaultRoute}><CardapioGarcom /></RoleRoute>} />
               <Route path="centros-producao" element={<RoleRoute path="/pdv/centros-producao" canAccess={canAccess} defaultRoute={defaultRoute}><ProductionCenters /></RoleRoute>} />
               <Route path="estoque" element={<RoleRoute path="/pdv/estoque" canAccess={canAccess} defaultRoute={defaultRoute}><PDVStock /></RoleRoute>} />
               <Route path="contagem-estoque" element={<RoleRoute path="/pdv/contagem-estoque" canAccess={canAccess} defaultRoute={defaultRoute}><StockCounts /></RoleRoute>} />

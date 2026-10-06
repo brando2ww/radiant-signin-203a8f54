@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Plus, Minus, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, Search, Plus, Minus, ClipboardCheck, Flame, ChevronRight } from "lucide-react";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { useDraftCart } from "@/contexts/DraftCartContext";
 import { usePDVProductOptionsForOrder } from "@/hooks/use-pdv-product-options";
@@ -9,6 +9,9 @@ import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { MobileProductOptionSelector } from "@/components/garcom/MobileProductOptionSelector";
 import { MobileCompositionGroupSelector } from "@/components/garcom/MobileCompositionGroupSelector";
 import { ProductCategoryNav } from "@/components/garcom/ProductCategoryNav";
+import {
+  casaBusca, normalizar, useWaiterMenuItems, useWaiterMenuSettings, useWaiterTopProducts,
+} from "@/hooks/use-waiter-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +26,30 @@ import {
 } from "@/components/ui/sheet";
 
 type Step = "composition" | "options" | "quantity";
+
+/** Linha do produto. Mesma aparência nos destaques e na busca. */
+function ProdutoLinha({ product, onSelect }: { product: any; onSelect: (p: any) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(product)}
+      className="flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left active:scale-[0.98] transition-transform"
+    >
+      {product.image_url ? (
+        <img src={product.image_url} alt={product.name} className="h-12 w-12 rounded-lg object-cover shrink-0" />
+      ) : (
+        <div className="h-12 w-12 rounded-lg bg-muted shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-sm truncate">{product.name}</p>
+        <p className="text-xs text-muted-foreground">{product.category}</p>
+      </div>
+      <span className="shrink-0 font-semibold text-sm tabular-nums">
+        {formatBRL(product.price_salon)}
+      </span>
+    </button>
+  );
+}
 
 export default function GarcomAdicionarItem() {
   const { id: comandaId } = useParams<{ id: string }>();
@@ -59,15 +86,90 @@ export default function GarcomAdicionarItem() {
     0,
   );
 
-  const available = (products ?? []).filter((p) => p.is_available);
-  const categories = [...new Set(available.map((p) => p.category))].sort();
+  // ── A lista que o garçom vê ──────────────────────────────────────────────
+  //
+  // O catálogo cru não serve em pé na frente da mesa: no Kōten são 358 produtos
+  // ativos e buscar "salm" devolvia 46 linhas em ordem alfabética, começando
+  // pelo número do nome ("04 Joe Salmão"). Três coisas mudam isso: o que o dono
+  // escondeu sai, os mais pedidos sobem, e a busca passa a ordenar por
+  // popularidade em vez de alfabeto.
+  const { settings } = useWaiterMenuSettings();
+  const { itens: preferencias } = useWaiterMenuItems();
+  const { data: maisPedidos = [] } = useWaiterTopProducts(
+    settings?.destaque_janela_dias ?? 30,
+    settings?.destaque_quantidade ?? 20,
+  );
 
-  const filtered = available.filter((p) => {
-    const matchCat = !selectedCategory || p.category === selectedCategory;
-    const matchSearch =
-      !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  const prefPorProduto = useMemo(
+    () => new Map(preferencias.map((p) => [p.product_id, p])),
+    [preferencias],
+  );
+
+  /** Posição no ranking: quanto menor, mais sai. Quem não vendeu fica no fim. */
+  const postoNoRanking = useMemo(() => {
+    const mapa = new Map<string, number>();
+    maisPedidos.forEach((p, i) => mapa.set(p.product_id, i));
+    return mapa;
+  }, [maisPedidos]);
+
+  const available = useMemo(() => {
+    const ocultas = new Set(settings?.categorias_ocultas ?? []);
+    return (products ?? []).filter((p) => {
+      if (!p.is_available) return false;
+      if (ocultas.has(p.category)) return false;
+      const pref = prefPorProduto.get(p.id);
+      if (pref?.oculto) return false;
+      // Variação pendurada num principal não polui a lista: ela aparece dentro
+      // do produto pai, na hora de escolher.
+      if (pref?.pai_product_id) return false;
+      return true;
+    });
+  }, [products, settings, prefPorProduto]);
+
+  const categories = useMemo(() => {
+    const presentes = [...new Set(available.map((p) => p.category))];
+    const ordem = settings?.categorias_ordem ?? [];
+    // O que o dono ordenou vem primeiro, na ordem dele; o resto segue em ordem
+    // alfabética, para categoria nova não sumir no fim sem ninguém notar.
+    const ordenadas = ordem.filter((c) => presentes.includes(c));
+    const sobra = presentes.filter((c) => !ordenadas.includes(c)).sort();
+    return [...ordenadas, ...sobra];
+  }, [available, settings]);
+
+  const destaques = useMemo(() => {
+    const modo = settings?.destaque_modo ?? "misto";
+    const fixados = available.filter((p) => prefPorProduto.get(p.id)?.fixado);
+    const doHistorico = maisPedidos
+      .map((t) => available.find((p) => p.id === t.product_id))
+      .filter(Boolean) as typeof available;
+
+    if (modo === "manual") return fixados;
+    if (modo === "historico") return doHistorico;
+    // Misto: o que o dono fixou abre a lista, o histórico completa sem repetir.
+    const vistos = new Set(fixados.map((p) => p.id));
+    return [...fixados, ...doHistorico.filter((p) => !vistos.has(p.id))];
+  }, [available, maisPedidos, prefPorProduto, settings]);
+
+  const buscando = search.trim().length > 0;
+
+  const filtered = useMemo(() => {
+    const lista = available.filter((p) => {
+      const matchCat = !selectedCategory || p.category === selectedCategory;
+      return matchCat && (!buscando || casaBusca(p.name, search));
+    });
+
+    // Resultado ordenado pelo que mais sai, e não pelo alfabeto. É o que faz
+    // "sashimi de salmão" aparecer antes de "02 Niguiri Salmão Flambado".
+    return lista.sort((a, b) => {
+      const pa = postoNoRanking.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const pb = postoNoRanking.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      if (pa !== pb) return pa - pb;
+      return normalizar(a.name).localeCompare(normalizar(b.name));
+    });
+  }, [available, selectedCategory, search, buscando, postoNoRanking]);
+
+  /** Sem busca e sem categoria escolhida, a tela abre pelos destaques. */
+  const mostrandoDestaques = !buscando && !selectedCategory && destaques.length > 0;
 
   const resetSheet = () => {
     setSelectedProduct(null);
@@ -168,35 +270,33 @@ export default function GarcomAdicionarItem() {
               <Skeleton key={i} className="h-16 rounded-xl" />
             ))}
           </div>
+        ) : mostrandoDestaques ? (
+          <>
+            <div className="flex items-center gap-2 pt-1 pb-0.5">
+              <Flame className="h-4 w-4 text-primary" />
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Mais pedidos
+              </p>
+            </div>
+            {destaques.map((product) => (
+              <ProdutoLinha key={product.id} product={product} onSelect={handleSelectProduct} />
+            ))}
+            <button
+              type="button"
+              onClick={() => setSelectedCategory(categories[0] ?? "")}
+              className="mt-3 flex w-full items-center justify-between rounded-xl border border-dashed p-3 text-sm text-muted-foreground active:scale-[0.98] transition-transform"
+            >
+              Ver o cardápio inteiro
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </>
         ) : filtered.length === 0 ? (
           <p className="py-12 text-center text-muted-foreground text-sm">
             Nenhum produto encontrado
           </p>
         ) : (
           filtered.map((product) => (
-            <button
-              key={product.id}
-              type="button"
-              onClick={() => handleSelectProduct(product)}
-              className="flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left active:scale-[0.98] transition-transform"
-            >
-              {product.image_url ? (
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  className="h-12 w-12 rounded-lg object-cover shrink-0"
-                />
-              ) : (
-                <div className="h-12 w-12 rounded-lg bg-muted shrink-0" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-sm truncate">{product.name}</p>
-                <p className="text-xs text-muted-foreground">{product.category}</p>
-              </div>
-              <span className="shrink-0 font-semibold text-sm tabular-nums">
-                {formatBRL(product.price_salon)}
-              </span>
-            </button>
+            <ProdutoLinha key={product.id} product={product} onSelect={handleSelectProduct} />
           ))
         )}
       </div>

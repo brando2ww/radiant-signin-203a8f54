@@ -15,6 +15,7 @@ import {
   ShoppingBag,
 
   Package,
+  Smartphone,
   Warehouse,
   ClipboardList,
   Truck,
@@ -110,6 +111,7 @@ const sectionItems: Section[] = [
     icon: LayoutDashboard,
     items: [
       { title: "Produtos", url: "/pdv/produtos", icon: Package },
+      { title: "Cardápio do garçom", url: "/pdv/cardapio-garcom", icon: Smartphone },
       { title: "Centros de Produção", url: "/pdv/centros-producao", icon: Factory },
       { title: "Estoque", url: "/pdv/estoque", icon: Warehouse },
       { title: "Contagem de Estoque", url: "/pdv/contagem-estoque", icon: ClipboardList },

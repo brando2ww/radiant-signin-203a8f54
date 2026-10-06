@@ -22,6 +22,7 @@ export const MODULE_ROUTES: Record<UserModule, string[]> = {
     "/pdv/caixa",
     "/pdv/comandas",
     "/pdv/produtos",
+    "/pdv/cardapio-garcom",
     "/pdv/centros-producao",
     "/pdv/estoque",
     "/pdv/contagem-estoque",
