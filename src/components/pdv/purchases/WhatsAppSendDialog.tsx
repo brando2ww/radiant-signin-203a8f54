@@ -46,6 +46,9 @@ interface SupplierWithItems {
 }
 
 /** Número de contato do fornecedor: prioriza WhatsApp, cai para telefone. */
+/** Referência fixa: um `new Map()` por render dispararia o efeito de seleção em loop. */
+const NENHUM_RECEBIDO = new Map<string, string>();
+
 function supplierContactNumber(s: { whatsapp?: string | null; phone?: string | null }) {
   return (s.whatsapp && s.whatsapp.trim()) || (s.phone && s.phone.trim()) || "";
 }
@@ -101,6 +104,27 @@ export function WhatsAppSendDialog({
     },
     enabled: open && !!quotation.items?.length,
   });
+
+  // Quem já recebeu esta cotação, em qualquer envio anterior. A edge marca o
+  // sent_at do link no instante em que a mensagem sai; é o que permite reabrir
+  // o diálogo e reenviar só para quem faltou, sem repetir para os outros.
+  const { data: recebidosConsulta, refetch: recarregarRecebidos } = useQuery({
+    queryKey: ["quotation-supplier-received", quotation.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pdv_quotation_supplier_links")
+        .select("supplier_id, sent_at")
+        .eq("quotation_request_id", quotation.id)
+        .not("sent_at", "is", null);
+      if (error) throw error;
+      return new Map((data || []).map((r) => [r.supplier_id as string, r.sent_at as string]));
+    },
+    enabled: open,
+    // Recarregar ao voltar para a aba refaria a seleção e desmarcaria o que o
+    // operador acabou de escolher à mão.
+    refetchOnWindowFocus: false,
+  });
+  const recebidos = recebidosConsulta ?? NENHUM_RECEBIDO;
 
   // Check if we have saved suppliers or should fallback to ingredient suppliers
   const hasSavedSuppliers = savedItemSuppliers.length > 0;
@@ -190,12 +214,18 @@ export function WhatsAppSendDialog({
     return Array.from(supplierMap.values());
   }, [quotation.items, ingredientSuppliers, savedItemSuppliers, hasSavedSuppliers]);
 
-  // Auto-select all suppliers when dialog opens (if we have saved suppliers)
+  // Ao abrir, marca quem ainda NÃO recebeu. Na primeira vez são todos; depois
+  // de um envio interrompido, só os que faltaram. Antes marcava sempre todos, e
+  // reenviar repetia a mensagem para quem já tinha recebido.
   useEffect(() => {
     if (open && hasSavedSuppliers && suppliersWithItems.length > 0) {
-      setSelectedSuppliers(new Set(suppliersWithItems.map((s) => s.id)));
+      const faltam = suppliersWithItems.filter((s) => !recebidos.has(s.id));
+      setSelectedSuppliers(new Set(faltam.map((s) => s.id)));
     }
-  }, [open, hasSavedSuppliers, suppliersWithItems]);
+  }, [open, hasSavedSuppliers, suppliersWithItems, recebidos]);
+
+  const jaReceberam = suppliersWithItems.filter((s) => recebidos.has(s.id)).length;
+  const faltamReceber = suppliersWithItems.length - jaReceberam;
 
   // Limpa os links/QR ao reabrir o diálogo
   useEffect(() => {
@@ -383,12 +413,13 @@ export function WhatsAppSendDialog({
       if (Array.isArray(data?.links)) setLinks(data.links);
     } catch (err: unknown) {
       console.error("Error sending quotation via WhatsApp:", err);
-      const message = err && typeof err === "object" && "message" in err
-        ? (err as { message: string }).message
-        : "Erro ao enviar mensagens";
-      toast.error(message);
+      toast.error(
+        "O envio foi interrompido antes do fim. A lista mostra quem já recebeu; os que faltaram ficaram marcados para reenviar.",
+      );
     } finally {
       setIsSending(false);
+      // Vale também para o caso de erro: parte pode ter saído antes da falha.
+      recarregarRecebidos();
     }
   };
 
@@ -484,6 +515,29 @@ export function WhatsAppSendDialog({
                 </p>
               )}
 
+              {jaReceberam > 0 && (
+                <div
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-xs",
+                    faltamReceber > 0
+                      ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
+                  )}
+                >
+                  {faltamReceber > 0 ? (
+                    <>
+                      <strong>{jaReceberam} de {suppliersWithItems.length}</strong> já receberam esta cotação.
+                      Ficaram marcados só os <strong>{faltamReceber}</strong> que faltam · é só enviar.
+                    </>
+                  ) : (
+                    <>
+                      Todos os {suppliersWithItems.length} fornecedores já receberam. Para mandar de novo,
+                      marque quem deve receber.
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                 {suppliersWithItems.map((supplier) => {
                   const marcado = selectedSuppliers.has(supplier.id);
@@ -517,6 +571,17 @@ export function WhatsAppSendDialog({
                             {enviado && (
                               <Badge className="gap-1 border-0 bg-emerald-100 text-[10px] text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
                                 <Check className="h-3 w-3" /> enviado
+                              </Badge>
+                            )}
+                            {!enviado && recebidos.has(supplier.id) && (
+                              <Badge className="gap-1 border-0 bg-emerald-50 text-[10px] text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                <Check className="h-3 w-3" /> já recebeu{" "}
+                                {format(parseISO(recebidos.get(supplier.id)!), "dd/MM HH:mm")}
+                              </Badge>
+                            )}
+                            {!enviado && !erro && !recebidos.has(supplier.id) && jaReceberam > 0 && temWhats && (
+                              <Badge variant="outline" className="border-amber-300 text-[10px] text-amber-700 dark:text-amber-300">
+                                não recebeu
                               </Badge>
                             )}
                             {erro && (

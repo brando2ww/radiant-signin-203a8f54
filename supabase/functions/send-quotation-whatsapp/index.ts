@@ -129,25 +129,39 @@ Deno.serve(async (req) => {
       .eq('is_active', true)
     const idsAtivos = new Set((ativos ?? []).map((s: { id: string }) => s.id))
 
-    // Send message to each supplier
-    for (const supplier of suppliers) {
+    // Cada fornecedor leva ~5 s (link + chamada ao provedor). Um por vez, uma
+    // cotação de 20 fornecedores passava do limite de tempo da função e o
+    // runtime matava o envio no meio, sem avisar ninguém: em 05/10 e 13/10 a
+    // La Vecchia teve fornecedor que nunca recebeu. Agora vão ENVIOS_SIMULTANEOS
+    // por vez e, perto do limite, a função para de começar envios novos e
+    // devolve quem faltou como erro, para a tela oferecer o reenvio.
+    const ENVIOS_SIMULTANEOS = 4
+    const PARAR_DE_INICIAR_APOS_MS = 100_000
+    const inicio = Date.now()
+
+    async function enviarParaFornecedor(supplier: any) {
       const { supplierId, phone, message } = supplier
 
       if (!idsAtivos.has(supplierId)) {
         errors.push({ supplierId, phone: phone || '', error: 'Fornecedor desativado' })
-        continue
+        return
       }
 
       if (!phone) {
         errors.push({ supplierId, phone: phone || '', error: 'Telefone ausente' })
-        continue
+        return
+      }
+
+      if (Date.now() - inicio > PARAR_DE_INICIAR_APOS_MS) {
+        errors.push({ supplierId, phone, error: 'Não deu tempo de enviar. Reenvie para os que faltaram.' })
+        return
       }
 
       // Gera/pega o link público do fornecedor para esta cotação.
       const url = await ensureLinkUrl(supplierId)
       if (!url) {
         errors.push({ supplierId, phone, error: 'Falha ao gerar link do orçamento' })
-        continue
+        return
       }
       links.push({ supplierId, name: supplier.name, url })
 
@@ -203,6 +217,13 @@ Deno.serve(async (req) => {
 
       if (outcome.ok) {
         sent.push(supplierId)
+        // Marca na hora, e não só no fim do lote: se a função for interrompida,
+        // a tela ainda sabe quem recebeu e oferece o reenvio só para os outros.
+        await supabase
+          .from('pdv_quotation_supplier_links')
+          .update({ sent_at: new Date().toISOString() })
+          .eq('quotation_request_id', quotationId)
+          .eq('supplier_id', supplierId)
       } else {
         errors.push({
           supplierId,
@@ -211,6 +232,22 @@ Deno.serve(async (req) => {
         })
       }
     }
+
+    // Fila simples: ENVIOS_SIMULTANEOS trabalhadores puxando o próximo da lista.
+    const fila = [...suppliers]
+    await Promise.all(
+      Array.from({ length: Math.min(ENVIOS_SIMULTANEOS, fila.length) }, async () => {
+        while (fila.length > 0) {
+          const proximo = fila.shift()
+          try {
+            await enviarParaFornecedor(proximo)
+          } catch (e) {
+            console.error('[cotacao] envio falhou:', e)
+            errors.push({ supplierId: proximo.supplierId, phone: proximo.phone || '', error: 'Falha no envio' })
+          }
+        }
+      }),
+    )
 
     // Marca sent_at nos vínculos enviados (link) e nos itens (compat).
     if (sent.length > 0) {
