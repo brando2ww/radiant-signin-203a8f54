@@ -18,6 +18,7 @@ import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 import { usePrinterStatus, type PrinterStatusMap } from "@/hooks/use-printer-status";
 import { bridgeHeaders } from "@/lib/bridge-token";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
+import { PrintBridgeDownloadCard } from "./PrintBridgeDownloadCard";
 
 const ICON_MAP: Record<string, any> = {
   ChefHat, Wine, Coffee, Cake, Pizza, Soup, Sandwich, IceCream, Beer, Utensils,
@@ -122,6 +123,8 @@ export function ProductionCentersTab() {
           (TCP porta 9100).
         </AlertDescription>
       </Alert>
+
+      <PrintBridgeDownloadCard />
 
       <div className="flex justify-end">
         <Button onClick={handleNew}>
