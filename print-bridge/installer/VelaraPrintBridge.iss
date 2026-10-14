@@ -93,28 +93,6 @@ Type: files; Name: "{app}\.env"
 var
   PageDados: TInputQueryWizardPage;
 
-procedure InitializeWizard();
-begin
-  PageDados := CreateInputQueryPage(wpSelectDir,
-    'Dados do restaurante',
-    'Identifique este estabelecimento',
-    'Estes dados vem da Velara. O codigo do restaurante e o que garante que ' +
-    'estas impressoras recebam apenas os pedidos deste estabelecimento.');
-
-  PageDados.Add('Nome do restaurante:', False);
-  PageDados.Add('Codigo do restaurante:', False);
-  PageDados.Add('Porta local (deixe 7777 se nao souber):', False);
-
-  PageDados.Values[2] := '7777';
-end;
-
-function GetPort(Param: string): string;
-begin
-  Result := PageDados.Values[2];
-  if Result = '' then
-    Result := '7777';
-end;
-
 { Valida um UUID no formato 8-4-4-4-12. Digitar o codigo errado e o erro mais
   caro possivel aqui: a bridge sobe, fica muda, e ninguem descobre ate faltar
   cupom na cozinha. }
@@ -137,6 +115,73 @@ begin
                  ((C >= 'A') and (C <= 'F'))) then Exit;
   end;
   Result := True;
+end;
+
+{ O app da Velara entrega este instalador ja com o nome do arquivo no formato
+  Velara-Impressao-<Nome-do-Restaurante>-<codigo>.exe. Daqui sai o codigo
+  (o UUID em qualquer posicao do nome, para sobreviver a um "(1)" que o
+  navegador acrescente) e o nome (o trecho entre o prefixo e o codigo). Assim
+  ninguem digita o codigo na mao, que era o erro mais caro desta tela. }
+function ExtraiUuid(const S: string; var Posicao: Integer): string;
+var
+  I: Integer;
+begin
+  Result := '';
+  Posicao := 0;
+  for I := 1 to Length(S) - 35 do
+    if UuidValido(Copy(S, I, 36)) then
+    begin
+      Result := LowerCase(Copy(S, I, 36));
+      Posicao := I;
+      Exit;
+    end;
+end;
+
+function NomeDoArquivo(const Arquivo: string; PosUuid: Integer): string;
+var
+  Prefixo: string;
+begin
+  Result := '';
+  Prefixo := 'Velara-Impressao-';
+  if (PosUuid > 0) and (Pos(Prefixo, Arquivo) = 1) then
+  begin
+    Result := Copy(Arquivo, Length(Prefixo) + 1, PosUuid - Length(Prefixo) - 2);
+    StringChangeEx(Result, '-', ' ', True);
+    Result := Trim(Result);
+  end;
+end;
+
+procedure InitializeWizard();
+var
+  Arquivo, Codigo: string;
+  PosUuid: Integer;
+begin
+  PageDados := CreateInputQueryPage(wpSelectDir,
+    'Dados do restaurante',
+    'Identifique este estabelecimento',
+    'Estes dados vem da Velara. O codigo do restaurante e o que garante que ' +
+    'estas impressoras recebam apenas os pedidos deste estabelecimento.');
+
+  PageDados.Add('Nome do restaurante:', False);
+  PageDados.Add('Codigo do restaurante:', False);
+  PageDados.Add('Porta local (deixe 7777 se nao souber):', False);
+
+  PageDados.Values[2] := '7777';
+
+  Arquivo := ExtractFileName(ExpandConstant('{srcexe}'));
+  Codigo := ExtraiUuid(Arquivo, PosUuid);
+  if Codigo <> '' then
+  begin
+    PageDados.Values[1] := Codigo;
+    PageDados.Values[0] := NomeDoArquivo(Arquivo, PosUuid);
+  end;
+end;
+
+function GetPort(Param: string): string;
+begin
+  Result := PageDados.Values[2];
+  if Result = '' then
+    Result := '7777';
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
