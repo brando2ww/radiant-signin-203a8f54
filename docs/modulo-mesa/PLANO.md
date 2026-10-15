@@ -17,7 +17,7 @@ produção (mesas, comandas, cardápio, cozinha e pagamento). Acompanhamento em
 | 1 | O administrador escolhe **um QR por mesa** ou **um QR geral**. Depois de gerado, o QR **não muda nunca** | Token permanente por mesa e um token geral por restaurante. O banco recusa alterar o token e recusa apagar o QR; só existe desativar. Com o QR geral, o cliente escolhe a mesa numa lista |
 | 2 | O pedido **vai direto para a cozinha quando aprovado** | Toda pessoa que entra na mesa pelo QR é aprovada pelo garçom ou pelo caixa. Aprovada, os pedidos dela vão direto para a cozinha. Configurável para aprovar **todo** pedido |
 | 3 | **Uma conta por mesa** | Todos que entram pelo mesmo QR de mesa pedem na mesma comanda. Cada pessoa fica registrada como participante (nome e celular), mas a conta é uma só |
-| 4 | Cardápio (sem resposta; vale a recomendação) | Cardápio da mesa montado **sobre o cadastro do salão** (`pdv_products`, preço de salão), com curadoria e botão "Importar organização do delivery" (categorias, ordem, fotos e descrições; **não** preços) |
+| 4 | **Cardápio do Salão próprio**, montado do zero ou importado do delivery | Categorias e itens próprios (`mesa_cardapio_categorias` com id, `mesa_cardapio_itens`). Cada item aponta para um produto do cadastro do salão (`pdv_products`): é de lá que vêm o preço de salão, o centro de produção, a baixa de estoque e os dados fiscais. A importação cria categorias e itens a partir do delivery (`delivery_products.source_pdv_product_id`), trazendo nome da categoria, ordem, foto e descrição; **não** traz preço |
 | 5 | **Sem pagamento pelo celular** | "Fechar a conta" mostra o valor detalhado (itens, taxa de serviço, total) e manda a mesa para a fila do caixa. Fins demonstrativos |
 | 6 | **Sem WhatsApp** | O celular é só informado. Sem código de verificação, sem mensagem |
 
@@ -110,8 +110,10 @@ que valida tudo no servidor, sessão com prazo, e checagem do módulo no banco
   definitivo. Cartaz em PDF para imprimir, um por mesa com o número, em lote.
   Mesa nova cadastrada depois ganha o próprio QR. Desativar um QR é possível;
   trocar, não.
-- **Cardápio da mesa:** categorias visíveis e ordem, produtos visíveis,
-  destaques, foto e descrição, e o botão "Importar organização do delivery".
+- **Cardápio do Salão:** criar categorias, adicionar produtos do cadastro do
+  salão, ordem, destaques, foto e descrição próprias. Botão "Importar do
+  delivery", que monta categorias e itens a partir do cardápio do delivery
+  (sem preços: o preço é sempre o de salão do produto).
 
 ---
 
@@ -127,8 +129,8 @@ Todas com `user_id` do dono, como o resto do PDV, e RLS só para
 | `mesa_sessoes` | Cada pessoa que entrou | `id`, `user_id`, `qr_code_id`, `table_id`, `order_id`, `comanda_id`, `nome`, `celular`, `token_hash`, `status` (`aguardando`/`aprovada`/`recusada`/`encerrada`), `aprovada_por`, `aprovada_em`, `criada_em`, `ultimo_acesso`, `expira_em` |
 | `mesa_pedidos` | Pedido do cliente antes de virar item | `id`, `sessao_id`, `comanda_id`, `status` (`aguardando`/`enviado`/`recusado`), `itens` (jsonb, como o cliente mandou), `total_calculado`, `criado_em`, `decidido_por`, `decidido_em` |
 | `mesa_chamados` | Chamar garçom e pedir conta | `id`, `user_id`, `table_id`, `sessao_id`, `tipo` (`garcom`/`conta`), `status` (`aberto`/`atendido`), `criado_em`, `atendido_por`, `atendido_em` |
-| `mesa_cardapio_categorias` | Curadoria por categoria (`pdv_products.category` é texto) | `user_id`, `categoria`, `visivel`, `ordem`, `foto_url`, `descricao` |
-| `mesa_cardapio_produtos` | Curadoria por produto | `user_id`, `product_id`, `visivel`, `destaque`, `ordem`, `foto_url`, `descricao` |
+| `mesa_cardapio_categorias` | Categorias do Cardápio do Salão, próprias | `id`, `user_id`, `nome`, `descricao`, `foto_url`, `ordem`, `ativa`, `origem` (`manual`/`delivery`), `delivery_category_id` |
+| `mesa_cardapio_itens` | Itens do Cardápio do Salão | `id`, `user_id`, `categoria_id`, `product_id` (→ `pdv_products`), `nome_exibido`, `descricao`, `foto_url`, `ordem`, `destaque`, `ativo`, `delivery_product_id` |
 
 **Colunas novas em tabelas existentes:**
 - `pdv_comandas.customer_phone`, `pdv_comandas.origem` (`garcom`/`caixa`/`qr`).
@@ -191,7 +193,7 @@ gatilho encerra as sessões ligadas a ela.
 |---|---|---|
 | **0 · Base** | Índice de um atendimento aberto por mesa; as três funções compartilhadas; app do garçom usando-as; publicações de realtime; status tratados nas duas grafias | Garçom lança e imprime igual a hoje no Kōten; teste dos 358 produtos sem diferença de preço nem de filhos |
 | **1 · QR e pedido** | Tabelas novas, funções do cliente e da equipe, página `/m/:token`, painel de aprovação e chamados no garçom e no salão, configuração e geração de QR com cartaz em PDF, registro do módulo `mesa` (tipo, rotas, menu, super admin, `mesa_tem_modulo`) | Mesa de teste: escaneia, entra, garçom aprova, pede, sai na impressora, chama o garçom, fecha a conta e o caixa recebe na fila com o valor certo |
-| **2 · Cardápio da mesa** | Curadoria de categorias e produtos, importação da organização do delivery, visual do restaurante | O Kōten mostra só o que é do cliente (sem "Etapas", "Reposição", "Sub produtos") |
+| **2 · Cardápio do Salão** | Montar do zero (categorias e itens próprios), importar do delivery, visual do restaurante | O Kōten monta o cardápio do cliente sem as categorias internas ("Etapas", "Reposição", "Sub produtos") |
 | **3 · Piloto** | Kōten Garibaldi, uma ou duas mesas primeiro, depois o salão | Uma semana sem pedido perdido, preço divergente ou mesa órfã |
 
 **Fora deste escopo, por decisão:** pagamento pelo celular, WhatsApp e

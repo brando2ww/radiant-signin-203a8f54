@@ -2,9 +2,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
-import { resolveProductionCenterId } from "@/utils/resolveProductionCenter";
-import { expandComposition } from "@/utils/expandComposition";
-import { expandSelectedOptions } from "@/utils/expandSelectedOptions";
 import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { toast } from "sonner";
 import { logActivityDirect } from "@/hooks/use-activity-logs";
@@ -341,73 +338,42 @@ export function usePDVComandas() {
         throw new Error("Esta comanda já foi finalizada e não pode mais receber itens");
       }
 
-      const subtotal = data.quantity * data.unitPrice;
-      const ownerId = visibleUserId || user?.id;
-      const production_center_id = ownerId
-        ? await resolveProductionCenterId(data.productId, ownerId)
-        : null;
-
-      const { data: newItem, error } = await supabase
-        .from("pdv_comanda_items")
-        .insert([{
-          comanda_id: data.comandaId,
+      // Preço, sub-itens da cozinha e centro de produção são calculados no
+      // servidor (pdv_lancar_itens): é a mesma regra que a Mesa Digital usa, e o
+      // cliente da mesa não pode mandar o preço. `unitPrice` fica no contrato
+      // só para a tela mostrar o valor antes de enviar; o banco ignora.
+      const { data: ids, error } = await (supabase as any).rpc("pdv_lancar_itens", {
+        p_comanda_id: data.comandaId,
+        p_itens: [{
           product_id: data.productId,
-          product_name: data.productName,
           quantity: data.quantity,
-          unit_price: data.unitPrice,
-          subtotal,
           notes: data.notes || null,
-          kitchen_status: "pendente",
-          production_center_id,
-        }])
-        .select()
-        .single();
-
+          selected_options: (data.selectedOptions ?? []).map((o) => ({
+            optionId: o.optionId,
+            items: o.items.map((i) => ({ itemId: i.itemId })),
+          })),
+        }],
+      });
       if (error) throw error;
+      const parentId = (ids as string[] | null)?.[0];
+      if (!parentId) throw new Error("O item não foi gravado");
 
-      // Roteamento de cozinha:
-      // - Se o cliente escolheu opções com produto vinculado, criamos filhos
-      //   APENAS para essas opções (não imprimimos a composição completa).
-      // - Caso contrário, expandimos a composição fixa do produto (kits/combos).
-      if (ownerId) {
-        const hasSelected =
-          (data.selectedOptions ?? []).some((o) =>
-            o.items.some((i) => !!i.linkedProductId),
-          );
-        const children = hasSelected
-          ? await expandSelectedOptions(data.selectedOptions, data.quantity, ownerId)
-          : await expandComposition(data.productId, data.quantity, ownerId);
-        if (children.length > 0) {
-          const missing = children.filter((c) => !c.production_center_id);
-          if (missing.length > 0) {
-            toast.warning(
-              `${missing.length} sub-produto(s) sem centro de produção configurado e não serão impressos.`,
-            );
-          }
-          const childRows = children.map((c) => ({
-            comanda_id: data.comandaId,
-            product_id: c.product_id,
-            product_name: c.product_name,
-            quantity: c.quantity,
-            unit_price: 0,
-            subtotal: 0,
-            notes: null,
-            kitchen_status: "pendente" as const,
-            production_center_id: c.production_center_id,
-            parent_item_id: (newItem as ComandaItem).id,
-            is_composite_child: true,
-            composition_group_label: c.composition_group_label ?? null,
-            composition_position: c.composition_position ?? null,
-          }));
+      const { data: newItem, error: readError } = await supabase
+        .from("pdv_comanda_items")
+        .select("*")
+        .eq("id", parentId)
+        .single();
+      if (readError) throw readError;
 
-          const { error: childError } = await supabase
-            .from("pdv_comanda_items")
-            .insert(childRows);
-          if (childError) {
-            // não bloqueia o pai, mas avisa
-            toast.error("Erro ao expandir composição: " + childError.message);
-          }
-        }
+      const { count: semCentro } = await supabase
+        .from("pdv_comanda_items")
+        .select("id", { count: "exact", head: true })
+        .eq("parent_item_id", parentId)
+        .is("production_center_id", null);
+      if (semCentro && semCentro > 0) {
+        toast.warning(
+          `${semCentro} sub-produto(s) sem centro de produção configurado e não serão impressos.`,
+        );
       }
 
       return newItem as ComandaItem;
@@ -559,147 +525,11 @@ export function usePDVComandas() {
   const sendToKitchenMutation = useMutation({
     mutationFn: async (itemIds: string[]) => {
       if (itemIds.length === 0) return;
-
-      // Inclui filhos pendentes dos itens compostos selecionados
-      const { data: childRows } = await supabase
-        .from("pdv_comanda_items")
-        .select("id")
-        .in("parent_item_id", itemIds)
-        .is("sent_to_kitchen_at", null);
-
-      const allIds = Array.from(
-        new Set([...itemIds, ...((childRows ?? []).map((r: any) => r.id))]),
-      );
-
-      const { error } = await supabase
-        .from("pdv_comanda_items")
-        .update({
-          kitchen_status: "pendente",
-          sent_to_kitchen_at: new Date().toISOString(),
-        })
-        .in("id", allIds);
-
+      // Marca os itens (e os sub-itens pendentes) como enviados e cria um cupom
+      // por comanda + centro + impressora, no servidor (pdv_enviar_cozinha).
+      // O payload é o mesmo que a Print Bridge já imprime.
+      const { error } = await (supabase as any).rpc("pdv_enviar_cozinha", { p_item_ids: itemIds });
       if (error) throw error;
-
-      // Enfileira jobs de impressão (snapshot via view)
-      const ownerId = visibleUserId || user?.id;
-      if (!ownerId) return;
-
-      // Nome do garçom (usuário autenticado)
-      let waiterName: string | null = null;
-      if (user?.id) {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .maybeSingle();
-        waiterName = prof?.full_name || user.email || null;
-      }
-
-      const { data: viewRows, error: viewError } = await supabase
-        .from("vw_print_bridge_comanda_items")
-        .select("*")
-        .in("id", allIds);
-
-      if (viewError) {
-        toast.error("Erro ao montar fila de impressão: " + viewError.message);
-        return;
-      }
-
-      // Agrupa por (comanda + impressora/centro) para imprimir 1 papel por grupo
-      const groups = new Map<string, any[]>();
-      (viewRows ?? []).forEach((row: any) => {
-        const groupKey = `${row.comanda_id ?? "nocomanda"}::${row.production_center_id ?? "nocenter"}::${row.printer_ip ?? "noip"}::${row.printer_port ?? 9100}`;
-        const arr = groups.get(groupKey) || [];
-        arr.push(row);
-        groups.set(groupKey, arr);
-      });
-
-      const sortParentsThenChildren = (rows: any[]): any[] => {
-        const parents = rows.filter((r) => !r.is_composite_child);
-        const children = rows.filter((r) => r.is_composite_child);
-        const childrenByParent = new Map<string, any[]>();
-        for (const c of children) {
-          const key = c.parent_item_id ?? "__orphan__";
-          const arr = childrenByParent.get(key) || [];
-          arr.push(c);
-          childrenByParent.set(key, arr);
-        }
-        const sortByPosition = (arr: any[]) =>
-          arr.sort((a, b) => {
-            const pa = a.composition_position ?? Number.MAX_SAFE_INTEGER;
-            const pb = b.composition_position ?? Number.MAX_SAFE_INTEGER;
-            return pa - pb;
-          });
-        const out: any[] = [];
-        for (const p of parents) {
-          out.push(p);
-          const kids = childrenByParent.get(p.id);
-          if (kids) {
-            out.push(...sortByPosition(kids));
-            childrenByParent.delete(p.id);
-          }
-        }
-        // orphan children (parent not in this group)
-        for (const kids of childrenByParent.values()) out.push(...sortByPosition(kids));
-        return out;
-      };
-
-      const jobs = Array.from(groups.values()).map((rows) => {
-        const orderedRows = sortParentsThenChildren(rows);
-        const first = orderedRows[0];
-        const hasPrinter = !!first.printer_ip;
-        return {
-          tenant_user_id: ownerId,
-          source_kind: "comanda" as const,
-          source_item_id: first.id, // representativo (1º item do grupo)
-          center_id: first.production_center_id,
-          center_name: first.center_name,
-          printer_ip: first.printer_ip,
-          printer_port: first.printer_port || 9100,
-          payload: {
-            mesa_numero: first.is_virtual
-              ? String(first.table_number || "Balcão")
-              : (first.table_number ? String(first.table_number) : "AVULSA"),
-            comanda_nome:
-              first.customer_name ||
-              (first.comanda_number ? `Comanda ${first.comanda_number}` : "Comanda"),
-            is_counter: !!first.is_virtual,
-            comanda_number: first.comanda_number,
-            customer_name: first.customer_name,
-            // "Pessoas N" no cabeçalho: o salão usa para conferir rodízio por
-            // cabeça sem ter de abrir a mesa no sistema.
-            person_number: first.person_number ?? null,
-            table_number: first.table_number,
-            kind: "comanda",
-              waiter_name: waiterName,
-              ticket_number: first.ticket_number,
-              order_number: first.order_number,
-            items: orderedRows.map((r: any) => ({
-              product_name: r.product_name,
-              quantity: r.quantity,
-              notes: r.notes,
-              modifiers: r.modifiers,
-              parent_product_name: r.parent_product_name,
-              is_composite_child: r.is_composite_child,
-              composition_group_label: r.composition_group_label,
-            })),
-          },
-          status: hasPrinter ? "pending" : "failed",
-          error_message: hasPrinter ? null : "sem impressora configurada",
-        };
-      });
-
-
-
-      if (jobs.length > 0) {
-        const { error: jobsError } = await supabase
-          .from("pdv_print_jobs")
-          .insert(jobs);
-        if (jobsError) {
-          toast.error("Erro ao criar jobs de impressão: " + jobsError.message);
-        }
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-comanda-items"] });
