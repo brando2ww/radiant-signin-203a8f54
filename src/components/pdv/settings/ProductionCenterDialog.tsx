@@ -96,7 +96,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar" : "Novo"} Centro de Produção</DialogTitle>
           <DialogDescription>
@@ -104,7 +104,7 @@ export function ProductionCenterDialog({ open, onOpenChange, center }: Productio
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="-mx-6 min-h-0 space-y-4 overflow-y-auto px-6 py-1">
           <div className="space-y-2">
             <Label htmlFor="name">Nome *</Label>
             <Input
