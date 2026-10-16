@@ -28,7 +28,7 @@ interface RoleScope {
 const ROLE_SCOPE: Record<AppRole, RoleScope> = {
   proprietario: { modules: "*" },
   gerente: {
-    modules: ["pdv", "financeiro", "delivery", "avaliacoes", "tarefas", "crm"],
+    modules: ["pdv", "financeiro", "delivery", "avaliacoes", "tarefas", "crm", "mesa"],
   },
   // "Operador" do produto: Frente de Caixa + pedidos de delivery, sem
   // financeiro/configurações/relatórios.

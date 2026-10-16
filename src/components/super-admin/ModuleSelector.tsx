@@ -20,6 +20,7 @@ export const availableModules: ModuleEntry[] = [
   { value: "tarefas", label: "Tarefas", description: "Checklists operacionais e tarefas diárias" },
   { value: "compras", label: "Compras", description: "Cotações, pedidos de compra, lista de compras e importação NF-e" },
   { value: "ponto", label: "Ponto", description: "Registro de jornada pelo celular, com foto, cerca virtual e espelho de ponto" },
+  { value: "mesa", label: "Mesa Digital", description: "Pedido pelo QR code na mesa: o cliente abre a mesa, vê o cardápio e pede pelo celular" },
 ];
 
 export function moduleSlugsFor(mod: ModuleEntry): string[] {

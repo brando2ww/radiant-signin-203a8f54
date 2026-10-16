@@ -35,10 +35,10 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 | [x] | Tabelas `mesa_*` e colunas novas em comanda e item | 16/10 (`20261016120000_mesa_digital_base.sql`) |
 | [x] | Funções do cliente (`mesa_abrir`, `mesa_cardapio`, `mesa_entrar`, `mesa_estado`, `mesa_pedir`, `mesa_chamar`, `mesa_fechar_conta`) | 16/10; testadas como anônimo numa transação desfeita (entrar, pedir R$ 197 com combo e Poke, toque duplo, etapa obrigatória, 2ª pessoa na mesma conta, cupom, chamar, fechar conta, bloqueios depois de fechar, QR imutável) |
 | [x] | Funções da equipe (gerar QR, desativar QR, atender chamado) | 16/10; sem aprovar/recusar, por decisão |
-| [ ] | Página pública `/m/:token` | |
-| [ ] | Painel de aprovação e chamados no app do garçom e no salão, com som | |
-| [ ] | Configuração, geração do QR e cartaz em PDF | |
-| [ ] | Registro do módulo `mesa` (tipo, rotas, menu, super admin, `mesa_tem_modulo`) | |
+| [x] | Página pública `/m/:token` | 16/10; testada num celular simulado no restaurante de teste: entrar, cardápio, Poke com etapa obrigatória e molhos (R$ 42,40), carrinho, envio, conta com taxa, chamar garçom, fechar conta |
+| [x] | Chamados (garçom e conta) no app do garçom e no PDV, com bipe e "Atendido" | 16/10, sem aprovação por decisão; consulta da equipe testada via REST, anônimo não lê nada |
+| [x] | Configuração, geração do QR e cartaz em PDF | 16/10, `/pdv/mesa-digital` (6 cartazes por A4) |
+| [x] | Registro do módulo `mesa` (tipo, rotas, menu, super admin, `mesa_tem_modulo`) | 16/10; ligado só no "Ambiente Teste - Ifood" |
 
 ## Fase 2 · Cardápio do Salão
 
@@ -51,5 +51,5 @@ Legenda: **[x]** pronto e testado · **[~]** em andamento · **[ ]** não começ
 
 | | Item | Situação |
 |---|---|---|
-| [ ] | Kōten Garibaldi, uma mesa | |
+| [ ] | Kōten Garibaldi, uma mesa | falta ligar o módulo no super admin, gerar o QR e imprimir |
 | [ ] | Kōten Garibaldi, salão inteiro | |

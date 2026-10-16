@@ -60,6 +60,8 @@ import EvaluationsLayout from "./pdv/EvaluationsLayout";
 import FranchiseImport from "./pdv/FranchiseImport";
 import Tasks from "./pdv/Tasks";
 import PontoHoje from "./pdv/ponto/PontoHoje";
+import MesaDigitalAdmin from "./pdv/MesaDigitalAdmin";
+import { MesaChamadosAlerta } from "@/components/mesa/MesaChamadosAlerta";
 import PontoColaboradores from "./pdv/ponto/PontoColaboradores";
 import PontoLocais from "./pdv/ponto/PontoLocais";
 import PontoEscalas from "./pdv/ponto/PontoEscalas";
@@ -109,6 +111,7 @@ export default function PDV() {
   return (
     <>
       <PDVCatalogRealtime />
+      <MesaChamadosAlerta />
       <DeliveryCatalogRealtime />
       <div className="flex flex-col min-h-screen w-full">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -231,6 +234,7 @@ export default function PDV() {
               
               {/* Ponto */}
               <Route path="ponto" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoHoje /></RoleRoute>} />
+              <Route path="mesa-digital" element={<RoleRoute path="/pdv/mesa-digital" canAccess={canAccess} defaultRoute={defaultRoute}><MesaDigitalAdmin /></RoleRoute>} />
               <Route path="ponto/colaboradores" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoColaboradores /></RoleRoute>} />
               <Route path="ponto/locais" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoLocais /></RoleRoute>} />
               <Route path="ponto/escalas" element={<RoleRoute path="/pdv/ponto" canAccess={canAccess} defaultRoute={defaultRoute}><PontoEscalas /></RoleRoute>} />

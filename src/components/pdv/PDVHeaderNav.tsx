@@ -47,6 +47,7 @@ import {
   Factory,
   Bike,
   ShoppingCart,
+  QrCode,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -89,6 +90,7 @@ const sectionItems: Section[] = [
       { title: "Salão", url: "/pdv/salao", icon: Armchair },
       
       { title: "Caixa", url: "/pdv/caixa", icon: DollarSign },
+      { title: "Mesa Digital (QR)", url: "/pdv/mesa-digital", icon: QrCode },
       
     ],
   },
