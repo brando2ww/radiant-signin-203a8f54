@@ -17,7 +17,7 @@ import { PurchaseOrderCard } from "@/components/pdv/purchases/PurchaseOrderCard"
 import { PurchaseOrderDialog } from "@/components/pdv/purchases/PurchaseOrderDialog";
 import { ReceiptQRCard } from "@/components/pdv/purchases/ReceiptQRCard";
 import { formatCurrency } from "@/lib/whatsapp-message";
-import { fornecedorNaoAbriu } from "@/lib/purchase-order-tracking";
+import { pedidoParaCobrar } from "@/lib/purchase-order-tracking";
 
 export default function PurchaseOrders() {
   const { orders, isLoading, stats } = usePDVPurchaseOrders();
@@ -32,12 +32,12 @@ export default function PurchaseOrders() {
 
     const matchesStatus =
       statusFilter === "all" ||
-      (statusFilter === "nao_abriu" ? fornecedorNaoAbriu(o) : o.status === statusFilter);
+      (statusFilter === "nao_abriu" ? pedidoParaCobrar(o) : o.status === statusFilter);
 
     return matchesSearch && matchesStatus;
   });
 
-  const naoAbertos = orders.filter(fornecedorNaoAbriu).length;
+  const naoAbertos = orders.filter(pedidoParaCobrar).length;
 
   const statCards = [
     {
@@ -106,8 +106,8 @@ export default function PurchaseOrders() {
             <p>
               <span className="font-medium">
                 {naoAbertos === 1
-                  ? "1 pedido enviado que o fornecedor ainda não abriu."
-                  : `${naoAbertos} pedidos enviados que o fornecedor ainda não abriu.`}
+                  ? "1 pedido enviado nos últimos 7 dias que o fornecedor ainda não abriu."
+                  : `${naoAbertos} pedidos enviados nos últimos 7 dias que o fornecedor ainda não abriu.`}
               </span>{" "}
               Confirme com ele antes que falte mercadoria.
             </p>
@@ -145,7 +145,7 @@ export default function PurchaseOrders() {
             <SelectItem value="all">Todos os Status</SelectItem>
             <SelectItem value="draft">Rascunho</SelectItem>
             <SelectItem value="sent">Enviado</SelectItem>
-            <SelectItem value="nao_abriu">Fornecedor não abriu</SelectItem>
+            <SelectItem value="nao_abriu">Não abriu (7 dias)</SelectItem>
             <SelectItem value="confirmed">Confirmado</SelectItem>
             <SelectItem value="partial">Parcial</SelectItem>
             <SelectItem value="received">Recebido</SelectItem>
