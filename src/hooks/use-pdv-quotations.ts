@@ -80,6 +80,9 @@ export interface QuotationRequest {
     order_number: string;
     status: string;
     supplier_id: string | null;
+    whatsapp_sent_at?: string | null;
+    supplier_viewed_at?: string | null;
+    supplier_confirmed_at?: string | null;
   }[];
 }
 
@@ -163,7 +166,7 @@ export function usePDVQuotations() {
               supplier:pdv_suppliers(id, name, phone, whatsapp, minimum_order)
             )
           ),
-          purchase_orders:pdv_purchase_orders(id, order_number, status, supplier_id)
+          purchase_orders:pdv_purchase_orders(id, order_number, status, supplier_id, whatsapp_sent_at, supplier_viewed_at, supplier_confirmed_at)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });

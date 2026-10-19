@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Calendar,
@@ -43,6 +43,7 @@ import { QuotationComparisonDialog } from "./QuotationComparisonDialog";
 import { SendOrderDialog } from "./SendOrderDialog";
 import { QuotationRequestDialog } from "./QuotationRequestDialog";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
+import { fornecedorNaoAbriu } from "@/lib/purchase-order-tracking";
 
 interface QuotationRequestCardProps {
   quotation: QuotationRequest;
@@ -134,6 +135,12 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
     ) ?? [],
   );
   const comPedido = new Set(pedidosEnviados.map((po) => po.supplier_id));
+  const nomeFornecedor = new Map<string, string>();
+  quotation.items?.forEach((item) =>
+    item.responses?.forEach((r) => {
+      if (r.supplier) nomeFornecedor.set(r.supplier_id, r.supplier.name);
+    }),
+  );
   const pedidoCompleto =
     hasWinner && Array.from(vencedores).every((id) => comPedido.has(id));
 
@@ -174,7 +181,7 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
                 {quotation.deadline && (
                   <>
                     <span className="mx-1">•</span>
-                    <span>Prazo: {format(new Date(quotation.deadline), "dd/MM/yyyy", { locale: ptBR })}</span>
+                    <span>Prazo: {format(parseISO(quotation.deadline), "dd/MM/yyyy", { locale: ptBR })}</span>
                   </>
                 )}
               </div>
@@ -252,11 +259,33 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
           </div>
 
           {pedidosEnviados.length > 0 && (
-            <p className="text-sm text-green-700">
-              {pedidosEnviados.length === 1 ? "Pedido " : "Pedidos "}
-              {pedidosEnviados.map((po) => po.order_number).join(", ")}
-              {pedidoCompleto ? "" : " · falta enviar a outros vencedores"}
-            </p>
+            <div className="space-y-1 text-sm">
+              {pedidosEnviados.map((po) => {
+                const naoAbriu = fornecedorNaoAbriu({ ...po, quotation_request_id: quotation.id });
+                return (
+                  <div key={po.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="font-medium">{po.order_number}</span>
+                    {po.supplier_id && nomeFornecedor.get(po.supplier_id) && (
+                      <span className="text-muted-foreground">{nomeFornecedor.get(po.supplier_id)}</span>
+                    )}
+                    {po.status === "received" || po.status === "partial" ? (
+                      <span className="text-xs text-green-700">
+                        {po.status === "received" ? "recebido" : "recebido em parte"}
+                      </span>
+                    ) : po.supplier_confirmed_at || po.status === "confirmed" ? (
+                      <span className="text-xs text-green-700">confirmado</span>
+                    ) : po.supplier_viewed_at ? (
+                      <span className="text-xs text-muted-foreground">abriu, não confirmou</span>
+                    ) : naoAbriu ? (
+                      <span className="text-xs font-medium text-amber-700">não abriu o pedido</span>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {!pedidoCompleto && (
+                <p className="text-xs text-green-700">Falta enviar a outros vencedores.</p>
+              )}
+            </div>
           )}
 
           {/* Responses info */}

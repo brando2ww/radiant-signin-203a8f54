@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { format, addDays } from "date-fns";
+import { format, addDays, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Dialog,
@@ -143,7 +143,9 @@ export function QuotationRequestDialog({
           .map((l) => l.supplier_id),
       }))
     );
-    setDeadline(quotation.deadline ? new Date(quotation.deadline) : addDays(new Date(), 3));
+    // deadline é DATE: new Date() leria como UTC, mostraria o dia anterior e,
+    // ao salvar, gravaria o prazo um dia mais cedo a cada edição.
+    setDeadline(quotation.deadline ? parseISO(quotation.deadline) : addDays(new Date(), 3));
     setNotes(quotation.notes || "");
     // Reidratar a cada mudança de `items`/`existingLinks` apagaria o que o
     // usuário acabou de digitar; o gatilho é abrir o diálogo nesta cotação.

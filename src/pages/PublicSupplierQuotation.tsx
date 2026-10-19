@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Loader2, CheckCircle2, PackageX, Clock, Send, ChevronDown, ListChecks, CalendarClock,
-  Plus, X, Truck, CreditCard, Ban,
+  Plus, X, Truck, CreditCard, Ban, Trophy, HeartHandshake, ExternalLink,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
@@ -35,8 +35,19 @@ interface LoadItem {
   required?: RequiredField[];
   offers?: Offer[];
 }
+/** Como a cotação terminou, para quem respondeu. Só vem com ela encerrada. */
+interface Outcome {
+  status: "completed" | "cancelled" | string;
+  closed_at: string | null;
+  responded: boolean;
+  /** Itens em que a oferta deste fornecedor foi a escolhida. */
+  won_items: number;
+  has_winners: boolean;
+  order: { number: string; token: string } | null;
+}
 interface LoadData {
   status: "open" | "closed" | "invalid";
+  outcome?: Outcome | null;
   business?: { name: string | null; logo_url: string | null; color: string | null };
   supplier?: { name: string | null };
   quotation?: { request_number: string | null; deadline: string | null };
@@ -130,6 +141,8 @@ export default function PublicSupplierQuotation() {
   const [globalDelivery, setGlobalDelivery] = useState("");
   const [globalPayment, setGlobalPayment] = useState("");
   const [refusals, setRefusals] = useState<Record<string, Refusal>>({});
+  // Encerrada: abre no agradecimento; a proposta enviada fica a um clique.
+  const [verProposta, setVerProposta] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -431,6 +444,9 @@ export default function PublicSupplierQuotation() {
         <p className="text-sm text-muted-foreground mt-1">
           Obrigado. {data.business?.name} recebeu sua proposta.
         </p>
+        <p className="text-xs text-muted-foreground mt-3">
+          Quando a cotação for encerrada, este mesmo link mostra o resultado.
+        </p>
         {data.status === "open" && (
           <Button variant="outline" className="mt-5" onClick={() => { setDone(false); load(); }}>
             Editar meu orçamento
@@ -441,6 +457,20 @@ export default function PublicSupplierQuotation() {
   }
 
   const closed = data.status === "closed";
+
+  if (closed && data.outcome && !verProposta) {
+    return (
+      <ClosedOutcome
+        outcome={data.outcome}
+        business={data.business?.name ?? "O estabelecimento"}
+        supplier={data.supplier?.name ?? null}
+        requestNumber={data.quotation?.request_number ?? null}
+        totalItems={(data.items ?? []).length}
+        onShowProposal={() => setVerProposta(true)}
+      />
+    );
+  }
+
   // deadline é DATE ("yyyy-MM-dd"): new Date() leria como UTC e voltaria um dia.
   const deadlineStr = data.quotation?.deadline
     ? format(parseISO(data.quotation.deadline), "dd/MM/yyyy")
@@ -1048,6 +1078,89 @@ function OfferFields({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Agradecimento depois do encerramento. Sem isto o fornecedor abria o link,
+ * via o formulário travado e não sabia se a cotação tinha fechado nem se a
+ * proposta dele tinha sido a escolhida.
+ */
+function ClosedOutcome({
+  outcome,
+  business,
+  supplier,
+  requestNumber,
+  totalItems,
+  onShowProposal,
+}: {
+  outcome: Outcome;
+  business: string;
+  supplier: string | null;
+  requestNumber: string | null;
+  totalItems: number;
+  onShowProposal: () => void;
+}) {
+  const cotacao = requestNumber ? `A cotação ${requestNumber}` : "A cotação";
+  const quando = outcome.closed_at
+    ? ` em ${format(new Date(outcome.closed_at), "dd/MM/yyyy")}`
+    : "";
+  const obrigado = supplier ? `${supplier}, obrigado por participar!` : "Obrigado por participar!";
+
+  let icon = <CheckCircle2 className="h-14 w-14 text-emerald-500 mb-3" />;
+  let title = "Cotação encerrada";
+  let body: React.ReactNode = `${cotacao} foi encerrada${quando} e não recebe mais propostas.`;
+
+  if (outcome.status === "cancelled") {
+    icon = <Ban className="h-14 w-14 text-muted-foreground mb-3" />;
+    title = "Cotação cancelada";
+    body = `${cotacao} foi cancelada por ${business}. Obrigado pela atenção!`;
+  } else if (outcome.won_items > 0) {
+    icon = <Trophy className="h-14 w-14 text-amber-500 mb-3" />;
+    title = "Sua proposta foi escolhida!";
+    body = (
+      <>
+        {business} escolheu a sua oferta em{" "}
+        <strong className="text-foreground">
+          {outcome.won_items === totalItems && totalItems > 1
+            ? "todos os itens"
+            : `${outcome.won_items} ${outcome.won_items === 1 ? "item" : "itens"}`}
+        </strong>
+        .{" "}
+        {outcome.order
+          ? `O pedido ${outcome.order.number} já foi enviado para você.`
+          : "O pedido chega pelo WhatsApp."}
+      </>
+    );
+  } else if (outcome.responded) {
+    icon = <HeartHandshake className="h-14 w-14 text-emerald-500 mb-3" />;
+    title = "Obrigado pela proposta!";
+    body = outcome.has_winners
+      ? `${cotacao} foi encerrada${quando}. Desta vez ${business} fechou com outra oferta. ${obrigado}`
+      : `${cotacao} foi encerrada${quando}. ${obrigado}`;
+  }
+
+  return (
+    <Centered>
+      {icon}
+      <h1 className="text-xl font-semibold">{title}</h1>
+      <p className="text-sm text-muted-foreground mt-1">{body}</p>
+      <div className="mt-5 flex w-full flex-col gap-2">
+        {outcome.order && (
+          <Button asChild>
+            <a href={`/pedido/${outcome.order.token}`}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Ver o pedido
+            </a>
+          </Button>
+        )}
+        {outcome.responded && (
+          <Button variant="outline" onClick={onShowProposal}>
+            Ver a proposta que enviei
+          </Button>
+        )}
+      </div>
+    </Centered>
   );
 }
 

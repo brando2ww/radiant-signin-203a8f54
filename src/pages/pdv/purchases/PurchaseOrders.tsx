@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Package, Send, CheckCircle2, Clock, Search, Filter, DollarSign } from "lucide-react";
+import { Plus, Package, Send, CheckCircle2, Clock, Search, Filter, DollarSign, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { PurchaseOrderCard } from "@/components/pdv/purchases/PurchaseOrderCard"
 import { PurchaseOrderDialog } from "@/components/pdv/purchases/PurchaseOrderDialog";
 import { ReceiptQRCard } from "@/components/pdv/purchases/ReceiptQRCard";
 import { formatCurrency } from "@/lib/whatsapp-message";
+import { fornecedorNaoAbriu } from "@/lib/purchase-order-tracking";
 
 export default function PurchaseOrders() {
   const { orders, isLoading, stats } = usePDVPurchaseOrders();
@@ -29,10 +30,14 @@ export default function PurchaseOrders() {
       o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       o.supplier?.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === "all" || o.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "nao_abriu" ? fornecedorNaoAbriu(o) : o.status === statusFilter);
 
     return matchesSearch && matchesStatus;
   });
+
+  const naoAbertos = orders.filter(fornecedorNaoAbriu).length;
 
   const statCards = [
     {
@@ -94,6 +99,32 @@ export default function PurchaseOrders() {
           acompanha os pedidos é quem imprime e cola o código na doca. */}
       <ReceiptQRCard />
 
+      {naoAbertos > 0 && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2 text-sm">
+            <EyeOff className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              <span className="font-medium">
+                {naoAbertos === 1
+                  ? "1 pedido enviado que o fornecedor ainda não abriu."
+                  : `${naoAbertos} pedidos enviados que o fornecedor ainda não abriu.`}
+              </span>{" "}
+              Confirme com ele antes que falte mercadoria.
+            </p>
+          </div>
+          {statusFilter !== "nao_abriu" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-amber-400 bg-white text-amber-800 hover:bg-amber-100"
+              onClick={() => setStatusFilter("nao_abriu")}
+            >
+              Ver quais são
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -114,6 +145,7 @@ export default function PurchaseOrders() {
             <SelectItem value="all">Todos os Status</SelectItem>
             <SelectItem value="draft">Rascunho</SelectItem>
             <SelectItem value="sent">Enviado</SelectItem>
+            <SelectItem value="nao_abriu">Fornecedor não abriu</SelectItem>
             <SelectItem value="confirmed">Confirmado</SelectItem>
             <SelectItem value="partial">Parcial</SelectItem>
             <SelectItem value="received">Recebido</SelectItem>

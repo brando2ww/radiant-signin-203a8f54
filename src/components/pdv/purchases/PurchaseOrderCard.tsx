@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import {
@@ -15,6 +15,7 @@ import {
   Trash2,
   Truck,
   Link as LinkIcon,
+  EyeOff,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ import {
 import { PurchaseOrder, usePDVPurchaseOrders } from "@/hooks/use-pdv-purchase-orders";
 import { formatCurrency, generateOrderMessage, openWhatsApp } from "@/lib/whatsapp-message";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
+import { fornecedorNaoAbriu } from "@/lib/purchase-order-tracking";
 import { ReceiveOrderDialog } from "./ReceiveOrderDialog";
 
 interface PurchaseOrderCardProps {
@@ -85,6 +87,7 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
 
   const status = statusConfig[order.status];
   const StatusIcon = status.icon;
+  const naoAbriu = fornecedorNaoAbriu(order);
 
   // Pedido pode receber mercadoria enquanto não estiver totalmente recebido
   const canReceive = ["draft", "sent", "confirmed", "partial"].includes(order.status);
@@ -98,7 +101,7 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
       {
         orderNumber: order.order_number,
         total: order.total,
-        expectedDelivery: order.expected_delivery ? new Date(order.expected_delivery) : undefined,
+        expectedDelivery: order.expected_delivery ? parseISO(order.expected_delivery) : undefined,
       },
       order.items?.map((item) => ({
         ingredientName: item.ingredient?.name || "",
@@ -134,6 +137,12 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                   <StatusIcon className="h-3 w-3 mr-1" />
                   {status.label}
                 </Badge>
+                {naoAbriu && (
+                  <Badge variant="outline" className="whitespace-nowrap border-amber-400 bg-amber-50 text-amber-700">
+                    <EyeOff className="h-3 w-3 mr-1" />
+                    Não abriu
+                  </Badge>
+                )}
                 {/* "Recebido" sozinho esconderia que faltou mercadoria. */}
                 {order.closed_incomplete && (
                   <Badge
@@ -152,7 +161,7 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
               )}
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-3 w-3" />
-                {format(new Date(order.order_date), "dd/MM/yyyy", { locale: ptBR })}
+                {format(parseISO(order.order_date), "dd/MM/yyyy", { locale: ptBR })}
                 {order.supplier && (
                   <>
                     <span className="mx-1">•</span>
@@ -172,6 +181,13 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
                 <p className="mt-1 text-xs text-muted-foreground">
                   Fornecedor abriu o pedido em{" "}
                   {format(new Date(order.supplier_viewed_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  {order.status === "sent" ? " · ainda não confirmou" : ""}
+                </p>
+              ) : naoAbriu ? (
+                <p className="mt-1 text-xs font-medium text-amber-700">
+                  O fornecedor ainda não abriu o pedido · enviado{" "}
+                  {formatDistanceToNow(new Date(order.whatsapp_sent_at!), { locale: ptBR, addSuffix: true })}.
+                  Vale ligar para confirmar.
                 </p>
               ) : null}
             </div>
@@ -266,7 +282,7 @@ export function PurchaseOrderCard({ order }: PurchaseOrderCardProps) {
           {order.expected_delivery && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Entrega prevista:</span>
-              <span>{format(new Date(order.expected_delivery), "dd/MM/yyyy", { locale: ptBR })}</span>
+              <span>{format(parseISO(order.expected_delivery), "dd/MM/yyyy", { locale: ptBR })}</span>
             </div>
           )}
 

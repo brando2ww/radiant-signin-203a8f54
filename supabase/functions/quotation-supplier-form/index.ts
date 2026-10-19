@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     // Cotação
     const { data: quotation } = await service
       .from("pdv_quotation_requests")
-      .select("id, request_number, deadline, status")
+      .select("id, request_number, deadline, status, updated_at")
       .eq("id", link.quotation_request_id)
       .maybeSingle();
 
@@ -106,8 +106,50 @@ Deno.serve(async (req) => {
         for (const r of resps ?? []) (offersByItem[r.quotation_item_id] ??= []).push(r);
       }
 
+      // Cotação encerrada: o fornecedor precisa saber como terminou, senão
+      // fica sem saber se fechou e se a proposta dele foi a escolhida.
+      let outcome: Record<string, unknown> | null = null;
+      if (!isOpen) {
+        const { data: allItems } = await service
+          .from("pdv_quotation_items")
+          .select("id")
+          .eq("quotation_request_id", quotation.id);
+        const allIds = (allItems ?? []).map((i: any) => i.id);
+        const { data: winners } = allIds.length
+          ? await service
+              .from("pdv_quotation_responses")
+              .select("supplier_id, quotation_item_id")
+              .in("quotation_item_id", allIds)
+              .eq("is_winner", true)
+          : { data: [] as any[] };
+        const wonItems = new Set(
+          (winners ?? [])
+            .filter((w: any) => w.supplier_id === link.supplier_id)
+            .map((w: any) => w.quotation_item_id),
+        ).size;
+        // Rascunho é envio que falhou: esse pedido não chegou ao fornecedor.
+        const { data: order } = await service
+          .from("pdv_purchase_orders")
+          .select("order_number, public_token")
+          .eq("quotation_request_id", quotation.id)
+          .eq("supplier_id", link.supplier_id)
+          .not("status", "in", "(draft,cancelled)")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        outcome = {
+          status: quotation.status,
+          closed_at: quotation.updated_at,
+          responded: Object.keys(offersByItem).length > 0,
+          won_items: wonItems,
+          has_winners: (winners ?? []).length > 0,
+          order: order ? { number: order.order_number, token: order.public_token } : null,
+        };
+      }
+
       return json({
         status: isOpen ? "open" : "closed",
+        outcome,
         business: { name: settings?.business_name ?? null, logo_url: settings?.logo_url ?? null, color: settings?.primary_color ?? null },
         supplier: { name: supplier?.name ?? null },
         quotation: { request_number: quotation.request_number, deadline: quotation.deadline },
