@@ -108,6 +108,32 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
    */
   const [qtdEditada, setQtdEditada] = useState<Record<string, string>>({});
 
+  /**
+   * Fornecedores que já receberam o pedido desta cotação, com o número do
+   * pedido. Rascunho é envio que falhou: esse ainda pode sair. Sem isto, abrir
+   * o diálogo de novo mandava outro pedido e gerava pedido de compra em dobro.
+   */
+  const jaEnviados = useMemo(() => {
+    const m = new Map<string, string>();
+    (quotation.purchase_orders ?? []).forEach((po) => {
+      if (po.supplier_id && po.status !== "draft" && po.status !== "cancelled") {
+        m.set(po.supplier_id, po.order_number);
+      }
+    });
+    return m;
+  }, [quotation.purchase_orders]);
+
+  const jaEnviadosLista = useMemo(() => {
+    const nomes = new Map<string, string>();
+    (quotation.items ?? []).forEach((item) => {
+      const win = item.responses?.find((r) => r.is_winner);
+      if (win?.supplier && jaEnviados.has(win.supplier.id)) {
+        nomes.set(win.supplier.id, win.supplier.name);
+      }
+    });
+    return Array.from(nomes, ([id, nome]) => `${nome} (${jaEnviados.get(id)})`);
+  }, [quotation.items, jaEnviados]);
+
   // Agrupa os itens VENCEDORES por fornecedor.
   const orders = useMemo<SupplierOrder[]>(() => {
     const bySupplier = new Map<string, SupplierOrder>();
@@ -115,6 +141,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
       const win = item.responses?.find((r) => r.is_winner);
       if (!win || !win.supplier) return;
       const sid = win.supplier.id;
+      if (jaEnviados.has(sid)) return;
       // Zero significa "decidi não levar este". A linha continua na tela,
       // apagada, mas sai do total, do pedido de compra e da mensagem.
       const bruto = qtdEditada[item.id];
@@ -162,7 +189,7 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
       }
     });
     return Array.from(bySupplier.values());
-  }, [quotation.items, qtdEditada]);
+  }, [quotation.items, qtdEditada, jaEnviados]);
 
   // Itens da cotação que ficaram sem vencedor: precisam aparecer na conferência,
   // senão o pedido sai incompleto sem ninguém perceber.
@@ -466,11 +493,23 @@ export function SendOrderDialog({ open, onOpenChange, quotation }: SendOrderDial
 
         {orders.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhum vencedor selecionado ainda. Escolha os vencedores no comparativo.
+            {jaEnviadosLista.length > 0
+              ? `Todos os vencedores já receberam o pedido: ${jaEnviadosLista.join(", ")}.`
+              : "Nenhum vencedor selecionado ainda. Escolha os vencedores no comparativo."}
           </div>
         ) : step === "review" ? (
           <ScrollArea className="max-h-[55vh]">
             <div className="space-y-4 pr-2">
+              {jaEnviadosLista.length > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs text-emerald-800">
+                  <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    <span className="font-medium">Já receberam o pedido:</span>{" "}
+                    {jaEnviadosLista.join(", ")} · ficam fora deste envio.
+                  </p>
+                </div>
+              )}
+
               {pendingItems.length > 0 && (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />

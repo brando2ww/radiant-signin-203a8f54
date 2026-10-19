@@ -7310,6 +7310,7 @@ export type Database = {
           notes: string | null
           quantity_needed: number
           quotation_request_id: string
+          required_fields: string[]
           unit: string
         }
         Insert: {
@@ -7319,6 +7320,7 @@ export type Database = {
           notes?: string | null
           quantity_needed: number
           quotation_request_id: string
+          required_fields?: string[]
           unit: string
         }
         Update: {
@@ -7328,6 +7330,7 @@ export type Database = {
           notes?: string | null
           quantity_needed?: number
           quotation_request_id?: string
+          required_fields?: string[]
           unit?: string
         }
         Relationships: [
@@ -7398,6 +7401,7 @@ export type Database = {
           notes: string | null
           origin: string | null
           original_unit_price: number | null
+          package_size: string | null
           payment_terms: string | null
           quotation_item_id: string
           received_at: string | null
@@ -7421,6 +7425,7 @@ export type Database = {
           notes?: string | null
           origin?: string | null
           original_unit_price?: number | null
+          package_size?: string | null
           payment_terms?: string | null
           quotation_item_id: string
           received_at?: string | null
@@ -7444,6 +7449,7 @@ export type Database = {
           notes?: string | null
           origin?: string | null
           original_unit_price?: number | null
+          package_size?: string | null
           payment_terms?: string | null
           quotation_item_id?: string
           received_at?: string | null

@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import {
   Loader2, CheckCircle2, PackageX, Clock, Send, ChevronDown, ListChecks, CalendarClock,
@@ -19,6 +18,7 @@ interface Offer {
   unit_price?: number | null;
   brand?: string | null;
   conservation?: string | null;
+  package_size?: string | null;
   delivery_days?: number | null;
   minimum_order?: number | null;
   payment_terms?: string | null;
@@ -31,6 +31,8 @@ interface LoadItem {
   ingredient_name: string;
   quantity: number;
   unit: string;
+  /** O que o comprador exigiu neste produto, além de marca e preço. */
+  required?: RequiredField[];
   offers?: Offer[];
 }
 interface LoadData {
@@ -42,12 +44,19 @@ interface LoadData {
   items?: LoadItem[];
 }
 
+type RequiredField = "validade" | "tamanho";
+const REQUIRED_LABELS: Record<RequiredField, string> = {
+  validade: "validade",
+  tamanho: "tamanho / embalagem",
+};
+
 /** Uma oferta = uma marca. O fornecedor pode mandar quantas quiser por item. */
 type OfferRow = {
   key: string;
   unit_price: string;      // mascarado "1.234,56"
   brand: string;
   conservation: string;    // "" | resfriado | congelado | ambiente
+  package_size: string;    // texto livre: "caixa 18 kg", "peça de 3 a 4 kg"
   delivery_days: string;   // inteiro
   minimum_order: string;   // mascarado
   payment_terms: string;
@@ -79,7 +88,7 @@ type Refusal = { reason: string; note: string };
 let offerSeq = 0;
 const emptyOffer = (base?: Partial<OfferRow>): OfferRow => ({
   key: `offer-${++offerSeq}`,
-  unit_price: "", brand: "", conservation: "", delivery_days: "",
+  unit_price: "", brand: "", conservation: "", package_size: "", delivery_days: "",
   minimum_order: "", payment_terms: "", expiration_date: "", notes: "",
   ...base,
 });
@@ -101,6 +110,12 @@ const currencyFromNumber = (n: number | null | undefined): string =>
   n == null ? "" : Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const isFilled = (o: OfferRow) => o.unit_price.trim() !== "";
+
+/** Campos exigidos pelo comprador que esta oferta ainda não trouxe. */
+const missingRequired = (item: LoadItem, o: OfferRow): RequiredField[] =>
+  (item.required ?? []).filter((f) =>
+    f === "validade" ? !o.expiration_date : !o.package_size.trim(),
+  );
 
 export default function PublicSupplierQuotation() {
   const { token } = useParams<{ token: string }>();
@@ -143,6 +158,7 @@ export default function PublicSupplierQuotation() {
                 unit_price: currencyFromNumber(r.unit_price),
                 brand: r.brand ?? "",
                 conservation: r.conservation ?? "",
+                package_size: r.package_size ?? "",
                 delivery_days: r.delivery_days != null ? String(r.delivery_days) : "",
                 minimum_order: currencyFromNumber(r.minimum_order),
                 payment_terms: r.payment_terms ?? "",
@@ -318,6 +334,7 @@ export default function PublicSupplierQuotation() {
           unit_price: parseCurrency(o.unit_price),
           brand: o.brand.trim() || null,
           conservation: o.conservation || null,
+          package_size: o.package_size.trim() || null,
           delivery_days: effectiveDelivery(o) || null,
           minimum_order: o.minimum_order ? parseCurrency(o.minimum_order) : null,
           payment_terms: effectivePayment(o) || null,
@@ -351,7 +368,8 @@ export default function PublicSupplierQuotation() {
           (o) =>
             !o.brand.trim() ||
             (deliveryMode === "each" && !o.delivery_days.trim()) ||
-            (paymentMode === "each" && !o.payment_terms.trim()),
+            (paymentMode === "each" && !o.payment_terms.trim()) ||
+            missingRequired(it, o).length > 0,
         ),
     );
     if (incomplete) {
@@ -359,6 +377,7 @@ export default function PublicSupplierQuotation() {
         "marca",
         ...(deliveryMode === "each" ? ["prazo de entrega"] : []),
         ...(paymentMode === "each" ? ["forma de pagamento"] : []),
+        ...(incomplete.required ?? []).map((f) => REQUIRED_LABELS[f]),
       ];
       toast.error(
         `Em "${incomplete.ingredient_name}", preencha ${missing.join(", ")} em todas as ofertas.`,
@@ -429,7 +448,6 @@ export default function PublicSupplierQuotation() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <Toaster />
 
       {/* Header com a marca do cliente */}
       <header className="text-white" style={{ backgroundColor: brandColor }}>
@@ -576,12 +594,22 @@ export default function PublicSupplierQuotation() {
                       >
                         {i + 1}
                       </span>
-                      <span className={`font-semibold truncate ${refusal ? "text-muted-foreground line-through" : ""}`}>
+                      <span className={`font-semibold leading-snug break-words ${refusal ? "text-muted-foreground line-through" : ""}`}>
                         {it.ingredient_name}
                       </span>
                     </div>
                     <Badge variant="outline" className="shrink-0">{qty} {it.unit}</Badge>
                   </div>
+
+                  {!refusal && (it.required?.length ?? 0) > 0 && (
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Neste item, informe também{" "}
+                      <strong className="text-foreground">
+                        {it.required!.map((f) => REQUIRED_LABELS[f]).join(" e ")}
+                      </strong>
+                      .
+                    </p>
+                  )}
 
                   {refusal ? (
                     <RefusalPanel
@@ -619,11 +647,13 @@ export default function PublicSupplierQuotation() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="w-full border-dashed"
+                        className="w-full h-auto min-h-9 py-2 border-dashed whitespace-normal"
                         onClick={() => addOffer(it.id)}
                       >
-                        <Plus className="h-3.5 w-3.5 mr-1.5" />
-                        Adicionar outra marca de {it.ingredient_name}
+                        <Plus className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                        <span className="min-w-0 break-words">
+                          Adicionar outra marca de {it.ingredient_name}
+                        </span>
                       </Button>
                       <button
                         type="button"
@@ -842,6 +872,35 @@ function OfferFields({
   onRemove: () => void;
 }) {
   const total = parseCurrency(o.unit_price);
+  // Exigido pelo comprador fica sempre à vista e com asterisco; o resto
+  // continua recolhido como opcional.
+  const exigeValidade = item.required?.includes("validade") ?? false;
+  const exigeTamanho = item.required?.includes("tamanho") ?? false;
+  const opcionais = [
+    !exigeValidade && "validade",
+    !exigeTamanho && "tamanho",
+    "pedido mínimo",
+    "observação",
+  ].filter(Boolean).join(", ");
+
+  const campoValidade = (obrigatorio: boolean) => (
+    <div className="space-y-1">
+      <Label className={obrigatorio ? "text-xs font-medium" : "text-xs"}>
+        Validade{obrigatorio ? " *" : ""}
+      </Label>
+      <Input type="date" value={o.expiration_date} disabled={closed}
+        onChange={(e) => onChange("expiration_date", e.target.value)} />
+    </div>
+  );
+  const campoTamanho = (obrigatorio: boolean) => (
+    <div className="space-y-1">
+      <Label className={obrigatorio ? "text-xs font-medium" : "text-xs"}>
+        Tamanho / embalagem{obrigatorio ? " *" : ""}
+      </Label>
+      <Input placeholder="Ex: caixa 18 kg, peça 3 a 4 kg" value={o.package_size} disabled={closed}
+        onChange={(e) => onChange("package_size", e.target.value)} />
+    </div>
+  );
 
   return (
     <div className={totalOffers > 1 ? "rounded-lg border bg-muted/20 p-3 space-y-3" : "space-y-3"}>
@@ -928,6 +987,13 @@ function OfferFields({
         </div>
       </div>
 
+      {(exigeValidade || exigeTamanho) && (
+        <div className="grid grid-cols-2 gap-3">
+          {exigeValidade && campoValidade(true)}
+          {exigeTamanho && campoTamanho(true)}
+        </div>
+      )}
+
       {/* Prazo e pagamento só aparecem aqui quando o fornecedor escolheu
           defini-los por item; caso contrário valem as condições do topo. */}
       {(showDelivery || showPayment) && (
@@ -958,16 +1024,13 @@ function OfferFields({
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
         {expanded
           ? "Ocultar campos extras"
-          : "Preencher também (opcional): validade, pedido mínimo, observação"}
+          : `Preencher também (opcional): ${opcionais}`}
       </button>
 
       {expanded && (
         <div className="grid grid-cols-2 gap-3 pt-1">
-          <div className="space-y-1">
-            <Label className="text-xs">Validade</Label>
-            <Input type="date" value={o.expiration_date} disabled={closed}
-              onChange={(e) => onChange("expiration_date", e.target.value)} />
-          </div>
+          {!exigeValidade && campoValidade(false)}
+          {!exigeTamanho && campoTamanho(false)}
           <div className="space-y-1">
             <Label className="text-xs">Pedido mínimo</Label>
             <div className="relative">

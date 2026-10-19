@@ -21,6 +21,14 @@ const CONSERVATIONS = ["resfriado", "congelado", "ambiente"];
 // "Não tenho este item" é resposta válida: o lojista precisa saber que o
 // fornecedor viu e recusou, em vez de ficar esperando um preço que não vem.
 const UNAVAILABLE_REASONS = ["sem_estoque", "nao_trabalha", "em_falta"];
+// O que o comprador pode exigir por produto, além de marca e preço.
+const REQUIRED_FIELDS = ["validade", "tamanho"];
+const requiredOf = (it: any): string[] =>
+  (Array.isArray(it?.required_fields) ? it.required_fields : []).filter((f: string) =>
+    REQUIRED_FIELDS.includes(f)
+  );
+const text = (v: unknown): string | null =>
+  typeof v === "string" && v.trim() ? v.trim() : null;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -76,7 +84,7 @@ Deno.serve(async (req) => {
       // Itens dessa cotação que ESTE fornecedor foi convidado a cotar.
       const { data: itemLinks } = await service
         .from("pdv_quotation_item_suppliers")
-        .select("quotation_item_id, pdv_quotation_items!inner(id, quantity_needed, unit, quotation_request_id, ingredient:pdv_ingredients(name))")
+        .select("quotation_item_id, pdv_quotation_items!inner(id, quantity_needed, unit, quotation_request_id, required_fields, ingredient:pdv_ingredients(name))")
         .eq("supplier_id", link.supplier_id);
 
       const items = (itemLinks ?? [])
@@ -91,7 +99,7 @@ Deno.serve(async (req) => {
       if (itemIds.length > 0) {
         const { data: resps } = await service
           .from("pdv_quotation_responses")
-          .select("id, quotation_item_id, unit_price, brand, conservation, delivery_days, minimum_order, payment_terms, expiration_date, notes, unavailable_reason")
+          .select("id, quotation_item_id, unit_price, brand, conservation, package_size, delivery_days, minimum_order, payment_terms, expiration_date, notes, unavailable_reason")
           .eq("supplier_id", link.supplier_id)
           .in("quotation_item_id", itemIds)
           .order("created_at", { ascending: true });
@@ -111,6 +119,7 @@ Deno.serve(async (req) => {
             ingredient_name: it.ingredient?.name ?? "Item",
             quantity: it.quantity_needed,
             unit: it.unit,
+            required: requiredOf(it),
             offers,
             // Compat: link já aberto no celular do fornecedor com a página
             // antiga (uma oferta por item) continua carregando.
@@ -129,13 +138,15 @@ Deno.serve(async (req) => {
       // Conjunto de itens válidos (convidados) desse fornecedor nesta cotação.
       const { data: itemLinks } = await service
         .from("pdv_quotation_item_suppliers")
-        .select("quotation_item_id, pdv_quotation_items!inner(id, quantity_needed, quotation_request_id)")
+        .select("quotation_item_id, pdv_quotation_items!inner(id, quantity_needed, quotation_request_id, required_fields)")
         .eq("supplier_id", link.supplier_id);
       const validItems = new Map<string, number>();
+      const requiredByItem = new Map<string, string[]>();
       for (const r of itemLinks ?? []) {
         const it: any = r.pdv_quotation_items;
         if (it && it.quotation_request_id === link.quotation_request_id) {
           validItems.set(it.id, Number(it.quantity_needed) || 0);
+          requiredByItem.set(it.id, requiredOf(it));
         }
       }
 
@@ -165,9 +176,22 @@ Deno.serve(async (req) => {
 
         const brand = typeof resp?.brand === "string" && resp.brand.trim() ? resp.brand.trim() : null;
         const conservation = CONSERVATIONS.includes(resp?.conservation) ? resp.conservation : null;
+        const packageSize = text(resp?.package_size);
+        const expiration = /^\d{4}-\d{2}-\d{2}$/.test(resp?.expiration_date ?? "") ? resp.expiration_date : null;
+
+        // O que o comprador exigiu neste produto. A página já cobra, mas a
+        // regra vale aqui também: link aberto numa versão antiga da página
+        // não pode passar sem a informação.
+        const required = requiredByItem.get(itemId) ?? [];
+        if (
+          (required.includes("validade") && !expiration) ||
+          (required.includes("tamanho") && !packageSize)
+        ) {
+          return json({ error: "required_missing", item_id: itemId }, 400);
+        }
 
         const list = offersByItem.get(itemId) ?? [];
-        list.push({ ...resp, unitPrice, brand, conservation });
+        list.push({ ...resp, unitPrice, brand, conservation, packageSize, expiration });
         offersByItem.set(itemId, list);
       }
 
@@ -199,10 +223,11 @@ Deno.serve(async (req) => {
             total_price: o.unitPrice * qty,
             brand: o.brand,
             conservation: o.conservation,
+            package_size: o.packageSize,
             delivery_days: o.delivery_days ? parseInt(o.delivery_days) : null,
             minimum_order: o.minimum_order ? Number(o.minimum_order) : null,
             payment_terms: o.payment_terms || null,
-            expiration_date: o.expiration_date || null,
+            expiration_date: o.expiration,
             notes: o.notes || null,
             source: "link",
           })),

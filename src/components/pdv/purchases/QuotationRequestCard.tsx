@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -72,6 +73,7 @@ const statusConfig = {
 
 export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
   const { updateStatus, deleteQuotation } = usePDVQuotations();
+  const navigate = useNavigate();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [whatsappOpen, setWhatsappOpen] = useState(false);
   const [responseOpen, setResponseOpen] = useState(false);
@@ -79,7 +81,17 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
   const [orderOpen, setOrderOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  const status = statusConfig[quotation.status];
+  // Pedido de compra que saiu de fato. Rascunho é envio que falhou.
+  const pedidosEnviados = (quotation.purchase_orders ?? []).filter(
+    (po) => po.status !== "draft" && po.status !== "cancelled",
+  );
+
+  // "Finalizada" não diz se o pedido saiu: o comprador via o mesmo cartão
+  // antes e depois de enviar, e clicava de novo.
+  const status =
+    pedidosEnviados.length > 0
+      ? { label: "Pedido enviado", icon: PackageCheck, variant: "outline" as const }
+      : statusConfig[quotation.status];
   const StatusIcon = status.icon;
 
   const totalItems = quotation.items?.length || 0;
@@ -115,6 +127,16 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
     (item) => item.responses?.some((r) => r.is_winner),
   ) ?? false;
 
+  // Todo fornecedor vencedor já tem o pedido dele? Então não há o que enviar.
+  const vencedores = new Set(
+    quotation.items?.flatMap((item) =>
+      (item.responses ?? []).filter((r) => r.is_winner).map((r) => r.supplier_id),
+    ) ?? [],
+  );
+  const comPedido = new Set(pedidosEnviados.map((po) => po.supplier_id));
+  const pedidoCompleto =
+    hasWinner && Array.from(vencedores).every((id) => comPedido.has(id));
+
   const handleDelete = () => {
     deleteQuotation.mutate(quotation.id);
     setDeleteOpen(false);
@@ -129,7 +151,14 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
               <div className="flex items-center gap-2 mb-1">
                 <FileText className="h-4 w-4 text-muted-foreground" />
                 <span className="font-semibold">{quotation.request_number}</span>
-                <Badge variant={status.variant}>
+                <Badge
+                  variant={status.variant}
+                  className={
+                    pedidosEnviados.length > 0
+                      ? "whitespace-nowrap border-green-600/40 bg-green-50 text-green-700"
+                      : undefined
+                  }
+                >
                   <StatusIcon className="h-3 w-3 mr-1" />
                   {status.label}
                 </Badge>
@@ -222,6 +251,14 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
             </div>
           </div>
 
+          {pedidosEnviados.length > 0 && (
+            <p className="text-sm text-green-700">
+              {pedidosEnviados.length === 1 ? "Pedido " : "Pedidos "}
+              {pedidosEnviados.map((po) => po.order_number).join(", ")}
+              {pedidoCompleto ? "" : " · falta enviar a outros vencedores"}
+            </p>
+          )}
+
           {/* Responses info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
@@ -249,14 +286,26 @@ export function QuotationRequestCard({ quotation }: QuotationRequestCardProps) {
                   <Eye className="h-4 w-4 mr-2" />
                   Comparativo
                 </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => setOrderOpen(true)}
-                >
-                  <PackageCheck className="h-4 w-4 mr-2" />
-                  Enviar Pedido
-                </Button>
+                {pedidoCompleto ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 border-green-600/40 text-green-700 hover:bg-green-50"
+                    onClick={() => navigate("/pdv/compras/pedidos")}
+                  >
+                    <PackageCheck className="h-4 w-4 mr-2" />
+                    Ver pedidos
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => setOrderOpen(true)}
+                  >
+                    <PackageCheck className="h-4 w-4 mr-2" />
+                    {pedidosEnviados.length > 0 ? "Enviar aos que faltam" : "Enviar Pedido"}
+                  </Button>
+                )}
               </>
             ) : (
               <>

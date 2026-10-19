@@ -11,6 +11,11 @@ export interface QuotationItem {
   quantity_needed: number;
   unit: string;
   notes: string | null;
+  /**
+   * O que o fornecedor é obrigado a informar neste produto além de marca e
+   * preço: "validade" e/ou "tamanho". Vazio = só os extras opcionais.
+   */
+  required_fields?: string[];
   created_at: string;
   ingredient?: {
     id: string;
@@ -33,6 +38,8 @@ export interface QuotationResponse {
   brand: string | null;
   /** resfriado | congelado | ambiente (seco). null = não informado. */
   conservation: string | null;
+  /** Tamanho da peça, caixa ou embalagem, como o fornecedor escreveu. */
+  package_size?: string | null;
   origin: string | null;
   notes: string | null;
   /**
@@ -67,6 +74,13 @@ export interface QuotationRequest {
   created_at: string;
   updated_at: string;
   items?: QuotationItem[];
+  /** Pedidos de compra gerados a partir desta cotação ("Enviar Pedido"). */
+  purchase_orders?: {
+    id: string;
+    order_number: string;
+    status: string;
+    supplier_id: string | null;
+  }[];
 }
 
 export interface CreateQuotationData {
@@ -78,6 +92,7 @@ export interface CreateQuotationData {
     quantity_needed: number;
     unit: string;
     notes?: string;
+    required_fields?: string[];
     selected_suppliers?: string[];
   }[];
 }
@@ -93,6 +108,7 @@ export interface UpdateQuotationData {
     quantity_needed: number;
     unit: string;
     notes?: string;
+    required_fields?: string[];
     selected_suppliers?: string[];
   }[];
 }
@@ -146,7 +162,8 @@ export function usePDVQuotations() {
               *,
               supplier:pdv_suppliers(id, name, phone, whatsapp, minimum_order)
             )
-          )
+          ),
+          purchase_orders:pdv_purchase_orders(id, order_number, status, supplier_id)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -202,6 +219,7 @@ export function usePDVQuotations() {
         quantity_needed: item.quantity_needed,
         unit: item.unit,
         notes: item.notes,
+        required_fields: item.required_fields ?? [],
       }));
 
       const { data: createdItems, error: itemsError } = await supabase
@@ -391,6 +409,7 @@ export function usePDVQuotations() {
             quantity_needed: item.quantity_needed,
             unit: item.unit,
             notes: item.notes,
+            required_fields: item.required_fields ?? [],
           })
           .eq('id', item.id);
         if (error) throw error;
@@ -414,6 +433,7 @@ export function usePDVQuotations() {
             quantity_needed: item.quantity_needed,
             unit: item.unit,
             notes: item.notes,
+            required_fields: item.required_fields ?? [],
           })
           .select('id')
           .single();

@@ -46,13 +46,24 @@ interface QuotationItem {
   quantity_needed: number;
   unit: string;
   notes?: string;
+  /** O que o fornecedor é obrigado a informar neste produto (validade, tamanho). */
+  required_fields: string[];
   selected_suppliers: string[];
 }
+
+/**
+ * Exigências por produto. Marca e preço o fornecedor sempre informa; estas
+ * só passam a ser obrigatórias nos produtos em que o comprador marcar.
+ */
+const EXIGENCIAS = [
+  { value: "validade", label: "Validade" },
+  { value: "tamanho", label: "Tamanho / embalagem" },
+];
 
 interface QuotationRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  preselectedItems?: Omit<QuotationItem, "selected_suppliers" | "_uid" | "id">[];
+  preselectedItems?: Omit<QuotationItem, "selected_suppliers" | "_uid" | "id" | "required_fields">[];
   /** Passada = o diálogo edita essa cotação em vez de criar uma nova. */
   quotation?: QuotationRequest;
 }
@@ -66,7 +77,7 @@ export function QuotationRequestDialog({
   preselectedItems,
   quotation,
 }: QuotationRequestDialogProps) {
-  const { createQuotation, updateQuotation } = usePDVQuotations();
+  const { createQuotation, updateQuotation, quotations } = usePDVQuotations();
   const { ingredients } = usePDVIngredients();
   const { availableSuppliers } = usePDVIngredientSuppliers();
   const { settings: purchaseSettings } = usePurchaseSettings();
@@ -78,6 +89,23 @@ export function QuotationRequestDialog({
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [deadline, setDeadline] = useState<Date>(addDays(new Date(), 3));
   const [notes, setNotes] = useState("");
+
+  // O que foi exigido da última vez que cada produto foi cotado. Quem marca
+  // "validade" no coxão mole não precisa marcar de novo na próxima cotação.
+  // A lista já vem da mais nova para a mais antiga: vale a primeira que achar.
+  const exigenciaAnterior = useMemo(() => {
+    const porInsumo = new Map<string, string[]>();
+    quotations.forEach((q) => {
+      if (q.id === quotation?.id) return;
+      q.items?.forEach((it) => {
+        if (!porInsumo.has(it.ingredient_id)) {
+          porInsumo.set(it.ingredient_id, it.required_fields ?? []);
+        }
+      });
+    });
+    return porInsumo;
+  }, [quotations, quotation?.id]);
+  const exigenciaDe = (ingredientId: string) => exigenciaAnterior.get(ingredientId) ?? [];
 
   // Quais fornecedores já estão vinculados a cada item. Não vem na query da
   // lista de cotações, então busca sob demanda — só quando o diálogo abre.
@@ -109,6 +137,7 @@ export function QuotationRequestDialog({
         quantity_needed: item.quantity_needed,
         unit: item.unit,
         notes: item.notes || undefined,
+        required_fields: item.required_fields ?? [],
         selected_suppliers: existingLinks
           .filter((l) => l.quotation_item_id === item.id)
           .map((l) => l.supplier_id),
@@ -129,6 +158,7 @@ export function QuotationRequestDialog({
         preselectedItems.map((item) => ({
           ...item,
           _uid: nextItemUid(),
+          required_fields: exigenciaDe(item.ingredient_id),
           selected_suppliers: [],
         }))
       );
@@ -193,6 +223,7 @@ export function QuotationRequestDialog({
         ingredient_name: "",
         quantity_needed: 1,
         unit: "un",
+        required_fields: [],
         selected_suppliers: [],
       },
       ...items,
@@ -223,6 +254,7 @@ export function QuotationRequestDialog({
           ingredient_id: ingredient.id,
           ingredient_name: ingredient.name,
           unit: ingredient.unit,
+          required_fields: exigenciaDe(ingredient.id),
           selected_suppliers: [], // Reset suppliers when ingredient changes
         };
       }
@@ -230,6 +262,8 @@ export function QuotationRequestDialog({
       newItems[index] = { ...newItems[index], quantity_needed: value as number };
     } else if (field === "selected_suppliers") {
       newItems[index] = { ...newItems[index], selected_suppliers: value as string[] };
+    } else if (field === "required_fields") {
+      newItems[index] = { ...newItems[index], required_fields: value as string[] };
     }
     setItems(newItems);
   };
@@ -276,6 +310,7 @@ export function QuotationRequestDialog({
       quantity_needed: item.quantity_needed,
       unit: item.unit,
       notes: item.notes,
+      required_fields: item.required_fields,
       selected_suppliers: item.selected_suppliers,
     }));
 
@@ -454,6 +489,41 @@ export function QuotationRequestDialog({
                           </Button>
                         </div>
                       </div>
+
+                      {item.ingredient_id && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground mr-1">
+                            Exigir do fornecedor:
+                          </span>
+                          {EXIGENCIAS.map((ex) => {
+                            const ativo = item.required_fields.includes(ex.value);
+                            return (
+                              <button
+                                key={ex.value}
+                                type="button"
+                                aria-pressed={ativo}
+                                onClick={() =>
+                                  handleItemChange(
+                                    index,
+                                    "required_fields",
+                                    ativo
+                                      ? item.required_fields.filter((f) => f !== ex.value)
+                                      : [...item.required_fields, ex.value],
+                                  )
+                                }
+                                className={cn(
+                                  "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                                  ativo
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:bg-muted",
+                                )}
+                              >
+                                {ex.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Supplier Selection */}
                       {item.ingredient_id && (

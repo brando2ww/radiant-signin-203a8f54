@@ -67,6 +67,7 @@ interface ComparisonResponse {
   paymentTerms: string | null;
   brand: string | null;
   conservation: string | null;
+  packageSize: string | null;
   origin: string | null;
   notes: string | null;
   isWinner: boolean;
@@ -283,6 +284,7 @@ function ResponseDetails({ response }: { response: ComparisonResponse }) {
     },
     { label: "Condições de pagamento", value: response.paymentTerms },
     { label: "Marca", value: response.brand },
+    { label: "Tamanho / embalagem", value: response.packageSize },
     {
       label: "Conservação",
       value: response.conservation
@@ -484,6 +486,7 @@ export function QuotationComparisonDialog({
           paymentTerms: r.payment_terms,
           brand: r.brand,
           conservation: r.conservation,
+          packageSize: r.package_size ?? null,
           origin: r.origin,
           notes: r.notes,
           isWinner: r.is_winner,
@@ -809,6 +812,11 @@ export function QuotationComparisonDialog({
                                 <Badge variant="outline" className="text-xs font-normal">
                                   {CONSERVATION_LABELS[response.conservation] ??
                                     response.conservation}
+                                </Badge>
+                              )}
+                              {response.packageSize && (
+                                <Badge variant="outline" className="text-xs font-normal">
+                                  {response.packageSize}
                                 </Badge>
                               )}
                             </div>
