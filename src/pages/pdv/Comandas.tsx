@@ -89,11 +89,13 @@ export default function ComandasPage() {
 
   const handleCreateComanda = async (data: {
     customerName?: string;
+    customerPhone?: string;
     personNumber?: number;
     notes?: string;
   }) => {
     await createComanda({
       customerName: data.customerName,
+      customerPhone: data.customerPhone,
       notes: data.notes,
     });
   };

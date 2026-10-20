@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,7 +58,8 @@ import { PDVTable } from "@/hooks/use-pdv-tables";
 import { usePDVPayments, PaymentMethod } from "@/hooks/use-pdv-payments";
 import { usePDVDeliveryCheckout } from "@/hooks/use-pdv-delivery-checkout";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
-import { Bike, Store } from "lucide-react";
+import { Bike, Store, Gift as GiftIcon } from "lucide-react";
+import { formatarTelefone, mascaraTelefone, telefoneSoNumeros } from "@/lib/telefone";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Textarea } from "@/components/ui/textarea";
@@ -253,6 +254,62 @@ export function PaymentDialog({
   useEffect(() => {
     if (!serviceFeeAllowed) setServiceFeeEnabled(false);
   }, [serviceFeeAllowed]);
+
+  // ── Cashback no salão (20/10/2026) ──
+  // Saldo de cada comanda cobrada (pelo telefone dela) e quanto o cliente decidiu usar. Comanda sem telefone ganha um
+  // campo para informar o telefone e gerar cashback desta conta. O crédito desta conta nasce no servidor depois do
+  // pagamento e vale a partir da próxima visita.
+  type CashbackComanda = {
+    comanda_id: string;
+    numero: string;
+    nome: string | null;
+    telefone: string | null;
+    saldo: number;
+    vence_em: string | null;
+    consumo: number;
+    usado: number;
+  };
+  const [cashback, setCashback] = useState<{ ativo: boolean; percentual: number; comandas: CashbackComanda[] } | null>(null);
+  const [cashbackUsar, setCashbackUsar] = useState<Record<string, number>>({});
+  const [telefoneCashback, setTelefoneCashback] = useState<Record<string, string>>({});
+  const [salvandoTelefone, setSalvandoTelefone] = useState<string | null>(null);
+  const cashbackIdsChave = (isDelivery ? [] : table ? tableComandas.map((c) => c.id) : comanda ? [comanda.id] : []).join(",");
+  const carregarCashback = useCallback(async () => {
+    const ids = cashbackIdsChave ? cashbackIdsChave.split(",") : [];
+    if (!ids.length) {
+      setCashback(null);
+      return;
+    }
+    const { data, error } = await (supabase as any).rpc("pdv_cashback_das_comandas", { p_comanda_ids: ids });
+    if (error || !data) return;
+    setCashback({
+      ativo: !!data.ativo,
+      percentual: Number(data.percentual) || 0,
+      comandas: (data.comandas || []).map((c: any) => ({
+        ...c,
+        saldo: Number(c.saldo) || 0,
+        consumo: Number(c.consumo) || 0,
+        usado: Number(c.usado) || 0,
+      })),
+    });
+  }, [cashbackIdsChave]);
+  useEffect(() => {
+    if (!open) return;
+    setCashbackUsar({});
+    setTelefoneCashback({});
+    carregarCashback();
+  }, [open, carregarCashback]);
+
+  const salvarTelefoneCashback = async (comandaId: string) => {
+    const tel = telefoneSoNumeros(telefoneCashback[comandaId]);
+    if (!tel) return toast.error("Informe o telefone com DDD");
+    setSalvandoTelefone(comandaId);
+    const { error } = await supabase.from("pdv_comandas").update({ customer_phone: tel } as any).eq("id", comandaId);
+    setSalvandoTelefone(null);
+    if (error) return toast.error("Não foi possível salvar o telefone");
+    toast.success("Telefone salvo: esta conta vai gerar cashback");
+    carregarCashback();
+  };
 
   // Edição do pedido (correção pelo caixa)
   const [itemToRemove, setItemToRemove] = useState<ComandaItem | null>(null);
@@ -465,8 +522,16 @@ export function PaymentDialog({
   // Calculate service fee (10%)
   const serviceFeeAmount = serviceFeeEnabled && serviceFeeAllowed ? (subtotal - discountAmount) * serviceFeeRate : 0;
 
+  // Cashback usado: abate do consumo como desconto, sem reduzir a taxa de serviço, e nunca passa do que resta
+  // a pagar. Não vale no delivery nem na cobrança "por produto".
+  const cashbackPermitido = !isDelivery && !isByProduct;
+  const cashbackPedido = cashbackPermitido ? Object.values(cashbackUsar).reduce((soma, v) => soma + v, 0) : 0;
+  const cashbackAmount = Math.min(cashbackPedido, Math.max(0, subtotal - discountAmount));
+  // Desconto total que vai para o cupom, a nota e o registro do pagamento
+  const descontoTotal = discountAmount + cashbackAmount;
+
   // Final total
-  const total = Math.max(0, subtotal - discountAmount + serviceFeeAmount + deliveryFeeAmount);
+  const total = Math.max(0, subtotal - discountAmount - cashbackAmount + serviceFeeAmount + deliveryFeeAmount);
 
   // Cash calculations
   const cashReceivedNum = parseFloat(cashReceived) || 0;
@@ -802,6 +867,8 @@ export function PaymentDialog({
 
   const handleSubmit = async () => {
     if (isProcessing) return;
+    // Usos de cashback feitos nesta cobrança: se a baixa falhar, o saldo volta para o cliente
+    const usosCashback: string[] = [];
     try {
       const finalAmount = total;
 
@@ -817,7 +884,7 @@ export function PaymentDialog({
           subtotal: i.subtotal,
         })),
         subtotal,
-        discountAmount,
+        discountAmount: descontoTotal,
         serviceFeeAmount,
         total,
         cashReceivedNum,
@@ -876,6 +943,30 @@ export function PaymentDialog({
       }
 
 
+      // Cashback: o banco confere o saldo e trava os créditos antes da baixa
+      if (cashbackAmount > 0) {
+        let restanteCashback = cashbackAmount;
+        for (const [comandaId, valor] of Object.entries(cashbackUsar)) {
+          const v = Math.round(Math.min(valor, restanteCashback) * 100) / 100;
+          if (v <= 0) continue;
+          const { data: uso, error: erroUso } = await (supabase as any).rpc("pdv_cashback_usar", {
+            p_comanda_id: comandaId,
+            p_valor: v,
+          });
+          if (erroUso || !uso?.uso_id) {
+            for (const id of usosCashback) {
+              await (supabase as any).rpc("pdv_cashback_estornar_uso", { p_uso_id: id });
+            }
+            usosCashback.length = 0;
+            toast.error(erroUso?.message || "Não foi possível usar o cashback");
+            carregarCashback();
+            return;
+          }
+          usosCashback.push(uso.uso_id);
+          restanteCashback -= v;
+        }
+      }
+
       const paymentData = {
         amount: finalAmount,
         paymentMethod: resolvedMethod,
@@ -885,8 +976,11 @@ export function PaymentDialog({
         // Vindos da maquininha, quando a cobrança passou por ela.
         nsu: tef.status === "approved" ? tef.resultado?.nsu ?? undefined : undefined,
         authorizationCode: tef.status === "approved" ? tef.resultado?.autorizacao ?? undefined : undefined,
-        discountAmount: appliedDiscount ? discountAmount : undefined,
-        discountReason: appliedDiscount ? appliedDiscount.reason : undefined,
+        discountAmount: appliedDiscount || cashbackAmount > 0 ? descontoTotal : undefined,
+        discountReason:
+          [appliedDiscount?.reason, cashbackAmount > 0 ? `Cashback ${formatCurrency(cashbackAmount)}` : null]
+            .filter(Boolean)
+            .join(" · ") || undefined,
         discountAuthorizedBy: appliedDiscount ? appliedDiscount.authorizedBy : undefined,
         couponCode: appliedDiscount?.couponCode,
       };
@@ -1010,6 +1104,10 @@ export function PaymentDialog({
       setShowSuccess(true);
     } catch (error) {
       console.error("Erro ao processar pagamento:", error);
+      // A baixa não terminou: o cashback usado volta para o cliente
+      for (const id of usosCashback) {
+        await (supabase as any).rpc("pdv_cashback_estornar_uso", { p_uso_id: id });
+      }
     }
   };
 
@@ -1098,7 +1196,7 @@ export function PaymentDialog({
         subtotal: i.subtotal,
       })),
       subtotal,
-      desconto: discountAmount,
+      desconto: descontoTotal,
       taxa_servico: serviceFeeAmount,
       total,
       forma_pagamento: "",
@@ -1178,7 +1276,7 @@ export function PaymentDialog({
             cofins_rate: num(p.cofins_rate),
           };
         }),
-        valor_desconto: discountAmount || 0,
+        valor_desconto: descontoTotal || 0,
         valor_servico: serviceFeeAmount || 0,
         valor_frete: isDelivery ? (deliveryFeeAmount || 0) : 0,
         pagamentos: buildPagamentosNFCe(),
@@ -1268,6 +1366,29 @@ export function PaymentDialog({
                 </p>
               )}
             </div>
+
+            {/* Cashback que esta conta gera (nasce em até 1 minuto e vale a partir da próxima visita) */}
+            {cashback?.ativo && cashbackPermitido && (() => {
+              const ganhos = cashback.comandas
+                .filter((c) => c.telefone)
+                .map((c) => ({
+                  c,
+                  valor: Math.round(Math.max(0, c.consumo - (cashbackUsar[c.comanda_id] || 0)) * cashback.percentual) / 100,
+                }))
+                .filter((g) => g.valor >= 0.01);
+              if (!ganhos.length) return null;
+              return (
+                <div className="w-full rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-1">
+                  {ganhos.map((g) => (
+                    <p key={g.c.comanda_id} className="text-sm">
+                      <GiftIcon className="inline h-4 w-4 mr-1 text-amber-600" />
+                      {g.c.nome || `Comanda ${g.c.numero}`} ganhou cerca de <strong>{formatCurrency(g.valor)}</strong> de cashback.
+                    </p>
+                  ))}
+                  <p className="text-[11px] text-muted-foreground">Fica disponível a partir da próxima visita.</p>
+                </div>
+              );
+            })()}
 
             {/* NFC-e status */}
             {nfceState.kind === "success" && (
@@ -1587,6 +1708,105 @@ export function PaymentDialog({
                 )}
               </CardContent>
             </Card>
+
+            {/* Cashback: aviso para quem cobra (saldo de cada comanda) e telefone para quem ainda não informou */}
+            {cashback?.ativo && cashbackPermitido && cashback.comandas.length > 0 && (
+              <Card className="border-amber-300 bg-amber-50/70 dark:bg-amber-950/20">
+                <CardContent className="p-4 space-y-3">
+                  <Label className="text-sm flex items-center gap-2">
+                    <GiftIcon className="h-4 w-4 text-amber-600" />
+                    Cashback ({cashback.percentual}% do consumo)
+                  </Label>
+                  {cashback.comandas.map((c) => {
+                    const usando = cashbackUsar[c.comanda_id] || 0;
+                    const restante = Math.max(0, subtotal - discountAmount - (cashbackPedido - usando));
+                    const sugerido = Math.round(Math.min(c.saldo, restante) * 100) / 100;
+                    const rotulo = c.nome || `Comanda ${c.numero}`;
+                    if (!c.telefone) {
+                      return (
+                        <div key={c.comanda_id} className="rounded-lg border border-dashed bg-background p-3 space-y-2">
+                          <p className="text-sm">
+                            <span className="font-medium">{rotulo}</span> sem telefone: esta conta não gera cashback.
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              value={telefoneCashback[c.comanda_id] ?? ""}
+                              onChange={(e) =>
+                                setTelefoneCashback((t) => ({ ...t, [c.comanda_id]: mascaraTelefone(e.target.value) }))
+                              }
+                              inputMode="tel"
+                              placeholder="Telefone do cliente"
+                              className="h-9"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!telefoneSoNumeros(telefoneCashback[c.comanda_id]) || salvandoTelefone === c.comanda_id}
+                              onClick={() => salvarTelefoneCashback(c.comanda_id)}
+                            >
+                              Salvar
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={c.comanda_id} className="rounded-lg border bg-background p-3 space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {rotulo} · {formatarTelefone(c.telefone)}
+                            </p>
+                            {c.saldo > 0 ? (
+                              <p className="text-sm">
+                                Tem <strong>{formatCurrency(c.saldo)}</strong> de cashback
+                                {c.vence_em ? ` · vence em ${new Date(`${c.vence_em}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Sem saldo de cashback ainda. Esta conta vai gerar.</p>
+                            )}
+                          </div>
+                          {c.saldo > 0 && c.usado === 0 && (
+                            usando > 0 ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setCashbackUsar((r) => {
+                                    const { [c.comanda_id]: _removido, ...resto } = r;
+                                    return resto;
+                                  })
+                                }
+                              >
+                                Não usar
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                                disabled={sugerido <= 0}
+                                onClick={() => setCashbackUsar((r) => ({ ...r, [c.comanda_id]: sugerido }))}
+                              >
+                                Usar {formatCurrency(sugerido)}
+                              </Button>
+                            )
+                          )}
+                        </div>
+                        {usando > 0 && (
+                          <p className="text-xs text-amber-800">
+                            {formatCurrency(Math.min(usando, cashbackAmount))} de cashback aplicado como desconto.
+                          </p>
+                        )}
+                        {c.usado > 0 && <p className="text-xs text-muted-foreground">O cashback já foi usado nesta comanda.</p>}
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Discount & Service Fee */}
             <Card>
@@ -2004,6 +2224,12 @@ export function PaymentDialog({
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Desconto</span>
                     <span>-{formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
+                {cashbackAmount > 0 && (
+                  <div className="flex justify-between text-sm text-amber-700">
+                    <span>Cashback</span>
+                    <span>-{formatCurrency(cashbackAmount)}</span>
                   </div>
                 )}
                 {serviceFeeAmount > 0 && (

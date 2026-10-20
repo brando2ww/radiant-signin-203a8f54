@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { mascaraTelefone } from "@/lib/telefone";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, UserPlus, Send, Plus, X, Pencil, ChefHat } from "lucide-react";
 import { usePDVTables } from "@/hooks/use-pdv-tables";
@@ -81,6 +82,9 @@ export default function GarcomMesaDetalhe() {
   const [splitName, setSplitName] = useState("");
   const [opening, setOpening] = useState(false);
   const [comandaNames, setComandaNames] = useState<string[]>([""]);
+  // Telefone de cada comanda (mesmo índice do nome): gera cashback quando a loja usa (20/10/2026)
+  const [comandaPhones, setComandaPhones] = useState<string[]>([""]);
+  const [splitPhone, setSplitPhone] = useState("");
   const ensuringRef = useRef(false);
 
   const hasOpenComandas = tableComandas.length > 0;
@@ -88,8 +92,10 @@ export default function GarcomMesaDetalhe() {
   const handleConfirmOpen = async () => {
     if (!table) return;
     if (ensuringRef.current) return;
-    const names = comandaNames.map((n) => n.trim()).filter(Boolean);
-    if (names.length === 0) {
+    const entradas = comandaNames
+      .map((n, i) => ({ nome: n.trim(), telefone: comandaPhones[i] || undefined }))
+      .filter((e) => e.nome);
+    if (entradas.length === 0) {
       toast.error("Informe ao menos um nome de comanda");
       return;
     }
@@ -158,8 +164,8 @@ export default function GarcomMesaDetalhe() {
       }
 
       const created = [];
-      for (const name of names) {
-        const c = await createComanda({ orderId, customerName: name });
+      for (const e of entradas) {
+        const c = await createComanda({ orderId, customerName: e.nome, customerPhone: e.telefone });
         created.push(c);
       }
 
@@ -171,6 +177,7 @@ export default function GarcomMesaDetalhe() {
       ]);
 
       setComandaNames([""]);
+      setComandaPhones([""]);
       ensuringRef.current = false;
       setOpening(false);
 
@@ -192,12 +199,23 @@ export default function GarcomMesaDetalhe() {
     setComandaNames((prev) => prev.map((n, i) => (i === index ? value : n)));
   };
 
+  const updatePhone = (index: number, value: string) => {
+    setComandaPhones((prev) => {
+      const next = [...prev];
+      while (next.length <= index) next.push("");
+      next[index] = mascaraTelefone(value);
+      return next;
+    });
+  };
+
   const addNameField = () => {
     setComandaNames((prev) => (prev.length >= 10 ? prev : [...prev, ""]));
+    setComandaPhones((prev) => (prev.length >= 10 ? prev : [...prev, ""]));
   };
 
   const removeNameField = (index: number) => {
     setComandaNames((prev) => prev.filter((_, i) => i !== index));
+    setComandaPhones((prev) => prev.filter((_, i) => i !== index));
   };
 
   const allNamesFilled = comandaNames.every((n) => n.trim().length > 0);
@@ -213,9 +231,11 @@ export default function GarcomMesaDetalhe() {
       const comanda = await createComanda({
         orderId: table.current_order_id,
         customerName: name,
+        customerPhone: splitPhone || undefined,
       });
       setSplitOpen(false);
       setSplitName("");
+      setSplitPhone("");
       navigate(`/garcom/comanda/${comanda.id}`);
     } catch {
       // toast tratado no hook
@@ -423,7 +443,8 @@ export default function GarcomMesaDetalhe() {
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Informe o nome de cada comanda. Você pode abrir várias comandas na mesma mesa.
+              Informe o nome de cada comanda. Você pode abrir várias comandas na mesma mesa. Com o telefone, o
+              cliente acumula cashback para a próxima visita.
             </p>
             <div className="space-y-3 max-h-[40vh] overflow-y-auto px-2 -mx-2 py-1">
               {comandaNames.map((name, index) => (
@@ -456,6 +477,13 @@ export default function GarcomMesaDetalhe() {
                       </button>
                     )}
                   </div>
+                  <Input
+                    value={comandaPhones[index] ?? ""}
+                    onChange={(e) => updatePhone(index, e.target.value)}
+                    inputMode="tel"
+                    placeholder="Telefone (opcional, gera cashback)"
+                    className={comandaNames.length > 1 ? "mr-12 w-[calc(100%-3rem)]" : ""}
+                  />
                 </div>
               ))}
             </div>
@@ -506,8 +534,15 @@ export default function GarcomMesaDetalhe() {
                 if (e.key === "Enter") handleCreateNominal();
               }}
             />
+            <label className="text-sm font-medium">Telefone (opcional)</label>
+            <Input
+              value={splitPhone}
+              onChange={(e) => setSplitPhone(mascaraTelefone(e.target.value))}
+              inputMode="tel"
+              placeholder="(54) 99999-0000"
+            />
             <p className="text-xs text-muted-foreground">
-              Útil quando o cliente pede para dividir a conta.
+              Útil quando o cliente pede para dividir a conta. Com o telefone, ele acumula cashback.
             </p>
           </div>
           <DialogFooter>

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { telefoneSoNumeros } from "@/lib/telefone";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
@@ -20,6 +21,8 @@ export interface Comanda {
   order_id: string | null;
   comanda_number: string;
   customer_name: string | null;
+  /** Telefone do cliente: gera cashback quando a loja tem cashback ligado (só números, com DDD). */
+  customer_phone?: string | null;
   person_number: number | null;
   status: ComandaStatus;
   subtotal: number;
@@ -119,6 +122,7 @@ export function usePDVComandas() {
     mutationFn: async (data: {
       orderId?: string | null;
       customerName?: string;
+      customerPhone?: string;
       personNumber?: number;
       notes?: string;
     }) => {
@@ -180,7 +184,7 @@ export function usePDVComandas() {
       // Idempotência: se for comanda padrão (sem customerName) vinculada a um
       // order, e já existir uma comanda padrão aberta, devolve a existente.
       // Evita duplicação por clique repetido / race / dois dispositivos.
-      const isDefault = !data.customerName;
+      const isDefault = !data.customerName && !data.customerPhone;
       if (effectiveOrderId && isDefault) {
         const { data: existing } = await supabase
           .from("pdv_comandas")
@@ -202,6 +206,7 @@ export function usePDVComandas() {
           comanda_number: comandaNumber,
           cashier_session_id: sessionId,
           customer_name: data.customerName || null,
+          customer_phone: telefoneSoNumeros(data.customerPhone),
           person_number: data.personNumber || null,
           notes: data.notes || null,
           status: "aberta",

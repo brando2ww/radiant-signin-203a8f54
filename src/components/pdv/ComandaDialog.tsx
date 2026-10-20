@@ -12,12 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { formatTableLabel } from "@/utils/formatTableNumber";
+import { mascaraTelefone } from "@/lib/telefone";
 
 interface ComandaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: {
     customerName?: string;
+    customerPhone?: string;
     personNumber?: number;
     notes?: string;
     orderId?: string | null;
@@ -37,6 +39,7 @@ export function ComandaDialog({
   tableNumber,
 }: ComandaDialogProps) {
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [personNumber, setPersonNumber] = useState<string>("");
   const [tableNum, setTableNum] = useState<string>("");
   const [notes, setNotes] = useState("");
@@ -45,12 +48,14 @@ export function ComandaDialog({
     e.preventDefault();
     await onSubmit({
       customerName: customerName || undefined,
+      customerPhone: customerPhone || undefined,
       personNumber: personNumber ? parseInt(personNumber) : undefined,
       notes: notes || undefined,
       orderId,
       tableNumber: tableNum ? parseInt(tableNum) : undefined,
     });
     setCustomerName("");
+    setCustomerPhone("");
     setPersonNumber("");
     setTableNum("");
     setNotes("");
@@ -81,6 +86,20 @@ export function ComandaDialog({
               placeholder="Ex: João, Maria..."
               autoFocus
            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="customerPhone">Telefone do Cliente (opcional)</Label>
+            <Input
+              id="customerPhone"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(mascaraTelefone(e.target.value))}
+              inputMode="tel"
+              placeholder="(54) 99999-0000"
+            />
+            <p className="text-xs text-muted-foreground">
+              Com o telefone, o cliente acumula cashback para a próxima visita (quando a loja usa cashback).
+            </p>
           </div>
 
           {!tableNumber && (

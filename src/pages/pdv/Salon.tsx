@@ -153,7 +153,7 @@ export default function PDVSalon() {
 
   // Capacity warning states
   const [capacityWarningOpen, setCapacityWarningOpen] = useState(false);
-  const [pendingComandaData, setPendingComandaData] = useState<{ customerName?: string; personNumber?: number; notes?: string; orderId?: string | null } | null>(null);
+  const [pendingComandaData, setPendingComandaData] = useState<{ customerName?: string; customerPhone?: string; personNumber?: number; notes?: string; orderId?: string | null } | null>(null);
   const [capacityWarningMessage, setCapacityWarningMessage] = useState("");
 
   // Payment dialog states
@@ -447,7 +447,7 @@ export default function PDVSalon() {
     setComandaDetailsOpen(true);
   };
 
-  const handleCreateComanda = async (data: { customerName?: string; personNumber?: number; notes?: string; orderId?: string | null; tableNumber?: number }) => {
+  const handleCreateComanda = async (data: { customerName?: string; customerPhone?: string; personNumber?: number; notes?: string; orderId?: string | null; tableNumber?: number }) => {
     if (!activeSession) {
       toast.error("Abra o caixa antes de iniciar um atendimento");
       return;
@@ -477,9 +477,10 @@ export default function PDVSalon() {
     await executeCreateComanda(data);
   };
 
-  const executeCreateComanda = async (data: { customerName?: string; personNumber?: number; notes?: string; orderId?: string | null }) => {
+  const executeCreateComanda = async (data: { customerName?: string; customerPhone?: string; personNumber?: number; notes?: string; orderId?: string | null }) => {
     await createComanda({
       customerName: data.customerName,
+      customerPhone: data.customerPhone,
       personNumber: data.personNumber,
       notes: data.notes,
       orderId: data.orderId,

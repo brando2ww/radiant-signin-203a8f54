@@ -75,6 +75,10 @@ export interface PDVSettings {
   nfe_csc_token?: string;
   // Desconto: exigir motivo na confirmação
   require_discount_reason?: boolean;
+  /** Cashback no salão (20/10/2026): o telefone da comanda gera crédito para a próxima visita. */
+  cashback_ativo?: boolean;
+  cashback_percentual?: number;
+  cashback_validade_dias?: number;
   // Mesa virtual de balcão (para comandas avulsas)
   counter_table_name?: string;
 }
