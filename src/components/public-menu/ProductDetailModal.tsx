@@ -245,7 +245,7 @@ export const ProductDetailModal = ({
                           </div>
                           {item.price_adjustment !== 0 && (
                             <span className="text-sm text-muted-foreground">
-                              +{formatBRL(Number(item.price_adjustment))}
+                              {Number(basePrice) > 0 ? "+" : ""}{formatBRL(Number(item.price_adjustment))}
                             </span>
                           )}
                         </div>
@@ -284,7 +284,7 @@ export const ProductDetailModal = ({
                               </Button>
                               {Number(item.price_adjustment) !== 0 && (
                                 <span className="w-20 text-right text-sm text-muted-foreground tabular-nums">
-                                  +{formatBRL(qty > 0 ? sub : Number(item.price_adjustment))}
+                                  {Number(basePrice) > 0 ? "+" : ""}{formatBRL(qty > 0 ? sub : Number(item.price_adjustment))}
                                 </span>
                               )}
                             </div>
@@ -316,7 +316,7 @@ export const ProductDetailModal = ({
                             </div>
                             {item.price_adjustment !== 0 && (
                               <span className="text-sm text-muted-foreground">
-                                +{formatBRL(Number(item.price_adjustment))}
+                                {Number(basePrice) > 0 ? "+" : ""}{formatBRL(Number(item.price_adjustment))}
                               </span>
                             )}
                           </div>

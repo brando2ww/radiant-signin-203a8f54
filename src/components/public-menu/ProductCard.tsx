@@ -13,11 +13,33 @@ interface ProductCardProps {
   onAddToCart: (item: CartItem) => void;
 }
 
+/**
+ * Menor valor que o cliente paga: o preço do produto mais o item mais barato de cada opção obrigatória. Prato com o
+ * preço no tamanho (ex.: Tamanho: Meio ou Inteira, produto a R$ 0) aparece "a partir de" em vez de R$ 0,00.
+ */
+function menorPreco(product: PublicProduct, base: number) {
+  let minimo = base;
+  let varia = false;
+  for (const o of product.delivery_product_options ?? []) {
+    if (!o.is_required && !(o.min_selections > 0)) continue;
+    const precos = (o.delivery_product_option_items ?? [])
+      .filter((i) => i.is_available !== false)
+      .map((i) => Number(i.price_adjustment) || 0)
+      .sort((a, b) => a - b);
+    if (!precos.length) continue;
+    minimo += precos.slice(0, Math.max(1, o.min_selections || 1)).reduce((a, b) => a + b, 0);
+    if (precos[0] !== precos[precos.length - 1]) varia = true;
+  }
+  return { minimo, varia };
+}
+
 export const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const hasOptions = product.delivery_product_options && product.delivery_product_options.length > 0;
   const price = product.promotional_price || product.base_price;
+  const vitrine = menorPreco(product, Number(price));
+  const vitrineBase = menorPreco(product, Number(product.base_price));
 
   const handleQuickAdd = () => {
     if (hasOptions) {
@@ -67,15 +89,17 @@ export const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
               {product.promotional_price ? (
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <p className="text-base font-bold text-primary">
-                    {formatBRL(Number(product.promotional_price))}
+                    {vitrine.varia ? "a partir de " : ""}
+                    {formatBRL(vitrine.minimo)}
                   </p>
                   <p className="text-xs line-through text-muted-foreground">
-                    {formatBRL(Number(product.base_price))}
+                    {formatBRL(vitrineBase.minimo)}
                   </p>
                 </div>
               ) : (
                 <p className="text-base font-bold">
-                  {formatBRL(Number(product.base_price))}
+                  {vitrine.varia && <span className="text-xs font-normal text-muted-foreground">a partir de </span>}
+                  {formatBRL(vitrine.minimo)}
                 </p>
               )}
             </div>
