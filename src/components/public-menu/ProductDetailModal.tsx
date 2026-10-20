@@ -17,6 +17,7 @@ import { CartItem } from "@/pages/PublicMenu";
 import { toast } from "sonner";
 import { useMarketingTracking } from "@/hooks/use-marketing-tracking";
 import { formatBRL } from "@/lib/format";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface ProductDetailModalProps {
   open: boolean;
@@ -168,7 +169,7 @@ export const ProductDetailModal = ({
           {product.image_url && (
             <div className="relative w-full h-64 rounded-lg overflow-hidden">
               <img
-                src={product.image_url}
+                src={imagemNoTamanho(product.image_url, 900)}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />

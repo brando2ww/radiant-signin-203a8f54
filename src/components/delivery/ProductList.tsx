@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface ProductListProps {
   products: DeliveryProduct[];
@@ -48,7 +49,9 @@ const ProductListItem = ({ product, onEdit, onDuplicate, onDelete }: { product: 
       <div className="flex gap-4 p-4">
         {product.image_url ? (
           <img
-            src={product.image_url}
+            src={imagemNoTamanho(product.image_url, 240)}
+            loading="lazy"
+            decoding="async"
             alt={product.name}
             className="h-24 w-24 rounded-md object-cover"
           />

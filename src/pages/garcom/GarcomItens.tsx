@@ -6,6 +6,7 @@ import { GarcomHeader } from "@/components/garcom/GarcomHeader";
 import { ProductCategoryNav } from "@/components/garcom/ProductCategoryNav";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { formatBRL } from "@/lib/format";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 export default function GarcomItens() {
   const navigate = useNavigate();
@@ -62,7 +63,9 @@ export default function GarcomItens() {
             >
               {product.image_url ? (
                 <img
-                  src={product.image_url}
+                  src={imagemNoTamanho(product.image_url, 480)}
+                  loading="lazy"
+                  decoding="async"
                   alt={product.name}
                   className="h-28 w-full object-cover"
                 />

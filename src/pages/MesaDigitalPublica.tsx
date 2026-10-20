@@ -20,6 +20,7 @@ import {
 } from "@/hooks/use-mesa-digital";
 import { ProdutoMesaSheet, type ItemCarrinho } from "@/components/mesa/ProdutoMesaSheet";
 import { formatTableLabel } from "@/utils/formatTableNumber";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 /**
  * Preço do prato na lista. Quando parte do preço vem de uma opção obrigatória (ex.: Tamanho: Meio ou Inteira, com o
@@ -601,7 +602,7 @@ export default function MesaDigitalPublica() {
                         )}
                         <p className="mt-1 text-sm font-semibold">{precoNaLista(p)}</p>
                       </div>
-                      {p.foto && <img src={p.foto} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-lg object-cover" />}
+                      {p.foto && <img src={imagemNoTamanho(p.foto, 200)} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-lg object-cover" />}
                     </button>
                   ))}
                 </div>
@@ -759,12 +760,12 @@ function Topo({ r, cor, subtitulo }: { r: MesaAbertura["restaurante"]; cor: stri
   return (
     <header className="relative">
       {r.capa_url ? (
-        <img src={r.capa_url} alt="" className="h-28 w-full object-cover" />
+        <img src={imagemNoTamanho(r.capa_url, 900)} alt="" className="h-28 w-full object-cover" />
       ) : (
         <div className="h-16 w-full" style={{ background: cor }} />
       )}
       <div className="flex items-center gap-3 px-4 py-3">
-        {r.logo_url && <img src={r.logo_url} alt="" className="-mt-10 h-14 w-14 rounded-full border-4 border-background object-cover" />}
+        {r.logo_url && <img src={imagemNoTamanho(r.logo_url, 160)} alt="" className="-mt-10 h-14 w-14 rounded-full border-4 border-background object-cover" />}
         <div className="min-w-0">
           <p className="truncate font-bold">{r.nome}</p>
           {subtitulo && <p className="truncate text-sm text-muted-foreground">{subtitulo}</p>}

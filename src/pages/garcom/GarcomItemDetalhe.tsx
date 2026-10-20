@@ -3,6 +3,7 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePDVProducts } from "@/hooks/use-pdv-products";
 import { formatBRL } from "@/lib/format";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 export default function GarcomItemDetalhe() {
   const { id } = useParams<{ id: string }>();
@@ -52,7 +53,7 @@ export default function GarcomItemDetalhe() {
 
       {product.image_url ? (
         <img
-          src={product.image_url}
+          src={imagemNoTamanho(product.image_url, 900)}
           alt={product.name}
           className="w-full h-56 object-cover"
         />

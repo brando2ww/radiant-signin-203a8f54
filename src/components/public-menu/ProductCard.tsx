@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ProductDetailModal } from "./ProductDetailModal";
 import { CartItem } from "@/pages/PublicMenu";
 import { formatBRL } from "@/lib/format";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface ProductCardProps {
   product: PublicProduct;
@@ -109,7 +110,9 @@ export const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
             {product.image_url ? (
               <div className="relative h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-md">
                 <img
-                  src={product.image_url}
+                  src={imagemNoTamanho(product.image_url, 256)}
+                  loading="lazy"
+                  decoding="async"
                   alt={product.name}
                   className="h-full w-full object-cover"
                 />

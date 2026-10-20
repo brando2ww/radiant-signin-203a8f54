@@ -14,6 +14,7 @@ import { useResyncDeliveryOptions } from "@/hooks/use-share-to-delivery";
 import { CMVBadge } from "./CMVBadge";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 import { formatBRL } from "@/lib/format";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface ProductCardProps {
   product: PDVProduct;
@@ -34,7 +35,9 @@ export function ProductCard({ product, onEdit, onDelete, onDuplicate, isSharedTo
       <div className="relative aspect-video bg-muted">
         {product.image_url ? (
           <img
-            src={product.image_url}
+            src={imagemNoTamanho(product.image_url, 480)}
+            loading="lazy"
+            decoding="async"
             alt={product.name}
             className="w-full h-full object-cover"
           />

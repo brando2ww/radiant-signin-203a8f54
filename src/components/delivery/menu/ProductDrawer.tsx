@@ -25,6 +25,7 @@ import { DeliveryCategory } from "@/hooks/use-delivery-categories";
 import { formatBRL } from "@/lib/format";
 import { ExternalLink, Package } from "lucide-react";
 import { Link } from "react-router-dom";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 const WEEKDAYS = [
   { value: 0, label: "Dom" },
@@ -113,7 +114,9 @@ export const ProductDrawer = ({
                 <div className="h-16 w-16 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
                   {product.image_url ? (
                     <img
-                      src={product.image_url}
+                      src={imagemNoTamanho(product.image_url, 160)}
+                      loading="lazy"
+                      decoding="async"
                       alt={product.name}
                       className="h-full w-full object-cover"
                     />

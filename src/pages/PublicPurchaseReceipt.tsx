@@ -18,6 +18,7 @@ import {
 import { format, parseISO } from "date-fns";
 import { formatBRL } from "@/lib/format";
 import { conservationLabel } from "@/lib/whatsapp-message";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface OrderSummary {
   id: string;
@@ -288,7 +289,7 @@ export default function PublicPurchaseReceipt() {
         <div className="mx-auto max-w-2xl px-4 py-5 flex items-center gap-3">
           {business.logo_url ? (
             <img
-              src={business.logo_url}
+              src={imagemNoTamanho(business.logo_url, 200)}
               alt={business.name ?? ""}
               className="h-14 w-14 rounded-full object-cover border-2 border-white/70 bg-white shrink-0"
             />

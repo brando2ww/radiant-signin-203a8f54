@@ -25,6 +25,7 @@ import { describePrizeDiscount } from "@/lib/loyalty-prize";
 import { useBusinessSettings } from "@/hooks/use-public-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerLogin } from "@/components/public-menu/checkout/CustomerLogin";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -305,7 +306,7 @@ const PublicMenuLoyalty = () => {
                       <Card key={prize.id} className="overflow-hidden">
                         {prize.image_url && (
                           <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-                            <img src={prize.image_url} alt={prize.name} className="w-full h-full object-cover" />
+                            <img src={imagemNoTamanho(prize.image_url, 600)} alt={prize.name} className="w-full h-full object-cover" />
                           </div>
                         )}
                         <CardContent className="p-4 space-y-3">

@@ -25,6 +25,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 type Step = "composition" | "options" | "quantity";
 
@@ -37,7 +38,7 @@ function ProdutoLinha({ product, onSelect }: { product: any; onSelect: (p: any) 
       className="flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left active:scale-[0.98] transition-transform"
     >
       {product.image_url ? (
-        <img src={product.image_url} alt={product.name} className="h-12 w-12 rounded-lg object-cover shrink-0" />
+        <img src={imagemNoTamanho(product.image_url, 120)} alt={product.name} className="h-12 w-12 rounded-lg object-cover shrink-0" />
       ) : (
         <div className="h-12 w-12 rounded-lg bg-muted shrink-0" />
       )}

@@ -23,6 +23,7 @@ import { useSharedProductIds, useShareToDelivery } from "@/hooks/use-share-to-de
 import { DeliveryCategory } from "@/hooks/use-delivery-categories";
 import { formatBRL } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface AddPDVProductDialogProps {
   open: boolean;
@@ -145,7 +146,9 @@ export const AddPDVProductDialog = ({
                       <div className="h-12 w-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
                         {p.image_url ? (
                           <img
-                            src={p.image_url}
+                            src={imagemNoTamanho(p.image_url, 120)}
+                            loading="lazy"
+                            decoding="async"
                             alt={p.name}
                             className="h-full w-full object-cover"
                           />

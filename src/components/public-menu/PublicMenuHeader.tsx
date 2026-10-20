@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { useLoyaltySettings, useCustomerLoyaltyBalance } from "@/hooks/use-delivery-loyalty";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerLogin } from "@/components/public-menu/checkout/CustomerLogin";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface PublicMenuHeaderProps {
   userId: string;
@@ -146,7 +147,7 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
       {businessSettings?.cover_url && (
         <div className="h-40 w-full overflow-hidden">
           <img
-            src={businessSettings.cover_url}
+            src={imagemNoTamanho(businessSettings.cover_url, 1400)}
             alt="Capa"
             className="w-full h-full object-cover"
           />
@@ -157,7 +158,7 @@ export const PublicMenuHeader = ({ userId, handle }: PublicMenuHeaderProps) => {
         <div className={`flex items-start gap-4 ${businessSettings?.cover_url ? '-mt-12 relative' : ''}`}>
           {businessSettings?.logo_url ? (
             <img
-              src={businessSettings.logo_url}
+              src={imagemNoTamanho(businessSettings.logo_url, 200)}
               alt="Logo"
               className={`h-20 w-20 rounded-full object-cover border-4 border-background shadow-lg ${businessSettings?.cover_url ? 'ring-2 ring-white' : ''}`}
             />

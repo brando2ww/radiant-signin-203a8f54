@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import type { MesaGrupo, MesaItemPedido, MesaProduto } from "@/hooks/use-mesa-digital";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 /** Item no carrinho do cliente: o pedido (ids) mais o que a tela mostra. */
 export interface ItemCarrinho {
@@ -135,7 +136,7 @@ export function ProdutoMesaSheet({ produto, cor, onFechar, onAdicionar }: Props)
     <Sheet open={!!produto} onOpenChange={(o) => !o && onFechar()}>
       <SheetContent side="bottom" className="flex max-h-[92vh] flex-col gap-0 rounded-t-2xl p-0">
         {produto.foto && (
-          <img src={produto.foto} alt="" className="h-48 w-full shrink-0 rounded-t-2xl object-cover" />
+          <img src={imagemNoTamanho(produto.foto, 900)} alt="" className="h-48 w-full shrink-0 rounded-t-2xl object-cover" />
         )}
         <SheetHeader className="shrink-0 px-5 pt-4 text-left">
           <SheetTitle className="text-lg">{produto.nome}</SheetTitle>

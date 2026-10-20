@@ -36,6 +36,7 @@ import { useProductOptions } from "@/hooks/use-product-options";
 import { formatBRL } from "@/lib/format";
 import { deferMenuAction } from "@/lib/ui/defer-menu-action";
 import { cn } from "@/lib/utils";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 interface ProductCardProps {
   product: DeliveryProduct;
@@ -111,7 +112,9 @@ export const ProductCard = ({
       <div className="relative h-20 w-20 shrink-0 rounded-md overflow-hidden bg-muted">
         {product.image_url ? (
           <img
-            src={product.image_url}
+            src={imagemNoTamanho(product.image_url, 200)}
+            loading="lazy"
+            decoding="async"
             alt={product.name}
             className="h-full w-full object-cover"
           />

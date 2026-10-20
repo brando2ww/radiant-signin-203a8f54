@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { formatarPagamento } from "@/lib/purchase-terms";
+import { imagemNoTamanho } from "@/lib/imagem";
 
 /**
  * O pedido de compra como o FORNECEDOR vê, sem login.
@@ -160,7 +161,7 @@ export default function PublicSupplierOrder() {
         <div className="mx-auto max-w-2xl px-4 py-5 flex items-center gap-3">
           {data.business?.logo_url ? (
             <img
-              src={data.business.logo_url}
+              src={imagemNoTamanho(data.business.logo_url, 200)}
               alt={data.business?.name ?? ""}
               className="h-14 w-14 rounded-full object-cover border-2 border-white/70 bg-white shrink-0"
             />
