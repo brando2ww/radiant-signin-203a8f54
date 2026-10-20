@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  Bell, ChefHat, Loader2, Minus, Plus, Receipt, Search, ShoppingBag, Trash2, UtensilsCrossed,
+  Bell, ChefHat, Loader2, Minus, Plus, Receipt, Search, ShoppingBag, Trash2, Users, UtensilsCrossed,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,9 @@ import {
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import {
-  lerSessaoMesa, limparSessaoMesa, mesaAbrir, mesaCardapio, mesaChamar, mesaEntrar, mesaEstado,
+  lerSessaoMesa, limparSessaoMesa, mesaAbrir, mesaCardapio, mesaChamar, mesaComandas, mesaEntrar, mesaEstado,
   mesaFecharConta, mesaPedir, salvarSessaoMesa, traduzErroMesa,
-  type MesaAbertura, type MesaCardapio, type MesaEstado, type MesaProduto,
+  type MesaAbertura, type MesaCardapio, type MesaComanda, type MesaComandas, type MesaEstado, type MesaProduto,
 } from "@/hooks/use-mesa-digital";
 import { ProdutoMesaSheet, type ItemCarrinho } from "@/components/mesa/ProdutoMesaSheet";
 import { formatTableLabel } from "@/utils/formatTableNumber";
@@ -76,6 +76,10 @@ export default function MesaDigitalPublica() {
   const [celular, setCelular] = useState("");
   const [mesaEscolhida, setMesaEscolhida] = useState<string>("");
   const [entrando, setEntrando] = useState(false);
+  // Várias comandas na mesa (20/10/2026): a lista das abertas e a escolha (entrar numa ou abrir nova)
+  const [lista, setLista] = useState<MesaComandas | null>(null);
+  const [carregandoLista, setCarregandoLista] = useState(false);
+  const [escolha, setEscolha] = useState<{ tipo: "nova" } | { tipo: "entrar"; comanda: MesaComanda } | null>(null);
 
   const cor = abertura?.restaurante?.cor || "#111827";
 
@@ -97,6 +101,30 @@ export default function MesaDigitalPublica() {
   useEffect(() => {
     if (abertura?.restaurante?.nome) document.title = abertura.restaurante.nome;
   }, [abertura]);
+
+  // ── comandas abertas da mesa (antes de entrar) ──
+  const mesaAtual = abertura?.tipo === "mesa" ? abertura.mesa?.id ?? null : mesaEscolhida || null;
+  const carregarLista = useCallback(async () => {
+    if (!abertura?.caixa_aberto || !mesaAtual) {
+      setLista(null);
+      return;
+    }
+    setCarregandoLista(true);
+    try {
+      const l = await mesaComandas(token, mesaAtual);
+      setLista(l.error ? null : l);
+    } catch {
+      setLista(null);
+    } finally {
+      setCarregandoLista(false);
+    }
+  }, [abertura?.caixa_aberto, mesaAtual, token]);
+
+  useEffect(() => {
+    if (sessao) return;
+    setEscolha(null);
+    carregarLista();
+  }, [sessao, carregarLista]);
 
   // ── estado da mesa (consulta periódica enquanto a página está à vista) ──
   const atualizar = useCallback(async () => {
@@ -157,7 +185,17 @@ export default function MesaDigitalPublica() {
     if (abertura?.tipo === "geral" && !mesaId) return toast.error("Escolha a sua mesa.");
     setEntrando(true);
     try {
-      const r = await mesaEntrar(token, mesaId, nome, celular);
+      const r = await mesaEntrar(
+        token,
+        mesaId,
+        nome,
+        celular,
+        escolha?.tipo === "entrar" ? { comandaId: escolha.comanda.id } : { nova: true },
+      );
+      if (r.error === "comanda_fechando" || r.error === "comanda_invalida") {
+        setEscolha(null);
+        carregarLista();
+      }
       if (r.error || !r.sessao) return toast.error(traduzErroMesa(r.error));
       salvarSessaoMesa(token, r.sessao);
       setSessao(r.sessao);
@@ -239,6 +277,7 @@ export default function MesaDigitalPublica() {
     setSessao(null);
     setEstado(null);
     setCarrinho([]);
+    setLista(null); // a lista volta do servidor, com quem entrou depois
   };
 
   // ── telas ──
@@ -278,8 +317,18 @@ export default function MesaDigitalPublica() {
     );
   }
 
-  // Entrada: nome e celular
+  // Entrada: com comanda aberta na mesa, a lista para entrar numa ou abrir nova; depois, nome e celular
   if (!sessao) {
+    const comandasAbertas = lista?.comandas ?? [];
+    const mostrarLista = !escolha && comandasAbertas.length > 0;
+    const nomeDa = (c: MesaComanda) => c.nome ?? `Comanda ${c.numero}`;
+    const titulo = mostrarLista
+      ? "Esta mesa já tem comanda aberta"
+      : escolha?.tipo === "entrar"
+        ? `Entrar na comanda de ${nomeDa(escolha.comanda)}`
+        : comandasAbertas.length > 0
+          ? "Abrir uma comanda nova"
+          : "Faça seu pedido pelo celular";
     return (
       <Tela>
         <Topo r={r} cor={cor} />
@@ -288,8 +337,8 @@ export default function MesaDigitalPublica() {
             <p className="text-sm text-muted-foreground">
               {abertura.tipo === "mesa" ? `Você está na ${formatTableLabel(abertura.mesa?.numero)}` : "Bem-vindo!"}
             </p>
-            <h1 className="text-2xl font-bold">Faça seu pedido pelo celular</h1>
-            {abertura.mensagem && <p className="mt-2 text-sm text-muted-foreground">{abertura.mensagem}</p>}
+            <h1 className="text-2xl font-bold">{titulo}</h1>
+            {abertura.mensagem && !mostrarLista && <p className="mt-2 text-sm text-muted-foreground">{abertura.mensagem}</p>}
           </div>
 
           {!abertura.caixa_aberto ? (
@@ -297,19 +346,16 @@ export default function MesaDigitalPublica() {
               {traduzErroMesa("caixa_fechado")}
             </div>
           ) : (
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                entrar();
-              }}
-            >
+            <>
               {abertura.tipo === "geral" && (
                 <label className="block space-y-1.5">
                   <span className="text-sm font-medium">Sua mesa</span>
                   <select
                     value={mesaEscolhida}
-                    onChange={(e) => setMesaEscolhida(e.target.value)}
+                    onChange={(e) => {
+                      setMesaEscolhida(e.target.value);
+                      setEscolha(null);
+                    }}
                     className="h-12 w-full rounded-xl border bg-background px-3 text-base"
                   >
                     <option value="">Escolha a mesa</option>
@@ -319,39 +365,108 @@ export default function MesaDigitalPublica() {
                   </select>
                 </label>
               )}
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">Seu nome</span>
-                <Input
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  autoComplete="given-name"
-                  className="h-12 rounded-xl text-base"
-                  maxLength={60}
-                />
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-sm font-medium">Celular com DDD</span>
-                <Input
-                  value={celular}
-                  onChange={(e) => setCelular(mascaraCelular(e.target.value))}
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder="(54) 99999-0000"
-                  className="h-12 rounded-xl text-base"
-                />
-              </label>
-              <Button
-                type="submit"
-                disabled={entrando || nome.trim().length < 2 || celular.replace(/\D/g, "").length < 10}
-                className="h-12 w-full rounded-full text-base text-white"
-                style={{ background: cor }}
-              >
-                {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Abrir a mesa e ver o cardápio"}
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Usamos seu nome e celular só para identificar o seu pedido nesta visita.
-              </p>
-            </form>
+
+              {carregandoLista && !lista && mesaAtual ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : mostrarLista ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Entre na sua comanda para ver o que já foi pedido e pedir de novo, ou abra uma comanda nova.
+                  </p>
+                  <div className="divide-y rounded-xl border">
+                    {comandasAbertas.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        disabled={c.fechando}
+                        onClick={() => setEscolha({ tipo: "entrar", comanda: c })}
+                        className="flex w-full items-center gap-3 p-4 text-left disabled:opacity-60"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{nomeDa(c)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Comanda {c.numero} · {c.itens} {c.itens === 1 ? "item" : "itens"} · {formatBRL(c.total)}
+                          </p>
+                        </div>
+                        {c.fechando ? (
+                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">Pedindo a conta</span>
+                        ) : (
+                          <span className="shrink-0 text-sm font-semibold" style={{ color: cor }}>Entrar</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => setEscolha({ tipo: "nova" })}
+                    className="h-12 w-full rounded-full text-base text-white"
+                    style={{ background: cor }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Abrir nova comanda
+                  </Button>
+                </div>
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    entrar();
+                  }}
+                >
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-medium">Seu nome</span>
+                    <Input
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      autoComplete="given-name"
+                      className="h-12 rounded-xl text-base"
+                      maxLength={60}
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-medium">Celular com DDD</span>
+                    <Input
+                      value={celular}
+                      onChange={(e) => setCelular(mascaraCelular(e.target.value))}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="(54) 99999-0000"
+                      className="h-12 rounded-xl text-base"
+                    />
+                  </label>
+                  <Button
+                    type="submit"
+                    disabled={entrando || nome.trim().length < 2 || celular.replace(/\D/g, "").length < 10}
+                    className="h-12 w-full rounded-full text-base text-white"
+                    style={{ background: cor }}
+                  >
+                    {entrando ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : escolha?.tipo === "entrar" ? (
+                      "Entrar na comanda"
+                    ) : comandasAbertas.length > 0 ? (
+                      "Abrir minha comanda"
+                    ) : (
+                      "Abrir a mesa e ver o cardápio"
+                    )}
+                  </Button>
+                  {comandasAbertas.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEscolha(null)}
+                      className="w-full text-center text-sm font-medium text-muted-foreground underline-offset-4 hover:underline"
+                    >
+                      Voltar para as comandas da mesa
+                    </button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Usamos seu nome e celular só para identificar o seu pedido nesta visita.
+                  </p>
+                </form>
+              )}
+            </>
           )}
         </div>
       </Tela>
@@ -363,7 +478,15 @@ export default function MesaDigitalPublica() {
 
   return (
     <Tela>
-      <Topo r={r} cor={cor} subtitulo={estado ? `${formatTableLabel(estado.mesa)} · ${estado.nome}` : undefined} />
+      <Topo
+        r={r}
+        cor={cor}
+        subtitulo={
+          estado
+            ? `${formatTableLabel(estado.mesa)}${estado.comanda_numero ? ` · Comanda ${estado.comanda_numero}` : ""} · ${estado.nome}`
+            : undefined
+        }
+      />
 
       <div className="sticky top-0 z-20 grid grid-cols-2 border-b bg-background">
         {(["cardapio", "conta"] as const).map((a) => (
@@ -446,8 +569,17 @@ export default function MesaDigitalPublica() {
         </div>
       ) : (
         <div className="flex-1 space-y-4 px-4 pb-40 pt-4">
+          <div className="flex items-center justify-between gap-3 rounded-xl border p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{estado?.comanda_numero ? `Comanda ${estado.comanda_numero}` : "Sua comanda"}</p>
+              <p className="text-xs text-muted-foreground">Os pedidos e a conta abaixo são desta comanda.</p>
+            </div>
+            <Button variant="outline" size="sm" className="shrink-0 rounded-full" onClick={recomecar}>
+              <Users className="mr-1.5 h-4 w-4" /> Comandas da mesa
+            </Button>
+          </div>
           {itensConta.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">Nada pedido ainda nesta mesa.</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">Nada pedido ainda nesta comanda.</p>
           ) : (
             <div className="divide-y rounded-xl border">
               {itensConta.map((i) => (

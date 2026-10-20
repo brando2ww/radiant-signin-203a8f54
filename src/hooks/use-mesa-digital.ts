@@ -80,12 +80,31 @@ export interface MesaEstado {
   nome: string;
   mesa: string;
   comanda_status: string;
+  comanda_numero?: string;
   itens: MesaItemConta[];
   subtotal: number;
   taxa_servico: number;
   total: number;
   chamado_aberto: boolean;
   conta_pedida: boolean;
+}
+
+/** Uma comanda aberta na mesa, para quem lê o QR escolher onde entrar (20/10/2026). */
+export interface MesaComanda {
+  id: string;
+  numero: string;
+  /** Nome curto de quem abriu ("Felipe", "Ana S."); vazio quando a comanda foi aberta sem nome. */
+  nome: string | null;
+  itens: number;
+  total: number;
+  /** Já pediu a conta: aparece na lista, mas não dá para entrar. */
+  fechando: boolean;
+}
+
+export interface MesaComandas {
+  error?: string;
+  mesa: { id: string; numero: string };
+  comandas: MesaComanda[];
 }
 
 /** O que vai para mesa_pedir: só ids e quantidades. Nome e preço são do servidor. */
@@ -110,11 +129,23 @@ export async function mesaCardapio(token: string): Promise<MesaCardapio> {
   return data as MesaCardapio;
 }
 
+/** As comandas abertas da mesa (a do QR ou, no QR geral, a escolhida). */
+export async function mesaComandas(token: string, mesaId: string | null): Promise<MesaComandas> {
+  const { data, error } = await rpc("mesa_comandas", { p_token: token, p_table_id: mesaId });
+  if (error) throw error;
+  return data as MesaComandas;
+}
+
+/**
+ * Entra na mesa. `escolha`: entrar numa comanda da lista (`comandaId`) ou abrir uma comanda nova (`nova`); sem
+ * escolha, o servidor faz o de antes (primeira comanda aberta da mesa).
+ */
 export async function mesaEntrar(
   token: string,
   mesaId: string | null,
   nome: string,
   celular: string,
+  escolha?: { comandaId?: string; nova?: boolean },
 ): Promise<{ error?: string; sessao?: string; nome?: string; mesa?: string }> {
   const { data, error } = await rpc("mesa_entrar", {
     p_token: token,
@@ -122,6 +153,8 @@ export async function mesaEntrar(
     p_nome: nome,
     p_celular: celular,
     p_user_agent: navigator.userAgent,
+    ...(escolha?.comandaId ? { p_comanda_id: escolha.comandaId } : {}),
+    ...(escolha?.nova ? { p_nova: true } : {}),
   });
   if (error) throw error;
   return data;
@@ -174,6 +207,10 @@ export function traduzErroMesa(codigo?: string, detalhe?: string | null): string
       return "Escolha a sua mesa.";
     case "conta_em_fechamento":
       return "A conta desta mesa já está sendo fechada. Chame o garçom.";
+    case "comanda_fechando":
+      return "Essa comanda já pediu a conta. Escolha outra ou abra uma comanda nova.";
+    case "comanda_invalida":
+      return "Essa comanda não está mais aberta. Escolha outra ou abra uma comanda nova.";
     case "muitas_tentativas":
       return "Muitas tentativas em pouco tempo. Aguarde um instante.";
     case "sessao_invalida":
