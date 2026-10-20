@@ -21,6 +21,23 @@ import {
 import { ProdutoMesaSheet, type ItemCarrinho } from "@/components/mesa/ProdutoMesaSheet";
 import { formatTableLabel } from "@/utils/formatTableNumber";
 
+/**
+ * Preço do prato na lista. Quando parte do preço vem de uma opção obrigatória (ex.: Tamanho: Meio ou Inteira, com o
+ * prato a R$ 0 no cadastro), mostra "a partir de" o menor valor possível em vez de R$ 0,00.
+ */
+function precoNaLista(p: MesaProduto): string {
+  let minimo = p.preco;
+  let varia = false;
+  for (const o of p.opcoes) {
+    if (!o.obrigatorio && !(o.min > 0)) continue;
+    const precos = o.itens.map((i) => i.preco ?? 0).sort((a, b) => a - b);
+    if (!precos.length) continue;
+    minimo += precos.slice(0, Math.max(1, o.min || 1)).reduce((a, b) => a + b, 0);
+    if (precos[0] !== precos[precos.length - 1]) varia = true;
+  }
+  return varia ? `a partir de ${formatBRL(minimo)}` : formatBRL(minimo);
+}
+
 const CONSULTA_MS = 6000;
 
 function mascaraCelular(v: string) {
@@ -417,7 +434,7 @@ export default function MesaDigitalPublica() {
                         {p.descricao && (
                           <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{p.descricao}</p>
                         )}
-                        <p className="mt-1 text-sm font-semibold">{formatBRL(p.preco)}</p>
+                        <p className="mt-1 text-sm font-semibold">{precoNaLista(p)}</p>
                       </div>
                       {p.foto && <img src={p.foto} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-lg object-cover" />}
                     </button>

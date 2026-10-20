@@ -191,7 +191,7 @@ export function ProdutoMesaSheet({ produto, cor, onFechar, onAdicionar }: Props)
                           </span>
                           <span className="min-w-0 flex-1 text-sm">{i.nome}</span>
                           {!etapa && (i.preco ?? 0) > 0 && (
-                            <span className="text-sm text-muted-foreground">+ {formatBRL(i.preco ?? 0)}</span>
+                            <span className="text-sm text-muted-foreground">{produto.preco > 0 ? "+ " : ""}{formatBRL(i.preco ?? 0)}</span>
                           )}
                         </button>
                         {etapa && g.quantidade && n > 0 && (
