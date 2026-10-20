@@ -79,7 +79,9 @@ export default function MesaDigitalPublica() {
   // Várias comandas na mesa (20/10/2026): a lista das abertas e a escolha (entrar numa ou abrir nova)
   const [lista, setLista] = useState<MesaComandas | null>(null);
   const [carregandoLista, setCarregandoLista] = useState(false);
-  const [escolha, setEscolha] = useState<{ tipo: "nova" } | { tipo: "entrar"; comanda: MesaComanda } | null>(null);
+  const [escolha, setEscolha] = useState<{ tipo: "nova" } | null>(null);
+  // Entrar numa comanda que já existe: só confirma ("Entrar na comanda de Ana S.?"), sem pedir nome e celular
+  const [confirmarEntrada, setConfirmarEntrada] = useState<MesaComanda | null>(null);
 
   const cor = abertura?.restaurante?.cor || "#111827";
 
@@ -190,7 +192,7 @@ export default function MesaDigitalPublica() {
         mesaId,
         nome,
         celular,
-        escolha?.tipo === "entrar" ? { comandaId: escolha.comanda.id } : { nova: true },
+        { nova: true },
       );
       if (r.error === "comanda_fechando" || r.error === "comanda_invalida") {
         setEscolha(null);
@@ -203,6 +205,22 @@ export default function MesaDigitalPublica() {
       toast.error(traduzErroMesa());
     } finally {
       setEntrando(false);
+    }
+  };
+
+  const entrarNaComanda = async (c: MesaComanda) => {
+    setEntrando(true);
+    try {
+      const r = await mesaEntrar(token, mesaAtual, "", "", { comandaId: c.id });
+      if (r.error === "comanda_fechando" || r.error === "comanda_invalida") carregarLista();
+      if (r.error || !r.sessao) return toast.error(traduzErroMesa(r.error));
+      salvarSessaoMesa(token, r.sessao);
+      setSessao(r.sessao);
+    } catch {
+      toast.error(traduzErroMesa());
+    } finally {
+      setEntrando(false);
+      setConfirmarEntrada(null);
     }
   };
 
@@ -324,11 +342,9 @@ export default function MesaDigitalPublica() {
     const nomeDa = (c: MesaComanda) => c.nome ?? `Comanda ${c.numero}`;
     const titulo = mostrarLista
       ? "Esta mesa já tem comanda aberta"
-      : escolha?.tipo === "entrar"
-        ? `Entrar na comanda de ${nomeDa(escolha.comanda)}`
-        : comandasAbertas.length > 0
-          ? "Abrir uma comanda nova"
-          : "Faça seu pedido pelo celular";
+      : comandasAbertas.length > 0
+        ? "Abrir uma comanda nova"
+        : "Faça seu pedido pelo celular";
     return (
       <Tela>
         <Topo r={r} cor={cor} />
@@ -381,7 +397,7 @@ export default function MesaDigitalPublica() {
                         key={c.id}
                         type="button"
                         disabled={c.fechando}
-                        onClick={() => setEscolha({ tipo: "entrar", comanda: c })}
+                        onClick={() => setConfirmarEntrada(c)}
                         className="flex w-full items-center gap-3 p-4 text-left disabled:opacity-60"
                       >
                         <div className="min-w-0 flex-1">
@@ -444,8 +460,6 @@ export default function MesaDigitalPublica() {
                   >
                     {entrando ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : escolha?.tipo === "entrar" ? (
-                      "Entrar na comanda"
                     ) : comandasAbertas.length > 0 ? (
                       "Abrir minha comanda"
                     ) : (
@@ -469,6 +483,34 @@ export default function MesaDigitalPublica() {
             </>
           )}
         </div>
+
+        <AlertDialog open={!!confirmarEntrada} onOpenChange={(o) => !o && !entrando && setConfirmarEntrada(null)}>
+          <AlertDialogContent className="max-w-sm rounded-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Entrar na comanda de {confirmarEntrada ? nomeDa(confirmarEntrada) : ""}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Você vai ver o que já foi pedido na comanda {confirmarEntrada?.numero} e tudo o que pedir entra na conta dela.
+                Se a comanda não é sua, volte e abra uma comanda nova.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={entrando}>Voltar</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={entrando}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (confirmarEntrada) entrarNaComanda(confirmarEntrada);
+                }}
+                className="text-white"
+                style={{ background: cor }}
+              >
+                {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar na comanda"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </Tela>
     );
   }
