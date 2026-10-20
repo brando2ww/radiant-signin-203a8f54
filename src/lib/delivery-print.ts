@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 async function fetchOrderItems(orderId: string): Promise<any[]> {
   const { data: order } = await (supabase as any)
     .from("delivery_orders")
-    .select("order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,user_id,external_code,external_order_id")
+    .select("order_number,ticket_number,customer_name,customer_phone,order_type,delivery_address_text,user_id,external_code,external_order_id,notes")
     .eq("id", orderId)
     .single();
   if (!order) return [];
@@ -68,6 +68,7 @@ async function fetchOrderItems(orderId: string): Promise<any[]> {
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
       order_type: order.order_type,
+      order_notes: order.notes ?? null,
       delivery_address_text: order.delivery_address_text,
       external_code: order.external_code,
       external_order_id: order.external_order_id,
@@ -157,10 +158,15 @@ export async function dispatchDeliveryPrintJobs(
         // para casar a comanda com o pedido no painel do marketplace.
         external_code: first.external_code,
         external_order_id: first.external_order_id,
-        items: groupItems.map((r: any) => ({
+        // Observação geral do pedido ("Alguma observação sobre o pedido?" do cardápio online, ou a do iFood) vai
+        // junto da observação do 1º item da via, que a Print Bridge imprime como "OBS:" (20/10/2026).
+        items: groupItems.map((r: any, idx: number) => ({
           product_name: r.product_name,
           quantity: r.quantity,
-          notes: r.notes,
+          notes:
+            idx === 0 && String(first.order_notes ?? "").trim()
+              ? [String(r.notes ?? "").trim(), `Pedido: ${String(first.order_notes).trim()}`].filter(Boolean).join(" · ")
+              : r.notes,
           modifiers: Array.isArray(r.options)
             ? r.options.map((o: any) => ({
                 name: o?.quantity && Number(o.quantity) > 1
