@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
@@ -244,6 +245,22 @@ export function PaymentDialog({
 
   const isDelivery = !!deliveryOrder && !comanda && !table;
   const isPickupDelivery = isDelivery && (deliveryOrder as any)?.order_type === "pickup";
+
+  // Nota automática de pedido do delivery obedece à opção do DELIVERY
+  // (Configurações do delivery › Fiscal), não à do PDV: é ela que decide se o
+  // delivery emite, e o servidor segue a mesma opção ao concluir o pedido.
+  const { data: deliveryAutoEmit } = useQuery({
+    queryKey: ["delivery-settings-fiscal-auto", deliveryOrder?.user_id],
+    enabled: isDelivery && !!deliveryOrder?.user_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("delivery_settings" as any)
+        .select("nfce_auto_emit")
+        .eq("user_id", deliveryOrder!.user_id)
+        .maybeSingle();
+      return !!(data as any)?.nfce_auto_emit;
+    },
+  });
 
   // Configuração global da taxa de serviço (vem das pdv_settings)
   const serviceFeeAllowed = settings?.enable_service_fee ?? true;
@@ -1232,6 +1249,35 @@ export function PaymentDialog({
   };
 
   const handleEmitNFCe = async () => {
+    // Pedido do delivery: a nota é montada no servidor, com a mesma regra da
+    // emissão automática (produto do PDV por trás do item do cardápio,
+    // adicionais no valor, desconto da loja, intermediador no iFood). Montar
+    // aqui buscava o NCM pelo id do cardápio do delivery e nunca achava.
+    if (isDelivery && deliveryOrder) {
+      try {
+        const { data: result, error } = await supabase.functions.invoke("delivery-nfce", {
+          body: { action: "emitir", orderId: deliveryOrder.id },
+        });
+        if (error) throw error;
+        if ((result as any)?.success && (result as any)?.chave_acesso) {
+          setNfceState({
+            kind: "success",
+            chave: (result as any).chave_acesso,
+            danfe: (result as any).danfe_url,
+          });
+        } else {
+          setNfceState({
+            kind: "error",
+            message: (result as any)?.motivo || (result as any)?.error || "Falha ao emitir",
+            missing: (result as any)?.missing,
+          });
+        }
+      } catch (e: any) {
+        setNfceState({ kind: "error", message: e.message || "Erro inesperado" });
+      }
+      return;
+    }
+
     try {
       // Dados fiscais dos produtos.
       // As colunas corretas em `pdv_products` são `origin` e `tax_unit` — o
@@ -1328,7 +1374,8 @@ export function PaymentDialog({
     && !!fiscalConfig?.habilita_nfce;
   // Pausa manda em tudo: derruba a auto-emissão junto com o botão, senão a
   // nota sairia sozinha justamente no período em que ninguém quer nota.
-  const nfceAutoEmit = nfceConfigured && !nfcePausada && !!settings?.nfe_auto_emit;
+  const nfceAutoEmit = nfceConfigured && !nfcePausada &&
+    (isDelivery ? !!deliveryAutoEmit : !!settings?.nfe_auto_emit);
 
   // Auto-emissão: dispara sozinha assim que o pagamento é confirmado.
   // Uma falha aqui nunca desfaz a venda — o erro aparece na tela e a nota fica

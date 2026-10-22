@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect } from "react";
 import { dispatchDeliveryPrintJobs } from "@/lib/delivery-print";
-import { emitNFCeForDeliveryOrder } from "@/lib/delivery-nfce";
 import {
   SOURCE_FUNCTION,
   isMarketplace,
@@ -241,16 +240,10 @@ export const useUpdateOrderStatus = () => {
         // `useReprintOrder`.
       }
 
-      // Auto-emissão NFC-e quando pedido é concluído e pago.
-      // Falha aqui nunca desfaz o pedido — a nota fica registrada como
-      // rejeitada e aparece para o gerente no banner de pendências fiscais.
-      if (status === "completed" && data?.payment_status === "paid") {
-        try {
-          await emitNFCeForDeliveryOrder(data);
-        } catch (e) {
-          console.warn("Auto-emissão NFC-e falhou:", e);
-        }
-      }
+      // A NFC-e do pedido concluído e pago sai pelo servidor (função
+      // delivery-nfce, a cada minuto), não daqui: pelo navegador ela dependia
+      // de alguém concluir o pedido na tela, e o do iFood é concluído pelo
+      // evento da plataforma, sem tela nenhuma.
 
       return data;
     },

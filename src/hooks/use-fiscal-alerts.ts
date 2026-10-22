@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { notasFiscais } from "@/lib/fiscal-db";
+import { supabase } from "@/integrations/supabase/client";
 
 /**
  * Notas que ficaram pelo caminho nas últimas 24h.
@@ -17,6 +18,12 @@ import { notasFiscais } from "@/lib/fiscal-db";
 export interface FiscalAlerts {
   rejeitadas: number;
   travadas: number;
+  /**
+   * Pedidos do delivery que a emissão automática não conseguiu mandar à
+   * SEFAZ (ex.: produto sem NCM). Não viram nota, então não estão nas contas
+   * acima. O servidor tenta de novo a cada hora: corrigir o cadastro resolve.
+   */
+  deliverySemNota: number;
   ultimoMotivo: string | null;
   total: number;
 }
@@ -42,6 +49,15 @@ export function useFiscalAlerts(): FiscalAlerts {
         .order("created_at", { ascending: false });
       if (error) throw error;
 
+      const { data: tentativas } = await supabase
+        .from("delivery_nfce_tentativas" as any)
+        .select("erro, tentativa_em")
+        .eq("user_id", visibleUserId!)
+        .not("erro", "is", null)
+        .gte("tentativa_em", since)
+        .order("tentativa_em", { ascending: false });
+      const deliverySemNota = (tentativas ?? []).length;
+
       const now = Date.now();
       let rejeitadas = 0;
       let travadas = 0;
@@ -56,9 +72,19 @@ export function useFiscalAlerts(): FiscalAlerts {
         if (!ultimoMotivo && r.mensagem_sefaz) ultimoMotivo = r.mensagem_sefaz;
       }
 
-      return { rejeitadas, travadas, ultimoMotivo, total: rejeitadas + travadas };
+      if (!ultimoMotivo && deliverySemNota > 0) {
+        ultimoMotivo = ((tentativas ?? [])[0] as any)?.erro ?? null;
+      }
+
+      return {
+        rejeitadas,
+        travadas,
+        deliverySemNota,
+        ultimoMotivo,
+        total: rejeitadas + travadas + deliverySemNota,
+      };
     },
   });
 
-  return data ?? { rejeitadas: 0, travadas: 0, ultimoMotivo: null, total: 0 };
+  return data ?? { rejeitadas: 0, travadas: 0, deliverySemNota: 0, ultimoMotivo: null, total: 0 };
 }

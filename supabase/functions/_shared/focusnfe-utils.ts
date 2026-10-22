@@ -60,6 +60,20 @@ export async function authedOwner(req: Request): Promise<
   return { ownerId: (ownerData as string) || userId, userId };
 }
 
+/**
+ * Chamada de outra função do próprio servidor (ex.: a nota automática do
+ * delivery, que não tem usuário logado). Só vale com a chave de serviço, e a
+ * loja vem no cabeçalho `x-owner-id`.
+ */
+export function internalOwner(req: Request): { ownerId: string; userId: string; interno: true } | null {
+  const chave = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const auth = req.headers.get("Authorization") ?? "";
+  const owner = req.headers.get("x-owner-id") ?? "";
+  if (!chave || auth !== `Bearer ${chave}`) return null;
+  if (!/^[0-9a-f-]{36}$/i.test(owner)) return null;
+  return { ownerId: owner, userId: owner, interno: true };
+}
+
 export async function getTenantToken(
   ownerId: string,
 ): Promise<{ token: string; ambiente: string; config: any } | { error: string }> {

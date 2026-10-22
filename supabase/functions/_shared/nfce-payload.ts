@@ -34,6 +34,18 @@ export interface PagamentoInput {
   valor: number;
   bandeira?: string | null;
   parcelas?: number | null;
+  /** Obrigatória quando a forma é 99 (Outros): a SEFAZ exige dizer qual é. */
+  descricao?: string | null;
+}
+
+/**
+ * Plataforma que intermediou a venda (iFood, DeliveryMuch...). Venda fora do
+ * balcão exige o indicador de intermediador; sem ele a SEFAZ rejeita (434).
+ */
+export interface IntermediadorInput {
+  cnpj: string;
+  /** Como o vendedor é identificado na plataforma (id ou nome da loja). */
+  identificador: string;
 }
 
 export interface FiscalDefaults {
@@ -58,6 +70,8 @@ export interface BuildNFCeParams {
   defaults?: FiscalDefaults;
   /** true = venda no balcão/salão; false = entrega a domicílio (delivery). */
   presencial?: boolean;
+  /** Só para venda fora do balcão: null = venda pelo próprio canal da loja. */
+  intermediador?: IntermediadorInput | null;
   informacoes_adicionais?: string | null;
 }
 
@@ -200,6 +214,7 @@ export function buildNFCePayload(params: BuildNFCeParams): BuiltNFCe {
     serie,
     defaults = {},
     presencial = true,
+    intermediador = null,
     informacoes_adicionais,
   } = params;
 
@@ -311,6 +326,10 @@ export function buildNFCePayload(params: BuildNFCeParams): BuiltNFCe {
     // Cartão exige credenciadora/bandeira quando informados.
     if (p.bandeira) linha.bandeira_operadora = p.bandeira;
     if (p.parcelas && p.parcelas > 1) linha.numero_parcelas = p.parcelas;
+    const descricao = firstNonEmpty(p.descricao);
+    if (p.forma_pagamento === "99") {
+      linha.descricao_pagamento = (descricao || "Outros").slice(0, 60);
+    }
     return linha;
   });
 
@@ -337,6 +356,19 @@ export function buildNFCePayload(params: BuildNFCeParams): BuiltNFCe {
     valor_seguro: 0,
     valor_total: fromCents(totalC),
   };
+
+  // Fora do balcão (presença 4) a SEFAZ exige dizer se houve intermediador:
+  // 0 = venda pelo canal da própria loja; 1 = marketplace, com o CNPJ dele.
+  if (!presencial) {
+    const cnpjInt = digits(intermediador?.cnpj);
+    if (cnpjInt.length === 14) {
+      payload.indicador_intermediario = 1;
+      payload.cnpj_intermediario = cnpjInt;
+      payload.id_intermediario = (firstNonEmpty(intermediador?.identificador) || cnpjInt).slice(0, 60);
+    } else {
+      payload.indicador_intermediario = 0;
+    }
+  }
 
   if (cpf.length === 11) payload.cpf_destinatario = cpf;
   const nome = firstNonEmpty(customer?.nome);
@@ -372,11 +404,15 @@ export function mapFormaPagamento(metodo: string | null | undefined): string {
     credito: "03", credit: "03", cartao_credito: "03", credit_card: "03",
     debito: "04", debit: "04", cartao_debito: "04", debit_card: "04",
     cartao: "03", card: "03",
-    vale_refeicao: "10", voucher: "10", ticket: "10",
-    vale_alimentacao: "11",
+    // Tabela da SEFAZ: 10 = vale-alimentação, 11 = vale-refeição.
+    vale_alimentacao: "10", food_voucher: "10",
+    vale_refeicao: "11", meal_voucher: "11", voucher: "11", ticket: "11",
+    vale_presente: "12", gift_card: "12",
     boleto: "15",
     pix: "17",
-    online: "99", outros: "99",
+    // Carteira digital (Apple Pay, Google Pay, PicPay...) tem código próprio.
+    digital_wallet: "18", carteira_digital: "18", wallet: "18",
+    online: "99", outros: "99", other: "99",
   };
   return mapa[m] || "99";
 }

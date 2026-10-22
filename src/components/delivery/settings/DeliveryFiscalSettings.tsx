@@ -57,7 +57,7 @@ export function DeliveryFiscalSettings() {
           )}
         </CardTitle>
         <CardDescription>
-          Emite NFC-e automaticamente quando um pedido delivery é concluído e pago.
+          Emite a NFC-e sozinho quando o pedido do delivery é concluído e pago, inclusive os do iFood.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -73,7 +73,9 @@ export function DeliveryFiscalSettings() {
           <div>
             <Label className="text-base">Emitir NFC-e automaticamente</Label>
             <p className="text-sm text-muted-foreground">
-              Dispara ao mudar o status do pedido para Concluído com pagamento Pago.
+              Vale para o delivery próprio e para o iFood. A nota sai até 1 minuto depois
+              da conclusão, mesmo sem o sistema aberto, e só para pedidos concluídos
+              depois que a opção foi ligada.
             </p>
           </div>
           <Switch

@@ -13,6 +13,7 @@ import {
   focusBaseUrl,
   getServiceClient,
   getTenantToken,
+  internalOwner,
   json,
   translateSefazError,
 } from "../_shared/focusnfe-utils.ts";
@@ -48,6 +49,7 @@ const PagamentoSchema = z.object({
   valor: z.number().nonnegative(),
   bandeira: z.string().optional().nullable(),
   parcelas: z.number().int().optional().nullable(),
+  descricao: z.string().optional().nullable(),
 });
 
 const BodySchema = z.object({
@@ -72,6 +74,16 @@ const BodySchema = z.object({
     .optional()
     .nullable(),
   presencial: z.boolean().optional(),
+  /** Venda por marketplace (iFood...): CNPJ da plataforma e id da loja nela. */
+  intermediador: z
+    .object({ cnpj: z.string(), identificador: z.string() })
+    .optional()
+    .nullable(),
+  /**
+   * Só para chamada interna: devolve a nota montada sem chamar a Focus e sem
+   * gravar nada. Serve para conferir a montagem com pedidos reais.
+   */
+  simular: z.boolean().optional(),
   origem_tipo: z.string().optional(),
   origem_id: z.string().optional(),
   informacoes_adicionais: z.string().optional().nullable(),
@@ -163,6 +175,7 @@ async function rebuildFromNota(
         forma_pagamento: String(f.forma_pagamento ?? "01"),
         valor: Number(f.valor_pagamento ?? 0),
         parcelas: f.numero_parcelas ?? null,
+        descricao: f.descricao_pagamento ?? null,
       })),
       customer: {
         cpf: nota.destinatario_documento,
@@ -170,6 +183,15 @@ async function rebuildFromNota(
         email: nota.destinatario_email,
       },
       presencial: payload.presenca_comprador !== 4,
+      // Sem isto a reemissão de uma venda do iFood sairia sem o intermediador
+      // e voltaria rejeitada pelo mesmo motivo (434).
+      intermediador: payload.cnpj_intermediario
+        ? {
+          cnpj: String(payload.cnpj_intermediario),
+          identificador: String(payload.id_intermediario ?? payload.cnpj_intermediario),
+        }
+        : null,
+      informacoes_adicionais: payload.informacoes_adicionais_contribuinte ?? null,
       origem_tipo: nota.origem_tipo ?? undefined,
       origem_id: nota.origem_id ?? undefined,
     },
@@ -179,9 +201,10 @@ async function rebuildFromNota(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const auth = await authedOwner(req);
+    const auth = internalOwner(req) ?? await authedOwner(req);
     if (auth instanceof Response) return auth;
     const { ownerId } = auth;
+    const interno = "interno" in auth;
 
     const parsed = BodySchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -200,6 +223,7 @@ Deno.serve(async (req) => {
     }
     const items = body.items;
 
+    const simular = interno && !!body.simular;
     const tk = await getTenantToken(ownerId);
     if ("error" in tk) return json({ error: tk.error }, 400);
     const { token, ambiente, config } = tk;
@@ -270,6 +294,7 @@ Deno.serve(async (req) => {
         valor: p.valor,
         bandeira: p.bandeira ?? null,
         parcelas: p.parcelas ?? null,
+        descricao: p.descricao ?? null,
       }))
       : [{
         forma_pagamento: /^\d{2}$/.test(body.forma_pagamento ?? "")
@@ -294,8 +319,11 @@ Deno.serve(async (req) => {
       serie: config.serie_nfce || 1,
       defaults,
       presencial: body.presencial ?? true,
+      intermediador: body.intermediador ?? null,
       informacoes_adicionais: body.informacoes_adicionais ?? null,
     });
+
+    if (simular) return json({ simulacao: true, ambiente, totais, payload });
 
     const ref = buildRef(ownerId, "nfce");
 
@@ -315,6 +343,20 @@ Deno.serve(async (req) => {
       emitida_em: new Date().toISOString(),
     }).select().single();
 
+    // Sem o registro local não se chama a Focus: uma nota autorizada sem
+    // linha aqui some do sistema. É também a trava contra emitir duas vezes o
+    // mesmo pedido (índice único das notas ativas do delivery).
+    if (inserted.error || !inserted.data) {
+      const duplicada = (inserted.error as { code?: string } | null)?.code === "23505";
+      return json({
+        success: false,
+        status: "nao_emitida",
+        error: duplicada
+          ? "Já existe uma nota em andamento ou autorizada para este pedido."
+          : `Não foi possível registrar a nota: ${inserted.error?.message ?? "sem retorno"}`,
+      }, duplicada ? 409 : 500);
+    }
+
     const resp = await fetch(`${focusBaseUrl(ambiente)}/v2/nfce?ref=${ref}`, {
       method: "POST",
       headers: { Authorization: basicAuth(token), "Content-Type": "application/json" },
@@ -322,12 +364,17 @@ Deno.serve(async (req) => {
     });
     const data = await resp.json().catch(() => ({}));
 
+    // `erro_autorizacao` é a SEFAZ recusando a nota (ex.: NCM inexistente).
+    // Caía em "processando" porque a Focus responde 200 nesse caso, e a nota
+    // rejeitada ficava parecendo em andamento para sempre.
     const status = data.status === "autorizado"
       ? "autorizada"
       : data.status === "cancelado"
       ? "cancelada"
       : data.status === "denegado"
       ? "denegada"
+      : data.status === "erro_autorizacao"
+      ? "rejeitada"
       : (resp.ok ? "processando" : "rejeitada");
 
     const motivo = translateSefazError(

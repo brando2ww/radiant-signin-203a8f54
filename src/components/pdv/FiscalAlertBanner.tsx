@@ -17,7 +17,7 @@ const DISMISS_KEY = "fiscal-alerts-dismissed";
  * o número de pendências crescer.
  */
 export function FiscalAlertBanner() {
-  const { rejeitadas, travadas, ultimoMotivo, total } = useFiscalAlerts();
+  const { rejeitadas, travadas, deliverySemNota, ultimoMotivo, total } = useFiscalAlerts();
   const [dismissedAt, setDismissedAt] = useState<number>(() => {
     const raw = sessionStorage.getItem(DISMISS_KEY);
     return raw ? Number(raw) || 0 : 0;
@@ -37,6 +37,7 @@ export function FiscalAlertBanner() {
   const partes = [
     rejeitadas > 0 ? `${rejeitadas} rejeitada(s) pela Receita` : null,
     travadas > 0 ? `${travadas} sem retorno` : null,
+    deliverySemNota > 0 ? `${deliverySemNota} do delivery com cadastro incompleto` : null,
   ].filter(Boolean).join(" · ");
 
   return (
