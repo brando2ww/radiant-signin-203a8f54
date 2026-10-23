@@ -54,40 +54,28 @@ export const GuestCheckoutForm = ({ onConfirm, onBack }: GuestCheckoutFormProps)
       const cleanPhone = phone.replace(/\D/g, "");
       const cleanDoc = document.replace(/\D/g, "") || null;
 
-      const { data: existing } = await supabase
-        .from("delivery_customers")
-        .select("*")
-        .eq("phone", cleanPhone)
-        .maybeSingle();
-
-      let customer: DeliveryCustomer;
-      if (existing) {
-        const { data, error } = await supabase
-          .from("delivery_customers")
-          .update({
-            name,
-            cpf: cleanDoc,
-            document_type: documentType,
-          } as any)
-          .eq("id", existing.id)
-          .select()
-          .single();
-        if (error) throw error;
-        customer = data as DeliveryCustomer;
-      } else {
-        const { data, error } = await supabase
-          .from("delivery_customers")
-          .insert({
-            name,
-            phone: cleanPhone,
-            cpf: cleanDoc,
-            document_type: documentType,
-          } as any)
-          .select()
-          .single();
-        if (error) throw error;
-        customer = data as DeliveryCustomer;
-      }
+      // Pelo servidor: a tela não lê nem altera a tabela de clientes, que é
+      // de todas as lojas. Volta só o que a própria pessoa digitou.
+      const { data, error } = await supabase.rpc("delivery_cliente_convidado" as any, {
+        p_telefone: cleanPhone,
+        p_nome: name,
+        p_documento: cleanDoc,
+        p_tipo_documento: documentType,
+      });
+      if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as any;
+      if (!row?.id) throw new Error("Não foi possível identificar o cliente.");
+      const customer: DeliveryCustomer = {
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        cpf: row.cpf ?? null,
+        email: null,
+        birth_date: null,
+        created_at: "",
+        updated_at: "",
+        ...(row.document_type ? { document_type: row.document_type } : {}),
+      } as DeliveryCustomer;
       onConfirm(customer);
     } catch (err: any) {
       toast.error("Erro ao salvar dados: " + err.message);
