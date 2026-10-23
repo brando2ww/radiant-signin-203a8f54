@@ -15,6 +15,16 @@ export type ComandaStatus =
   | "cancelada";
 export type KitchenStatus = "pendente" | "preparando" | "pronto" | "entregue";
 
+/**
+ * Comanda que ainda pesa na mesa: aberta, enviada ao caixa ou em cobrança.
+ * Cancelada e fechada (paga) não entram no total, na contagem nem na lista da
+ * mesa no Salão. A fila do caixa também só olha comanda ativa, e o servidor
+ * (gatilho pdv_auto_close_order_on_comanda_terminal) libera a mesa quando
+ * nenhuma comanda ativa sobra.
+ */
+export const isComandaAtiva = (status: string | null | undefined) =>
+  status === "aberta" || status === "aguardando_pagamento" || status === "em_cobranca";
+
 export interface Comanda {
   id: string;
   user_id: string;
@@ -76,12 +86,7 @@ export function usePDVComandas() {
   // Fetch comanda items — apenas das comandas ativas para evitar carregar histórico inteiro
   // (que pode ultrapassar o limite default de 1000 linhas do Supabase).
   const activeComandaIds = comandas
-    .filter(
-      (c) =>
-        c.status === "aberta" ||
-        c.status === "em_cobranca" ||
-        c.status === "aguardando_pagamento",
-    )
+    .filter((c) => isComandaAtiva(c.status))
     .map((c) => c.id);
   const activeComandaIdsKey = activeComandaIds.join(",");
   const { data: comandaItems = [], isLoading: isLoadingItems } = useQuery({
@@ -670,9 +675,14 @@ export function usePDVComandas() {
     );
   };
 
-  // Helper to get comandas for a specific order
+  // Comandas ativas de um atendimento (mesa). Antes voltavam todas, inclusive
+  // as canceladas e as já pagas: o card do Salão somava o subtotal da comanda
+  // cancelada e contava ela em "N cmd", enquanto o caixa (que só olha comanda
+  // ativa) mostrava "Tudo em dia". Caso Sertão Adentro, Mesa 01, 23/10/2026:
+  // "R$ 133 · 2 cmd" com a comanda de R$ 133 já cancelada e só uma comanda
+  // vazia aberta. Também evita cobrar comanda cancelada no "Fechar Mesa".
   const getComandasByOrder = (orderId: string) => {
-    return comandas.filter((c) => c.order_id === orderId);
+    return comandas.filter((c) => c.order_id === orderId && isComandaAtiva(c.status));
   };
 
   // Helper to get standalone comandas (no order) — only "aberta"
