@@ -366,6 +366,7 @@ export const useCancelOrder = () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-orders"] });
       queryClient.invalidateQueries({ queryKey: ["delivery-cancelled-orders"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-delivery-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-order-stats"] });
       toast.success("Pedido cancelado!");
     },
     onError: (error: Error) => {

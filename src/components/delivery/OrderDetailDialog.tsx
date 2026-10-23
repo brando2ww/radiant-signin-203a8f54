@@ -10,8 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   DeliveryOrder,
   useUpdateOrderStatus,
-  useCancelOrder,
-  useMarketplaceCancellationReasons,
   useReprintOrder,
 } from "@/hooks/use-delivery-orders";
 import {
@@ -36,9 +34,9 @@ import { OrderStatusBadge } from "./OrderStatusBadge";
 import { OrderSourceBadge } from "./OrderSourceBadge";
 import { useState } from "react";
 import { formatBRL } from "@/lib/format";
-import { CancelOrderDialog } from "@/components/pdv/cashier/CancelOrderDialog";
+import { CancelDeliveryOrderDialog } from "./CancelDeliveryOrderDialog";
 import { getCancelCategoryLabel } from "@/lib/cancel-reasons";
-import { isMarketplace, SOURCE_LABEL, nextOrderStep, type OrderSource } from "@/lib/marketplace-orders";
+import { isMarketplace, nextOrderStep } from "@/lib/marketplace-orders";
 
 interface OrderDetailDialogProps {
   open: boolean;
@@ -53,14 +51,6 @@ export const OrderDetailDialog = ({
 }: OrderDetailDialogProps) => {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const updateStatus = useUpdateOrderStatus();
-  const cancelOrder = useCancelOrder();
-  // Só busca quando o diálogo abre: a lista do iFood varia com o estágio do
-  // pedido, então uma lista cacheada de minutos atrás pode ser recusada.
-  const { data: platformReasons, isLoading: loadingPlatformReasons } =
-    useMarketplaceCancellationReasons(
-      isCancelDialogOpen ? order?.id ?? null : null,
-      (order as any)?.source,
-    );
   const reprintOrder = useReprintOrder();
   const { data: nfce } = useOrderNfce(order.status === "completed" ? order.id : null);
 
@@ -502,38 +492,11 @@ export const OrderDetailDialog = ({
         </DialogContent>
       </Dialog>
 
-      <CancelOrderDialog
+      <CancelDeliveryOrderDialog
+        order={order}
         open={isCancelDialogOpen}
         onOpenChange={setIsCancelDialogOpen}
-        resourceLabel="Pedido"
-        isLoading={cancelOrder.isPending}
-        platformLabel={
-          isMarketplace((order as any)?.source)
-            ? SOURCE_LABEL[((order as any)?.source ?? "own") as OrderSource]
-            : undefined
-        }
-        platformReasons={platformReasons}
-        loadingPlatformReasons={loadingPlatformReasons}
-        summary={{
-          reference: `Pedido #${order.order_number}`,
-          title: order.customer_name,
-          itemsCount: order.delivery_order_items?.reduce(
-            (s, i) => s + (i.quantity || 0),
-            0,
-          ),
-          total: Number(order.total),
-        }}
-        onConfirm={async ({ reason, category, customerNotified, cancellationCode }) => {
-          await cancelOrder.mutateAsync({
-            id: order.id,
-            reason,
-            category,
-            customerNotified,
-            cancellationCode,
-          });
-          setIsCancelDialogOpen(false);
-          setTimeout(() => onOpenChange(false), 0);
-        }}
+        onCancelled={() => setTimeout(() => onOpenChange(false), 0)}
       />
     </>
   );

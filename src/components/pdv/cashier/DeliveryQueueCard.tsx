@@ -12,7 +12,7 @@ import {
 import { formatBRL } from "@/lib/format";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X, Store } from "lucide-react";
+import { Bike, CreditCard, Smartphone, Banknote, Package, Printer, ChevronRight, X, XCircle, Store } from "lucide-react";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
 import {
   initialsFromName,
@@ -28,6 +28,8 @@ interface Props {
   onConfirmOnline: (order: DeliveryOrder) => void;
   onAdvanceStatus?: (order: DeliveryOrder) => void;
   onPrintMotoboy?: (order: DeliveryOrder) => void;
+  /** Abre o cancelamento com motivo (pedido próprio ou de marketplace). */
+  onCancel?: (order: DeliveryOrder) => void;
 }
 
 const NEXT_STATUS_LABEL: Partial<Record<DeliveryOrder["status"], string>> = {
@@ -75,7 +77,7 @@ function methodIcon(m: string) {
   return CreditCard;
 }
 
-export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, onAdvanceStatus, onPrintMotoboy }: Props) {
+export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, onAdvanceStatus, onPrintMotoboy, onCancel }: Props) {
   const isOnlinePaid = order.payment_status === "paid";
   const isPickup = (order as any).order_type === "pickup";
   const items = order.delivery_order_items ?? [];
@@ -113,6 +115,10 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       ? marketplaceStep?.label
       : statusLabelMap[order.status];
   const HeaderIcon = isPickup ? Store : Bike;
+  // Mesma regra do detalhe do pedido no kanban: concluído não se cancela por
+  // aqui. Sem este botão, uma retirada que o cliente desistiu ficava presa na
+  // fila do caixa, só com "Registrar pagamento".
+  const canCancel = !!onCancel && order.status !== "completed" && order.status !== "cancelled";
 
   // Aviso para auto-confirmação manual + pagar na entrega
   const pendingOfflineConfirmation =
@@ -247,7 +253,7 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
       )}
 
       <div className="space-y-2">
-        {(nextLabel || onPrintMotoboy) && (
+        {(nextLabel || onPrintMotoboy || canCancel) && (
           <div className="flex gap-2">
             {nextLabel && onAdvanceStatus && (
               <Button
@@ -270,6 +276,19 @@ export function DeliveryQueueCard({ order, onRegisterPayment, onConfirmOnline, o
               >
                 <Printer className="h-3.5 w-3.5" />
                 {isPickup ? "Retirada" : "Caixa"}
+              </Button>
+            )}
+            {canCancel && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs gap-1 px-2 text-destructive border-destructive/30 hover:text-destructive hover:bg-destructive/10"
+                onClick={() => onCancel?.(order)}
+                title="Cancelar pedido"
+                aria-label={`Cancelar pedido #${order.order_number}`}
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                Cancelar
               </Button>
             )}
           </div>

@@ -30,6 +30,7 @@ import { usePDVComandas, Comanda, ComandaItem } from "@/hooks/use-pdv-comandas";
 import { usePDVTables, PDVTable } from "@/hooks/use-pdv-tables";
 import { SalonQueueCard } from "./SalonQueueCard";
 import { DeliveryQueueCard } from "./DeliveryQueueCard";
+import { CancelDeliveryOrderDialog } from "@/components/delivery/CancelDeliveryOrderDialog";
 import { PaymentDialog } from "./PaymentDialog";
 import { usePDVCashier } from "@/hooks/use-pdv-cashier";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
@@ -82,6 +83,10 @@ export function SalonQueuePanel({
   const [sortBy, setSortBy] = useState<SortOption>("time");
   const [search, setSearch] = useState("");
   const [paymentOrder, setPaymentOrder] = useState<DeliveryOrder | null>(null);
+  // O pedido fica guardado enquanto o diálogo fecha, para o resumo não sumir
+  // no meio da animação.
+  const [cancelOrderTarget, setCancelOrderTarget] = useState<DeliveryOrder | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   const normalize = (s: string | null | undefined) =>
     (s ?? "")
@@ -584,6 +589,10 @@ export function SalonQueuePanel({
                     onConfirmOnline={handleConfirmOnline}
                     onAdvanceStatus={handleAdvanceStatus}
                     onPrintMotoboy={handlePrintMotoboy}
+                    onCancel={(order) => {
+                      setCancelOrderTarget(order);
+                      setCancelOpen(true);
+                    }}
                   />
                 ))
               )}
@@ -611,6 +620,12 @@ export function SalonQueuePanel({
         open={!!paymentOrder}
         onOpenChange={(o) => !o && setPaymentOrder(null)}
         drawerBalance={drawerBalance}
+      />
+
+      <CancelDeliveryOrderDialog
+        order={cancelOrderTarget}
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
       />
 
     </div>
