@@ -24,6 +24,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Store,
 } from "lucide-react";
 import { OrderTrackingView } from "./checkout/OrderTrackingView";
 import { useActiveOrder } from "@/hooks/use-active-order";
@@ -46,6 +47,14 @@ const STATUS_META: Record<
   cancelled: { label: "Cancelado", Icon: XCircle },
 };
 
+// Retirada não sai para entrega: o caixa usa "delivering" como "liberado
+// para retirada", então para o cliente é o mesmo que pronto.
+const STATUS_META_PICKUP: Partial<typeof STATUS_META> = {
+  ready: { label: "Pronto para retirada", Icon: Store },
+  delivering: { label: "Pronto para retirada", Icon: Store },
+  completed: { label: "Retirado", Icon: CheckCircle2 },
+};
+
 export const ActiveOrderChip = ({ userId }: Props) => {
   const { orderId, order, clear } = useActiveOrder(userId);
   const [open, setOpen] = useState(false);
@@ -58,7 +67,10 @@ export const ActiveOrderChip = ({ userId }: Props) => {
 
   if (!orderId || !order) return null;
 
-  const meta = STATUS_META[order.status] ?? STATUS_META.pending;
+  const meta =
+    (order.order_type === "pickup" ? STATUS_META_PICKUP[order.status] : undefined) ??
+    STATUS_META[order.status] ??
+    STATUS_META.pending;
   const Icon = meta.Icon;
   const isCancelled = order.status === "cancelled";
 

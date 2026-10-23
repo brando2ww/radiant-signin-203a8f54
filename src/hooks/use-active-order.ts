@@ -10,6 +10,8 @@ interface ActiveOrder {
   id: string;
   order_number: string;
   status: string;
+  // Vem do servidor desde 20261023240400 (entrega ou retirada).
+  order_type?: "delivery" | "pickup" | null;
   payment_method: string;
   payment_status: string;
   total: number;

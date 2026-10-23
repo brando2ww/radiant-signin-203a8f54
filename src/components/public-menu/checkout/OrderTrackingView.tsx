@@ -17,6 +17,7 @@ import {
   ClipboardList,
   PackageCheck,
   HandCoins,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -32,6 +33,9 @@ type Order = {
   id: string;
   order_number: string;
   status: string;
+  // Vem do servidor desde 20261023240400; antes disso chega vazio e a tela
+  // segue com o texto de entrega.
+  order_type?: "delivery" | "pickup" | null;
   payment_method: string;
   payment_status: string;
   change_for: number | null;
@@ -52,6 +56,16 @@ const PAYMENT_LABELS: Record<string, string> = {
   credito: "Cartão de crédito na entrega",
   debit: "Cartão de débito na entrega",
   debito: "Cartão de débito na entrega",
+  pix: "PIX",
+};
+
+const PAYMENT_LABELS_PICKUP: Record<string, string> = {
+  cash: "Dinheiro na retirada",
+  dinheiro: "Dinheiro na retirada",
+  credit: "Cartão de crédito na retirada",
+  credito: "Cartão de crédito na retirada",
+  debit: "Cartão de débito na retirada",
+  debito: "Cartão de débito na retirada",
   pix: "PIX",
 };
 
@@ -93,6 +107,20 @@ const STATUS_HERO: Record<
     title: "Pedido cancelado",
     subtitle: "Este pedido foi cancelado",
     Icon: XCircle,
+  },
+};
+
+// Retirada não sai para entrega: só o que muda em relação à entrega.
+const STATUS_HERO_PICKUP: Partial<typeof STATUS_HERO> = {
+  ready: {
+    title: "Pronto para retirada",
+    subtitle: "Seu pedido está pronto. Pode vir buscar no restaurante",
+    Icon: Store,
+  },
+  completed: {
+    title: "Pedido retirado",
+    subtitle: "Obrigado! Esperamos te ver de novo em breve",
+    Icon: CheckCircle2,
   },
 };
 
@@ -176,12 +204,24 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
   const offline = isOffline(order.payment_method);
   const paid = order.payment_status === "paid";
   const cancelled = order.status === "cancelled";
-  const hero = STATUS_HERO[order.status] ?? STATUS_HERO.pending;
+  const isPickup = order.order_type === "pickup";
+  // Na retirada o caixa usa "delivering" como "liberado para retirada"
+  // (Liberar p/ retirada → Marcar retirado), e o card do kanban leva o pronto
+  // para "delivering" também. Para o cliente é a mesma coisa que "ready":
+  // o pedido está pronto esperando por ele, nunca "a caminho".
+  const status = isPickup && order.status === "delivering" ? "ready" : order.status;
+  // Momento em que o cliente age: recebe o entregador ou vai buscar no balcão.
+  const handoff = isPickup ? status === "ready" : status === "delivering";
+  const handoffStep = isPickup ? "ready" : "delivering";
+  const hero =
+    (isPickup ? STATUS_HERO_PICKUP[status] : undefined) ??
+    STATUS_HERO[status] ??
+    STATUS_HERO.pending;
   const HeroIcon = hero.Icon;
 
   // Timeline
   const order_idx = ["pending", "confirmed", "preparing", "ready", "delivering", "completed"].indexOf(
-    order.status,
+    status,
   );
 
   type Step = { key: string; label: string; time?: string | null };
@@ -192,15 +232,21 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
       label: "Em preparo",
       time: fmtTime(order.confirmed_at),
     },
-    { key: "ready", label: "Pronto", time: fmtTime(order.ready_at) },
-    { key: "delivering", label: "Saiu para entrega", time: fmtTime(order.ready_at) },
+    isPickup
+      ? { key: "ready", label: "Pronto para retirada", time: fmtTime(order.ready_at) }
+      : { key: "ready", label: "Pronto", time: fmtTime(order.ready_at) },
   ];
+  if (!isPickup) {
+    baseSteps.push({ key: "delivering", label: "Saiu para entrega", time: fmtTime(order.ready_at) });
+  }
   if (offline) {
     baseSteps.push({ key: "awaiting_payment", label: "Aguardando pagamento no caixa" });
   }
   baseSteps.push({
     key: "completed",
-    label: offline ? "Entregue e pago" : "Entregue",
+    label: isPickup
+      ? offline ? "Retirado e pago" : "Retirado"
+      : offline ? "Entregue e pago" : "Entregue",
     time: fmtTime(order.delivered_at),
   });
 
@@ -244,8 +290,7 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
   // Only animate newly-reached if there was a previous render (avoid initial mass animation)
   justReachedRef.current = prevReachedRef.current.size === 0 ? new Set() : newlyReached;
   prevReachedRef.current = currentReached;
-  const showConfirmButton =
-    !cancelled && order.status === "delivering" && !order.customer_delivery_confirmed_at;
+  const showConfirmButton = !cancelled && handoff && !order.customer_delivery_confirmed_at;
 
   return (
     <div className="flex flex-col h-full">
@@ -268,7 +313,7 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
               className={cn(
                 "h-7 w-7",
                 cancelled ? "text-destructive" : "text-primary",
-                order.status === "preparing" || order.status === "delivering"
+                status === "preparing" || status === "delivering"
                   ? "animate-pulse"
                   : "",
               )}
@@ -290,7 +335,7 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
         </div>
 
         {/* Banner contextual */}
-        {!cancelled && order.status === "delivering" && (
+        {!cancelled && handoff && (
           <>
             {offline && !paid && (
               <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/40 bg-amber-500/10">
@@ -300,11 +345,14 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                     Tenha o pagamento pronto
                   </p>
                   <p className="text-muted-foreground mt-0.5">
-                    Pague {formatBRL(Number(order.total))} ao entregador na chegada.
+                    {isPickup
+                      ? `Pague ${formatBRL(Number(order.total))} na retirada, no balcão do restaurante.`
+                      : `Pague ${formatBRL(Number(order.total))} ao entregador na chegada.`}
                   </p>
                   {change !== null && (
                     <p className="text-muted-foreground mt-1">
-                      Levará troco para {formatBRL(Number(order.change_for))} (troco de{" "}
+                      {isPickup ? "Troco para" : "Levará troco para"}{" "}
+                      {formatBRL(Number(order.change_for))} (troco de{" "}
                       <span className="font-medium text-foreground">{formatBRL(change)}</span>).
                     </p>
                   )}
@@ -317,7 +365,8 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                 <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                 <div className="flex-1 text-sm">
                   <p className="font-medium">
-                    Recebimento confirmado{customerConfirmedAt ? ` às ${customerConfirmedAt}` : ""}
+                    {isPickup ? "Retirada confirmada" : "Recebimento confirmado"}
+                    {customerConfirmedAt ? ` às ${customerConfirmedAt}` : ""}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {offline
@@ -346,7 +395,7 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                   ? order_idx >= 5
                   : order_idx >= idxMapped;
                 const current = isAwaitingPayment
-                  ? order.status === "delivering" && !paid
+                  ? handoff && !paid
                   : !reached && order_idx === idxMapped - (step.key === "preparing" ? 1 : 0);
                 const isLast = idx === baseSteps.length - 1;
 
@@ -429,16 +478,19 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                           </span>
                         )}
                       </div>
-                      {step.key === "delivering" &&
+                      {step.key === handoffStep &&
                         order.customer_delivery_confirmed_at &&
                         customerConfirmedAt && (
                           <p className="text-xs text-primary mt-1">
-                            ✓ Você confirmou recebimento às {customerConfirmedAt}
+                            ✓ Você confirmou {isPickup ? "a retirada" : "recebimento"} às{" "}
+                            {customerConfirmedAt}
                           </p>
                         )}
                       {isAwaitingPayment && !paid && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Pague ao entregador. O caixa registrará a entrega.
+                          {isPickup
+                            ? "Pague na retirada. O caixa registrará o pagamento."
+                            : "Pague ao entregador. O caixa registrará a entrega."}
                         </p>
                       )}
                     </div>
@@ -460,7 +512,8 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Forma de pagamento</p>
                   <p className="font-medium text-sm truncate">
-                    {PAYMENT_LABELS[order.payment_method] ?? order.payment_method}
+                    {(isPickup ? PAYMENT_LABELS_PICKUP : PAYMENT_LABELS)[order.payment_method] ??
+                      order.payment_method}
                   </p>
                 </div>
                 <Badge
@@ -474,12 +527,16 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
                       : "border-muted-foreground/30",
                   )}
                 >
-                  {paid ? "Pago" : offline ? "Pagar na entrega" : "Aguardando"}
+                  {paid
+                    ? "Pago"
+                    : offline
+                    ? isPickup ? "Pagar na retirada" : "Pagar na entrega"
+                    : "Aguardando"}
                 </Badge>
               </div>
               {order.change_for && Number(order.change_for) > Number(order.total) && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Levar troco para {formatBRL(Number(order.change_for))}
+                  {isPickup ? "Troco para" : "Levar troco para"} {formatBRL(Number(order.change_for))}
                 </p>
               )}
               <div className="flex items-baseline justify-between mt-3 pt-3 border-t border-border">
@@ -494,7 +551,9 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
           <div className="flex items-start gap-3 p-4 rounded-xl border border-border bg-muted/30">
             <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
             <p className="text-xs text-muted-foreground">
-              Nenhuma cobrança foi realizada — pagamento na entrega não gera cobrança prévia.
+              {isPickup
+                ? "Nenhuma cobrança foi realizada. Pagamento na retirada não gera cobrança prévia."
+                : "Nenhuma cobrança foi realizada — pagamento na entrega não gera cobrança prévia."}
             </p>
           </div>
         )}
@@ -515,7 +574,7 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
               ) : (
                 <>
                   <PackageCheck className="h-5 w-5 mr-2" />
-                  Já recebi meu pedido
+                  {isPickup ? "Já retirei meu pedido" : "Já recebi meu pedido"}
                 </>
               )}
             </Button>
