@@ -36,7 +36,9 @@ const deliveryColumns = [
 const pickupColumns = [
   { id: "novos", label: "Novos", color: "bg-yellow-500", match: ["pending"] },
   { id: "preparo", label: "Em Preparo", color: "bg-orange-500", match: ["confirmed", "preparing"] },
-  { id: "pronto", label: "Pronto para Retirar", color: "bg-purple-500", match: ["ready"] },
+  // "delivering" em retirada = liberado para retirada pelo caixa (ou pedido
+  // de antes da correção do kanban). Sem ele aqui o pedido sumia da aba.
+  { id: "pronto", label: "Pronto para Retirar", color: "bg-purple-500", match: ["ready", "delivering"] },
 ];
 
 type TurnoFilter = "all" | "manha" | "tarde" | "noite";

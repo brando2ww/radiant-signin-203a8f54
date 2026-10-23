@@ -146,5 +146,33 @@ export function nextOrderStep(
     ready: { status: "delivering", label: "Saiu para Entrega" },
     delivering: { status: "completed", label: "Concluir Entrega" },
   };
+
+  // Retirada própria não sai para entrega: do pronto, o próximo passo é o
+  // cliente retirar. Antes o kanban oferecia "Saiu para Entrega", o pedido
+  // ia para "delivering" e sumia da aba Retirada (chamado do Sertão Adentro,
+  // 23/10/2026). "delivering" ainda aparece em retirada liberada pelo caixa
+  // ("Liberar p/ retirada") e conclui do mesmo jeito.
+  if (orderType === "pickup") {
+    if (status === "ready" || status === "delivering") {
+      return { status: "completed", label: "Marcar como retirado" };
+    }
+  }
   return own[status] ?? null;
+}
+
+/**
+ * Pagamento na entrega/retirada (dinheiro ou cartão na hora) ainda não
+ * registrado no caixa. O banco recusa concluir esse pedido
+ * (delivery_block_unpaid_completion): quem conclui é o "Registrar pagamento"
+ * do caixa, então a tela orienta em vez de oferecer um botão que falha.
+ */
+export function awaitingCashierPayment(order: {
+  payment_method: string | null;
+  payment_status: string | null;
+  cashier_confirmed_at?: string | null;
+}): boolean {
+  const offline = ["cash", "dinheiro", "credit", "credito", "debit", "debito"].includes(
+    order.payment_method ?? "",
+  );
+  return offline && order.payment_status !== "paid" && !order.cashier_confirmed_at;
 }

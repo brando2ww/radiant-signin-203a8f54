@@ -3,6 +3,7 @@ import { DeliveryOrder } from "@/hooks/use-delivery-orders";
 
 interface OrderStatusBadgeProps {
   status: DeliveryOrder["status"];
+  orderType?: DeliveryOrder["order_type"];
 }
 
 const statusConfig = {
@@ -43,8 +44,12 @@ const statusConfig = {
   },
 };
 
-export const OrderStatusBadge = ({ status }: OrderStatusBadgeProps) => {
-  const config = statusConfig[status] || statusConfig.pending;
+export const OrderStatusBadge = ({ status, orderType }: OrderStatusBadgeProps) => {
+  // Retirada em "delivering" foi liberada para o cliente buscar.
+  const config =
+    orderType === "pickup" && status === "delivering"
+      ? { ...statusConfig.ready, label: "Pronto para retirar" }
+      : statusConfig[status] || statusConfig.pending;
 
   return (
     <Badge variant={config.variant} className={config.className}>

@@ -25,7 +25,7 @@ import { formatBRL } from "@/lib/format";
 import { AssignDriverPopover } from "./AssignDriverPopover";
 import { cn } from "@/lib/utils";
 import { OrderSourceBadge } from "./OrderSourceBadge";
-import { nextOrderStep } from "@/lib/marketplace-orders";
+import { awaitingCashierPayment, nextOrderStep } from "@/lib/marketplace-orders";
 
 interface OrderCardProps {
   order: DeliveryOrder;
@@ -74,6 +74,10 @@ export const OrderCard = ({ order }: OrderCardProps) => {
   // O próximo passo depende da origem: no iFood, pedido de entrega pula
   // "pronto" e vai direto para o despacho.
   const nextStep = nextOrderStep((order as any).source, order.status, order.order_type);
+  // Retirada com pagamento na hora ainda não registrado: o banco não deixa
+  // concluir, quem conclui é o "Registrar pagamento" do caixa.
+  const retiradaAguardaCaixa =
+    isPickup && nextStep?.status === "completed" && awaitingCashierPayment(order);
   const pay = paymentInfo(order.payment_method);
   const PayIcon = pay.icon;
   const items = order.delivery_order_items || [];
@@ -190,7 +194,12 @@ export const OrderCard = ({ order }: OrderCardProps) => {
 
           {/* Ações */}
           <div className="space-y-1.5">
-            {nextStep && (
+            {retiradaAguardaCaixa ? (
+              <div className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+                <Banknote className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>Pagamento na retirada · registre o pagamento no Caixa para concluir</span>
+              </div>
+            ) : nextStep && (
               <Button
                 size="sm"
                 className="w-full"

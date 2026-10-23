@@ -48,6 +48,8 @@ export interface DeliveryOrder {
   driver_id?: string | null;
   driver_assigned_at?: string | null;
   scheduled_for?: string | null;
+  /** Preenchido quando o caixa registra o pagamento na entrega/retirada. */
+  cashier_confirmed_at?: string | null;
   delivery_order_items?: DeliveryOrderItem[];
 }
 

@@ -25,6 +25,7 @@ import {
   Printer,
   FileText,
   Receipt,
+  Banknote,
 } from "lucide-react";
 import { printMotoboyReceipt } from "@/lib/print-motoboy-receipt";
 import { useOrderNfce } from "@/hooks/use-order-nfce";
@@ -36,7 +37,7 @@ import { useState } from "react";
 import { formatBRL } from "@/lib/format";
 import { CancelDeliveryOrderDialog } from "./CancelDeliveryOrderDialog";
 import { getCancelCategoryLabel } from "@/lib/cancel-reasons";
-import { isMarketplace, nextOrderStep } from "@/lib/marketplace-orders";
+import { isMarketplace, nextOrderStep, awaitingCashierPayment } from "@/lib/marketplace-orders";
 
 interface OrderDetailDialogProps {
   open: boolean;
@@ -76,8 +77,17 @@ export const OrderDetailDialog = ({
     );
   };
 
+  // Retirada com pagamento na hora ainda não registrado: o banco não deixa
+  // concluir, quem conclui é o "Registrar pagamento" do caixa.
+  const retiradaAguardaCaixa =
+    order.order_type === "pickup" &&
+    nextStep?.status === "completed" &&
+    awaitingCashierPayment(order);
   const canAdvanceStatus =
-    !!nextStep && order.status !== "completed" && order.status !== "cancelled";
+    !!nextStep &&
+    !retiradaAguardaCaixa &&
+    order.status !== "completed" &&
+    order.status !== "cancelled";
   const canCancel =
     order.status !== "completed" && order.status !== "cancelled";
 
@@ -91,7 +101,7 @@ export const OrderDetailDialog = ({
                 Pedido {order.order_number}
                 <OrderSourceBadge source={(order as any).source} size="md" />
               </span>
-              <OrderStatusBadge status={order.status} />
+              <OrderStatusBadge status={order.status} orderType={order.order_type} />
             </DialogTitle>
           </DialogHeader>
 
@@ -454,6 +464,15 @@ export const OrderDetailDialog = ({
             )}
 
             {/* Actions */}
+            {retiradaAguardaCaixa && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                <Banknote className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>
+                  Pagamento na retirada ainda não registrado. Registre o pagamento no Caixa
+                  para concluir a retirada.
+                </span>
+              </div>
+            )}
             {(canAdvanceStatus || canReprint) && (
               <div className="flex flex-wrap gap-2 pt-4">
                 {canAdvanceStatus && (
