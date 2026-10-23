@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { PDVProduct } from "@/hooks/use-pdv-products";
+import { PDVProduct, usePDVProductCategories } from "@/hooks/use-pdv-products";
 import { useProductImageUpload } from "@/hooks/use-product-image-upload";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -39,6 +39,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Image as ImageIcon, Upload, X, Info } from "lucide-react";
 import { ProductRecipeManager } from "./ProductRecipeManager";
+import { CategoryCombobox } from "./CategoryCombobox";
 
 import { ProductCompositionManager } from "./ProductCompositionManager";
 import { usePDVRecipes } from "@/hooks/use-pdv-recipes";
@@ -149,6 +150,10 @@ export function ProductDialog({
 }: ProductDialogProps) {
   const { uploadImage, isUploading } = useProductImageUpload();
   const { centers: productionCenters } = useProductionCenters();
+  const { categories: existingCategories } = usePDVProductCategories();
+  // Estado (e não useRef) para o combobox de categoria receber o elemento
+  // assim que o DialogContent monta e portar a lista para dentro dele.
+  const [dialogContentEl, setDialogContentEl] = useState<HTMLDivElement | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const { calculateCMV, recipes } = usePDVRecipes(product?.id);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
@@ -324,7 +329,10 @@ export function ProductDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden">
+      <DialogContent
+        ref={setDialogContentEl}
+        className="max-w-2xl w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden"
+      >
         <div className="flex flex-col h-full max-h-full overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>
@@ -478,8 +486,17 @@ export function ProductDialog({
                     <FormItem>
                       <FormLabel>Categoria *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Pizzas, Bebidas..." {...field} />
+                        <CategoryCombobox
+                          value={field.value}
+                          onChange={field.onChange}
+                          ref={field.ref}
+                          categories={existingCategories}
+                          container={dialogContentEl}
+                        />
                       </FormControl>
+                      <FormDescription>
+                        Escolha uma categoria que já existe ou digite o nome para criar uma nova.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

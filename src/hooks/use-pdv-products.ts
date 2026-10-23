@@ -38,6 +38,55 @@ export interface PDVProduct {
   updated_at: string;
 }
 
+// Busca única dos produtos da loja. Compartilhada por usePDVProducts e
+// usePDVProductCategories, que usam a MESMA chave de cache: dois queryFn
+// diferentes sob a mesma chave brigariam pelo conteúdo do cache.
+async function fetchPDVProducts(visibleUserId: string | null) {
+  if (!visibleUserId) throw new Error("Usuário não autenticado");
+
+  const { data, error } = await supabase
+    .from("pdv_products")
+    .select("*")
+    .eq("user_id", visibleUserId)
+    .order("category")
+    .order("name");
+
+  if (error) throw error;
+  return data as PDVProduct[];
+}
+
+// Fora do hook para a referência ser estável: assim o React Query só refaz a
+// lista quando os produtos mudam, e não a cada render.
+function categoriasDosProdutos(products: PDVProduct[]) {
+  const unicas = new Set(
+    products
+      .map((p) => p.category?.trim())
+      .filter((c): c is string => !!c),
+  );
+  return Array.from(unicas).sort((a, b) =>
+    a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+  );
+}
+
+/**
+ * Categorias já usadas nos produtos da loja, sem repetição e em ordem
+ * alfabética. Lê do mesmo cache da tela de Produtos (nenhuma requisição a mais
+ * quando ela já está aberta) e se atualiza sozinho quando um produto é criado
+ * ou editado, porque as mutações invalidam ["pdv-products"].
+ */
+export function usePDVProductCategories() {
+  const { visibleUserId } = useEstablishmentId();
+
+  const { data: categories, isLoading } = useQuery({
+    queryKey: ["pdv-products", visibleUserId],
+    queryFn: () => fetchPDVProducts(visibleUserId),
+    enabled: !!visibleUserId,
+    select: categoriasDosProdutos,
+  });
+
+  return { categories: categories ?? [], isLoading };
+}
+
 export function usePDVProducts() {
   const { user } = useAuth();
   const { visibleUserId } = useEstablishmentId();
@@ -45,19 +94,7 @@ export function usePDVProducts() {
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["pdv-products", visibleUserId],
-    queryFn: async () => {
-      if (!visibleUserId) throw new Error("Usuário não autenticado");
-
-      const { data, error } = await supabase
-        .from("pdv_products")
-        .select("*")
-        .eq("user_id", visibleUserId)
-        .order("category")
-        .order("name");
-
-      if (error) throw error;
-      return data as PDVProduct[];
-    },
+    queryFn: () => fetchPDVProducts(visibleUserId),
     enabled: !!visibleUserId,
   });
 
