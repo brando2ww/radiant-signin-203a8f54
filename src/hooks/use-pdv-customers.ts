@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { buscarClientesDeliveryDaLoja } from "@/lib/delivery-clientes-loja";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
@@ -68,12 +69,11 @@ export function usePDVCustomers() {
     queryKey: ["delivery-customers-unified", visibleUserId],
     queryFn: async () => {
       if (!visibleUserId) return [];
-      const { data, error } = await supabase
-        .from("delivery_customers")
-        .select("*")
-        .order("name");
-      if (error) throw error;
-      return data || [];
+      // Só os clientes do delivery DESTA loja (o cadastro é global).
+      const clientes = await buscarClientesDeliveryDaLoja(visibleUserId);
+      return clientes.sort((a, b) =>
+        String(a.name ?? "").localeCompare(String(b.name ?? ""), "pt-BR"),
+      );
     },
     enabled: !!visibleUserId,
   });

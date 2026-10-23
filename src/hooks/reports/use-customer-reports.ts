@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { buscarClientesDeliveryDaLoja } from "@/lib/delivery-clientes-loja";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 
 /**
@@ -69,7 +70,11 @@ export function useCustomerReports(startDate: Date, endDate: Date) {
           .from("pdv_customers")
           .select("id, name, phone, total_spent, visit_count, last_visit")
           .eq("user_id", visibleUserId!),
-        supabase.from("delivery_customers").select("id, name, phone"),
+        // Só os clientes do delivery DESTA loja (o cadastro é global).
+        buscarClientesDeliveryDaLoja<{ id: string; name: string; phone: string }>(
+          visibleUserId!,
+          "id, name, phone",
+        ).then((data) => ({ data, error: null })),
         supabase
           .from("delivery_orders")
           .select("customer_id, customer_name, customer_phone, total, created_at, status")
