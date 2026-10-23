@@ -97,9 +97,6 @@ export function ComandaDetailsDialog({
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  if (!comanda) return null;
-
-  const isOpen = comanda.status === "aberta";
   // Itens cancelados desta comanda. O cliente pediu que o cancelamento ficasse
   // visível na própria comanda, com autor, horário e motivo.
   const { data: itensCancelados = [] } = useQuery({
@@ -126,6 +123,14 @@ export function ComandaDetailsDialog({
   });
 
   const [itemParaCancelar, setItemParaCancelar] = useState<ItemParaCancelar | null>(null);
+
+  // Só depois de TODOS os hooks. Sair antes da consulta acima mudava a
+  // quantidade de hooks entre o render sem comanda e o render com comanda, e
+  // o React derrubava a tela inteira ("Rendered more hooks than during the
+  // previous render") ao clicar na primeira comanda.
+  if (!comanda) return null;
+
+  const isOpen = comanda.status === "aberta";
 
   const pendingItems = items.filter(
     (item) => !item.sent_to_kitchen_at && item.kitchen_status === "pendente"
