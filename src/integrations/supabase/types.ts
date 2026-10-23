@@ -10304,6 +10304,22 @@ export type Database = {
           comanda_number: string
         }[]
       }
+      pdv_quick_expense_with_stock: {
+        Args: {
+          p_amount: number
+          p_chart_account_id: string
+          p_cost_center_id?: string
+          p_description: string
+          p_document_number?: string
+          p_items: Json
+          p_notes?: string
+          p_payment_date: string
+          p_payment_method?: string
+          p_supplier_id?: string
+          p_update_cost?: boolean
+        }
+        Returns: Json
+      }
       pdv_receive_purchase_order: {
         Args: {
           p_close_incomplete?: boolean

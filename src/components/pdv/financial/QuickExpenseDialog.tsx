@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +38,8 @@ import { usePDVChartOfAccounts } from "@/hooks/use-pdv-chart-of-accounts";
 import { usePDVCostCenters } from "@/hooks/use-pdv-cost-centers";
 import { usePDVSuppliers } from "@/hooks/use-pdv-suppliers";
 import { usePDVIngredients } from "@/hooks/use-pdv-ingredients";
-import { useQuickExpense, type QuickExpenseStockItem } from "@/hooks/use-quick-expense";
+import { useQuickExpense } from "@/hooks/use-quick-expense";
+import { IngredientCombobox } from "@/components/pdv/purchases/IngredientCombobox";
 
 interface QuickExpenseDialogProps {
   open: boolean;
@@ -48,13 +49,20 @@ interface QuickExpenseDialogProps {
 
 const NONE = "none";
 
-interface ItemRow extends QuickExpenseStockItem {
+/** Linha de insumo como o usuário digitou (texto, para aceitar "0,5"). */
+interface ItemRow {
   _key: string;
+  ingredient_id: string;
+  qtyText: string;
+  /** Vazio = custo não digitado (a última linha pode calculá-lo sozinha). */
+  costText: string;
 }
 
 function newRow(): ItemRow {
-  return { _key: crypto.randomUUID(), ingredient_id: "", quantity: 0, unit_cost: 0 };
+  return { _key: crypto.randomUUID(), ingredient_id: "", qtyText: "", costText: "" };
 }
+
+const parseQty = (s: string) => parseFloat(s.replace(",", ".")) || 0;
 
 export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: QuickExpenseDialogProps) {
   const { accounts } = usePDVChartOfAccounts();
@@ -101,16 +109,54 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
   }, [open]);
 
   const value = parseFloat(amount) || 0;
-  const itemsTotal = items.reduce((s, i) => s + (i.quantity || 0) * (i.unit_cost || 0), 0);
+
+  const ingredientOptions = useMemo(
+    () => ingredients.map((i) => ({ id: i.id, name: i.name, unit: i.unit ?? undefined })),
+    [ingredients],
+  );
+
+  // Custo de cada linha. Digitado vale como está. Sem custo digitado, a ÚLTIMA
+  // linha fecha o total da despesa: com um item só, custo = total ÷ quantidade
+  // (o caso do mercado: "Sal, 10 un, R$ 20"); com vários, ela fica com o que
+  // sobra depois das outras.
+  const lines = useMemo(() => {
+    const parsed = items.map((r) => ({
+      row: r,
+      qty: parseQty(r.qtyText),
+      typed: r.costText !== "",
+      typedCost: parseFloat(r.costText) || 0,
+    }));
+    const last = parsed.length - 1;
+    const othersSum = parsed.reduce(
+      (s, p, i) => (i === last || !p.typed ? s : s + p.qty * p.typedCost),
+      0,
+    );
+    return parsed.map((p, i) => {
+      const auto = !p.typed && i === last && p.qty > 0 && value - othersSum > 0.004;
+      const cost = p.typed ? p.typedCost : auto ? (value - othersSum) / p.qty : 0;
+      return { ...p, auto, cost };
+    });
+  }, [items, value]);
+
+  // Linha totalmente vazia não conta; linha começada tem que estar completa,
+  // senão um item digitado pela metade sumiria do estoque sem aviso.
+  const filledLines = lines.filter((l) => l.row.ingredient_id || l.qty > 0 || l.typed);
+  const itemsTotal = filledLines.reduce((s, l) => s + l.qty * l.cost, 0);
   const diff = Math.abs(itemsTotal - value);
 
-  const validItems = items.filter((i) => i.ingredient_id && i.quantity > 0 && i.unit_cost > 0);
+  let stockIssue: string | null = null;
+  if (updateStock) {
+    if (filledLines.length === 0) stockIssue = "Escolha ao menos um insumo.";
+    else if (filledLines.some((l) => !l.row.ingredient_id)) stockIssue = "Escolha o insumo de cada linha.";
+    else if (filledLines.some((l) => l.qty <= 0)) stockIssue = "Informe a quantidade de cada insumo.";
+    else if (filledLines.some((l) => l.cost <= 0)) stockIssue = "Informe o custo unitário de cada insumo.";
+  }
 
   const canSubmit =
     description.trim().length > 0 &&
     value > 0 &&
     chartAccountId !== NONE &&
-    (!updateStock || validItems.length > 0);
+    !stockIssue;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -126,14 +172,45 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
       notes: notes.trim() || null,
       update_stock: updateStock,
       update_cost: updateCost,
-      items: updateStock ? validItems.map(({ _key, ...r }) => r) : [],
+      items: updateStock
+        ? filledLines.map((l) => ({
+            ingredient_id: l.row.ingredient_id,
+            quantity: l.qty,
+            unit_cost: l.cost,
+          }))
+        : [],
       cashier_session_id: cashierSessionId ?? null,
     });
     onOpenChange(false);
   };
 
+  // Em tela baixa (notebook, tablet do caixa) as linhas de insumo abriam abaixo
+  // da dobra do diálogo, e parecia que não havia onde escolher o item.
+  const stockSectionRef = useRef<HTMLDivElement>(null);
+  const handleToggleStock = (on: boolean) => {
+    setUpdateStock(on);
+    if (on) {
+      window.setTimeout(
+        () => stockSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+        50,
+      );
+    }
+  };
+
   const updateItem = (key: string, patch: Partial<ItemRow>) => {
     setItems((prev) => prev.map((i) => (i._key === key ? { ...i, ...patch } : i)));
+  };
+
+  const addItem = () => {
+    // O custo que a última linha calculou sozinha vira digitado: sem isso ele
+    // sumiria da tela assim que a nova linha passasse a ser a última.
+    setItems((prev) => [
+      ...prev.map((r, i) => {
+        const l = lines[i];
+        return l && l.row._key === r._key && l.auto ? { ...r, costText: String(l.cost) } : r;
+      }),
+      newRow(),
+    ]);
   };
 
   const removeItem = (key: string) => {
@@ -310,94 +387,74 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
             </div>
           </div>
 
-          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
-            <div className="flex items-center justify-between">
+          <div ref={stockSectionRef} className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <Label className="cursor-pointer" htmlFor="toggle-stock">
                   Dar entrada no estoque
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Útil para compras de mercado/insumos.
+                  Compras de mercado/insumos: ao ligar, você escolhe cada item do estoque e a quantidade.
                 </p>
               </div>
-              <Switch id="toggle-stock" checked={updateStock} onCheckedChange={setUpdateStock} />
+              <Switch id="toggle-stock" checked={updateStock} onCheckedChange={handleToggleStock} />
             </div>
 
             {updateStock && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <Label className="cursor-pointer text-xs flex items-center gap-2" htmlFor="toggle-cost">
-                    <Switch id="toggle-cost" checked={updateCost} onCheckedChange={setUpdateCost} />
-                    Atualizar custo unitário do ingrediente com o valor informado
-                  </Label>
-                </div>
-
                 <div className="space-y-2">
-                  {items.map((item) => {
-                    const ing = ingredients.find((i) => i.id === item.ingredient_id);
-                    const subtotal = (item.quantity || 0) * (item.unit_cost || 0);
+                  {lines.map((line) => {
+                    const { row } = line;
+                    const ing = ingredients.find((i) => i.id === row.ingredient_id);
                     return (
                       <div
-                        key={item._key}
-                        className="grid gap-2 md:grid-cols-[1fr_110px_60px_140px_140px_40px] items-end"
+                        key={row._key}
+                        className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[minmax(0,1fr)_110px_130px_110px_40px]"
                       >
-                        <div className="space-y-1">
-                          <Label className="text-xs">Ingrediente</Label>
-                          <Select
-                            value={item.ingredient_id || NONE}
-                            onValueChange={(v) =>
-                              updateItem(item._key, { ingredient_id: v === NONE ? "" : v })
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={NONE} disabled>
-                                Selecione
-                              </SelectItem>
-                              {ingredients.map((i) => (
-                                <SelectItem key={i.id} value={i.id}>
-                                  {i.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Quantidade</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={item.quantity || ""}
-                            onChange={(e) =>
-                              updateItem(item._key, { quantity: parseFloat(e.target.value) || 0 })
-                            }
+                        <div className="col-span-2 space-y-1 sm:col-span-1">
+                          <Label className="text-xs">Insumo</Label>
+                          <IngredientCombobox
+                            ingredients={ingredientOptions}
+                            value={row.ingredient_id}
+                            onChange={(id) => updateItem(row._key, { ingredient_id: id })}
                           />
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-xs">Un.</Label>
-                          <Input value={ing?.unit || "-"} disabled />
+                          <Label className="text-xs">
+                            Quantidade{ing?.unit ? ` (${ing.unit})` : ""}
+                          </Label>
+                          <Input
+                            inputMode="decimal"
+                            placeholder="0"
+                            value={row.qtyText}
+                            onChange={(e) =>
+                              updateItem(row._key, { qtyText: e.target.value.replace(/[^\d.,]/g, "") })
+                            }
+                          />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">Custo unitário</Label>
                           <CurrencyInput
-                            value={item.unit_cost ? String(item.unit_cost) : ""}
-                            onChange={(v) =>
-                              updateItem(item._key, { unit_cost: parseFloat(v) || 0 })
-                            }
+                            value={line.typed ? row.costText : line.auto ? String(line.cost) : ""}
+                            onChange={(v) => updateItem(row._key, { costText: v })}
+                            // Selecionar tudo ao focar: digitar por cima do valor
+                            // calculado troca o valor, não emenda dígitos nele.
+                            onFocus={(e) => e.currentTarget.select()}
+                            title={line.auto ? "Calculado pelo total da despesa" : undefined}
                           />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs">Subtotal</Label>
-                          <Input value={formatBRL(subtotal)} disabled />
+                          <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm tabular-nums">
+                            {formatBRL(line.qty * line.cost)}
+                          </div>
                         </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeItem(item._key)}
+                          aria-label="Remover item"
+                          onClick={() => removeItem(row._key)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -406,20 +463,31 @@ export function QuickExpenseDialog({ open, onOpenChange, cashierSessionId }: Qui
                   })}
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setItems((p) => [...p, newRow()])}
-                >
-                  <Plus className="h-4 w-4 mr-1" /> Adicionar item
-                </Button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                    <Plus className="h-4 w-4 mr-1" /> Adicionar item
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Sem custo digitado, a última linha fecha o valor total.
+                  </p>
+                </div>
+
+                <Label className="cursor-pointer text-xs flex items-center gap-2 font-normal" htmlFor="toggle-cost">
+                  <Switch id="toggle-cost" checked={updateCost} onCheckedChange={setUpdateCost} />
+                  Atualizar o custo unitário do insumo com o valor desta compra
+                </Label>
 
                 <div className="flex items-center justify-between text-sm border-t pt-2">
                   <span className="text-muted-foreground">Soma dos itens</span>
                   <span className="font-semibold tabular-nums">{formatBRL(itemsTotal)}</span>
                 </div>
-                {value > 0 && diff > 0.01 && (
+                {stockIssue && (
+                  <p className="flex items-start gap-2 text-xs text-amber-600">
+                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                    {stockIssue}
+                  </p>
+                )}
+                {!stockIssue && value > 0 && diff > 0.01 && (
                   <div className="flex items-start gap-2 text-xs text-muted-foreground">
                     <AlertTriangle className="h-3.5 w-3.5 mt-0.5" />
                     <span>
