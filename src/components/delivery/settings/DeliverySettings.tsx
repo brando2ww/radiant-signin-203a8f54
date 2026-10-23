@@ -23,6 +23,7 @@ import { NeighborhoodSelectorModal } from "./NeighborhoodSelectorModal";
 import { formatBRL } from "@/lib/format";
 import { normalizeCEP } from "@/lib/delivery-coverage";
 import { toast } from "sonner";
+import { OrderTypeSettings } from "./OrderTypeSettings";
 
 export const DeliverySettings = () => {
   const { data: settings } = useDeliverySettings();
@@ -177,6 +178,8 @@ export const DeliverySettings = () => {
 
   return (
     <div className="space-y-6">
+      <OrderTypeSettings />
+
       {/* Card 1 — Configurações Gerais */}
       <Card>
         <CardHeader>

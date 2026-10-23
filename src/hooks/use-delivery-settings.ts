@@ -50,6 +50,10 @@ export interface DeliverySettings {
   accepts_credit: boolean;
   accepts_debit: boolean;
   accepts_cash: boolean;
+  /** Cardápio online oferece entrega. */
+  accepts_delivery?: boolean;
+  /** Cardápio online oferece retirada no local. */
+  accepts_pickup?: boolean;
   delivery_zones: DeliveryZone[];
   business_hours: BusinessHours;
   blocked_dates: string[];

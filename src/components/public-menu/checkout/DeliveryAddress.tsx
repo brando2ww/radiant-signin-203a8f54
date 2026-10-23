@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCustomerAddresses } from "@/hooks/use-delivery-customers";
 import { ChevronLeft, MapPin, Home, Loader2 } from "lucide-react";
 import { AddressForm } from "./AddressForm";
@@ -47,6 +47,19 @@ export const DeliveryAddress = ({
   const { data: settings } = usePublicSettings(userId);
   const { lookupCEP, isLoading: isLoadingCEP } = useCEPLookup();
 
+  // A loja escolhe em Delivery › Configurações › Entrega o que oferece.
+  // Sem configuração, as duas valem (padrão do banco).
+  const aceitaEntrega = (settings as any)?.accepts_delivery ?? true;
+  const aceitaRetirada = (settings as any)?.accepts_pickup ?? true;
+  const soUmaForma = aceitaEntrega !== aceitaRetirada;
+
+  // As configurações chegam depois do primeiro render: se a opção marcada
+  // não é oferecida, passa para a que é.
+  useEffect(() => {
+    if (orderType === "delivery" && !aceitaEntrega && aceitaRetirada) setOrderType("pickup");
+    if (orderType === "pickup" && !aceitaRetirada && aceitaEntrega) setOrderType("delivery");
+  }, [aceitaEntrega, aceitaRetirada, orderType]);
+
   const cepCoverage = useMemo(() => {
     if (!cepData) return null;
     return resolveDeliveryCoverage({
@@ -60,6 +73,8 @@ export const DeliveryAddress = ({
 
   const handleTypeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (orderType === "pickup" && !aceitaRetirada) return;
+    if (orderType === "delivery" && !aceitaEntrega) return;
     if (orderType === "pickup") {
       onConfirm("pickup");
       return;
@@ -291,25 +306,36 @@ export const DeliveryAddress = ({
     <form onSubmit={handleTypeSubmit} className="space-y-6">
       <div className="space-y-4">
         <RadioGroup value={orderType} onValueChange={(v: any) => setOrderType(v)}>
-          <div className="flex items-center space-x-2 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
-            <RadioGroupItem value="delivery" id="delivery" />
-            <Label htmlFor="delivery" className="flex-1 cursor-pointer">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span className="font-medium">Delivery</span>
-              </div>
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
-            <RadioGroupItem value="pickup" id="pickup" />
-            <Label htmlFor="pickup" className="flex-1 cursor-pointer">
-              <div className="flex items-center gap-2">
-                <Home className="h-4 w-4" />
-                <span className="font-medium">Retirar no Local</span>
-              </div>
-            </Label>
-          </div>
+          {aceitaEntrega && (
+            <div className="flex items-center space-x-2 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
+              <RadioGroupItem value="delivery" id="delivery" />
+              <Label htmlFor="delivery" className="flex-1 cursor-pointer">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  <span className="font-medium">Delivery</span>
+                </div>
+              </Label>
+            </div>
+          )}
+          {aceitaRetirada && (
+            <div className="flex items-center space-x-2 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
+              <RadioGroupItem value="pickup" id="pickup" />
+              <Label htmlFor="pickup" className="flex-1 cursor-pointer">
+                <div className="flex items-center gap-2">
+                  <Home className="h-4 w-4" />
+                  <span className="font-medium">Retirar no Local</span>
+                </div>
+              </Label>
+            </div>
+          )}
         </RadioGroup>
+        {soUmaForma && (
+          <p className="text-sm text-muted-foreground">
+            {aceitaRetirada
+              ? "No momento este estabelecimento trabalha só com retirada no local."
+              : "No momento este estabelecimento trabalha só com entrega."}
+          </p>
+        )}
       </div>
       <div className="flex gap-2">
         <Button type="button" variant="outline" onClick={onBack}>
