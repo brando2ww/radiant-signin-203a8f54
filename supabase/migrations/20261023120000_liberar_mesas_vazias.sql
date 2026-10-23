@@ -1,12 +1,13 @@
 -- Mesa aberta sem nenhum pedido ficava ocupada para sempre.
 --
 -- Caso de 22/10/2026 no Kōten Garibaldi: a "Mesa retiradas" foi aberta três
--- vezes em três minutos e ninguém lançou nada; a última abertura ficou
--- pendurada e a mesa aparecia aberta, sem pedido nenhum, no dia seguinte.
--- (O pedido de retirada daquela noite tinha entrado na outra mesa, "Retiradas".)
+-- vezes em três minutos; os itens foram lançados pelo antigo "Ver Pedido"
+-- (pdv_order_items), que a lista da mesa não mostra, e a última abertura
+-- ficou pendurada, aparecendo aberta e vazia no dia seguinte.
 --
 -- A cada 15 minutos, libera o atendimento de mesa aberto há mais de 3 horas
--- que não tem NENHUM item (em comanda alguma, de status algum) nem pagamento.
+-- que não tem NENHUM item (nem em comanda, nem lançado direto no atendimento
+-- pelo caminho antigo) nem pagamento.
 -- Faz o mesmo que o "cancelar mesa" do PDV (pdv_cancel_order): comandas
 -- vazias canceladas, atendimento cancelado com o motivo, mesa livre.
 -- Também solta mesa marcada como ocupada que não aponta para atendimento aberto.
@@ -32,6 +33,10 @@ begin
        select 1 from pdv_comandas c
          join pdv_comanda_items ci on ci.comanda_id = c.id
         where c.order_id = o.id)
+     -- Item lançado pelo caminho antigo (direto no atendimento, sem comanda)
+     -- também é pedido. Não olhar aqui fez a primeira rodada cancelar um
+     -- atendimento com R$ 79,00 lançado (PDV146939).
+     and not exists (select 1 from pdv_order_items oi where oi.order_id = o.id)
      and not exists (select 1 from pdv_payments p where p.order_id = o.id);
 
   if array_length(v_ids, 1) > 0 then

@@ -9,7 +9,8 @@ import {
 import { PDVTable } from "@/hooks/use-pdv-tables";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Users, Clock, DollarSign, Plus, Edit, Trash2, Unlink } from "lucide-react";
+import { Users, Clock, DollarSign, Plus, Edit, Trash2, Unlink, XCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { formatTableLabel } from "@/utils/formatTableNumber";
 import {
   AlertDialog,
@@ -45,7 +46,8 @@ interface TableDetailsDialogProps {
   orderTotal?: number;
   orderTime?: string;
   onCreateOrder: (tableId: string) => void;
-  onViewOrder: (orderId: string) => void;
+  /** Cancela o atendimento da mesa (pdv_cancel_order), com motivo. */
+  onCancelOrder?: (orderId: string, reason: string) => void;
   onCloseTable: (tableId: string) => void;
   onEditTable: (table: PDVTable) => void;
   onDeleteTable: (tableId: string) => void;
@@ -72,7 +74,7 @@ export function TableDetailsDialog({
   orderTotal,
   orderTime,
   onCreateOrder,
-  onViewOrder,
+  onCancelOrder,
   onCloseTable,
   onEditTable,
   onDeleteTable,
@@ -83,6 +85,8 @@ export function TableDetailsDialog({
   isCreatingComanda,
 }: TableDetailsDialogProps) {
   const [deleteDialog, setDeleteDialog] = useState(false);
+  const [cancelDialog, setCancelDialog] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const [changeTableOpen, setChangeTableOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const { can } = usePDVPermissions();
@@ -175,19 +179,12 @@ export function TableDetailsDialog({
                 </Button>
               ) : (
                 <>
-                  {table.current_order_id && (
-                    <Button
-                      className="w-full"
-                      onClick={() => {
-                        onViewOrder(table.current_order_id!);
-                        onOpenChange(false);
-                      }}
-                    >
-                      Ver Pedido
-                    </Button>
-                  )}
+                  {/* Lançar itens é pela comanda (seção acima). O antigo "Ver
+                      Pedido" abria a tela de antes das comandas: o item ia
+                      para pdv_order_items, não aparecia na mesa e não chegava
+                      ao caixa, e o "Fechar Pedido" de lá soltava a mesa sem
+                      cobrar. */}
                   <Button
-                    variant="outline"
                     className="w-full"
                     onClick={() => {
                       onCloseTable(table.id);
@@ -196,6 +193,19 @@ export function TableDetailsDialog({
                   >
                     Fechar Mesa
                   </Button>
+                  {table.current_order_id && onCancelOrder && (
+                    <Button
+                      variant="outline"
+                      className="w-full text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setCancelReason("");
+                        setCancelDialog(true);
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Cancelar mesa
+                    </Button>
+                  )}
                 </>
               )}
 
@@ -241,6 +251,39 @@ export function TableDetailsDialog({
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={cancelDialog} onOpenChange={setCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar {formatTableLabel(table.table_number)}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O atendimento e as comandas abertas da mesa são cancelados e a mesa
+              fica livre. Mesa com item já pago ou em cobrança não pode ser cancelada.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Textarea
+            placeholder="Motivo do cancelamento"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={2}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!cancelReason.trim()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (table.current_order_id && onCancelOrder) {
+                  onCancelOrder(table.current_order_id, cancelReason.trim());
+                }
+                setCancelDialog(false);
+              }}
+            >
+              Cancelar mesa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={deleteDialog} onOpenChange={setDeleteDialog}>
         <AlertDialogContent>

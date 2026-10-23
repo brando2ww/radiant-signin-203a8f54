@@ -12,7 +12,6 @@ import { usePDVComandas, Comanda } from "@/hooks/use-pdv-comandas";
 import { TableCard, SortableTableCard } from "@/components/pdv/TableCard";
 import { TableDialog } from "@/components/pdv/TableDialog";
 import { TableDetailsDialog } from "@/components/pdv/TableDetailsDialog";
-import { OrderDetailsDialog } from "@/components/pdv/OrderDetailsDialog";
 import { SalonFilters } from "@/components/pdv/SalonFilters";
 import { SalonMapView } from "@/components/pdv/salon/SalonMapView";
 import { SectorDialog } from "@/components/pdv/SectorDialog";
@@ -78,12 +77,8 @@ export default function PDVSalon() {
 
   const {
     orders,
-    orderItems,
     isLoading: isLoadingOrders,
     createOrder,
-    updateItem,
-    removeItem,
-    addItem,
     closeOrder,
     cancelOrder,
   } = usePDVOrders();
@@ -128,8 +123,6 @@ export default function PDVSalon() {
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [tableDetailsOpen, setTableDetailsOpen] = useState(false);
   const [selectedTableForDetails, setSelectedTableForDetails] = useState<any>(null);
-  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [sectorFilter, setSectorFilter] = useState("all");
   const [orderedTables, setOrderedTables] = useState<PDVTable[]>([]);
@@ -238,11 +231,6 @@ export default function PDVSalon() {
     );
   };
 
-  const getOrderItems = (orderId: string) => {
-    return orderItems.filter(
-      (item) => item.order_id === orderId && !(item as any).is_composite_child,
-    );
-  };
 
   const handleCreateTable = () => {
     setSelectedTable(null);
@@ -336,14 +324,6 @@ export default function PDVSalon() {
     );
   };
 
-  const handleViewOrder = (orderId: string) => {
-    const order = salonOrders.find((o) => o.id === orderId);
-    if (order) {
-      setSelectedOrder(order);
-      setOrderDetailsOpen(true);
-    }
-  };
-
   const handleCloseTable = (tableId: string) => {
     const table = tables.find((t) => t.id === tableId);
     if (!table?.current_order_id) return;
@@ -358,32 +338,13 @@ export default function PDVSalon() {
     setPaymentDialogOpen(true);
   };
 
-  const handleUpdateItem = (id: string, updates: Partial<any>) => {
-    updateItem({ id, updates });
-  };
-
-  const handleCloseOrder = (id: string) => {
-    const order = salonOrders.find((o) => o.id === id);
-    if (order?.table_id) {
-      closeOrder(id, {
-        onSuccess: () => {
-          updateTable({
-            id: order.table_id!,
-            updates: { status: "livre", current_order_id: null },
-          });
-          setOrderDetailsOpen(false);
-        },
-      });
-    }
-  };
-
   const handleCancelOrder = (id: string, reason: string) => {
     cancelOrder(
       { id, reason },
       {
         onSuccess: () => {
           // RPC pdv_cancel_order já libera a mesa e cancela comandas filhas
-          setOrderDetailsOpen(false);
+          setTableDetailsOpen(false);
         },
       }
     );
@@ -730,7 +691,7 @@ export default function PDVSalon() {
             : undefined
         }
         onCreateOrder={handleCreateOrder}
-        onViewOrder={handleViewOrder}
+        onCancelOrder={handleCancelOrder}
         onCloseTable={handleCloseTable}
         onEditTable={handleEditTable}
         onDeleteTable={deleteTable}
@@ -746,19 +707,6 @@ export default function PDVSalon() {
         }
         onViewComanda={handleComandaClick}
         isCreatingComanda={isCreatingComanda}
-      />
-
-      {/* Order Details Dialog */}
-      <OrderDetailsDialog
-        open={orderDetailsOpen}
-        onOpenChange={setOrderDetailsOpen}
-        order={selectedOrder}
-        items={selectedOrder ? getOrderItems(selectedOrder.id) : []}
-        onUpdateItem={handleUpdateItem}
-        onRemoveItem={removeItem}
-        onAddItem={addItem}
-        onClose={handleCloseOrder}
-        onCancel={handleCancelOrder}
       />
 
       {/* Sector Dialog */}

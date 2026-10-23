@@ -43,7 +43,7 @@ export function TableComandasSection({
 
       {comandas.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-2">
-          Nenhuma comanda registrada
+          Nenhuma comanda ainda. Toque em <strong>Nova</strong> para lançar os itens da mesa.
         </p>
       ) : (
         <div className="space-y-2 max-h-[200px] overflow-y-auto">
