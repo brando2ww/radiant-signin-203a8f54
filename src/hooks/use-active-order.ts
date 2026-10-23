@@ -41,14 +41,20 @@ export function useActiveOrder(userId: string) {
     let cancelled = false;
     setLoading(true);
 
+    // Pelo servidor e por consulta periódica: o cliente sem login não lê a
+    // tabela de pedidos (vazamento de 23/10/2026).
     const load = async () => {
-      const { data, error } = await supabase
-        .from("delivery_orders")
-        .select(SELECT)
-        .eq("id", orderId)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("delivery_pedido_acompanhar" as any, {
+        p_order_id: orderId,
+      });
       if (cancelled) return;
-      if (error || !data) {
+      // Falha de rede numa das consultas periódicas não pode apagar o pedido
+      // ativo: só some quando o servidor responde que o pedido não existe.
+      if (error) {
+        setLoading(false);
+        return;
+      }
+      if (!data) {
         clearActiveOrderId(userId);
         setOrder(null);
       } else {
@@ -57,21 +63,14 @@ export function useActiveOrder(userId: string) {
       setLoading(false);
     };
     load();
-
-    const channel = supabase
-      .channel(`active-order-${orderId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "delivery_orders", filter: `id=eq.${orderId}` },
-        (payload) => {
-          if (!cancelled) setOrder(payload.new as ActiveOrder);
-        },
-      )
-      .subscribe();
+    const timer = window.setInterval(load, 15_000);
+    const aoVoltar = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", aoVoltar);
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, [orderId, userId]);
 

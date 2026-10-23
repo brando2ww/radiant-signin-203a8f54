@@ -85,19 +85,45 @@ export const useUpdateCustomer = () => {
   });
 };
 
+/**
+ * Endereços salvos NESTE aparelho, por cliente. Quem pede sem conta só vê os
+ * endereços que salvou aqui: listar pelo telefone mostraria o endereço de
+ * qualquer pessoa para quem soubesse o número dela (vazamento de 23/10/2026).
+ */
+const chaveEnderecos = (customerId: string) => `pm:enderecos:${customerId}`;
+const enderecosDoAparelho = (customerId: string): string[] => {
+  try {
+    const raw = localStorage.getItem(chaveEnderecos(customerId));
+    const ids = raw ? JSON.parse(raw) : [];
+    return Array.isArray(ids) ? ids.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+const lembrarEndereco = (customerId: string, id: string) => {
+  try {
+    const ids = enderecosDoAparelho(customerId);
+    if (!ids.includes(id)) {
+      localStorage.setItem(chaveEnderecos(customerId), JSON.stringify([id, ...ids].slice(0, 20)));
+    }
+  } catch {
+    // sem armazenamento: o endereço vale só para este pedido
+  }
+};
+
 export const useCustomerAddresses = (customerId: string) => {
   return useQuery({
     queryKey: ["delivery-addresses", customerId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("delivery_addresses")
-        .select("*")
-        .eq("customer_id", customerId)
-        .order("is_default", { ascending: false })
-        .order("created_at", { ascending: false });
+      // Pelo servidor: com conta, todos os endereços do cliente; sem conta,
+      // só os que este aparelho salvou.
+      const { data, error } = await supabase.rpc("delivery_enderecos_listar" as any, {
+        p_customer_id: customerId,
+        p_ids: enderecosDoAparelho(customerId),
+      });
 
       if (error) throw error;
-      return data as DeliveryAddress[];
+      return (data ?? []) as DeliveryAddress[];
     },
     enabled: !!customerId,
   });
@@ -107,25 +133,17 @@ export const useCreateAddress = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (
-      address: Omit<DeliveryAddress, "id" | "created_at">
-    ) => {
-      // If this is set as default, unset all others first
-      if (address.is_default) {
-        await supabase
-          .from("delivery_addresses")
-          .update({ is_default: false })
-          .eq("customer_id", address.customer_id);
-      }
-
-      const { data, error } = await supabase
-        .from("delivery_addresses")
-        .insert(address)
-        .select()
-        .single();
+    mutationFn: async (address: Omit<DeliveryAddress, "id" | "created_at">) => {
+      const { customer_id, ...resto } = address as any;
+      const { data, error } = await supabase.rpc("delivery_endereco_salvar" as any, {
+        p_customer_id: customer_id,
+        p: resto,
+      });
 
       if (error) throw error;
-      return data;
+      const salvo = (Array.isArray(data) ? data[0] : data) as DeliveryAddress;
+      lembrarEndereco(customer_id, salvo.id);
+      return salvo;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["delivery-addresses", data.customer_id] });
@@ -174,167 +192,21 @@ export const useCreateOrder = () => {
       }[];
     }) => {
       // Chave de idempotência: previne pedidos duplicados em duplo clique,
-      // retry de rede ou reenvio do formulário. O índice único
-      // (user_id, idempotency_key) garante atomicidade no servidor.
+      // retry de rede ou reenvio do formulário. O servidor devolve o pedido
+      // que já existe quando a chave se repete.
       const idempotencyKey =
         orderData.idempotencyKey ??
         (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
 
-      // Se já existe um pedido com a mesma chave, retorna o existente
-      // (sem reinserir itens) — comportamento idempotente.
-      const { data: existing } = await supabase
-        .from("delivery_orders")
-        .select("*")
-        .eq("user_id", orderData.userId)
-        .eq("idempotency_key", idempotencyKey as any)
-        .maybeSingle();
-      if (existing) {
-        return existing as any;
-      }
-
-      // Número provisório — será substituído pelo sequencial do caixa via RPC
-      // delivery_assign_order_ticket abaixo. Usamos um placeholder único por
-      // segurança (a coluna order_number tem UNIQUE constraint).
-      const orderNumber = `TMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from("delivery_orders")
-        .insert({
-          order_number: orderNumber,
-          user_id: orderData.userId,
-          customer_id: orderData.customerId,
-          customer_name: orderData.customerName,
-          customer_phone: orderData.customerPhone,
-          delivery_address_id: orderData.addressId || null,
-          delivery_address_text: orderData.addressText || null,
-          order_type: orderData.orderType,
-          status: "pending",
-          subtotal: orderData.subtotal,
-          delivery_fee: orderData.deliveryFee,
-          discount: orderData.discount,
-          coupon_code: orderData.couponCode || null,
-          total: orderData.total,
-          payment_method: orderData.paymentMethod,
-          payment_status: "pending",
-          change_for: orderData.changeFor || null,
-          notes: orderData.notes || null,
-          estimated_time: 45,
-          idempotency_key: idempotencyKey,
-          scheduled_for: orderData.scheduledFor || null,
-        } as any)
-        .select()
-        .single();
-
-      // Se outro request paralelo criou o mesmo pedido (corrida),
-      // o índice único dispara 23505 — buscamos e retornamos o existente.
-      if (orderError) {
-        if ((orderError as any).code === "23505") {
-          const { data: race } = await supabase
-            .from("delivery_orders")
-            .select("*")
-            .eq("user_id", orderData.userId)
-            .eq("idempotency_key", idempotencyKey as any)
-            .maybeSingle();
-          if (race) return race as any;
-        }
-        throw orderError;
-      }
-
-      // Numeração sequencial (#001, #002, …) é atribuída pelo trigger
-      // BEFORE INSERT no servidor. Só caímos no fallback (RPC) caso o
-      // trigger não tenha preenchido — por exemplo, quando não havia
-      // caixa aberto no momento do INSERT mas passou a haver depois.
-      if (typeof order.order_number === "string" && order.order_number.startsWith("TMP-")) {
-        try {
-          await supabase.rpc("delivery_assign_order_ticket" as any, { p_order_id: order.id });
-          const { data: refreshed } = await supabase
-            .from("delivery_orders")
-            .select("order_number, ticket_number, cashier_session_id")
-            .eq("id", order.id)
-            .maybeSingle();
-          if (refreshed) {
-            (order as any).order_number = refreshed.order_number;
-            (order as any).ticket_number = (refreshed as any).ticket_number;
-            (order as any).cashier_session_id = (refreshed as any).cashier_session_id;
-          }
-        } catch (e) {
-          console.error("Erro ao atribuir número de pedido:", e);
-        }
-      }
-
-      // Create order items
-      // Importante: `unit_price` é gravado JÁ incluindo os ajustes de adicionais,
-      // para que cupons fiscais, recibos e relatórios mostrem o preço efetivo
-      // por unidade (ex.: Festival em Casa R$ 284 + Geléia R$ 5 = R$ 289/un).
-      const itemsToInsert = orderData.items.map((item) => {
-        const adjustmentPerUnit = (item.options || []).reduce(
-          (s, o) => s + (Number(o.priceAdjustment) || 0) * (Number(o.quantity) || 1),
-          0,
-        );
-        const effectiveUnitPrice = Number(item.unitPrice) + adjustmentPerUnit;
-        return {
-          order_id: order.id,
-          product_id: item.productId,
-          product_name: item.productName,
-          quantity: item.quantity,
-          unit_price: effectiveUnitPrice,
-          subtotal: item.subtotal,
-          notes: item.notes || null,
-        };
+      // Pedido, itens, adicionais e número numa transação só, no servidor.
+      // A tela gravava em quatro chamadas e relia cada uma, o que exigia a
+      // tabela de pedidos aberta para leitura de qualquer pessoa (vazamento
+      // de 23/10/2026). O uso do cupom é contado pelo gatilho do banco; a
+      // tela somava de novo e o cupom gastava em dobro.
+      const { data: order, error } = await supabase.rpc("delivery_pedido_criar" as any, {
+        p: { ...orderData, idempotencyKey },
       });
-
-      const { data: orderItems, error: itemsError } = await supabase
-        .from("delivery_order_items")
-        .insert(itemsToInsert)
-        .select();
-
-      if (itemsError) throw itemsError;
-
-      // production_center_id é resolvido automaticamente por trigger no servidor
-      // (delivery_resolve_item_center) — sem necessidade de UPDATE no cliente.
-
-      // Create order item options
-      const optionsToInsert: any[] = [];
-      orderData.items.forEach((item, index) => {
-        const orderItemId = orderItems[index].id;
-        item.options.forEach((option) => {
-          optionsToInsert.push({
-            order_item_id: orderItemId,
-            option_name: option.optionName,
-            item_name: option.itemName,
-            option_item_id: option.itemId || null,
-            price_adjustment: option.priceAdjustment,
-            quantity: option.quantity ?? 1,
-          });
-        });
-      });
-
-      if (optionsToInsert.length > 0) {
-        const { error: optionsError } = await supabase
-          .from("delivery_order_item_options")
-          .insert(optionsToInsert);
-
-        if (optionsError) throw optionsError;
-      }
-
-      // Update coupon usage if applicable
-      if (orderData.couponCode) {
-        // Increment coupon usage count
-        const { data: coupon } = await supabase
-          .from("delivery_coupons")
-          .select("usage_count")
-          .eq("code", orderData.couponCode)
-          .single();
-
-        if (coupon) {
-          await supabase
-            .from("delivery_coupons")
-            .update({ usage_count: coupon.usage_count + 1 })
-            .eq("code", orderData.couponCode);
-        }
-      }
-
+      if (error) throw error;
       return order;
     },
     onSuccess: () => {

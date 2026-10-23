@@ -128,12 +128,9 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
   const handleConfirmReceived = async () => {
     if (!order || confirming) return;
     setConfirming(true);
-    const { data, error } = await supabase
-      .from("delivery_orders")
-      .update({ customer_delivery_confirmed_at: new Date().toISOString() })
-      .eq("id", orderId)
-      .select(SELECT)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("delivery_pedido_confirmar_recebimento" as any, {
+      p_order_id: orderId,
+    });
     if (!error && data) {
       setOrder(data as Order);
       if (userId) {
@@ -146,31 +143,25 @@ export const OrderTrackingView = ({ orderId, onClose, userId }: Props) => {
 
   useEffect(() => {
     let cancelled = false;
+    // Pelo servidor e por consulta periódica: o cliente sem login não lê a
+    // tabela de pedidos (vazamento de 23/10/2026), então o tempo real dela
+    // não chega até ele. 15 s é rápido para status de preparo e entrega.
     const load = async () => {
-      const { data } = await supabase
-        .from("delivery_orders")
-        .select(SELECT)
-        .eq("id", orderId)
-        .maybeSingle();
+      const { data } = await supabase.rpc("delivery_pedido_acompanhar" as any, {
+        p_order_id: orderId,
+      });
       if (!cancelled && data) setOrder(data as Order);
       if (!cancelled) setLoading(false);
     };
     load();
-
-    const channel = supabase
-      .channel(`order-tracking-${orderId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "delivery_orders", filter: `id=eq.${orderId}` },
-        (payload) => {
-          if (!cancelled) setOrder(payload.new as Order);
-        },
-      )
-      .subscribe();
+    const timer = window.setInterval(load, 15_000);
+    const aoVoltar = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", aoVoltar);
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
     };
   }, [orderId]);
 
