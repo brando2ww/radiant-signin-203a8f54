@@ -35,13 +35,15 @@ const JANELAS = [
 
 /** Item da prévia. Arrasta para cima e para baixo para fixar a posição. */
 function DestaqueArrastavel({
-  produto, posicao, fixado, manual, vendas,
+  produto, posicao, fixado, manual, vendas, onOcultar,
 }: {
   produto: any;
   posicao: number;
   fixado: boolean;
   manual: boolean;
   vendas?: number;
+  /** Tira da lista do garçom (o mesmo "esconder" da lista de produtos). */
+  onOcultar: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: produto.id });
@@ -69,6 +71,15 @@ function DestaqueArrastavel({
           {Math.round(Number(vendas))}x
         </span>
       )}
+      <button
+        type="button"
+        onClick={onOcultar}
+        title="Tirar da lista do garçom"
+        aria-label={`Tirar ${produto.name} da lista do garçom`}
+        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <EyeOff className="h-3.5 w-3.5" />
+      </button>
     </li>
   );
 }
@@ -242,14 +253,22 @@ export default function CardapioGarcom() {
   // O que o garçom vai ver quando abrir a tela, na ordem exata.
   const previa = useMemo(() => {
     const modo = settings?.destaque_modo ?? "misto";
-    const doHistorico = maisPedidos
+    // Mesmo filtro do app do garçom (GarcomAdicionarItem): produto escondido
+    // e categoria fechada não aparecem lá, então não podem aparecer aqui.
+    // Sem isso, esconder um item não tirava ele da prévia e parecia que não
+    // dava para remover.
+    const ocultas = new Set(settings?.categorias_ocultas ?? []);
+    const visivel = (p: (typeof ativos)[number]) =>
+      !ocultas.has(p.category) && !prefPorProduto.get(p.id)?.oculto;
+    const doHistorico = (maisPedidos
       .map((t) => ativos.find((p) => p.id === t.product_id))
-      .filter(Boolean) as typeof ativos;
+      .filter(Boolean) as typeof ativos).filter(visivel);
+    const fixadosVisiveis = fixados.filter(visivel);
 
     const base =
-      modo === "manual" ? fixados
+      modo === "manual" ? fixadosVisiveis
       : modo === "historico" ? doHistorico
-      : [...fixados, ...doHistorico.filter((p) => !fixados.some((f) => f.id === p.id))];
+      : [...fixadosVisiveis, ...doHistorico.filter((p) => !fixadosVisiveis.some((f) => f.id === p.id))];
 
     return ordenarDestaques(base, prefPorProduto as any, posicaoNoRanking);
   }, [settings, maisPedidos, ativos, fixados, prefPorProduto, posicaoNoRanking]);
@@ -400,6 +419,10 @@ export default function CardapioGarcom() {
                       fixado={!!prefPorProduto.get(p.id)?.fixado}
                       manual={prefPorProduto.get(p.id)?.ordem != null}
                       vendas={vendasPorProduto.get(p.id)}
+                      onOcultar={() => {
+                        definir.mutate({ product_id: p.id, oculto: true, fixado: false });
+                        toast.success(`${p.name} saiu da lista do garçom. Para voltar, busque o produto abaixo e toque no olho.`);
+                      }}
                     />
                   ))}
                 </ol>
