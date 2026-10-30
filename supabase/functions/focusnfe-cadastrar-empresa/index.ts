@@ -14,6 +14,7 @@ import {
   json,
 } from "../_shared/focusnfe-utils.ts";
 import { encryptSecret, decryptSecret } from "../_shared/focusnfe-crypto.ts";
+import { focusValidationMessage, canReuseFocusCertificate } from "../_shared/focusnfe-validation.ts";
 
 const BodySchema = z.object({
   // Se o cliente já fez upload e gravou no banco, passamos só o sinal de "ativar".
@@ -114,7 +115,7 @@ Deno.serve(async (req) => {
     const url = `${focusBaseUrl("producao")}/v2/empresas${config.focusnfe_empresa_id ? `/${config.focusnfe_empresa_id}` : ""}`;
     const method = config.focusnfe_empresa_id ? "PUT" : "POST";
 
-    const resp = await fetch(url, {
+    let resp = await fetch(url, {
       method,
       headers: {
         Authorization: basicAuth(master),
@@ -122,16 +123,31 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify(payload),
     });
-    const data = await resp.json().catch(() => ({}));
+    let data = await resp.json().catch(() => ({}));
+    let certificateReused = false;
+    // Um certificado local com senha incorreta não deve substituir o certificado
+    // válido que já está instalado para este mesmo CNPJ na Focus.
+    if (!resp.ok && config.focusnfe_empresa_id && data.erros?.some((e: { campo?: string }) => e.campo === "arquivo_certificado_base64")) {
+      const currentResponse = await fetch(url, { headers: { Authorization: basicAuth(master) } });
+      const current = await currentResponse.json().catch(() => ({}));
+      if (currentResponse.ok && canReuseFocusCertificate(current, config.cnpj)) {
+        delete payload.arquivo_certificado_base64;
+        delete payload.senha_certificado;
+        resp = await fetch(url, { method: "PUT", headers: { Authorization: basicAuth(master), "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        data = await resp.json().catch(() => ({}));
+        certificateReused = resp.ok;
+        if (certificateReused) data.certificado_valido_ate = current.certificado_valido_ate;
+      }
+    }
 
     if (!resp.ok) {
-      const msg = data?.mensagem || data?.message || `Erro Focus (${resp.status})`;
+      const msg = focusValidationMessage(data, resp.status);
       await service.from("tenant_fiscal_config").update({
         last_test_at: new Date().toISOString(),
         last_test_status: "erro",
         last_test_message: msg,
       }).eq("user_id", ownerId);
-      return json({ error: msg, detail: data }, 400);
+      return json({ error: msg }, 400);
     }
 
     const update: any = {
@@ -139,8 +155,9 @@ Deno.serve(async (req) => {
       cadastrada_em: new Date().toISOString(),
       last_test_at: new Date().toISOString(),
       last_test_status: "ok",
-      last_test_message: "Empresa ativa na FocusNFE",
+      last_test_message: certificateReused ? "Empresa ativa. Mantido o certificado válido já instalado na Focus; a senha do arquivo local precisa ser conferida antes da próxima troca." : "Empresa ativa na FocusNFE",
     };
+    if (data.certificado_valido_ate) update.certificado_valido_ate = data.certificado_valido_ate;
     if (data.token_producao) {
       update.focusnfe_token_producao_cifrado = await encryptSecret(data.token_producao);
     }
@@ -148,9 +165,10 @@ Deno.serve(async (req) => {
       update.focusnfe_token_homologacao_cifrado = await encryptSecret(data.token_homologacao);
     }
 
-    await service.from("tenant_fiscal_config").update(update).eq("user_id", ownerId);
+    const { error: saveError } = await service.from("tenant_fiscal_config").update(update).eq("user_id", ownerId);
+    if (saveError) throw saveError;
 
-    return json({ success: true, empresa_id: update.focusnfe_empresa_id });
+    return json({ success: true, empresa_id: update.focusnfe_empresa_id, certificate_reused: certificateReused, message: update.last_test_message });
   } catch (e) {
     console.error("cadastrar-empresa error", e);
     return json({ error: (e as Error).message }, 500);

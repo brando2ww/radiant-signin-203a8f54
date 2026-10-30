@@ -1,4 +1,5 @@
 // Impressão de DANFE NFC-e (via URL Nuvem Fiscal) e recibo não-fiscal 80mm
+import { groupChargeItems } from "@/lib/group-charge-items";
 
 interface NonFiscalReceiptParams {
   business: { name?: string; cnpj?: string; address?: string; phone?: string };
@@ -16,7 +17,7 @@ interface NonFiscalReceiptParams {
   troco?: number;
 }
 
-function openPrintIframe(html: string) {
+export function openPrintIframe(html: string) {
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -27,9 +28,6 @@ function openPrintIframe(html: string) {
   document.body.appendChild(iframe);
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
   if (!doc) return;
-  doc.open();
-  doc.write(html);
-  doc.close();
   iframe.onload = () => {
     setTimeout(() => {
       iframe.contentWindow?.focus();
@@ -37,12 +35,16 @@ function openPrintIframe(html: string) {
       setTimeout(() => document.body.removeChild(iframe), 1000);
     }, 200);
   };
+  doc.open();
+  doc.write(html);
+  doc.close();
 }
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 export function printNonFiscalReceipt(p: NonFiscalReceiptParams) {
+  const receiptItems = groupChargeItems(p.items.map((item, index) => ({ ...item, id: String(index) })));
   const now = new Date().toLocaleString("pt-BR");
   const pagamentoLabel: Record<string, string> = {
     dinheiro: "DINHEIRO",
@@ -63,20 +65,26 @@ export function printNonFiscalReceipt(p: NonFiscalReceiptParams) {
 
   const html = `<!doctype html><html><head><meta charset="utf-8" /><title>Recibo</title>
 <style>
-  @page { size: 80mm auto; margin: 2mm; }
-  body { font-family: 'Courier New', monospace; font-size: 11px; width: 76mm; margin: 0; padding: 0; color: #000; }
+  @page { size: auto; margin: 2mm; }
+  * { box-sizing: border-box; color: #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Texto fino em Courier perdia definição na rasterização do driver térmico.
+     A conta usa traço forte inclusive nos itens, quantidades e valores. */
+  /* Respeita a área útil do driver, menor que a bobina, e resguarda os centavos. */
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 700; line-height: 1.3; width: 100%; max-width: 70mm; margin: 0; padding: 0 1mm; }
   .center { text-align: center; }
-  .right { text-align: right; }
-  .row { display: flex; justify-content: space-between; gap: 4px; }
+  .right { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 4px; }
+  .row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .row > span:last-child { flex-shrink: 0; margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
   hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 1px 0; vertical-align: top; }
-  .bold { font-weight: bold; }
-  .lg { font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font: inherit; }
+  td { padding: 2px 0; vertical-align: top; font-weight: 700; }
+  .bold { font-weight: 800; }
+  .lg { font-size: 16px; }
   .xl { font-size: 22px; line-height: 1.1; letter-spacing: 1px; }
   .md { font-size: 14px; }
-  .sm { font-size: 10px; }
-  .item-name { word-break: break-word; }
+  .sm { font-size: 12px; }
+  .item-name { word-break: break-word; overflow-wrap: anywhere; }
 </style></head><body>
   <div class="center bold lg">${p.business.name || "Estabelecimento"}</div>
   ${p.business.cnpj ? `<div class="center sm">CNPJ: ${p.business.cnpj}</div>` : ""}
@@ -90,12 +98,12 @@ export function printNonFiscalReceipt(p: NonFiscalReceiptParams) {
   <div class="center sm">${now}</div>
   <hr />
   <table>
-    ${p.items.map(i => `
+    ${receiptItems.map(({ item: i, quantity, subtotal }) => `
       <tr><td colspan="2" class="item-name">${i.product_name}</td></tr>
-      <tr>
-        <td class="sm">${i.quantity} x ${fmt(i.unit_price)}</td>
-        <td class="right">${fmt(i.subtotal)}</td>
-      </tr>
+      <tr><td colspan="2"><div class="row">
+        <span class="sm">${quantity} x ${fmt(i.unit_price)}</span>
+        <span class="right">${fmt(subtotal)}</span>
+      </div></td></tr>
     `).join("")}
   </table>
   <hr />

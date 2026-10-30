@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { ifoodReceiptContact } from "@/lib/ifood-receipt";
 
 /**
  * Busca itens de um pedido de delivery diretamente das tabelas base,
@@ -252,7 +253,7 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
   // em nenhum cliente, em centenas de pedidos.
   const { data: orderRow, error: orderError } = await (supabase as any)
     .from("delivery_orders")
-    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,customer_document,order_type,delivery_address_text,delivery_address_id,delivery_notes,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,external_payment_type,external_payment_brand,change_for,notes,external_code,external_order_id,external_collection_code")
+    .select("id,user_id,order_number,ticket_number,customer_name,customer_phone,customer_document,order_type,delivery_address_text,delivery_address_id,delivery_notes,subtotal,delivery_fee,discount,discount_sponsor_ifood,discount_sponsor_merchant,total,payment_method,payment_status,external_payment_type,external_payment_brand,change_for,notes,external_code,external_order_id,external_collection_code,source,external_payload")
     .eq("id", orderId)
     .single();
   if (orderError) {
@@ -329,7 +330,7 @@ async function dispatchCaixaJobs(orderId: string, auto: boolean) {
       customer_document: orderRow.customer_document,
       order_type: orderRow.order_type,
       delivery_address: orderRow.delivery_address_text,
-      delivery_notes: orderRow.delivery_notes,
+      delivery_notes: [orderRow.delivery_notes, orderRow.notes, ifoodReceiptContact(orderRow)?.localizer ? `Localizador iFood: ${ifoodReceiptContact(orderRow)!.localizer}` : null].filter(Boolean).join("\n"),
       delivery_complement: complemento,
       delivery_reference: referencia,
       subtotal: orderRow.subtotal,

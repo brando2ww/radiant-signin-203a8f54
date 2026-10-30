@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Star, MessageSquare, Search, ChevronLeft, ChevronRight, User, Phone, Calendar } from "lucide-react";
 import { useCampaignResponses } from "@/hooks/use-evaluation-campaigns";
 import { AnswerValue } from "@/components/evaluations/AnswerValue";
+import { EvaluationRewardRecovery } from "./EvaluationRewardRecovery";
 
 interface Props {
   campaignId: string;
@@ -163,6 +164,7 @@ export function CampaignResponses({ campaignId }: Props) {
               </DialogHeader>
 
               <div className="space-y-5">
+                <EvaluationRewardRecovery key={selectedResponse.id} evaluationId={selectedResponse.id} campaignId={campaignId} />
                 {/* Customer info */}
                 <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
                   <div className="flex items-center gap-2">

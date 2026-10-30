@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { groupChargeItems } from "@/lib/group-charge-items";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -92,7 +93,7 @@ import { RedeemCouponDialog, type AppliedCouponReward } from "@/components/pdv/c
 import { useEmployeeConsumption } from "@/hooks/use-employee-consumption";
 import { useTefSettings, useTefCobranca } from "@/hooks/use-tef";
 import { CreditSaleAuthDialog, type CreditSaleAuthPayload } from "./CreditSaleAuthDialog";
-import { CancelComandaDialog, type CancelCategory } from "./CancelComandaDialog";
+import { CancelComandaDialog } from "./CancelComandaDialog";
 import { formatBRL, formatCpf, isValidCpf } from "@/lib/format";
 
 interface PaymentDialogProps {
@@ -441,6 +442,8 @@ export function PaymentDialog({
   const temValorParaCobrar = (it: { subtotal?: number | null; unit_price?: number | null }) =>
     Number(it.subtotal || 0) > 0 || Number(it.unit_price || 0) > 0;
   const itensCobraveis: ComandaItem[] = displayItems.filter(temValorParaCobrar);
+  const [expandedChargeGroups, setExpandedChargeGroups] = useState<Set<string>>(new Set());
+  const chargeGroups = groupChargeItems(displayItems).filter((group) => temValorParaCobrar(group.item));
 
   const liveSubtotal = displayItems.reduce(
     (sum, it) => sum + Number(it.subtotal || 0),
@@ -1613,8 +1616,23 @@ export function PaymentDialog({
                 </h4>
                 <ScrollArea className={cn(isByProduct ? "h-[260px]" : "h-[160px]")}>
                   <div className="space-y-1">
+                    {!isByProduct && chargeGroups.filter((group) => group.members.length > 1).map((group) => (
+                      <div key={`group-${group.item.id}`} className="rounded-md border p-2 text-sm">
+                        <div className="flex justify-between gap-2"><span>{group.quantity}x {group.item.product_name}</span><strong className="whitespace-nowrap">{formatCurrency(group.subtotal)}</strong></div>
+                        {group.item.notes && <p className="text-xs text-muted-foreground">{group.item.notes}</p>}
+                        <Button type="button" variant="ghost" size="sm" className="h-6 text-xs px-0" onClick={() => setExpandedChargeGroups((previous) => {
+                          const next = new Set(previous);
+                          if (next.has(group.item.id)) next.delete(group.item.id); else next.add(group.item.id);
+                          return next;
+                        })}>{expandedChargeGroups.has(group.item.id) ? "Recolher lançamentos" : "Detalhar lançamentos"}</Button>
+                      </div>
+                    ))}
                     <AnimatePresence initial={false}>
-                      {itensCobraveis.map((item) => {
+                      {itensCobraveis.filter((item) => {
+                        if (isByProduct) return true;
+                        const group = chargeGroups.find((g) => g.members.some((member) => member.id === item.id));
+                        return !group || group.members.length === 1 || expandedChargeGroups.has(group.item.id);
+                      }).map((item) => {
                         const canRemove =
                           item.kitchen_status === "pendente" ||
                           item.kitchen_status === "preparando";

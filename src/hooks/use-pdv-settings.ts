@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useEstablishmentId } from "@/hooks/use-establishment-id";
 
 export interface PDVSettings {
   id: string;
@@ -85,34 +86,41 @@ export interface PDVSettings {
 
 export function usePDVSettings() {
   const { user } = useAuth();
+  const { visibleUserId, isLoading: loadingOwner } = useEstablishmentId();
+  const ownerId = visibleUserId || user?.id;
   const queryClient = useQueryClient();
 
   const { data: settings, isLoading } = useQuery({
-    queryKey: ["pdv-settings", user?.id],
+    queryKey: ["pdv-settings", ownerId, user?.id],
     queryFn: async () => {
-      if (!user) throw new Error("Usuário não autenticado");
+      if (!ownerId) throw new Error("Estabelecimento não identificado");
+      if (ownerId !== user?.id) {
+        const { data, error } = await supabase.rpc("pdv_settings_operacionais", { p_owner: ownerId });
+        if (error) throw error;
+        return data as unknown as PDVSettings | null;
+      }
 
       const { data, error } = await supabase
         .from("pdv_settings")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", ownerId)
         .single();
 
       if (error && error.code !== "PGRST116") throw error;
       return data as PDVSettings | null;
     },
-    enabled: !!user,
+    enabled: !!ownerId && !loadingOwner,
   });
 
   const createOrUpdateSettings = useMutation({
     mutationFn: async (updates: Partial<PDVSettings>) => {
-      if (!user) throw new Error("Usuário não autenticado");
+      if (!user || !ownerId) throw new Error("Usuário não autenticado");
 
       if (settings) {
         const { data, error } = await supabase
           .from("pdv_settings")
           .update(updates)
-          .eq("user_id", user.id)
+          .eq("user_id", ownerId)
           .select()
           .single();
 
@@ -121,7 +129,7 @@ export function usePDVSettings() {
       } else {
         const { data, error } = await supabase
           .from("pdv_settings")
-          .insert({ ...updates, user_id: user.id })
+          .insert({ ...updates, user_id: ownerId })
           .select()
           .single();
 
@@ -140,7 +148,7 @@ export function usePDVSettings() {
 
   return {
     settings,
-    isLoading,
+    isLoading: loadingOwner || isLoading,
     updateSettings: createOrUpdateSettings.mutate,
     isUpdating: createOrUpdateSettings.isPending,
   };

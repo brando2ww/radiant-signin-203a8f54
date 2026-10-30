@@ -134,7 +134,7 @@ function ExecutionItems({ executionId }: { executionId: string }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("checklist_execution_items")
-        .select("id, value, photo_url, is_compliant, completed_at, checklist_items(title, item_type, is_critical, is_required, requires_photo, sort_order)")
+        .select("id, value, photo_url, photo_expired_at, is_compliant, completed_at, checklist_items(title, item_type, is_critical, is_required, requires_photo, sort_order)")
         .eq("execution_id", executionId);
       if (error) throw error;
       return (data || []).sort(
@@ -194,6 +194,7 @@ function ExecutionItems({ executionId }: { executionId: string }) {
                     />
                   </a>
                 )}
+                {it.photo_expired_at && <p className="text-xs text-muted-foreground">Foto removida após o prazo de retenção. Resposta e revisão preservadas.</p>}
                 {it.completed_at && (
                   <p className="text-[10px] text-muted-foreground">
                     Respondido às {format(new Date(it.completed_at), "HH:mm", { locale: ptBR })}

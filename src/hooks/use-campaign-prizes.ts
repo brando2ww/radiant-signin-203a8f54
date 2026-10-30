@@ -143,6 +143,18 @@ export function pickPrize(prizes: CampaignPrize[]): CampaignPrize {
 }
 
 // Register a win
+export const useIssueEvaluationReward = () => useMutation({
+  mutationFn: async ({ evaluationId, prizeId }: { evaluationId: string; prizeId?: string }) => {
+    const { data, error } = await supabase.rpc("evaluation_reward_issue", {
+      p_evaluation_id: evaluationId, p_prize_id: prizeId || null,
+    });
+    if (error) throw error;
+    const result = data as unknown as { status: "issued" | "cooldown" | "disabled" | "unavailable"; coupon_code?: string; coupon_expires_at?: string; prize_name?: string; cooldown_hours?: number };
+    if (result.status === "unavailable") throw new Error("O prêmio não está disponível. Chame o atendente para conferir.");
+    return result;
+  },
+});
+
 export const useRegisterPrizeWin = () => {
   return useMutation({
     mutationFn: async (data: {

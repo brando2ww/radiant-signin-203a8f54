@@ -3,6 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEstablishmentId } from "./use-establishment-id";
 import { toast } from "sonner";
 
+async function fiscalError(error: Error & { context?: Response }) {
+  if (error.context) {
+    const data = await error.context.clone().json().catch(() => null);
+    if (data?.error) return new Error(typeof data.error === "string" ? data.error : "Confira os dados fiscais informados.");
+  }
+  return error;
+}
+
 export interface FiscalConfig {
   id?: string;
   user_id?: string;
@@ -78,9 +86,11 @@ export function useFiscalConfig() {
 
       // Secrets: enviar para edge function que cifra e atualiza
       if (senha_certificado || csc_producao || csc_homologacao) {
-        await supabase.functions.invoke("focusnfe-save-secrets", {
+        const { data: secretData, error: secretError } = await supabase.functions.invoke("focusnfe-save-secrets", {
           body: { senha_certificado, csc_producao, csc_homologacao },
         });
+        if (secretError) throw await fiscalError(secretError);
+        if (secretData?.error) throw new Error(secretData.error);
       }
       return data;
     },
@@ -96,13 +106,14 @@ export function useFiscalConfig() {
       const { data, error } = await supabase.functions.invoke("focusnfe-cadastrar-empresa", {
         body: { upload_certificate: true },
       });
-      if (error) throw error;
+      if (error) throw await fiscalError(error);
       if ((data as any)?.error) throw new Error((data as any).error);
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ["fiscal-config"] });
-      toast.success("Empresa ativada na FocusNFE!");
+      if (result?.certificate_reused) toast.info(result.message);
+      else toast.success("Empresa ativada na FocusNFE!");
     },
     onError: (e: any) => toast.error(e.message || "Erro ao ativar"),
   });

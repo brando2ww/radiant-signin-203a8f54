@@ -27,7 +27,8 @@ Deno.serve(async (req) => {
     if (csc_homologacao) update.csc_nfce_homologacao_cifrado = await encryptSecret(csc_homologacao);
 
     const service = getServiceClient();
-    await service.from("tenant_fiscal_config").upsert(update, { onConflict: "user_id" });
+    const { error } = await service.from("tenant_fiscal_config").upsert(update, { onConflict: "user_id" });
+    if (error) throw error;
     return json({ success: true });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);

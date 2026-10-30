@@ -14,11 +14,11 @@ import {
   useSubmitCampaignEvaluation,
 } from "@/hooks/use-evaluation-campaigns";
 import { usePublicBusinessSettings } from "@/hooks/use-business-settings";
-import { usePublicCampaignPrizes, useRegisterPrizeWin, type CampaignPrize } from "@/hooks/use-campaign-prizes";
+import { usePublicCampaignPrizes, useIssueEvaluationReward, type CampaignPrize } from "@/hooks/use-campaign-prizes";
 import { SpinWheel } from "@/components/public-evaluation/SpinWheel";
 import { PrizeResult } from "@/components/public-evaluation/PrizeResult";
 
-type Phase = "roulette" | "form" | "coupon" | "coupon_error" | "google_redirect" | "done";
+type Phase = "roulette" | "form" | "coupon" | "coupon_error" | "coupon_cooldown" | "google_redirect" | "done";
 
 function ProgressBar({ value }: { value: number }) {
   return (
@@ -92,7 +92,7 @@ export default function PublicEvaluation() {
   const { data: campaign, isLoading: loadingCampaign } = usePublicCampaign(campaignId || "");
   const { data: questions, isLoading: loadingQuestions } = usePublicCampaignQuestions(campaignId || "");
   const submitEvaluation = useSubmitCampaignEvaluation();
-  const registerWin = useRegisterPrizeWin();
+  const registerWin = useIssueEvaluationReward();
 
   const rouletteEnabled = (campaign as any)?.roulette_enabled ?? false;
   const { data: prizes = [] } = usePublicCampaignPrizes(campaignId || "", rouletteEnabled);
@@ -101,6 +101,8 @@ export default function PublicEvaluation() {
   const [wonPrize, setWonPrize] = useState<CampaignPrize | null>(null);
   const [couponData, setCouponData] = useState<{ code: string; expiresAt: string } | null>(null);
   const [pendingRedirect, setPendingRedirect] = useState(false);
+  const [rewardName, setRewardName] = useState("");
+  const [rewardEvaluationId, setRewardEvaluationId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -144,12 +146,6 @@ export default function PublicEvaluation() {
   const wheelSecondary = (campaign as any)?.wheel_secondary_color || undefined;
   const cooldownHours = Number((campaign as any)?.roulette_cooldown_hours) || 0;
 
-  const isCoolingDown = useMemo(() => {
-    if (!campaignId || cooldownHours <= 0) return false;
-    const lastSpin = localStorage.getItem(`roulette_last_spin_${campaignId}`);
-    if (!lastSpin) return false;
-    return Date.now() - Number(lastSpin) < cooldownHours * 3600000;
-  }, [campaignId, cooldownHours]);
 
   if (loadingCampaign || loadingQuestions) {
     return (
@@ -167,7 +163,7 @@ export default function PublicEvaluation() {
     );
   }
 
-  const showRoulette = rouletteEnabled && prizes.length > 0 && !isCoolingDown;
+  const showRoulette = rouletteEnabled && prizes.length > 0;
   const currentPhase = showRoulette ? phase : (phase === "roulette" ? "form" : phase);
 
   const handleSetScore = (questionId: string, score: number) => {
@@ -228,9 +224,6 @@ export default function PublicEvaluation() {
 
   const handleSpinResult = (prize: CampaignPrize) => {
     setWonPrize(prize);
-    if (campaignId) {
-      localStorage.setItem(`roulette_last_spin_${campaignId}`, String(Date.now()));
-    }
     setTimeout(() => setPhase("form"), 1500);
   };
 
@@ -265,20 +258,22 @@ export default function PublicEvaluation() {
             (mode === "promoters" && npsScore !== null && npsScore >= 9)
           );
 
-          if (wonPrize && result?.id) {
+          if (rouletteEnabled && result?.id) {
+            setRewardEvaluationId(result.id);
             registerWin.mutate(
               {
-                campaignId,
-                prizeId: wonPrize.id,
                 evaluationId: result.id,
-                customerName: name.trim(),
-                customerWhatsapp: phone,
+                prizeId: wonPrize?.id,
               },
               {
                 onSuccess: (win) => {
-                  setCouponData({ code: win.coupon_code, expiresAt: win.coupon_expires_at });
-                  setPendingRedirect(shouldRedirect);
-                  setPhase("coupon");
+                  if (win.status === "issued" && win.coupon_code && win.coupon_expires_at) {
+                    setCouponData({ code: win.coupon_code, expiresAt: win.coupon_expires_at });
+                    setRewardName(win.prize_name || wonPrize?.name || "Seu prêmio");
+                    setPendingRedirect(shouldRedirect);
+                    setPhase("coupon");
+                  } else if (win.status === "cooldown") setPhase("coupon_cooldown");
+                  else setPhase(shouldRedirect ? "google_redirect" : "done");
                 },
                 // Nunca fingir sucesso: o cliente girou a roleta e ganhou, então precisa saber
                 // que o cupom não saiu para poder chamar o atendente na hora.
@@ -300,14 +295,14 @@ export default function PublicEvaluation() {
   ) : null;
 
   // === PHASE: COUPON ===
-  if (currentPhase === "coupon" && couponData && wonPrize) {
+  if (currentPhase === "coupon" && couponData) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: bgColor }}>
         <div className="max-w-sm w-full">
           {Logo}
           <div className="mt-6">
             <PrizeResult
-              prizeName={wonPrize.name}
+              prizeName={rewardName}
               couponCode={couponData.code}
               expiresAt={couponData.expiresAt}
             />
@@ -320,6 +315,8 @@ export default function PublicEvaluation() {
       </div>
     );
   }
+
+  if (currentPhase === "coupon_cooldown") return <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: bgColor }}><div className="max-w-sm text-center space-y-4">{Logo}<h1 className="text-2xl font-semibold">Obrigado pela avaliação!</h1><p>Este telefone já recebeu um prêmio nesta campanha nas últimas {cooldownHours} horas. Seu cupom anterior continua com a validade original.</p></div></div>;
 
   // === PHASE: COUPON ERROR ===
   if (currentPhase === "coupon_error") {
@@ -338,6 +335,12 @@ export default function PublicEvaluation() {
           <p className="text-xs text-muted-foreground">
             {name.trim()} · {phone}
           </p>
+          {rewardEvaluationId && <Button disabled={registerWin.isPending} onClick={() => registerWin.mutate({ evaluationId: rewardEvaluationId, prizeId: wonPrize?.id }, { onSuccess: (win) => {
+            if (win.status === "issued" && win.coupon_code && win.coupon_expires_at) {
+              setCouponData({ code: win.coupon_code, expiresAt: win.coupon_expires_at });
+              setRewardName(win.prize_name || wonPrize?.name || "Seu prêmio"); setPhase("coupon");
+            } else if (win.status === "cooldown") setPhase("coupon_cooldown");
+          } })}>{registerWin.isPending ? "Emitindo…" : "Tentar emitir novamente"}</Button>}
         </div>
       </div>
     );
@@ -645,7 +648,7 @@ export default function PublicEvaluation() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="eval-phone" className="text-xs font-medium">Telefone</Label>
-                <PhoneInput value={phone} onChange={setPhone} />
+                <PhoneInput id="eval-phone" value={phone} onChange={setPhone} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="eval-birth" className="text-xs font-medium">Data de Nascimento</Label>

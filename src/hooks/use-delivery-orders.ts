@@ -11,6 +11,10 @@ import {
 } from "@/lib/marketplace-orders";
 
 export interface DeliveryOrder {
+  source?: string | null;
+  external_code?: string | null;
+  external_collection_code?: string | null;
+  external_payload?: { customer?: { phone?: { localizer?: string | number; localizerExpiration?: string } } } | null;
   id: string;
   order_number: string;
   user_id: string;

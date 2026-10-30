@@ -9,6 +9,7 @@ import { TrainingStep } from "./TrainingStep";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { prepareChecklistPhoto } from "@/lib/checklist-photo";
 
 export interface ChecklistItemData {
   id: string; // checklist_items.id
@@ -69,11 +70,11 @@ export function ExecutionItemRenderer({ item, onSave, userId, executionId }: Exe
     if (!file) return;
     setUploading(true);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `${userId}/${executionId}/${item.id}.${ext}`;
+      const photo = await prepareChecklistPhoto(file);
+      const path = `${userId}/${executionId}/${item.id}.jpg`;
       const { error } = await supabase.storage
         .from("checklist-evidence")
-        .upload(path, file, { upsert: true, contentType: file.type || `image/${ext}` });
+        .upload(path, photo, { upsert: true, contentType: "image/jpeg" });
       if (error) {
         console.error("[checklist-evidence] upload error:", error);
         toast.error(`Falha ao enviar foto: ${error.message}`);

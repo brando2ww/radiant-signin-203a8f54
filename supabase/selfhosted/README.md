@@ -101,3 +101,42 @@ atualizado e preservam manifestações finais já registradas.
 compra única, filtro de insumo, evolução diária de cancelamentos, estados das
 notas e falhas de acesso na Focus. O teste da recuperação usa PostgreSQL local
 descartável e requer `initdb`, `pg_ctl` e `psql` no PATH.
+
+## Ajustes de operação de 29/10/2026
+
+As migrations `20261029150000` a `20261029173000` acrescentam código de cupom
+único por loja, identificação da loja na reimpressão histórica, recuperação do
+cupom de avaliação, marcação de foto expirada e localizador do iFood nos jobs.
+O localizador usa o campo de observações que a bridge instalada já imprime.
+O recibo manual também mostra o código de pedido do iFood e o localizador.
+
+A emissão de recompensa passa por `evaluation_reward_issue`: o intervalo é
+conferido pelo telefone da campanha; a mesma avaliação sempre devolve o mesmo
+cupom. Em **Avaliações → campanha → Respostas**, a recuperação permite escolher
+o prêmio originalmente sorteado e mantém os limites da campanha.
+
+`pdv_settings_operacionais` permite à equipe ler os parâmetros do caixa da loja,
+com lista explícita de campos. Senha A1, CSC e outras credenciais ficam fora da
+resposta; nenhuma policy de leitura da tabela inteira foi ampliada.
+
+A ativação fiscal mostra o detalhe da validação da Focus. Se o arquivo local
+falhar por senha e já houver certificado válido para o mesmo CNPJ na Focus,
+preserva esse certificado e informa a pendência da senha local para futura troca.
+Copiar `_shared/focusnfe-validation.ts` antes de `focusnfe-cadastrar-empresa`.
+
+Fotos novas do checklist são convertidas para JPEG, até 1600 pixels no maior
+lado. `checklist-photo-retention.py` roda no host e considera criação **e última
+atualização** do objeto. Só opera nas lojas passadas por `--owner` e aceita
+retenção mínima de 30 dias. Antes de remover pelo Storage API, arquiva bytes e
+metadados em `/root/velara-checklist-photo-archive` (privado). Mantém respostas,
+horários e revisões; marca `photo_expired_at`. Execuções interrompidas são
+reconciliadas na próxima rodada. Sem `--apply`, só informa o volume candidato.
+
+Em produção, `/etc/cron.d/velara-checklist-fotos` executa a cada hora para
+Garibaldi, Koten Farroupilha, La Vecchia e Sertão, com retenção de 30 dias.
+O script fica em `/opt/sb/velara-pdv/checklist-photo-retention.py`.
+
+Validação: `node scripts/test-ajustes-felipe.mjs`,
+`node scripts/test-historico-comandas.mjs` e
+`node --test print-bridge/test/bridge.test.js`. Os testes de navegador verificaram
+reimpressão, atalho QR, emissão/recuperação/intervalo de cupom e redução da foto.

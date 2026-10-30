@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatBRL } from "@/lib/format";
 import type { DeliveryOrder } from "@/hooks/use-delivery-orders";
+import { ifoodReceiptContact } from "@/lib/ifood-receipt";
 
 const METHOD_LABELS: Record<string, string> = {
   cash: "Dinheiro",
@@ -44,6 +45,7 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
     locale: ptBR,
   });
   const isPaid = order.payment_status === "paid";
+  const ifood = ifoodReceiptContact(order);
 
   const itemsHtml = items
     .map((it) => {
@@ -107,6 +109,7 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
   <h1>COMANDA ${isPickup ? "RETIRADA" : "DELIVERY"}</h1>
   <div class="sub">
     <div class="order-number">Pedido #${escape(order.order_number)}</div>
+    ${ifood?.orderCode ? `<div class="order-number">iFood #${escape(ifood.orderCode)}</div>` : ""}
     ${dateStr}
   </div>
 
@@ -114,6 +117,8 @@ export function printMotoboyReceipt(order: DeliveryOrder) {
     <div class="label">Cliente</div>
     <div class="big">${escape(order.customer_name)}</div>
     <div>${formatPhone(order.customer_phone)}</div>
+    ${ifood?.localizer ? `<div class="big">LOCALIZADOR iFood: ${escape(ifood.localizer)}</div><div class="footer">Informe este código ao ligar para o cliente.</div>` : ""}
+    ${ifood?.collectionCode ? `<div class="big">CÓDIGO DE COLETA: ${escape(ifood.collectionCode)}</div>` : ""}
   </div>
 
   <div class="sec">
