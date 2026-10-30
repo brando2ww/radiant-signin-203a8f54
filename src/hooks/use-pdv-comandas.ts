@@ -6,6 +6,8 @@ import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import type { SelectedOption } from "@/components/pdv/ProductOptionSelector";
 import { toast } from "sonner";
 import { logActivityDirect } from "@/hooks/use-activity-logs";
+import { billableComandas } from "@/lib/cashier-queue";
+import { fetchAll } from "@/lib/reports/fetch-all";
 
 export type ComandaStatus =
   | "aberta"
@@ -59,6 +61,8 @@ export interface ComandaItem {
   production_center_id: string | null;
   paid_quantity?: number;
   charging_session_id?: string | null;
+  parent_item_id?: string | null;
+  is_composite_child?: boolean;
 }
 
 export function usePDVComandas() {
@@ -71,13 +75,13 @@ export function usePDVComandas() {
     queryKey: ["pdv-comandas", visibleUserId],
     queryFn: async () => {
       if (!visibleUserId) return [];
-      const { data, error } = await supabase
+      const data = await fetchAll((from, to) => supabase
         .from("pdv_comandas")
         .select("*")
         .eq("user_id", visibleUserId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to));
       return data as Comanda[];
     },
     enabled: !!visibleUserId,
@@ -93,15 +97,19 @@ export function usePDVComandas() {
     queryKey: ["pdv-comanda-items", visibleUserId, activeComandaIdsKey],
     queryFn: async () => {
       if (!visibleUserId || activeComandaIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("pdv_comanda_items")
-        .select("*")
-        .in("comanda_id", activeComandaIds)
-        .order("created_at", { ascending: true })
-        .limit(10000);
-
-      if (error) throw error;
-      return data as ComandaItem[];
+      const items: ComandaItem[] = [];
+      for (let start = 0; start < activeComandaIds.length; start += 100) {
+        const ids = activeComandaIds.slice(start, start + 100);
+        const rows = await fetchAll((from, to) => supabase
+          .from("pdv_comanda_items")
+          .select("*")
+          .in("comanda_id", ids)
+          .order("created_at")
+          .order("id")
+          .range(from, to));
+        items.push(...rows as ComandaItem[]);
+      }
+      return items;
     },
     enabled: !!visibleUserId && activeComandaIds.length > 0,
   });
@@ -226,6 +234,7 @@ export function usePDVComandas() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
       toast.success("Comanda criada com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["pdv-customers"] });
     },
     onError: (error) => {
       toast.error("Erro ao criar comanda: " + error.message);
@@ -250,6 +259,7 @@ export function usePDVComandas() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pdv-comandas"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customers"] });
     },
     onError: (error) => {
       toast.error("Erro ao atualizar comanda: " + error.message);
@@ -690,25 +700,7 @@ export function usePDVComandas() {
     return comandas.filter((c) => !c.order_id && c.status === "aberta");
   };
 
-  // Helper: comandas elegíveis para a fila do caixa.
-  // Inclui:
-  //  - 'em_cobranca' (já abertas no caixa)
-  //  - 'aberta' que tenham ao menos um item enviado à cozinha
-  //    (descarta comandas vazias / só rascunho local).
-  // Mantém 'aguardando_pagamento' por compatibilidade com comandas legadas.
-  const getPendingPaymentComandas = () => {
-    const sentByComanda = new Set<string>();
-    comandaItems.forEach((it) => {
-      if (it.sent_to_kitchen_at && !(it as any).is_composite_child) {
-        sentByComanda.add(it.comanda_id);
-      }
-    });
-    return comandas.filter((c) => {
-      if (c.status === "em_cobranca" || c.status === "aguardando_pagamento") return true;
-      if (c.status === "aberta" && sentByComanda.has(c.id)) return true;
-      return false;
-    });
-  };
+  const getPendingPaymentComandas = () => billableComandas(comandas, comandaItems);
 
   // Helper: comandas pendentes de pagamento de uma mesa específica
   const getPendingComandasByOrderId = (orderId: string | null | undefined) => {

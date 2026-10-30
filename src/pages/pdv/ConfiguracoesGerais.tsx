@@ -4,7 +4,7 @@ import {
   DollarSign, FileText, Plug, Shield, Clock, Palette, CreditCard, Bell,
   Package, Warehouse, ChefHat, Users, UserCheck, BarChart3, GitBranch,
   ShoppingBag, Smartphone, TrendingUp, Hash, MessageSquare, ShieldCheck,
-  Scale, Landmark, AlertCircle, MapPin, KeyRound, Receipt,
+  Scale, Landmark, AlertCircle, MapPin, KeyRound, Receipt, Gift,
 } from "lucide-react";
 import { GeneralTab } from "@/components/pdv/settings/GeneralTab";
 import { VisualTab } from "@/components/pdv/settings/VisualTab";
@@ -22,6 +22,7 @@ import { usePDVSettings } from "@/hooks/use-pdv-settings";
 import { CategoryLayout, type SidebarItem } from "@/pages/pdv/settings/CategoryLayout";
 import { SettingsHome } from "@/pages/pdv/settings/SettingsHome";
 import { cn } from "@/lib/utils";
+import { CashbackSettingsCard } from "@/components/pdv/settings/CashbackSettingsCard";
 
 // ── Admin quick links ────────────────────────────────────────────────────────
 const ADMIN_LINKS = [
@@ -77,6 +78,7 @@ function FrenteCaixaPage() {
     { id: "operacao",    label: "Operação",    icon: ShoppingBag, type: "switch" },
     { id: "visual",      label: "Visual",      icon: Palette,     type: "switch" },
     { id: "pagamentos",  label: "Pagamentos",  icon: CreditCard,  type: "switch" },
+    { id: "cashback", label: "Cashback", icon: Gift, type: "switch" },
     { id: "notificacoes",label: "Notificações",icon: Bell,        type: "switch" },
   ];
 
@@ -98,6 +100,7 @@ function FrenteCaixaPage() {
           {section === "operacao"     && <OrdersTab {...commonProps} />}
           {section === "visual"       && <VisualTab />}
           {section === "pagamentos"   && <FinancialTab {...commonProps} />}
+          {section === "cashback"     && <CashbackSettingsCard />}
           {section === "notificacoes" && <NotificationsTab {...commonProps} />}
         </div>
       )}

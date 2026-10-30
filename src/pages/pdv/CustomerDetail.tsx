@@ -1,16 +1,23 @@
 import { useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Phone, Mail, FileText, Calendar, Store, Truck, Package, Clock } from "lucide-react";
 import { usePDVCustomers, useUpdateCustomer } from "@/hooks/use-pdv-customers";
-import { useCustomerOrders } from "@/hooks/use-customer-orders";
-import { CustomerDialog } from "@/components/pdv/CustomerDialog";
+import { CustomerDialog, type CustomerFormData } from "@/components/pdv/CustomerDialog";
+import { CustomerCashbackBadge } from "@/components/pdv/CustomerCashbackBadge";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { brazilDate, whatsappCustomerUrl } from "@/lib/customer-consumption";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatBRL } from "@/lib/format";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const statusLabels: Record<string, string> = {
+  fechada: "Paga",
+  fechado: "Pago",
+  completed: "Concluído",
   open: "Aberto",
   preparing: "Preparando",
   ready: "Pronto",
@@ -36,15 +43,15 @@ const statusColors: Record<string, string> = {
 
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const source = (searchParams.get("source") as "pdv" | "delivery") || "pdv";
   const navigate = useNavigate();
-  const { customers } = usePDVCustomers();
+  const { customers, isLoading, customersError, consumptionError, cashbackError, refetchCustomers, refetchCashback } = usePDVCustomers();
   const updateCustomer = useUpdateCustomer();
   const [editOpen, setEditOpen] = useState(false);
+  const [historyChannel, setHistoryChannel] = useState("all");
 
   const customer = customers.find((c) => c.id === id);
-  const { data: orders = [], isLoading: loadingOrders } = useCustomerOrders(id, source);
+
+  if (isLoading) return <p className="p-6">Carregando cliente e histórico…</p>;
 
   if (!customer) {
     return (
@@ -52,19 +59,24 @@ export default function CustomerDetail() {
         <Button variant="ghost" onClick={() => navigate("/pdv/clientes")}>
           <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
         </Button>
-        <p className="text-muted-foreground">Cliente não encontrado.</p>
+        <p className="text-muted-foreground">{customersError ? "Não foi possível carregar o cliente." : "Cliente não encontrado."}</p>
+        {customersError && <Button onClick={() => refetchCustomers()}>Tentar novamente</Button>}
       </div>
     );
   }
 
-  const handleEditSubmit = (data: any) => {
+  const source = customer.source;
+  const handleEditSubmit = (data: CustomerFormData) => {
     updateCustomer.mutate(
       { id: customer.id, updates: { name: data.name, phone: data.phone || null, cpf: data.cpf || null, email: data.email || null, birth_date: data.birth_date || null, notes: data.notes || null } },
       { onSuccess: () => setEditOpen(false) }
     );
   };
 
-  const SourceIcon = source === "pdv" ? Store : Truck;
+  const whatsapp = whatsappCustomerUrl(customer.phone);
+  const orders = customer.consumptions.filter((row) => historyChannel === "all" || row.canal === historyChannel).map((row) => ({
+    id: row.referencia, source: row.canal, order_number: row.numero, total: row.valor, created_at: row.data_consumo, status: row.status,
+  }));
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto animate-fade-in">
@@ -76,10 +88,10 @@ export default function CustomerDetail() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{customer.name}</h1>
-            <Badge variant="secondary" className="gap-1 mt-1">
-              <SourceIcon className="h-3 w-3" />
-              {source === "pdv" ? "PDV" : "Delivery"}
-            </Badge>
+            <div className="flex gap-1 mt-1">{customer.channels.map((channel) => <Badge key={channel} variant="secondary" className="gap-1">
+              {channel === "pdv" ? <Store className="h-3 w-3" /> : <Truck className="h-3 w-3" />}
+              {channel === "pdv" ? "Salão" : "Delivery"}
+            </Badge>)}</div>
           </div>
         </div>
         {source === "pdv" && (
@@ -88,6 +100,11 @@ export default function CustomerDetail() {
           </Button>
         )}
       </div>
+
+      <CustomerCashbackBadge balance={customer.cashback_balance} />
+      {(consumptionError || cashbackError) && <Alert variant="destructive"><AlertDescription>
+        Histórico ou saldo indisponível. <Button variant="outline" size="sm" onClick={() => { refetchCustomers(); refetchCashback(); }}>Tentar novamente</Button>
+      </AlertDescription></Alert>}
 
       {/* Info + Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -99,7 +116,7 @@ export default function CustomerDetail() {
             {customer.phone && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Phone className="h-4 w-4 shrink-0" />
-                <span>{customer.phone}</span>
+                {whatsapp ? <a className="underline underline-offset-2 hover:text-primary" href={whatsapp} target="_blank" rel="noopener noreferrer">{customer.phone} · WhatsApp</a> : <span>{customer.phone}</span>}
               </div>
             )}
             {customer.email && (
@@ -137,6 +154,8 @@ export default function CustomerDetail() {
             <CardTitle className="text-base">Resumo</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Consumo no salão</span><strong>{formatBRL(customer.salon_spent)} · {customer.salon_visits} consumo(s)</strong></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Consumo no delivery</span><strong>{formatBRL(customer.delivery_spent)} · {customer.delivery_visits} pedido(s)</strong></div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total gasto</span>
               <span className="font-semibold text-foreground">
@@ -163,7 +182,7 @@ export default function CustomerDetail() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Pedidos registrados</span>
-              <span className="font-semibold text-foreground">{orders.length}</span>
+              <span className="font-semibold text-foreground">{customer.consumptions.length}</span>
             </div>
           </CardContent>
         </Card>
@@ -176,13 +195,13 @@ export default function CustomerDetail() {
             <Clock className="h-4 w-4" />
             Histórico de Pedidos
           </CardTitle>
+          <Select value={historyChannel} onValueChange={setHistoryChannel}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Canal de consumo" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos os consumos</SelectItem><SelectItem value="pdv">Salão</SelectItem><SelectItem value="delivery">Delivery</SelectItem></SelectContent>
+          </Select>
         </CardHeader>
         <CardContent>
-          {loadingOrders ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-            </div>
-          ) : orders.length === 0 ? (
+          {orders.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">
               Nenhum pedido registrado para este cliente.
             </p>
@@ -192,7 +211,7 @@ export default function CustomerDetail() {
                 const OrderIcon = order.source === "pdv" ? Package : Truck;
                 return (
                   <div
-                    key={order.id}
+                    key={`${order.source}-${order.id}`}
                     className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
                     <div className="shrink-0">
@@ -201,7 +220,7 @@ export default function CustomerDetail() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-sm text-foreground">
-                          Pedido #{order.order_number}
+                          {order.source === "pdv" ? "Comanda" : "Pedido"} #{order.order_number}
                         </span>
                         <Badge variant="outline" className={`text-xs ${statusColors[order.status] || ""}`}>
                           {statusLabels[order.status] || order.status}
@@ -212,7 +231,7 @@ export default function CustomerDetail() {
                           ? format(new Date(order.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
                           : "—"}
                         {" · "}
-                        {order.source === "pdv" ? "PDV" : "Delivery"}
+                        {order.source === "pdv" ? "Salão" : "Delivery"}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-foreground shrink-0">
@@ -223,6 +242,19 @@ export default function CustomerDetail() {
               })}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Créditos de cashback do salão</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {customer.cashback_credits.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum crédito emitido. O cashback é gerado após pagar uma comanda com o programa ativo.</p> :
+            customer.cashback_credits.map((credit) => (
+              <div key={credit.id} className="flex flex-wrap justify-between gap-2 border rounded-lg p-3 text-sm">
+                <div><strong>{formatBRL(credit.valor)}</strong><p className="text-muted-foreground">Emitido em {brazilDate(credit.criado_em).split("-").reverse().join("/")}</p></div>
+                <div>Vencimento: {credit.vence_em.split("-").reverse().join("/")}<p className="text-muted-foreground">{credit.restante <= 0 ? "Utilizado" : credit.vence_em < brazilDate() ? `Vencido · ${formatBRL(credit.restante)}` : `Restante: ${formatBRL(credit.restante)}`}</p></div>
+              </div>
+            ))}
         </CardContent>
       </Card>
 

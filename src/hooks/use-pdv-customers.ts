@@ -4,6 +4,9 @@ import { buscarClientesDeliveryDaLoja } from "@/lib/delivery-clientes-loja";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEstablishmentId } from "@/hooks/use-establishment-id";
 import { toast } from "sonner";
+import { telefoneSoNumeros } from "@/lib/telefone";
+import { fetchAll } from "@/lib/reports/fetch-all";
+import { customerActivity, type CustomerActivity, type CustomerConsumption, type CustomerCredit } from "@/lib/customer-consumption";
 
 export interface PDVCustomer {
   id: string;
@@ -21,7 +24,7 @@ export interface PDVCustomer {
   updated_at: string;
 }
 
-export interface UnifiedCustomer {
+export interface UnifiedCustomer extends CustomerActivity {
   id: string;
   name: string;
   phone: string | null;
@@ -34,6 +37,7 @@ export interface UnifiedCustomer {
   last_visit: string | null;
   created_at: string;
   source: "pdv" | "delivery";
+  cashback_balance: number;
 }
 
 export interface CustomerLead {
@@ -47,25 +51,25 @@ export interface CustomerLead {
 }
 
 export function usePDVCustomers() {
-  const { user } = useAuth();
-  const { visibleUserId } = useEstablishmentId();
+  const { visibleUserId, isLoading: loadingOwner } = useEstablishmentId();
 
-  const { data: pdvCustomers = [], isLoading: loadingPdv } = useQuery({
+  const { data: pdvCustomers = [], isLoading: loadingPdv, error: customersError, refetch: refetchCustomers } = useQuery({
     queryKey: ["pdv-customers", visibleUserId],
     queryFn: async () => {
       if (!visibleUserId) throw new Error("Usuário não autenticado");
-      const { data, error } = await supabase
+      return fetchAll<PDVCustomer>((from, to) => supabase
         .from("pdv_customers")
         .select("*")
         .eq("user_id", visibleUserId)
-        .order("name");
-      if (error) throw error;
-      return data as PDVCustomer[];
+        .order("name")
+        .order("id")
+        .range(from, to));
     },
-    enabled: !!visibleUserId,
+    enabled: !!visibleUserId && !loadingOwner,
+    refetchInterval: 60_000,
   });
 
-  const { data: deliveryCustomers = [], isLoading: loadingDelivery } = useQuery({
+  const { data: deliveryCustomers = [], isLoading: loadingDelivery, error: deliveryError, refetch: refetchDelivery } = useQuery({
     queryKey: ["delivery-customers-unified", visibleUserId],
     queryFn: async () => {
       if (!visibleUserId) return [];
@@ -75,8 +79,53 @@ export function usePDVCustomers() {
         String(a.name ?? "").localeCompare(String(b.name ?? ""), "pt-BR"),
       );
     },
-    enabled: !!visibleUserId,
+    enabled: !!visibleUserId && !loadingOwner,
+    refetchInterval: 60_000,
   });
+
+  const { data: cashback = [], isLoading: loadingCashback, error: cashbackError, refetch: refetchCashback } = useQuery({
+    queryKey: ["pdv-customer-cashback", visibleUserId],
+    queryFn: async () => {
+      if (!visibleUserId) return [];
+      return fetchAll((from, to) => supabase
+        .rpc("pdv_clientes_cashback", { p_owner: visibleUserId })
+        .order("telefone")
+        .range(from, to));
+    },
+    enabled: !!visibleUserId && !loadingOwner,
+    refetchInterval: 60_000,
+  });
+  const cashbackByPhone = new Map(cashback.map((credit) => [credit.telefone, Number(credit.saldo)]));
+
+  const { data: consumptions = [], isLoading: loadingConsumption, error: consumptionError, refetch: refetchConsumption } = useQuery({
+    queryKey: ["pdv-customer-consumption", visibleUserId],
+    enabled: !!visibleUserId && !loadingOwner,
+    queryFn: () => fetchAll((from, to) => supabase
+      .rpc("pdv_clientes_consumos", { p_owner: visibleUserId! })
+      .order("data_consumo", { ascending: false }).order("canal").order("referencia").range(from, to)),
+    refetchInterval: 60_000,
+  });
+  const { data: credits = [], isLoading: loadingCredits, error: creditsError, refetch: refetchCredits } = useQuery({
+    queryKey: ["pdv-customer-credits", visibleUserId],
+    enabled: !!visibleUserId && !loadingOwner,
+    queryFn: () => fetchAll((from, to) => supabase
+      .rpc("pdv_clientes_creditos", { p_owner: visibleUserId! })
+      .order("vence_em").order("id").range(from, to)),
+    refetchInterval: 60_000,
+  });
+  const consumptionByPhone = new Map<string, CustomerConsumption[]>();
+  for (const row of consumptions) {
+    const list = consumptionByPhone.get(row.telefone) ?? [];
+    list.push({ ...row, canal: row.canal as CustomerConsumption["canal"], valor: Number(row.valor) });
+    consumptionByPhone.set(row.telefone, list);
+  }
+  const creditsByPhone = new Map<string, CustomerCredit[]>();
+  for (const row of credits) {
+    const list = creditsByPhone.get(row.telefone) ?? [];
+    list.push({ ...row, valor: Number(row.valor), restante: Number(row.restante) });
+    creditsByPhone.set(row.telefone, list);
+  }
+  const deliveryPhones = new Set(deliveryCustomers.map((customer) => telefoneSoNumeros(customer.phone)).filter(Boolean));
 
   const { data: leads = [], isLoading: loadingLeads } = useQuery({
     queryKey: ["customer-leads", visibleUserId],
@@ -93,7 +142,7 @@ export function usePDVCustomers() {
       for (const row of data || []) {
         const key = row.customer_whatsapp;
         const existing = grouped.get(key);
-        const campaignName = (row as any).evaluation_campaigns?.name;
+        const campaignName = (row as unknown as { evaluation_campaigns: { name?: string } | null }).evaluation_campaigns?.name;
         if (existing) {
           existing.evaluation_count++;
           if (campaignName && !existing.campaign_names.includes(campaignName)) {
@@ -113,7 +162,7 @@ export function usePDVCustomers() {
       }
       return Array.from(grouped.values());
     },
-    enabled: !!visibleUserId,
+    enabled: !!visibleUserId && !loadingOwner,
   });
 
   // Unify PDV + Delivery customers, deduplicate by phone (PDV wins)
@@ -122,8 +171,11 @@ export function usePDVCustomers() {
     const result: UnifiedCustomer[] = [];
 
     for (const c of pdvCustomers) {
-      if (c.phone) seenPhones.add(c.phone.replace(/\D/g, ""));
+      const phone = telefoneSoNumeros(c.phone) || c.phone?.replace(/\D/g, "");
+      if (phone) seenPhones.add(phone);
+      const activity = customerActivity(deliveryPhones.has(phone) ? ["pdv", "delivery"] : ["pdv"], consumptionByPhone.get(phone) ?? [], creditsByPhone.get(phone) ?? []);
       result.push({
+        ...activity,
         id: c.id,
         name: c.name,
         phone: c.phone,
@@ -131,19 +183,22 @@ export function usePDVCustomers() {
         email: c.email,
         birth_date: c.birth_date,
         notes: c.notes,
-        total_spent: c.total_spent,
-        visit_count: c.visit_count,
-        last_visit: c.last_visit,
+        total_spent: activity.salon_spent + activity.delivery_spent,
+        visit_count: activity.salon_visits + activity.delivery_visits,
+        last_visit: activity.consumptions[0]?.data_consumo ?? c.last_visit,
         created_at: c.created_at,
         source: "pdv",
+        cashback_balance: cashbackByPhone.get(phone) ?? 0,
       });
     }
 
     for (const d of deliveryCustomers) {
-      const cleanPhone = d.phone?.replace(/\D/g, "") || "";
+      const cleanPhone = telefoneSoNumeros(d.phone) || d.phone?.replace(/\D/g, "") || "";
       if (cleanPhone && seenPhones.has(cleanPhone)) continue;
       if (cleanPhone) seenPhones.add(cleanPhone);
+      const activity = customerActivity(["delivery"], consumptionByPhone.get(cleanPhone) ?? [], creditsByPhone.get(cleanPhone) ?? []);
       result.push({
+        ...activity,
         id: d.id,
         name: d.name,
         phone: d.phone,
@@ -151,20 +206,28 @@ export function usePDVCustomers() {
         email: d.email,
         birth_date: d.birth_date,
         notes: null,
-        total_spent: 0,
-        visit_count: 0,
-        last_visit: null,
+        total_spent: activity.salon_spent + activity.delivery_spent,
+        visit_count: activity.salon_visits + activity.delivery_visits,
+        last_visit: activity.consumptions[0]?.data_consumo ?? null,
         created_at: d.created_at,
         source: "delivery",
+        cashback_balance: cashbackByPhone.get(cleanPhone) ?? 0,
       });
     }
 
     return result;
   })();
 
-  const isLoading = loadingPdv || loadingDelivery || loadingLeads;
+  const isLoading = loadingOwner || loadingPdv || loadingDelivery || loadingLeads || loadingConsumption || loadingCashback || loadingCredits;
 
-  return { customers, leads, isLoading };
+  return {
+    customers, leads, isLoading,
+    customersError: customersError || deliveryError,
+    cashbackError: cashbackError || creditsError,
+    consumptionError,
+    refetchCustomers: () => Promise.all([refetchCustomers(), refetchDelivery(), refetchConsumption()]),
+    refetchCashback: () => Promise.all([refetchCashback(), refetchCredits()]),
+  };
 }
 
 export function useCreateCustomer() {

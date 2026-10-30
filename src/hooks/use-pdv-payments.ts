@@ -199,6 +199,9 @@ export function usePDVPayments() {
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-consumption"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-cashback"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-credits"] });
       toast.success("Pagamento registrado com sucesso!");
     },
     onError: (error) => {
@@ -303,6 +306,9 @@ export function usePDVPayments() {
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-consumption"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-cashback"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-credits"] });
       toast.success("Pagamento da mesa registrado!");
     },
     onError: (error) => {
@@ -475,6 +481,9 @@ export function usePDVPayments() {
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-active"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-cashier-movements"] });
       queryClient.invalidateQueries({ queryKey: ["pdv-tables"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-consumption"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-cashback"] });
+      queryClient.invalidateQueries({ queryKey: ["pdv-customer-credits"] });
       toast.success(res.fullyPaid ? "Comanda paga e fechada!" : "Pagamento parcial registrado");
     },
     onError: (error: any) => {

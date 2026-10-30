@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import {
   Building2, Store, Truck, LayoutDashboard, ShoppingCart,
   DollarSign, FileText, Plug, Shield, ChevronRight, Search,
-  Clock, CreditCard, ChefHat, Zap,
+  Clock, CreditCard, ChefHat, Zap, Gift,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -53,8 +53,8 @@ const CATEGORIES: Category[] = [
     description: "Operação, visual, pagamentos e notificações do PDV",
     icon: Store,
     href: "/pdv/configuracoes-gerais/frente-caixa",
-    keywords: ["pedidos", "visual", "som", "gorjeta", "mesas", "impressão", "notificações"],
-    items: ["Operação e pedidos", "Visual e tema", "Formas de pagamento", "Notificações e sons"],
+    keywords: ["pedidos", "visual", "som", "gorjeta", "mesas", "impressão", "notificações", "cashback"],
+    items: ["Operação e pedidos", "Visual e tema", "Formas de pagamento", "Cashback", "Notificações e sons"],
   },
   {
     id: "delivery",
@@ -122,6 +122,7 @@ const CATEGORIES: Category[] = [
 ];
 
 const QUICK_ACCESS: QuickAccess[] = [
+  { label: "Cashback", icon: Gift, href: "/pdv/configuracoes-gerais/frente-caixa?section=cashback" },
   { label: "Dados do estabelecimento", icon: Building2,    href: "/pdv/configuracoes-gerais/geral" },
   { label: "Horários",                  icon: Clock,       href: "/pdv/configuracoes-gerais/geral" },
   { label: "Fiscal / SEFAZ",            icon: FileText,    href: "/pdv/configuracoes-gerais/fiscal" },
@@ -133,6 +134,7 @@ const QUICK_ACCESS: QuickAccess[] = [
 ];
 
 const SEARCH_INDEX: SearchEntry[] = [
+  { category: "Frente de Caixa", categoryIcon: Gift, section: "Cashback no salão", keywords: ["cashback", "crédito", "percentual", "validade", "fidelidade"], href: "/pdv/configuracoes-gerais/frente-caixa?section=cashback" },
   { category: "Geral", categoryIcon: Building2, section: "Dados do Estabelecimento", keywords: ["cnpj", "nome", "endereço", "telefone", "estabelecimento", "razão social"], href: "/pdv/configuracoes-gerais/geral" },
   { category: "Geral", categoryIcon: Building2, section: "CNPJ e Regime Tributário", keywords: ["cnpj", "regime", "simples nacional", "lucro presumido", "lucro real"], href: "/pdv/configuracoes-gerais/geral" },
   { category: "Geral", categoryIcon: Building2, section: "Horários de Funcionamento", keywords: ["horário", "abertura", "fechamento", "turno", "funcionamento", "semana"], href: "/pdv/configuracoes-gerais/geral" },
