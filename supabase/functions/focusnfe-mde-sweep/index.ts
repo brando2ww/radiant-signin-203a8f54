@@ -10,6 +10,7 @@ import {
   getTenantToken,
   json,
 } from "../_shared/focusnfe-utils.ts";
+import { receivedInvoiceState, focusReceivedAccessError } from "../_shared/focusnfe-received-state.ts";
 
 // Consulta MDe para um único tenant (mesma lógica de focusnfe-mde-consultar).
 async function consultMdeForTenant(service: any, ownerId: string) {
@@ -41,7 +42,7 @@ async function consultMdeForTenant(service: any, ownerId: string) {
       const focusRes = await fetch(url, { headers: { Authorization: basicAuth(token) } });
       if (!focusRes.ok) {
         const body = await focusRes.text();
-        throw new Error(`Focus MDe retornou ${focusRes.status}: ${body}`);
+        throw new Error(focusReceivedAccessError(focusRes.status) ?? `Focus MDe retornou ${focusRes.status}: ${body}`);
       }
       const maxVer = focusRes.headers.get("X-Max-Version") || version;
       const notes: any[] = await focusRes.json();
@@ -65,11 +66,10 @@ async function consultMdeForTenant(service: any, ownerId: string) {
         const cnpjEmit = String(note.documento_emitente || note.cnpj_emitente || "").replace(/\D/g, "");
         const valorTotal = Number(note.valor_total ?? note.valor ?? 0);
         const nomeEmit = note.nome_emitente || note.razao_social_emitente || "";
-        const situacaoMde = note.situacao_manifesto || note.situacao || "pendente";
 
         const { data: existing, error: selErr } = await service
           .from("pdv_invoices")
-          .select("id, source, mde_status")
+          .select("id, source, mde_status, mde_nfe_completa")
           .eq("user_id", ownerId)
           .eq("invoice_key", chave)
           .maybeSingle();
@@ -90,7 +90,7 @@ async function consultMdeForTenant(service: any, ownerId: string) {
             invoice_type: "compra",
             status: "pending",
             source: "mde",
-            mde_status: situacaoMde,
+            ...receivedInvoiceState(note),
             mde_raw_payload: note,
             mde_queried_at: new Date().toISOString(),
           }).select("id").maybeSingle();
@@ -109,13 +109,15 @@ async function consultMdeForTenant(service: any, ownerId: string) {
             // (com itens) na próxima distribuição. Evento inócuo, disparado 1x.
             if (note.nfe_completa === false) {
               try {
-                await fetch(`${baseUrl}/v2/nfes_recebidas/${chave}/manifesto`, {
+                const manifesto = await fetch(`${baseUrl}/v2/nfes_recebidas/${chave}/manifesto`, {
                   method: "POST",
                   headers: { Authorization: basicAuth(token), "Content-Type": "application/json" },
                   body: JSON.stringify({ tipo: "ciencia" }),
                 });
-                await service.from("pdv_invoices").update({ mde_status: "ciencia" })
-                  .eq("user_id", ownerId).eq("invoice_key", chave);
+                if (manifesto.ok) {
+                  await service.from("pdv_invoices").update({ mde_status: "ciencia" })
+                    .eq("user_id", ownerId).eq("invoice_key", chave);
+                }
               } catch { /* best-effort */ }
             }
           }
@@ -133,9 +135,7 @@ async function consultMdeForTenant(service: any, ownerId: string) {
               total_invoice: valorTotal,
               // Preserva o status de manifestação já registrado (ciencia/confirmado/…);
               // só atualiza quando ainda não houve manifestação.
-              mde_status: (existing.mde_status && existing.mde_status !== "pendente")
-                ? existing.mde_status
-                : situacaoMde,
+              ...receivedInvoiceState(note, existing),
               mde_raw_payload: note,
               mde_queried_at: new Date().toISOString(),
             })

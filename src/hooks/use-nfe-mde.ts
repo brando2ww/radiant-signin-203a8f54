@@ -15,6 +15,7 @@ export interface NfeMde {
   entry_date?: string | null;
   source?: string | null;
   mde_status?: string | null;
+  mde_nfe_completa?: boolean | null;
   mde_queried_at?: string | null;
   created_at: string;
 }
@@ -63,20 +64,23 @@ export function useMdeLastQuery() {
   const { visibleUserId } = useEstablishmentId();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["mde-last-query", visibleUserId],
+    queryKey: ["mde-last-query", visibleUserId, "with-result"],
     queryFn: async () => {
       if (!visibleUserId) return null;
-      const { data } = await supabase
+      const [{ data }, { data: lastQuery }] = await Promise.all([supabase
         .from("tenant_fiscal_config")
         .select("last_mde_version, last_mde_query_at, cnpj")
         .eq("user_id", visibleUserId)
-        .maybeSingle();
-      return data as MdeLastQuery | null;
+        .maybeSingle(), supabase.from("nfe_mde_query_logs")
+          .select("status, error_message, created_at").eq("user_id", visibleUserId)
+          .order("created_at", { ascending: false }).limit(1).maybeSingle()]);
+      return { config: data as MdeLastQuery | null, lastQuery };
     },
     enabled: !!visibleUserId,
+    refetchInterval: 60_000,
   });
 
-  return { config: data ?? null, isLoading };
+  return { config: data?.config ?? null, lastQuery: data?.lastQuery ?? null, isLoading };
 }
 
 export function useInvalidateNfeMde() {

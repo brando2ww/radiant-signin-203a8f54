@@ -18,9 +18,12 @@ import { exportReport, brandedFromSheets } from "@/lib/reports/branded-export";
 import { useReportBrand } from "@/hooks/use-report-brand";
 import type { ExportKind } from "@/components/pdv/reports/ReportPageHeader";
 import { periodLabel } from "@/components/pdv/reports/ReportShell";
-import { eachDay } from "@/lib/report-period";
-import { fetchPaymentsByOrderIds, brtRange, brtDateKey } from "@/lib/reports-data-source";
+import { fetchPaymentsByOrderIds, brtRange } from "@/lib/reports-data-source";
+import { cancellationDays } from "@/lib/reports/cancellation-days";
 import { fetchCancelledSales, fetchCancelledItems, CATEGORIA_LABEL } from "@/lib/reports/cancellations";
+import { fetchAll } from "@/lib/reports/fetch-all";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface CancelOrder {
   id: string;
@@ -44,25 +47,26 @@ export default function CancellationsReport() {
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
   const [reasonFilter, setReasonFilter] = useState<string>("all");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["report-cancellations-v2", visibleUserId, startDate.toISOString(), endDate.toISOString()],
     enabled: !!visibleUserId,
     queryFn: async () => {
       const { startISO, endISO } = brtRange(startDate, endDate);
 
       // Cancelamento mora na comanda, não no pedido (ver lib/reports/cancellations).
-      const [{ sales, items: cancelItems }, itensAvulsos, closedRes] = await Promise.all([
+      const [{ sales, items: cancelItems }, itensAvulsos, closed] = await Promise.all([
         fetchCancelledSales(visibleUserId!, startISO, endISO),
         fetchCancelledItems(visibleUserId!, startISO, endISO),
-        supabase
+        fetchAll((from, to) => supabase
           .from("pdv_orders")
           .select("id")
           .eq("user_id", visibleUserId!)
           .eq("status", "fechada")
           .gte("opened_at", startISO)
-          .lte("opened_at", endISO),
+          .lte("opened_at", endISO)
+          .order("id")
+          .range(from, to)),
       ]);
-      const closed = closedRes.data || [];
 
       // Base de comparação = receita dos pedidos fechados no período
       const closedPayments = await fetchPaymentsByOrderIds(closed.map((o: any) => o.id));
@@ -114,16 +118,7 @@ export default function CancellationsReport() {
       });
 
       // Per day
-      const days = eachDay(start, end);
-      const byDay = new Map(days.map((d) => [d, { day: d, count: 0, value: 0 }]));
-      orders.forEach((o) => {
-        const t = o.cancelled_at || o.opened_at;
-        const k = t ? brtDateKey(t) : "";
-        if (byDay.has(k)) {
-          const r = byDay.get(k)!;
-          r.count += 1; r.value += o.total;
-        }
-      });
+      const byDay = cancellationDays(orders, startDate, endDate);
 
       // Items in cancelled orders
       const byItem = new Map<string, { name: string; qty: number; value: number }>();
@@ -146,7 +141,7 @@ export default function CancellationsReport() {
         itensValor: itensCancelados.reduce((acc, i) => acc + i.subtotal, 0),
         byReason: Array.from(byReason.values()).sort((a, b) => b.count - a.count),
         byUser: Array.from(byUser.values()).sort((a, b) => b.count - a.count),
-        byDay: Array.from(byDay.values()),
+        byDay,
         byItem: Array.from(byItem.values()).sort((a, b) => b.qty - a.qty).slice(0, 10),
         totalSales,
         totalClosedOrders,
@@ -154,10 +149,10 @@ export default function CancellationsReport() {
     },
   });
 
-  const orders = data?.orders || [];
+  const orders = useMemo(() => data?.orders || [], [data]);
   const itensCancelados = data?.itensCancelados || [];
-  const byReason = data?.byReason || [];
-  const byUser = data?.byUser || [];
+  const byReason = useMemo(() => data?.byReason || [], [data]);
+  const byUser = useMemo(() => data?.byUser || [], [data]);
   const byDay = data?.byDay || [];
   const byItem = data?.byItem || [];
 
@@ -266,9 +261,19 @@ export default function CancellationsReport() {
 
   const reasons = useMemo(() => ["all", ...Array.from(new Set(orders.map((o) => o.reason)))], [orders]);
 
+  if (error) return (
+    <Alert variant="destructive">
+      <AlertTitle>Não foi possível carregar os cancelamentos</AlertTitle>
+      <AlertDescription>
+        <p>Tente novamente para consultar os dados do período.</p>
+        <Button variant="outline" className="mt-2" onClick={() => refetch()}>Tentar novamente</Button>
+      </AlertDescription>
+    </Alert>
+  );
+
   return (
     <div className="space-y-4">
-      <ReportPageHeader title="Cancelamentos" description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por data do cancelamento`} onExport={onExport} exportDisabled={isLoading || orders.length === 0} />
+      <ReportPageHeader title="Cancelamentos" description={`${format(startDate, "dd/MM/yyyy", { locale: ptBR })} a ${format(endDate, "dd/MM/yyyy", { locale: ptBR })} · por data do cancelamento`} onExport={onExport} exportDisabled={isLoading || (orders.length === 0 && itensCancelados.length === 0)} />
       <ReportDateFilter startDate={startDate} endDate={endDate} onChange={(s, e) => { setStartDate(s); setEndDate(e); }} />
 
       <div className="grid gap-3 md:grid-cols-4">

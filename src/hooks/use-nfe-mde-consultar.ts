@@ -41,6 +41,7 @@ export function useNfeMdeConsultar() {
       }
     },
     onError: (err: Error) => {
+      invalidate();
       toast.error(err.message);
     },
   });

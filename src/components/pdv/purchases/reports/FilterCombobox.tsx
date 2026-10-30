@@ -6,6 +6,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { matchesPurchaseSearch } from "@/lib/purchase-reports/search";
 
 export interface ComboOption {
   value: string;
@@ -51,7 +52,7 @@ export function FilterCombobox({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[260px] p-0" align="start">
-          <Command>
+          <Command filter={(value, search) => matchesPurchaseSearch(value, search) ? 1 : 0}>
             <CommandInput placeholder={`Buscar ${label.toLowerCase()}...`} className="h-9" />
             <CommandList>
               <CommandEmpty>Nada encontrado.</CommandEmpty>
@@ -71,7 +72,7 @@ export function FilterCombobox({
                     key={o.value}
                     // O Command filtra pelo `value`: usar o rótulo aqui é o que
                     // faz a busca por nome funcionar (o id seria inútil).
-                    value={o.label}
+                    value={`${o.label} ${o.value}`}
                     onSelect={() => {
                       onChange(o.value);
                       setOpen(false);

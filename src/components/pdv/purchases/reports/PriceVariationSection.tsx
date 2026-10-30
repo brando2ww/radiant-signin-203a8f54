@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -15,6 +15,8 @@ import { ArrowDown, ArrowUp, ChevronDown, LineChart as LineChartIcon } from "luc
 import { formatBRL, formatBRLCompact } from "@/lib/format";
 import { formatDateOnly } from "@/lib/purchase-reports/dates";
 import type { PriceSeries, PriceVariationBlock, PriceVariationRow } from "@/lib/purchase-reports/types";
+import { Input } from "@/components/ui/input";
+import { matchesPurchaseSearch } from "@/lib/purchase-reports/search";
 
 const pct = (v: number | null) =>
   v == null ? "—" : `${v > 0 ? "+" : ""}${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
@@ -111,16 +113,34 @@ export function PriceVariationSection({
   loading: boolean;
   getSeries: (key: string) => PriceSeries | null;
 }) {
-  const [series, setSeries] = useState<PriceSeries | null>(null);
+  const [seriesKey, setSeriesKey] = useState<string | null>(null);
+  const series = seriesKey ? getSeries(seriesKey) : null;
   const [showSuspects, setShowSuspects] = useState(false);
+  const [search, setSearch] = useState("");
+  const priceRows = useMemo(() => {
+    return (block?.rows ?? [])
+      .filter((r) => matchesPurchaseSearch(`${r.ingredient_name} ${r.last_supplier_name ?? ""}`, search))
+      .sort((a, b) => a.ingredient_name.localeCompare(b.ingredient_name, "pt-BR"));
+  }, [block, search]);
 
   if (loading) return <Skeleton className="h-[420px] w-full" />;
   if (!block) return null;
 
-  const openSeries = (row: PriceVariationRow) => setSeries(getSeries(row.key));
+  const openSeries = (row: PriceVariationRow) => setSeriesKey(row.key);
 
   return (
     <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Preço pago por insumo</CardTitle>
+          <p className="text-xs text-muted-foreground">Última compra e histórico de todos os insumos comprados no período, inclusive os que tiveram uma única compra ou não mudaram de preço.</p>
+          <Input aria-label="Buscar preço por insumo ou fornecedor" placeholder="Buscar insumo ou fornecedor…" value={search} onChange={(event) => setSearch(event.target.value)} />
+        </CardHeader>
+        <CardContent>
+          <p className="mb-2 text-xs text-muted-foreground">{priceRows.length} insumo(s) encontrado(s)</p>
+          <VariationTable rows={priceRows} unitLabel="Variação no período" onOpenSeries={openSeries} emptyMessage="Nenhuma compra encontrada para este insumo no período selecionado." />
+        </CardContent>
+      </Card>
       {block.sample.warning && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
           <strong>Amostra pequena:</strong> só {block.sample.comparable} insumo(s) têm compra
@@ -137,7 +157,7 @@ export function PriceVariationSection({
               Histórico de preço · {series.ingredient_name}{" "}
               <span className="font-normal text-muted-foreground">({series.unit})</span>
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => setSeries(null)}>
+            <Button variant="ghost" size="sm" onClick={() => setSeriesKey(null)}>
               Fechar
             </Button>
           </CardHeader>

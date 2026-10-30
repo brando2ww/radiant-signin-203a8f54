@@ -42,6 +42,7 @@ export default function PurchaseReports() {
   const [supplierId, setSupplierId] = useState<string>(ALL);
   const [category, setCategory] = useState<string>(ALL);
   const [ingredientCategory, setIngredientCategory] = useState<string>(ALL);
+  const [ingredientId, setIngredientId] = useState<string>(ALL);
   const [tab, setTab] = useState("price");
   const [exporting, setExporting] = useState(false);
 
@@ -54,8 +55,9 @@ export default function PurchaseReports() {
       supplierIds: supplierId === ALL ? undefined : [supplierId],
       supplierCategories: category === ALL ? undefined : [category],
       ingredientCategories: ingredientCategory === ALL ? undefined : [ingredientCategory],
+      ingredientIds: ingredientId === ALL ? undefined : [ingredientId],
     }),
-    [start, end, supplierId, category, ingredientCategory],
+    [start, end, supplierId, category, ingredientCategory, ingredientId],
   );
 
   const { data, suppliers, ingredients, isLoading, error, priceSeries } =
@@ -139,6 +141,14 @@ export default function PurchaseReports() {
         }}
         extra={
           <div className="ml-auto flex flex-wrap items-end gap-3">
+            <FilterCombobox
+              label="Insumo do estoque"
+              value={ingredientId}
+              allLabel="Todos os insumos"
+              options={[...ingredients].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")).map((i) => ({ value: i.id, label: i.name }))}
+              onChange={setIngredientId}
+              width="w-[240px]"
+            />
             <FilterCombobox
               label="Fornecedor"
               value={supplierId}

@@ -25,6 +25,11 @@ scp supabase/functions/<nome>/index.ts kvmnexcharge:/opt/sb/velara-pdv/volumes/f
 O runtime lê o arquivo novo sozinho, mas um worker que já estava de pé segue
 com o código antigo por até 150 s (`workerTimeoutMs`).
 
+Ao atualizar uma função que importa arquivos de `_shared/`, copie primeiro as
+dependências compartilhadas. As três funções de notas recebidas usam
+`_shared/focusnfe-received-state.ts` para preservar a manifestação e registrar
+quando o XML completo já está disponível.
+
 O servidor guarda as funções no formato baixado da nuvem (sem tipos e
 reformatado). Comparando o código de 24/10/2026, todas batem com este
 repositório. Só no servidor ficaram `hello` (exemplo) e
@@ -84,3 +89,15 @@ valor do consumo. A autorização exige vínculo com a loja e `view_history`.
 `node scripts/test-historico-comandas.mjs` valida isolamento, permissões,
 paginação acima de 1000 registros, datas, dados antigos e valores de cobrança
 em um PostgreSQL descartável.
+
+## Notas recebidas e relatórios de compras
+
+`20261026170000_mde_estado_documentos.sql` recupera o indicador de XML completo
+a partir do payload já recebido da Focus, sem baixar notas ou movimentar
+estoque e financeiro. A rotina horária e a consulta manual mantêm esse campo
+atualizado e preservam manifestações finais já registradas.
+
+`node scripts/test-report-fixes.mjs` verifica consulta de preços estáveis e de
+compra única, filtro de insumo, evolução diária de cancelamentos, estados das
+notas e falhas de acesso na Focus. O teste da recuperação usa PostgreSQL local
+descartável e requer `initdb`, `pg_ctl` e `psql` no PATH.

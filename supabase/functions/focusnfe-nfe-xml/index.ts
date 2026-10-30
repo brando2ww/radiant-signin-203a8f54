@@ -6,6 +6,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   authedOwner, basicAuth, corsHeaders, focusBaseUrl, getServiceClient, getTenantToken, json,
 } from "../_shared/focusnfe-utils.ts";
+import { focusReceivedAccessError } from "../_shared/focusnfe-received-state.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -23,26 +24,44 @@ Deno.serve(async (req) => {
   const base = focusBaseUrl(tk.ambiente);
   const authz = basicAuth(tk.token);
   const service = getServiceClient();
+  const { data: invoice, error: invoiceError } = await service.from("pdv_invoices")
+    .select("id, mde_status").eq("user_id", auth.ownerId).eq("invoice_key", chave).maybeSingle();
+  if (invoiceError) return json({ error: "Não foi possível consultar a nota." }, 500);
+  if (!invoice) return json({ error: "Nota não encontrada neste estabelecimento." }, 404);
+  const markComplete = async () => {
+    const { error } = await service.from("pdv_invoices")
+      .update({ mde_nfe_completa: true, mde_queried_at: new Date().toISOString() }).eq("id", invoice.id);
+    if (error) throw new Error("Não foi possível atualizar a disponibilidade do XML.");
+  };
 
   // 1) tenta baixar o XML
   const r = await fetch(`${base}/v2/nfes_recebidas/${chave}.xml`, { headers: { Authorization: authz } });
   const xml = await r.text();
+  const accessError = focusReceivedAccessError(r.status);
+  if (accessError) return json({ error: accessError }, 502);
   const isFull = r.ok && /<nfeProc|<infNFe|<det\b/.test(xml);
 
   if (isFull) {
+    await markComplete();
     return json({ complete: true, xml });
   }
 
+  if (["desconhecido", "nao_realizado"].includes(invoice.mde_status)) {
+    return json({ complete: false, message: "Esta nota já possui manifestação final e o XML completo ainda não está disponível na Focus NFe." });
+  }
+
   // 2) resumo → dispara Ciência da Operação (libera o documento completo)
-  let cienciaOk = false;
+  let cienciaOk = invoice.mde_status === "ciencia" || invoice.mde_status === "confirmado";
   let cienciaErro = "";
-  try {
+  if (!cienciaOk) try {
     const m = await fetch(`${base}/v2/nfes_recebidas/${chave}/manifesto`, {
       method: "POST",
       headers: { Authorization: authz, "Content-Type": "application/json" },
       body: JSON.stringify({ tipo: "ciencia" }),
     });
     cienciaOk = m.ok;
+    const manifestAccessError = focusReceivedAccessError(m.status);
+    if (manifestAccessError) return json({ error: manifestAccessError }, 502);
     if (!m.ok) cienciaErro = (await m.text()).slice(0, 300);
   } catch (e) {
     cienciaErro = String(e);
@@ -72,6 +91,8 @@ Deno.serve(async (req) => {
         headers: { Authorization: authz },
       });
       const x2 = await r2.text();
+      const retryAccessError = focusReceivedAccessError(r2.status);
+      if (retryAccessError) return json({ error: retryAccessError }, 502);
       if (r2.ok && /<nfeProc|<infNFe|<det\b/.test(x2)) xmlFinal = x2;
     }
   }
@@ -81,13 +102,14 @@ Deno.serve(async (req) => {
     .update({
       // O status do manifesto é o que estamos mexendo aqui; a situação da nota
       // (autorizada/cancelada) vive em `status` e não pode ser sobrescrita.
-      mde_status: cienciaOk ? "ciencia" : "pendente",
+      mde_status: invoice.mde_status === "confirmado" ? "confirmado" : cienciaOk ? "ciencia" : invoice.mde_status || "pendente",
       mde_queried_at: new Date().toISOString(),
     })
     .eq("user_id", auth.ownerId)
     .eq("invoice_key", chave);
 
   if (xmlFinal) {
+    await markComplete();
     return json({ complete: true, xml: xmlFinal, ciencia: true });
   }
 

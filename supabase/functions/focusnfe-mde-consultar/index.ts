@@ -9,6 +9,7 @@ import {
   getTenantToken,
   json,
 } from "../_shared/focusnfe-utils.ts";
+import { receivedInvoiceState, focusReceivedAccessError } from "../_shared/focusnfe-received-state.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -50,7 +51,7 @@ Deno.serve(async (req) => {
       const focusRes = await fetch(url, { headers: { Authorization: basicAuth(token) } });
       if (!focusRes.ok) {
         const body = await focusRes.text();
-        throw new Error(`Focus MDe retornou ${focusRes.status}: ${body}`);
+        throw new Error(focusReceivedAccessError(focusRes.status) ?? `Focus MDe retornou ${focusRes.status}: ${body}`);
       }
       const maxVer = focusRes.headers.get("X-Max-Version") || version;
       const notes: any[] = await focusRes.json();
@@ -75,19 +76,10 @@ Deno.serve(async (req) => {
         const cnpjEmit = String(note.documento_emitente || note.cnpj_emitente || "").replace(/\D/g, "");
         const valorTotal = Number(note.valor_total ?? note.valor ?? 0);
         const nomeEmit = note.nome_emitente || note.razao_social_emitente || "";
-        // `situacao` é o estado da NOTA (autorizada, cancelada) e não do
-        // manifesto. Usá-lo como fallback gravava "autorizada" em mde_status,
-        // o que quebrava os filtros da tela e escondia quais notas ainda
-        // precisavam de ciência.
-        const situacaoMde = note.manifestacao_destinatario || note.situacao_manifesto || "pendente";
-        // A Focus diz se o documento completo já foi distribuído. É o que
-        // separa "dá para dar entrada" de "só existe o resumo".
-        const nfeCompleta = note.nfe_completa === true;
-
         // Deduplicar por chave de acesso
         const { error: upsertError, data: existing } = await service
           .from("pdv_invoices")
-          .select("id, source")
+          .select("id, source, mde_status, mde_nfe_completa")
           .eq("user_id", ownerId)
           .eq("invoice_key", chave)
           .maybeSingle();
@@ -109,8 +101,7 @@ Deno.serve(async (req) => {
             invoice_type: "compra",
             status: "pending",
             source: "mde",
-            mde_status: situacaoMde,
-            mde_nfe_completa: nfeCompleta,
+            ...receivedInvoiceState(note),
             mde_raw_payload: note,
             mde_queried_at: new Date().toISOString(),
           });
@@ -126,8 +117,7 @@ Deno.serve(async (req) => {
               supplier_name: nomeEmit,
               total_products: valorTotal,
               total_invoice: valorTotal,
-              mde_status: situacaoMde,
-              mde_nfe_completa: nfeCompleta,
+              ...receivedInvoiceState(note, existing),
               mde_raw_payload: note,
               mde_queried_at: new Date().toISOString(),
             })

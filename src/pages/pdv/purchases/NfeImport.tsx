@@ -18,8 +18,9 @@ import { NfeEntryDialog } from "@/components/pdv/purchases/NfeEntryDialog";
 import { QuickPurchaseDialog } from "@/components/pdv/purchases/QuickPurchaseDialog";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useNfeMde, useMdeLastQuery } from "@/hooks/use-nfe-mde";
+import { useNfeMde, useMdeLastQuery, useInvalidateNfeMde } from "@/hooks/use-nfe-mde";
 import { useNfeMdeConsultar } from "@/hooks/use-nfe-mde-consultar";
+import { mdeSyncErrorMessage } from "@/lib/nfe-mde-status";
 
 const MDE_STATUS_LABELS: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pendente: { label: "Pendente", variant: "secondary" },
@@ -55,8 +56,9 @@ function formatCnpj(cnpj: string) {
 
 export default function NfeImport() {
   const { invoices, isLoading } = useNfeMde();
-  const { config } = useMdeLastQuery();
+  const { config, lastQuery } = useMdeLastQuery();
   const consultar = useNfeMdeConsultar();
+  const invalidate = useInvalidateNfeMde();
 
   // Dar entrada a partir da nota do MDe: baixa o XML completo na Focus, parseia
   // e abre o mesmo assistente do upload manual. É ele que faz a entrada de
@@ -71,7 +73,12 @@ export default function NfeImport() {
       const { data, error } = await supabase.functions.invoke("focusnfe-nfe-xml", {
         body: { chave },
       });
-      if (error) throw error;
+      if (error) {
+        const detail = await error.context?.json?.().catch(() => null);
+        throw new Error(detail?.error || error.message);
+      }
+      if (data?.error) throw new Error(data.error);
+      invalidate();
       if (!data?.complete || !data.xml) {
         // Antes da manifestação a SEFAZ devolve só o resumo. A função já emite
         // a ciência e força uma nova distribuição; quando mesmo assim não vem,
@@ -84,8 +91,10 @@ export default function NfeImport() {
             action: {
               label: "Sincronizar e tentar",
               onClick: async () => {
-                await consultar.mutateAsync();
-                darEntrada(chave);
+                try {
+                  await consultar.mutateAsync();
+                  await darEntrada(chave);
+                } catch { /* a consulta já apresenta o erro ao operador */ }
               },
             },
           },
@@ -96,7 +105,7 @@ export default function NfeImport() {
       setEntradaAberta(true);
     } catch (e) {
       console.error(e);
-      toast.error("Não foi possível baixar o XML desta nota.");
+      toast.error(e instanceof Error ? e.message : "Não foi possível baixar o XML desta nota.");
     } finally {
       setBaixandoChave(null);
     }
@@ -165,7 +174,7 @@ export default function NfeImport() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Última consulta
+              Última consulta bem-sucedida
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -189,6 +198,16 @@ export default function NfeImport() {
           </CardContent>
         </Card>
       </div>
+
+      {lastQuery?.status === "error" && (
+        <div role="alert" className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <p>{mdeSyncErrorMessage(lastQuery.error_message)}</p>
+            <p className="mt-1 text-xs">Última tentativa: {format(parseISO(lastQuery.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</p>
+          </div>
+        </div>
+      )}
 
       {!hasConfig && (
         <div className="flex items-start gap-3 rounded-md border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
@@ -301,10 +320,14 @@ export default function NfeImport() {
                           )}
                           Dar entrada
                         </Button>
-                      ) : nfe.mde_status === "ciencia" ? (
-                        <span className="text-xs text-muted-foreground" title="A ciência já foi registrada. O SEFAZ libera o XML completo numa distribuição posterior.">
-                          Ciência emitida · aguardando o SEFAZ
-                        </span>
+                      ) : nfe.mde_status === "ciencia" || nfe.mde_status === "confirmado" ? (
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-xs text-muted-foreground">{nfe.mde_status === "confirmado" ? "Manifestação confirmada" : "Ciência emitida"} · XML ainda não sincronizado</span>
+                          <Button size="sm" variant="outline" disabled={baixandoChave === nfe.invoice_key} onClick={() => darEntrada(nfe.invoice_key)}>
+                            {baixandoChave === nfe.invoice_key && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Verificar XML
+                          </Button>
+                        </div>
                       ) : (
                         <Button
                           size="sm"
