@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +16,7 @@ import { TransferItemsDialog } from "@/components/pdv/transfer/TransferItemsDial
 import { toast } from "sonner";
 
 export default function ComandasPage() {
+  const navigate = useNavigate();
   const {
     comandas,
     comandaItems,
@@ -166,13 +168,13 @@ export default function ComandasPage() {
           />
         </div>
 
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={(value) => value === "fechadas" ? navigate("/pdv/caixa/historico") : setTab(value)}>
           <TabsList>
             <TabsTrigger value="abertas">
               Abertas ({standaloneComandas.length})
             </TabsTrigger>
             <TabsTrigger value="fechadas">
-              Fechadas ({closedComandas.length})
+              Histórico de fechadas
             </TabsTrigger>
             <TabsTrigger value="canceladas">
               Canceladas ({cancelledComandas.length})

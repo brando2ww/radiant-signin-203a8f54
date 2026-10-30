@@ -90,6 +90,7 @@ const sectionItems: Section[] = [
       { title: "Salão", url: "/pdv/salao", icon: Armchair },
       
       { title: "Caixa", url: "/pdv/caixa", icon: DollarSign },
+      { title: "Histórico de comandas", url: "/pdv/caixa/historico", icon: Clock },
       { title: "Mesa Digital (QR)", url: "/pdv/mesa-digital", icon: QrCode },
       
     ],

@@ -47,6 +47,7 @@ import DeliveryReports from "./pdv/delivery/Reports";
 import DeliveryLoyalty from "./pdv/delivery/Loyalty";
 import DeliveryDrivers from "./pdv/delivery/Drivers";
 import ComandasPage from "./pdv/Comandas";
+import ComandaHistory from "./pdv/ComandaHistory";
 import Quotations from "./pdv/purchases/Quotations";
 import PurchaseOrders from "./pdv/purchases/PurchaseOrders";
 import PurchaseReports from "./pdv/purchases/PurchaseReports";
@@ -155,6 +156,7 @@ export default function PDV() {
               <Route path="salao" element={<RoleRoute path="/pdv/salao" canAccess={canAccess} defaultRoute={defaultRoute}><PDVSalon /></RoleRoute>} />
               
               <Route path="caixa" element={<RoleRoute path="/pdv/caixa" canAccess={canAccess} defaultRoute={defaultRoute}><PDVCashier /></RoleRoute>} />
+              <Route path="caixa/historico" element={<RoleRoute path="/pdv/caixa" canAccess={canAccess} defaultRoute={defaultRoute}><ComandaHistory /></RoleRoute>} />
               
               <Route path="comandas" element={<RoleRoute path="/pdv/comandas" canAccess={canAccess} defaultRoute={defaultRoute}><ComandasPage /></RoleRoute>} />
               

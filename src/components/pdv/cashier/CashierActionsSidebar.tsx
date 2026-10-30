@@ -1,5 +1,8 @@
-import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Printer, Wallet, Ticket, UserCheck } from "lucide-react";
+import { Unlock, Lock, TrendingUp, TrendingDown, HelpCircle, Printer, Wallet, Ticket, UserCheck, History } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { QrCode } from "lucide-react";
+import { useUserRole } from "@/hooks/use-user-role";
 
 interface CashierActionsSidebarProps {
   isOpen: boolean;
@@ -13,6 +16,7 @@ interface CashierActionsSidebarProps {
   onQuickExpense?: () => void;
   onOpenCoupons?: () => void;
   onOpenEmployeeAccounts?: () => void;
+  canViewHistory?: boolean;
 }
 
 export function CashierActionsSidebar({
@@ -27,12 +31,16 @@ export function CashierActionsSidebar({
   onQuickExpense,
   onOpenCoupons,
   onOpenEmployeeAccounts,
+  canViewHistory,
 }: CashierActionsSidebarProps) {
+  const { canAccess } = useUserRole();
   return (
     <div className="flex flex-col gap-2 h-full overflow-y-auto">
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">
         Ações Rápidas
       </h3>
+      {canViewHistory && <Button asChild variant="outline" className="gap-2 shrink-0"><Link to="/pdv/caixa/historico"><History className="h-4 w-4" />Histórico de comandas</Link></Button>}
+      {canAccess("/pdv/mesa-digital") && <Button asChild variant="outline" className="gap-2 shrink-0"><Link to="/pdv/mesa-digital"><QrCode className="h-4 w-4" />QR Code das mesas</Link></Button>}
 
       {!isOpen ? (
         <>

@@ -27,8 +27,10 @@ import { usePDVComandasRealtime } from "@/hooks/use-pdv-comandas-realtime";
 import { usePDVCashierRealtime } from "@/hooks/use-pdv-cashier-realtime";
 import { usePDVDeliveryQueue } from "@/hooks/use-pdv-delivery-queue";
 import { usePDVOrders } from "@/hooks/use-pdv-orders";
+import { usePDVPermissions } from "@/hooks/use-pdv-permissions";
 
 export default function PDVCashier() {
+  const { can, isLoading: loadingPermissions } = usePDVPermissions();
   // Realtime: nova comanda do garçom aparece na fila sem reload
   usePDVComandasRealtime();
 
@@ -407,6 +409,7 @@ export default function PDVCashier() {
         <Card className="flex flex-col min-h-0 overflow-hidden">
           <CardContent className="p-3 flex-1 min-h-0 overflow-hidden">
             <CashierActionsSidebar
+              canViewHistory={!loadingPermissions && can("view_history")}
               isOpen={!!activeSession}
               isLoading={isOpeningCashier || isClosingCashier || isAddingMovement}
               onOpenCashier={() => setOpenDialog(true)}

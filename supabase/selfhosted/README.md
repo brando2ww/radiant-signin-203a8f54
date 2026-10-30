@@ -64,3 +64,23 @@ do intervalo desativado. A publicação da migration não ativa nenhuma loja.
 `node scripts/test-clientes-consumo.mjs` testa as permissões reais dos RPCs,
 geração e idempotência dos créditos, datas, canais, filtros e a seleção da fila
 do caixa. A fila inclui comandas com itens salvos, mesmo sem envio à cozinha.
+
+## Histórico de comandas fechadas
+
+`20261028120000_historico_comandas_fechadas.sql` acrescenta dois RPCs somente
+leitura para **Caixa → Histórico de comandas** (`/pdv/caixa/historico`). Inclui
+comandas de mesa e avulsas de qualquer sessão de caixa, busca por cliente,
+telefone, número ou mesa e período de fechamento no horário de São Paulo.
+A paginação acontece no servidor; o total não é limitado às 1000 linhas do
+PostgREST. Os detalhes carregam itens antigos, complementos, cancelamentos e
+pagamentos independentemente das consultas de comandas ativas.
+
+O valor recebido vem dos pagamentos vinculados ao atendimento ou dos movimentos
+vinculados à comanda. As duas fontes não são somadas, pois podem representar a
+mesma venda. Cobranças do atendimento são identificadas como compartilhadas;
+ausência de vínculo antigo não é apresentada como pagamento zero ou como o
+valor do consumo. A autorização exige vínculo com a loja e `view_history`.
+
+`node scripts/test-historico-comandas.mjs` valida isolamento, permissões,
+paginação acima de 1000 registros, datas, dados antigos e valores de cobrança
+em um PostgreSQL descartável.
