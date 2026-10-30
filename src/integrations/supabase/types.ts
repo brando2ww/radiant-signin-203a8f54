@@ -646,6 +646,7 @@ export type Database = {
       }
       checklist_execution_items: {
         Row: {
+          photo_expired_at: string | null
           completed_at: string | null
           execution_id: string
           id: string
@@ -655,6 +656,7 @@ export type Database = {
           value: Json | null
         }
         Insert: {
+          photo_expired_at?: string | null
           completed_at?: string | null
           execution_id: string
           id?: string
@@ -664,6 +666,7 @@ export type Database = {
           value?: Json | null
         }
         Update: {
+          photo_expired_at?: string | null
           completed_at?: string | null
           execution_id?: string
           id?: string
@@ -10344,6 +10347,42 @@ export type Database = {
       pdv_recompute_session_totals: {
         Args: { p_session_id: string }
         Returns: undefined
+      }
+      pdv_clientes_cashback: {
+        Args: { p_owner: string }
+        Returns: { telefone: string; saldo: number; vence_em: string }[]
+      }
+      pdv_historico_comandas: {
+        Args: { p_owner: string; p_de?: string | null; p_ate?: string | null; p_busca?: string; p_offset?: number; p_limit?: number }
+        Returns: Json
+      }
+      evaluation_reward_issue: {
+        Args: { p_evaluation_id: string; p_prize_id?: string | null }
+        Returns: Json
+      }
+      pdv_settings_operacionais: {
+        Args: { p_owner: string }
+        Returns: Json
+      }
+      pdv_historico_comanda_detalhe: {
+        Args: { p_owner: string; p_comanda: string }
+        Returns: Json
+      }
+      pdv_clientes_consumos: {
+        Args: { p_owner: string }
+        Returns: { telefone: string; canal: string; referencia: string; numero: string; data_consumo: string; valor: number; status: string }[]
+      }
+      pdv_clientes_creditos: {
+        Args: { p_owner: string }
+        Returns: { id: string; telefone: string; valor: number; restante: number; vence_em: string; criado_em: string }[]
+      }
+      pdv_cashback_configuracao: {
+        Args: { p_owner: string }
+        Returns: Json
+      }
+      pdv_cashback_configurar: {
+        Args: { p_owner: string; p_ativo: boolean; p_percentual: number; p_validade_dias: number }
+        Returns: Json
       }
       pdv_register_employee_consumption: {
         Args: {
