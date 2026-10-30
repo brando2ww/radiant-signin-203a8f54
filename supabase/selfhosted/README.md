@@ -140,3 +140,42 @@ Validação: `node scripts/test-ajustes-felipe.mjs`,
 `node scripts/test-historico-comandas.mjs` e
 `node --test print-bridge/test/bridge.test.js`. Os testes de navegador verificaram
 reimpressão, atalho QR, emissão/recuperação/intervalo de cupom e redução da foto.
+
+## iFood: vincular uma loja nova
+
+O app do Velara no iFood é centralizado: a loja autoriza o app no portal do
+iFood e a equipe Velara vincula o ID da loja (UUID, o número curto do portal
+não serve) ao tenant em `ifood_merchants`.
+
+O acesso do app fica guardado em `ifood_app_token` por 6 h e é um JWT com a
+lista de lojas autorizadas no momento da emissão (claim `merchant_scope`).
+Loja autorizada depois disso fica fora dessa lista. Se ela for vinculada antes
+de o acesso ser renovado, o polling do iFood responde 403 ("Some polling
+merchants are not authorized") para a requisição inteira e **todas as lojas
+param de receber pedidos** até o acesso vencer.
+
+Ordem segura:
+
+1. Ver se a loja está no acesso atual: decodificar a parte do meio do JWT
+   guardado e procurar `<uuid>:order` e `<uuid>:events` em `merchant_scope`.
+2. Se não estiver, vencer o acesso e deixar a rotina de 30 s renovar:
+   `update ifood_app_token set token_expires_at = now() - interval '1 minute';`
+   Conferir de novo a `merchant_scope`.
+3. Só então vincular: pela tela de integração (super admin) ou inserindo em
+   `ifood_merchants` e preenchendo `ifood_enabled`, `ifood_merchant_id`,
+   `ifood_merchant_name` e `ifood_connected_at` em `pdv_settings`.
+4. Conferir em `net._http_response` que as rodadas de `ifood-orders` seguem
+   com 200 e em `ifood_app_token.last_error` que não há erro.
+
+Loja que autoriza só os módulos `order` e `events` não aparece em
+`GET /merchant/v1.0/merchants` (lista vazia) e dá 403 no detalhe e no status,
+mas recebe pedidos normalmente.
+
+Pendente no código: `link_merchant` renovar o acesso ao vincular e o polling
+renovar e repetir quando o iFood devolver `unauthorizedMerchants`.
+
+Lojas vinculadas (30/10/2026), as duas com aceite automático e praça padrão
+"Delivery":
+
+- Garibaldi · `7947f00d-e0cd-4383-a405-32f2a092a494` · desde 09/09/2026
+- Koten Farroupilha · `f1c2aca2-a6b6-4101-a0ca-5d671e6ce859` · desde 30/10/2026
